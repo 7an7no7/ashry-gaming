@@ -45,6 +45,23 @@ const witIso = (s) => '⁨' + s + '⁩';
 const WIT_TEXT = {
   ar: {
     wit_station: "قسم شرطة العيلة",
+    wit_taboo_title: "🚫 كارت الممنوع: ليك إنت بس",
+    wit_taboo_colors: "ممنوع تقول أي لون",
+    wit_taboo_glasses: "ممنوع تقول نضارة",
+    wit_taboo_similes: "اوصف بتشبيهات بس: «شبه…»، «زي…»",
+    wit_taboo_hair: "ممنوع تقول كلمة «شعر»",
+    wit_taboo_gender: "ممنوع تقول راجل ولا ست",
+    wit_taboo_point: "ممنوع تشاور على وشك ولا على حد",
+    wit_taboo_beard: "ممنوع تقول دقن ولا شنب",
+    wit_taboo_eyes: "ممنوع تقول كلمة «عين»",
+    wit_taboo_three: "كل جملة ٣ كلمات بس",
+    wit_taboo_tv: "🚫 الشاهد معاه كارت ممنوع:",
+    wit_taboo_was: "🚫 كان ممنوع على الشاهد: {rule}",
+    wit_opt_taboo: "🚫 ممنوع تقول…",
+    wit_opt_taboo_hint: "جولة من كل ٣ تقريبًا الشاهد ياخد كارت ممنوع (يشوفه هو والتلفزيون بس): «ممنوع ألوان»، «اوصف بتشبيهات بس»…",
+    wit_opt_harder: "📈 كل جولة أصعب",
+    wit_opt_harder_hint: "الوش بيبان ٨ ثواني، بعدين ٦، بعدين ٥ في آخر تلت اللعبة، والوشوش في الطابور شبه بعض أكتر.",
+    wit_secs: "⏱ {n} ث",
     wit_case_n: "قضية",
     wit_file: "ملف {n}",
     wit_case_q: "القضية: {crime}",
@@ -202,6 +219,23 @@ const WIT_TEXT = {
   },
   en: {
     wit_station: "Family Police Station",
+    wit_taboo_title: "🚫 A forbidden card: just for you",
+    wit_taboo_colors: "Don't say any colour",
+    wit_taboo_glasses: "Don't say glasses",
+    wit_taboo_similes: "Describe with comparisons only: \"like…\", \"looks like…\"",
+    wit_taboo_hair: "Don't say the word \"hair\"",
+    wit_taboo_gender: "Don't say man or woman",
+    wit_taboo_point: "Don't point at your face or at anyone",
+    wit_taboo_beard: "Don't say beard or moustache",
+    wit_taboo_eyes: "Don't say the word \"eyes\"",
+    wit_taboo_three: "Three words a sentence, no more",
+    wit_taboo_tv: "🚫 The witness has a forbidden card:",
+    wit_taboo_was: "🚫 The witness couldn't: {rule}",
+    wit_opt_taboo: "🚫 Don't say…",
+    wit_opt_taboo_hint: "About one round in three the witness gets a forbidden card (only they and the TV see it): \"no colours\", \"comparisons only\"…",
+    wit_opt_harder: "📈 Harder every round",
+    wit_opt_harder_hint: "The face shows 8 seconds, then 6, then 5 in the last third of the game, and the lineup's faces are closer.",
+    wit_secs: "⏱ {n}s",
     wit_case_n: "Case",
     wit_file: "File {n}",
     wit_case_q: "The case: {crime}",
@@ -446,7 +480,7 @@ function witTopHtml(state, clockUntil) {
   const s = state.shared || {};
   return `<div class="wit-top">
       <b class="wit-top__title">🚓 ${escapeHTML(witT('wit_station'))}</b>
-      <span class="wit-pill">${escapeHTML(witT('wit_case_n'))} ${ltrFrac(s.round || 1, s.rounds || 1)}</span>
+      <span class="wit-pill">${escapeHTML(witT('wit_case_n'))} ${ltrFrac(s.round || 1, s.rounds || 1)}${s.settings && s.settings.harder ? ' · ' + escapeHTML(witT('wit_secs', { n: witLookMs(s) / 1000 })) : ''}</span>
       ${clockUntil ? `<span class="wit-pill wit-pill--clock metric" data-wit-clock="${clockUntil}">…</span>` : ''}
     </div>`;
 }
@@ -570,7 +604,8 @@ function witVerdictHtml(state) {
   const n = (s.right || []).length, m = (s.jury || []).length;
   const line = !m ? witT('wit_no_jury') : !n ? witT('wit_nobody') : n === m ? witT('wit_all') : witT('wit_right_n', { n, m });
   const pts = n ? `<div class="wit-verdict__pts">${escapeHTML(witT('wit_pts_team', { n }))}</div>` : '';
-  return `<div class="wit-verdict"><div class="wit-verdict__line">${escapeHTML(line)}</div>${pts}</div>`;
+  const taboo = s.taboo ? `<div class="wit-verdict__taboo">${escapeHTML(witT('wit_taboo_was', { rule: witT('wit_taboo_' + s.taboo) }))}</div>` : '';
+  return `<div class="wit-verdict"><div class="wit-verdict__line">${escapeHTML(line)}</div>${pts}${taboo}</div>`;
 }
 
 /** The chips of the points each one won this round, over the board. */
@@ -732,7 +767,7 @@ function witSig(state) {
   const role = witRole(state);
   // Who has voted is painted in place (witAfter): a juror's vote must not rebuild the lineup under another's finger.
   return ['wit', s.phase, s.round, s.witnessId, s.artistId, role, (s.lineup || []).length, s.realIdx,
-    JSON.stringify(s.board || []), state.youAreHost, !!(state.you && state.you.face), witMine(state), appState.lang,
+    JSON.stringify(s.board || []), state.youAreHost, !!(state.you && state.you.face), (state.you && state.you.taboo) || '', witMine(state), appState.lang,
     // A viewer's frame redraws with the sketch; the artist's own builder is painted in place.
     role === 'artist' ? '' : s.phase === 'draw' ? '' : s.sketchN].join('|');
 }
@@ -774,9 +809,10 @@ function witPhoneBody(state) {
   }
   if (s.phase === 'look') {
     const face = role === 'witness' && state.you && state.you.face;
-    const ring = witRingHtml(s.lookEndsAt, WITNESS_LOOK_MS);
+    const ring = witRingHtml(s.lookEndsAt, witLookMs(s));
     const msg = role === 'witness' ? witT('wit_look_focus') : role === 'artist' ? witT('wit_look_artist', { witness }) : witT('wit_look_others', { witness });
-    return `${witFolderHtml(state, { face, ring })}<div class="wit-side"><div class="wit-msg">${escapeHTML(msg)}</div>${role === 'witness' ? witHintChips() : ''}</div>`;
+    const taboo = role === 'witness' ? witTabooHtml((state.you || {}).taboo) : '';
+    return `${witFolderHtml(state, { face, ring })}<div class="wit-side">${taboo}<div class="wit-msg">${escapeHTML(msg)}</div>${role === 'witness' ? witHintChips() : ''}</div>`;
   }
   if (s.phase === 'draw') {
     if (role === 'artist') {
@@ -793,6 +829,7 @@ function witPhoneBody(state) {
       return `<div class="wit-draw wit-draw--watch">
           ${witMugHtml(s.sketch, witT('wit_plate', { artist }))}
           <div class="wit-side">
+            ${witTabooHtml((state.you || {}).taboo)}
             <div class="wit-msg">${escapeHTML(witT('wit_describe', { artist }))}</div>
             ${witHintChips()}
           </div>
@@ -848,14 +885,38 @@ function witHintChips() {
   return `<div class="wit-hints">${[1, 2, 3, 4, 5].map(i => `<span>${escapeHTML(witT('wit_hint_' + i))}</span>`).join('')}</div>`;
 }
 
+/* --- the lobby's two switches (7 Oct 2026), remembered on the host's phone --------------- */
+function witOpts() { return recallOptions('witness', { taboo: true, harder: false }); }
+function witSetOpt(patch) {
+  rememberOptions('witness', patch);
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+/** «ممنوع تقول…» (827): the card, on the witness's phone and the TV while the face is looked at and described. */
+function witTabooHtml(k, tv) {
+  if (!k) return '';
+  return `<div class="wit-taboo ${tv ? 'wit-taboo--tv' : ''}" role="note"><small>${escapeHTML(witT(tv ? 'wit_taboo_tv' : 'wit_taboo_title'))}</small><b>${escapeHTML(witT('wit_taboo_' + k))}</b></div>`;
+}
+/** The look this round lasts (shorter by thirds with «كل جولة أصعب», 828). */
+const witLookMs = (s) => (s && s.lookMs) || WITNESS_LOOK_MS;
+
 /* --- the room game ----------------------------------------------------------------- */
 ROOM_GAMES.witness = {
   lateJoin: true,     // someone who joins mid-game watches the lineup, and plays the next game
   lobbyOptions(state) {
     if (!state.youAreHost) return '';
-    return `<p class="field__hint" style="text-align:center">${escapeHTML(witT('wit_lobby_hint'))}</p>`;
+    const o = witOpts();
+    const sw = (k, on) => `<label class="switch-row" for="wit-opt-${k}">
+        <span class="field__label">${escapeHTML(witT('wit_opt_' + k))}</span>
+        <span class="switch"><input type="checkbox" id="wit-opt-${k}" role="switch" ${on ? 'checked' : ''} onchange="witSetOpt({ ${k}: this.checked })"><span class="switch__track" aria-hidden="true"></span></span>
+      </label><p class="field__hint">${escapeHTML(witT('wit_opt_' + k + '_hint'))}</p>`;
+    return `<div class="card card--tight wit-lobby">
+        <p class="field__hint" style="text-align:center">${escapeHTML(witT('wit_lobby_hint'))}</p>
+        ${sw('taboo', o.taboo)}${sw('harder', o.harder)}
+      </div>`;
   },
-  startPayload() { return {}; },
+  startPayload() { const o = witOpts(); return { taboo: !!o.taboo, harder: !!o.harder }; },
   actionKey(state) {
     const s = state.shared || {};
     return [roomDealKey(state), s.round, s.phase].join('|');
@@ -998,7 +1059,7 @@ TV_GAMES.witness = {
     const s = state.shared || {};
     const v = s.vote || {};
     return ['witness', roomDealKey(state), s.phase, s.round, s.witnessId, s.artistId, (v.voted || []).join(','), s.realIdx,
-      JSON.stringify(s.board || []), state.youAreHost, appState.lang, s.phase === 'draw' ? '' : s.sketchN].join('|');
+      JSON.stringify(s.board || []), state.youAreHost, appState.lang, s.phase === 'draw' ? '' : s.sketchN, (state.screen && state.screen.taboo) || '', s.taboo || ''].join('|');
   },
   frame(state, t) {
     witFirstSight(state);
@@ -1008,7 +1069,7 @@ TV_GAMES.witness = {
     const artist = witIso(witNameOf(state, s.artistId));
     const head = `<div class="wit-tv__head"><b>🚓 ${escapeHTML(witT('wit_station'))}</b>
         <span>${escapeHTML(witT('wit_case_q', { crime: witT('wit_crime_' + (s.crime || 0)) }))}</span>
-        <span class="wit-pill">${escapeHTML(witT('wit_case_n'))} ${ltrFrac(s.round || 1, s.rounds || 1)}</span></div>`;
+        <span class="wit-pill">${escapeHTML(witT('wit_case_n'))} ${ltrFrac(s.round || 1, s.rounds || 1)}${s.settings && s.settings.harder ? ' · ' + escapeHTML(witT('wit_secs', { n: witLookMs(s) / 1000 })) : ''}</span></div>`;
     const host = (() => {
       if (s.phase === 'ready') return roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(witT('wit_skip'), `roomAct('skipTurn', { round: ${s.round} })`, 'ghost')}</div>`);
       if (s.phase === 'draw') return roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(witT('wit_close_draw'), `roomAct('closeDraw', { round: ${s.round} })`, 'ghost')}</div>`);
@@ -1022,11 +1083,12 @@ TV_GAMES.witness = {
     })();
     let body = '';
     if (s.phase === 'ready' || s.phase === 'look') {
-      const ring = s.phase === 'look' ? witRingHtml(s.lookEndsAt, WITNESS_LOOK_MS, { cls: 'wit-ring--tv' }) : '';
+      const ring = s.phase === 'look' ? witRingHtml(s.lookEndsAt, witLookMs(s), { cls: 'wit-ring--tv' }) : '';
       body = `<div class="wit-tv__stage wit-tv__stage--center">
           ${witFolderHtml(state, { ring, cls: 'wit-folder--tv' })}
           <div class="wit-tv__side">
             <div class="wit-tv__roles">${witRolesHtml(state)}</div>
+            ${s.phase === 'look' ? witTabooHtml((state.screen || {}).taboo, true) : ''}
             <div class="wit-msg">${escapeHTML(s.phase === 'look' ? witT('wit_look_others', { witness }) : witT('wit_ready_wait', { witness }))}</div>
             ${host}
           </div>
@@ -1036,6 +1098,7 @@ TV_GAMES.witness = {
           ${witMugHtml(s.sketch, witT('wit_plate', { artist }), { cls: 'wit-mug--tv' })}
           <div class="wit-tv__side">
             <div class="wit-pill wit-pill--clock wit-pill--big metric" data-wit-clock="${s.drawEndsAt}">…</div>
+            ${witTabooHtml((state.screen || {}).taboo, true)}
             <div class="wit-msg">${escapeHTML(witT('wit_tv_drawing', { artist, witness }))}</div>
             <p class="wit-hint">${escapeHTML(witT('wit_jury_draw'))}</p>
             ${host}

@@ -188,6 +188,45 @@ the jury points).
 
 - **Weights (the owner, 2 Oct 2026, after the first build)**: man/woman, the hair's style and its colour weigh 2, every other feature 1 (`w` in `WITNESS_FEATURES`, Witness.js); the line stays 70%. At equal weights a sketch with the wrong gender, hair colour and glasses still scored 81%. The weights only reached the % on 6 Oct 2026 (the audit: `witnessMatch` had never read `w`): `pct` is weighted, `ok` / `of` (the ticks, «الرسام جاب 12/17») stay counts; `rules.mjs` checks a wrong hair colour costs twice a wrong mouth.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **827 ممنوع تقول…** The owner: a lobby switch, **on by default**; about one
+  round in three gets a taboo card, never two rounds in a row; shown only to
+  the witness and the TV. Built: `shared.settings.taboo` (the host's phone
+  remembers it, `witOpts` / `witSetOpt`, key `witness`; play again keeps it).
+  At the look (`witnessStartLook`), after a round without one, a taboo comes
+  half the time (`WITNESS_TABOO_ODDS` 0.5: one round in three on average;
+  `room._witnessTabooRound` keeps it from two in a row), picked to fit the face
+  (`witnessPickTaboo`, `WITNESS_TABOOS` in `Witness.js`: no colours, no
+  «نضارة» only on a face with glasses, comparisons only, no «شعر» unless a hijab
+  hides it, no man/woman, no pointing, no beard/moustache only on a man with
+  one, no «عين», three words a sentence). It goes in the witness's slice
+  (`{ face, taboo }` at the look, `{ taboo }` while they describe) and the
+  screen's (`room.screenOnly = { taboo }`), never in `shared` until the reveal,
+  where `shared.taboo` tells everyone («🚫 كان ممنوع على الشاهد: …», under the
+  verdict). The card (`witTabooHtml`, `.wit-taboo`: red-ruled, stamped in)
+  is on the witness's phone beside the face and while they describe, and on the
+  TV during the look and the drawing. Its words are in `WIT_TEXT`
+  (`wit_taboo_*`), with the game's other words (not `witness.text.js`, which
+  holds the rules, as the game did since 2 Oct 2026).
+- **828 كل جولة أصعب** The owner: a lobby switch, **off by default** (the
+  owner's 8 s / 6 faces stays the default); on: 8 s, then 6, then 5 by thirds
+  of the game, the look-alikes closer. Built: `shared.settings.harder`; each
+  round's third `shared.tier` (`witnessTier(round, rounds)`) and its look
+  `shared.lookMs` (`WITNESS_HARD_LOOK_MS` 8000 / 6000 / 5000; off, always
+  `WITNESS_LOOK_MS`); the lineup `witnessLineup(rnd, tier)` draws each
+  look-alike's changes from `WITNESS_HARD_CHANGES[tier]` (more of them one
+  change away: the six end up about 3.4 features apart, then 2.3 in the last
+  third). The ring counts the round's own look (`witLookMs`), and the case
+  pill on the phones and the TV says it («قضية 4/6 · ⏱ 6 ث») while the switch is
+  on. Still six faces.
+- Tests: `rules.mjs` ("The witness": the defaults; 300 rounds - about a third
+  with a taboo, never two in a row, only on the witness's slice and the screen
+  during the look and the drawing, fitting the face, told at the reveal; off,
+  none; harder 8, 8, 6, 6, 5, 5 for six rounds; off, 8 s; the last third's
+  lineup closer), `leaks.mjs` (the taboo on no other phone and not in
+  `shared` before the reveal; the driver makes sure round 1 has one).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

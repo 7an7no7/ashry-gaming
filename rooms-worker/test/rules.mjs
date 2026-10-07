@@ -13172,7 +13172,7 @@ Date.now = duelTestClock;
     check(roomDeadline(r) === s.lookEndsAt && s.lookEndsAt - clock >= W.WITNESS_LOOK_MS, 'witness: the look lasts 8 seconds on the server\'s clock');
     tick(r);
     s = r.shared;
-    check(s.phase === 'draw' && !r.secrets[w] && s.sketch && s.sketch.g === 'm' && s.drawEndsAt - clock === W.WITNESS_DRAW_MS, 'witness: after 8 s the face leaves the witness\'s phone; 90 s to draw from a plain face');
+    check(s.phase === 'draw' && !(r.secrets[w] || {}).face && s.sketch && s.sketch.g === 'm' && s.drawEndsAt - clock === W.WITNESS_DRAW_MS, 'witness: after 8 s the face leaves the witness\'s phone; 90 s to draw from a plain face');
     applyRoomAction(r, jury[0], 'sketch', { round: 1, n: 1, face: { g: 'f' } });
     check(s.sketch.g === 'm', 'witness: only the artist draws');
     const copy = Object.assign({}, real);
@@ -13256,6 +13256,74 @@ Date.now = duelTestClock;
     gone(r, w);
     const s = r.shared;
     check(s.phase === 'ready' && s.round === 2 && s.witnessId !== w && !r._witness && !Object.keys(r.secrets).length, 'witness: a witness who leaves while looking: the round is passed over, the face gone');
+  }
+  // «ممنوع تقول…» (the ideas of 7 Oct 2026, 827) and «كل جولة أصعب» (828).
+  {
+    const W2 = new Function(readFileSync(srcPath('GuessWho.js'), 'utf8') + '\n' + readFileSync(srcPath('Witness.js'), 'utf8') + ';return { WITNESS_TABOOS };')();
+    /** Plays a round to its reveal; returns what the taboo was where it may be. */
+    const playRound = (r) => {
+      let s = r.shared;
+      const round = s.round;
+      applyRoomAction(r, s.witnessId, 'ready', { round });
+      const look = { you: (r.secrets[s.witnessId] || {}).taboo || null, screen: (r.screenOnly || {}).taboo || null, face: (r.secrets[s.witnessId] || {}).face,
+        others: Object.keys(r.secrets).filter((id) => id !== s.witnessId).length, inShared: JSON.stringify(s).indexOf('taboo":"') !== -1, ms: s.lookEndsAt - clock };
+      tick(r);
+      s = r.shared;
+      const draw = { you: (r.secrets[s.witnessId] || {}).taboo || null, screen: (r.screenOnly || {}).taboo || null };
+      applyRoomAction(r, s.artistId, 'done', { round });
+      applyRoomAction(r, r.hostId, 'closeVote', { round });
+      s = r.shared;
+      const out = { look, draw, reveal: s.taboo, screenAfter: r.screenOnly, phase: s.phase, tier: s.tier };
+      applyRoomAction(r, r.hostId, 'nextRound', { round });
+      return out;
+    };
+    let rounds = 0, with1 = 0, twice = false, secret = true, shown = true, fits = true, revealed = true;
+    for (let g = 0; g < 50; g++) {
+      const r = witRoom(['a', 'b', 'c', 'd', 'e', 'f']);
+      applyRoomAction(r, 'a', 'start', {});
+      if (g === 0) check(r.shared.settings.taboo === true && r.shared.settings.harder === false, 'witness (827/828): by default the taboo is on, harder off');
+      let last = false;
+      while (r.shared.phase === 'ready') {
+        const x = playRound(r);
+        rounds++;
+        const on = !!x.look.you;
+        if (on) with1++;
+        if (on && last) twice = true;
+        last = on;
+        if (x.look.others || x.look.inShared) secret = false;
+        if (x.look.you !== x.look.screen || x.draw.you !== x.look.you || x.draw.screen !== x.look.you) shown = false;
+        if (x.reveal !== x.look.you || x.screenAfter) revealed = false;
+        if (on) { const t = W2.WITNESS_TABOOS.find((z) => z.k === x.look.you); if (!t || (t.when && !t.when(x.look.face))) fits = false; }
+      }
+    }
+    check(!twice && with1 / rounds > 0.22 && with1 / rounds < 0.45, 'witness (827): about one round in three has a taboo (' + with1 + ' of ' + rounds + '), never two in a row');
+    check(secret && shown, 'witness (827): the taboo is on the witness\'s phone and the screen only, while they look and describe');
+    check(revealed && fits, 'witness (827): it fits the face, and the reveal tells everyone');
+    const off = witRoom(['a', 'b', 'c']);
+    applyRoomAction(off, 'a', 'start', { taboo: false });
+    let none = true;
+    while (off.shared.phase === 'ready') { if (playRound(off).look.you) none = false; }
+    check(none, 'witness (827): switched off, no taboo');
+    // Harder: 8, 6, 5 seconds by thirds; the look-alikes closer.
+    const h = witRoom(['a', 'b', 'c', 'd', 'e', 'f']);
+    applyRoomAction(h, 'a', 'start', { harder: true });
+    const ms = [], tiers = [];
+    while (h.shared.phase === 'ready') { const x = playRound(h); ms.push(x.look.ms - 400); tiers.push(x.tier); }
+    check(ms.join() === '8000,8000,6000,6000,5000,5000' && tiers.join() === '0,0,1,1,2,2', 'witness (828): harder: the look 8, 6, then 5 seconds by thirds of the game');
+    const easy = witRoom(['a', 'b', 'c']);
+    applyRoomAction(easy, 'a', 'start', {});
+    check(playRound(easy).look.ms === 8400, 'witness (828): off, every look is the owner\'s 8 seconds');
+    const KEYS = ['hair', 'style', 'hijab', 'beard', 'mous', 'brows', 'eyes', 'mouth', 'freckles', 'rosy', 'mole', 'wrinkles', 'glasses', 'sun', 'phones', 'cap', 'ear', 'necklace', 'scarf', 'top', 'tie', 'pattern', 'shirt', 'skin'];
+    const spread = (tier) => {
+      let sum = 0, n = 0;
+      for (let k = 0; k < 300; k++) {
+        const L = W.witnessLineup(Math.random, tier);
+        for (let i = 0; i < 6; i++) for (let j = i + 1; j < 6; j++) { sum += KEYS.filter((q) => JSON.stringify(L.faces[i][q] === undefined ? null : L.faces[i][q]) !== JSON.stringify(L.faces[j][q] === undefined ? null : L.faces[j][q])).length; n++; }
+      }
+      return sum / n;
+    };
+    const s0 = spread(0), s2 = spread(2);
+    check(s2 < s0 - 0.3, 'witness (828): the last third\'s lineup is closer (' + s0.toFixed(2) + ' features apart, then ' + s2.toFixed(2) + ')');
   }
 }
 
@@ -15971,7 +16039,7 @@ console.log('• the secret mission');
     check(!r.shared.result.explain && r.shared.nextAt - clock === V.VAULT_BETWEEN_MS, 'vault (801): a clean safe has nothing to explain, 6 s as before');
     const q = vaultRoom(['a', 'b']);
     toPlay(q);
-    const k0 = q.shared.locks[0].i;
+    const k0 = q.shared.locks.find((l) => l.k !== 'wires').i;   // a wire can be cut wrong only so many times
     wrongMove(q, 'x', k0); wrongMove(q, 'x', k0); wrongMove(q, 'x', k0);
     const ex = ((q.shared.result || {}).explain || {}).x || [];
     check(q.shared.phase === 'gameover' && ex.length === q.shared.locks.length, 'vault (801): a lost safe explains every lock left shut, kept on the end card');

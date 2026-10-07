@@ -20,6 +20,30 @@ const WITNESS_LINEUP = 6;
 const WITNESS_LOOK_MS = 8000;      // the owner's 8 seconds
 const WITNESS_DRAW_MS = 90000;     // the owner's 90 seconds, or less when the artist says done
 const WITNESS_VOTE_MS = 45000;     // the jury's clock (decided while building)
+// «كل جولة أصعب» (7 Oct 2026, a lobby switch, off): the look and the look-alikes by thirds of the game.
+const WITNESS_HARD_LOOK_MS = [8000, 6000, 5000];
+const WITNESS_HARD_CHANGES = [[1, 1, 2, 2, 2, 3], [1, 1, 1, 2, 2, 2], [1, 1, 1, 1, 1, 2]];
+/** Which third of the game a round is in (0, 1, 2), for «كل جولة أصعب». */
+const witnessTier = (round, rounds) => Math.max(0, Math.min(2, Math.floor((Math.max(1, round) - 1) * 3 / Math.max(1, rounds))));
+// «ممنوع تقول…» (7 Oct 2026, a lobby switch, on): a card only the witness and the TV see; about one round
+// in three, never two in a row. Each fits the face it is dealt with (`when`); its words are the page's (wit_taboo_<k>).
+const WITNESS_TABOOS = [
+  { k: 'colors' },
+  { k: 'glasses', when: f => !!(f.glasses || f.sun) },
+  { k: 'similes' },
+  { k: 'hair', when: f => !f.hijab },
+  { k: 'gender' },
+  { k: 'point' },
+  { k: 'beard', when: f => f.g === 'm' && !!(f.beard || f.mous) },
+  { k: 'eyes' },
+  { k: 'three' }
+];
+const WITNESS_TABOO_ODDS = 0.5;    // after a round without one: one round in three on average
+/** A taboo that fits this face. */
+const witnessPickTaboo = (face, rnd) => {
+  const ok = WITNESS_TABOOS.filter(x => !x.when || x.when(face || {}));
+  return ok[Math.floor((rnd || Math.random)() * ok.length)].k;
+};
 const WITNESS_CRIMES = 24;         // the family crimes, by number; their words are the page's (wit_crime_0..23), dealt fresh across rooms (nextPrompts)
 
 const WITNESS_STYLES = { m: ['short', 'curly', 'spiky', 'bald'], f: ['long', 'bun', 'curly', 'ponytail', 'braids'] };
@@ -159,8 +183,9 @@ const witnessAlike = (real, rnd, n) => {
  * feature - the centre of the six - and a juror could find it without listening to
  * the witness (the audit of 1 Oct 2026: 99.7% of lineups).
  */
-const witnessLineup = (rnd) => {
+const witnessLineup = (rnd, tier) => {
   const r = rnd || Math.random;
+  const spread = WITNESS_HARD_CHANGES[Math.max(0, Math.min(2, Number(tier) || 0))];
   const g = r() < 0.5 ? 'm' : 'f';
   const base = gwRandomFace(r, g);
   const faces = [];
@@ -168,7 +193,8 @@ const witnessLineup = (rnd) => {
   seen[gwSignature(base)] = true;
   for (let guard = 0; faces.length < WITNESS_LINEUP && guard < 400; guard++) {
     // One change for about a third, two or three for the rest: close, never a copy.
-    const n = [1, 1, 2, 2, 2, 3][Math.floor(r() * 6)];
+    // (closer with «كل جولة أصعب»: more of them one change away)
+    const n = spread[Math.floor(r() * spread.length)];
     const x = witnessAlike(base, r, n);
     if (!x) continue;
     const sig = gwSignature(x);

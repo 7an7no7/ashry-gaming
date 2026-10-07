@@ -49,10 +49,19 @@ const witnessAction = (room, playerId, action, payload) => {
     const roster = people.slice(0, WITNESS_MAX);
     // A crime a round, none twice in a game and the least recently dealt first across rooms (the review of 1 Oct 2026).
     const crimes = nextPrompts(room, Array.from({ length: WITNESS_CRIMES }, (_, i) => i), 'witness_crimes', roster.length);
+    // The two switches (7 Oct 2026): «ممنوع تقول…» on unless the host turns it off, «كل جولة أصعب» off; play again keeps them.
+    const was = prev.settings || {};
+    const settings = {
+      taboo: payload && typeof payload.taboo === 'boolean' ? payload.taboo : (typeof was.taboo === 'boolean' ? was.taboo : true),
+      harder: payload && typeof payload.harder === 'boolean' ? payload.harder : !!was.harder
+    };
     room.secrets = {};
+    room.screenOnly = null;
     room._witness = null;
+    room._witnessTabooRound = -9;
     room._ballots = null;
     room.shared = {
+      settings,
       roster,
       order: shuffled(roster),       // who is the witness, in turn; the artist is the next one here
       turn: -1,
@@ -167,6 +176,12 @@ const witnessStartRound = (room) => {
   s.match = null;
   s.gained = {};
   s.early = false;
+  s.taboo = null;
+  room.screenOnly = null;
+  // «كل جولة أصعب»: the look shorter and the look-alikes closer by thirds of the game.
+  const harder = !!(s.settings && s.settings.harder);
+  s.tier = harder ? witnessTier(s.round, s.rounds) : 0;
+  s.lookMs = harder ? WITNESS_HARD_LOOK_MS[s.tier] : WITNESS_LOOK_MS;
 };
 
 /** The first one here after `id` in the order, going round, who isn't in `not`. */
@@ -183,18 +198,29 @@ const witnessNextAfter = (room, id, not) => {
 /** The face is dealt now, when the witness is ready, and goes to their phone only. */
 const witnessStartLook = (room) => {
   const s = room.shared;
-  const lineup = witnessLineup(Math.random);
-  room._witness = { faces: lineup.faces, real: lineup.real };
+  const lineup = witnessLineup(Math.random, s.tier || 0);
+  const face = lineup.faces[lineup.real];
+  // «ممنوع تقول…»: about one round in three, never two in a row; the witness's phone and the screen only.
+  let taboo = null;
+  if (s.settings && s.settings.taboo && room._witnessTabooRound !== s.round - 1 && Math.random() < WITNESS_TABOO_ODDS) {
+    taboo = witnessPickTaboo(face, Math.random);
+    room._witnessTabooRound = s.round;
+  }
+  room._witness = { faces: lineup.faces, real: lineup.real, taboo };
   room.secrets = {};
-  room.secrets[s.witnessId] = { face: lineup.faces[lineup.real] };
+  room.secrets[s.witnessId] = taboo ? { face, taboo } : { face };
+  room.screenOnly = taboo ? { taboo } : null;
   s.phase = 'look';
-  s.lookEndsAt = Date.now() + WITNESS_LOOK_LEAD_MS + WITNESS_LOOK_MS;
+  s.lookEndsAt = Date.now() + WITNESS_LOOK_LEAD_MS + (s.lookMs || WITNESS_LOOK_MS);
 };
 
 /** The look is over: the face leaves the witness's phone, and the artist has the pencil. */
 const witnessStartDraw = (room) => {
   const s = room.shared;
   room.secrets = {};
+  // The face goes; a taboo stays on the witness's phone while they describe.
+  const taboo = (room._witness || {}).taboo;
+  if (taboo) room.secrets[s.witnessId] = { taboo };
   s.phase = 'draw';
   s.drawEndsAt = Date.now() + WITNESS_DRAW_MS;
   s.sketch = witnessBlank('m');
@@ -228,6 +254,10 @@ const witnessReveal = (room) => {
   const right = Object.keys(ballots).filter(id => ballots[id] === realId);
   s.phase = 'reveal';
   s.realIdx = h.real;
+  // The taboo, for everyone now: the jury laughs at the workaround.
+  s.taboo = h.taboo || null;
+  room.secrets = {};
+  room.screenOnly = null;
   s.voteEndsAt = null;
   // Who picked what, public now: the coins under each suspect.
   s.picks = {};
@@ -261,6 +291,7 @@ const witnessGameOver = (room) => {
   const s = room.shared;
   room._witness = null;
   room.secrets = {};
+  room.screenOnly = null;
   s.phase = 'gameover';
   s.lookEndsAt = s.drawEndsAt = s.voteEndsAt = null;
   s.board = witnessBoard(room);

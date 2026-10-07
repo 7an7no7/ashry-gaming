@@ -964,6 +964,12 @@ const PROBES = {
         if (sv.match) return 'shared.match';
         if (view.you && view.you.face) return 'you.face';
         return null;
+      }),
+      // «ممنوع تقول…» (7 Oct 2026): the taboo on the witness's phone and the screen only, until the reveal.
+      probe("the witness's taboo is on their phone and the screen only, until the reveal", !!h && !!h.taboo && s.phase !== 'reveal', (view, pid) => {
+        if (pid === s.witnessId || pid === SCREEN) return null;
+        if ((view.shared || {}).taboo) return 'shared.taboo';
+        return JSON.stringify(view).indexOf('"taboo":"') !== -1 ? 'the taboo' : null;
       })
     ];
   },
@@ -2466,6 +2472,13 @@ const DRIVERS = {
       if (s.phase === 'ready') {
         if (s.round === 3) { must(T, T.host, 'skipTurn', { round: s.round }); continue; }
         must(T, s.witnessId, 'ready', { round: s.round });
+        // «ممنوع تقول…» comes one round in three: the first round has one for sure, as the server would deal it.
+        if (s.round === 1 && T.room._witness && !T.room._witness.taboo) {
+          T.room._witness.taboo = 'colors';
+          T.room.secrets[s.witnessId] = Object.assign({}, T.room.secrets[s.witnessId], { taboo: 'colors' });
+          T.room.screenOnly = { taboo: 'colors' };
+          scan(T, 'a taboo dealt');
+        }
         continue;
       }
       if (s.phase === 'look') { runClock(T, (r) => r.shared.phase !== 'look', 3); continue; }

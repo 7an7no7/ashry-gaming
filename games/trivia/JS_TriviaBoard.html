@@ -294,10 +294,40 @@ function tbDealBoard(previousIds, withDouble) {
    and its number (مسابقة العيد 1…). The card shows the four answers; «الإجابة» is the
    right one. */
 const TB_QUIZ_PER_BOARD = 25;
+/**
+ * 769 (7 Oct 2026): a quiz with sections («أفلام», «أسئلة عن جدو») - a column a section,
+ * named with it, its questions down the column in order (100, 200…); a section of more
+ * than five goes on in a second column of the same name. Null for a quiz with none.
+ */
+function tbQuizSecCols(quiz) {
+  const qs = (quiz && quiz.questions) || [];
+  if (!qs.some(q => q && q.s)) return null;
+  const groups = [];
+  qs.forEach((q, i) => {
+    if (!groups.length || q.s) groups.push({ name: q.s || '', qs: [] });
+    groups[groups.length - 1].qs.push(i);
+  });
+  const cols = [];
+  groups.forEach(g => { for (let k = 0; k < g.qs.length; k += TB_LEVELS.length) cols.push({ name: g.name, qs: g.qs.slice(k, k + TB_LEVELS.length) }); });
+  return cols;
+}
 function tbQuizRounds(quiz) {
+  const sec = tbQuizSecCols(quiz);
+  if (sec) return Math.max(1, Math.min(4, Math.ceil(sec.length / TB_CATEGORIES_PER_ROUND)));
   return Math.max(1, Math.min(4, Math.ceil(((quiz && quiz.questions) || []).length / TB_QUIZ_PER_BOARD)));
 }
 function tbDealQuizRound(quiz, round) {
+  const sec = tbQuizSecCols(quiz);
+  if (sec) {
+    const part = sec.slice((round - 1) * TB_CATEGORIES_PER_ROUND, round * TB_CATEGORIES_PER_ROUND);
+    const rows = Math.max(1, ...part.map(c => c.qs.length));
+    return part.map((c, k) => ({
+      cat: null, quizCol: (round - 1) * TB_CATEGORIES_PER_ROUND + k, sec: c.name,
+      cells: TB_LEVELS.slice(0, rows).map((points, r) => (r < c.qs.length
+        ? { points: points, q: c.qs[r], team: null, done: false }
+        : { points: points, q: -1, team: null, done: true, blank: true }))
+    }));
+  }
   const from = (round - 1) * TB_QUIZ_PER_BOARD;
   const list = quiz.questions.slice(from, from + TB_QUIZ_PER_BOARD);
   const cols = Math.max(1, Math.min(TB_CATEGORIES_PER_ROUND, list.length));
@@ -317,6 +347,7 @@ function tbDealQuizRound(quiz, round) {
 /** A column's head: its category, or the quiz's title and the column's number. */
 function tbColHead(s, col) {
   if (s && s.quiz && col.cat === null) {
+    if (col.sec) return { icon: s.quiz.emoji || '✍️', name: col.sec };
     const t = tbText();
     const n = (typeof toArabicDigits === 'function' && appState.lang === 'ar') ? toArabicDigits(String(col.quizCol + 1)) : String(col.quizCol + 1);
     return { icon: s.quiz.emoji || '✍️', name: (t.qm_col || '{t} {n}').replace('{t}', s.quiz.title).replace('{n}', n) };

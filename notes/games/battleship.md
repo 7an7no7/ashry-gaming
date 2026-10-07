@@ -248,6 +248,24 @@ Decided here (open to change):
 
 - **(1055) The fire button: one fixed place, big.** On your turn the bar under the sea always holds one `.btn--primary .btn--lg`: greyed «🎯 اختار مربع» until a square is aimed at, then «🔥 اضرب B7» (the second tap on the square still fires). In radar mode the same place is «📡 اختار مكان الرادار» greyed, then the sweep. While your own shell is flying (or sent) the greyed button stays, so the thumb's place never empties mid-turn (`bsRadarBarHtml` with `wait`, `bsPhoneBarHtml`, `bsRoomBarHtml`). The words are in the chunk's `BS_TEXT` (`bs_pick`, `bs_radar_pick_btn`), as the game's others; the old «اضغط على مربع…» line under the bar is gone (the status line says it).
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **1056 The fleets as ship silhouettes.** `bsFleetHtml(sea, label, color, fleet)` draws
+  five small SVG ships (a hull as long as the ship, a deck, in the side's colour),
+  a red dot on each square hit, a sunk ship greyed (`.bs-fleet__ship`, `__hull`,
+  `__deck`, `__hit`). Hits are drawn only on a fleet this screen may know - your own:
+  `s.fleet` on one phone, `state.you.fleet` (your secret slice) in a room
+  (`bsRoomFleetsHtml`); the other side's hits can't be pinned to a ship, so it shows what
+  is sunk, as before. The TV shows both fleets' sunk ships (it knows no fleet). The
+  name of each ship and its hits are its `aria-label`/`<title>`.
+- **1057 Placing at 375px.** While a finger (or pen) drags a ship, the square it aims at is
+  picked 44px above the finger (`lift` in `bsWireInput`'s `pointermove`), so the ship
+  rides above the thumb; a mouse is unchanged. «اضغط عليها عشان تلف» (`bs_tap_turn`, in
+  `BS_TEXT`) shows once on this phone (`ashryBsTurnTip_v1`) over the first ship the first
+  time a fleet is placed (`bsTurnTip`, placed with the renderer's `screenOf`, called when
+  the sea is shown or made), and goes at a touch or after 4.5 s; turning a ship counts as
+  having seen it (`bsTipSeen`).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

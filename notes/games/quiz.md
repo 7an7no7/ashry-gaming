@@ -189,6 +189,23 @@ with every right choice: a member could read the quiz's answers before the night
 
 **Unsaved edits are kept (the audit of 6 Oct 2026)**: `packOpenByCode` opens the author's own quiz or word pack as it is on the phone while it is `dirty`, instead of fetching the server's copy over it (from الشلة's list, the crew list or a typed code).
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **769 أقسام المسابقة.** A question may start a section (`s`, up to 30 characters,
+  `PACK_LIMITS.section`): `packCleanQuiz` keeps it (folded, cut; an empty one is dropped),
+  `packHideAnswers` keeps it. In the editor the open question has «📂 قسم من هنا»
+  (`qmAddSec`): a heading row over that question in the list, typed in place
+  (`qmSecHtml`, `qmSetSec`, `.qsec`), ✕ takes it away (`qmDropSec`); a copied question
+  stays in its section (the copy has no heading). In a room every card of the deck carries
+  its section (`roomPackDeck`'s `sec`: the last heading at or before it): trivia puts it in
+  `shared.section`, shown as an eyebrow over the question on the phones and the TV; the
+  buzzer in `shared.quiz.sec`, after the quiz's title. The team board (`JS_TriviaBoard.html`)
+  gives a quiz with sections a column a section, named with it (`tbQuizSecCols`; questions
+  before the first heading are a column of their own under the quiz's title; a section of
+  more than five continues in a second column of the same name), its questions down the
+  column 100…500 in order, five columns a board, at most four boards; a quiz with no
+  sections is laid out as before. Rules test: `rules.mjs` "packs/sections".
+
 ## Tests
 
 - `rules.mjs` "packs" (40 checks): every validation rule, the code pattern, trivia with a

@@ -75,6 +75,7 @@ const buzzerQuizDeal = (room, idx) => {
     return;
   }
   s.quiz = { title: quiz.pack.title, emoji: quiz.pack.emoji || '', n: idx, total: room._bzDeck.length, q: q.q, choices: q.choices, answer: null, done: false };
+  if (q.sec) s.quiz.sec = q.sec;   // 769: the section, shown over the question
 };
 
 /** The right choice on the host's own phone, while it is still hidden. */

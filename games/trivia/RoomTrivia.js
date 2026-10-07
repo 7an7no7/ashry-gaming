@@ -154,6 +154,8 @@ const dealTriviaQuestion = (room, idx) => {
     roster: prev.roster || room.players.map(p => p.id)
   };
   if (prev.quiz) room.shared.quiz = prev.quiz;
+  // 769: a family quiz's section, the question's eyebrow on every phone and the TV.
+  if (q.sec) room.shared.section = q.sec;
   room.shared.board = scoreboardOf(room);
   room.phase = 'play';
 };

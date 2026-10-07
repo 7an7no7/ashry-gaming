@@ -51,6 +51,7 @@ const BS_TEXT = {
     bs_unready: "✏️ غيّر أماكن السفن",
     bs_both_placing: "الاتنين بيخبّوا أساطيلهم…",
     bs_touch: "السفن مايلمسوش بعض، ولا حتى من الركن",
+    bs_tap_turn: "اضغط عليها عشان تلف",
     bs_turn_refused: "مفيش مكان تلف فيه السفينة هنا",
     bs_first_you: "انت اللي هتضرب الأول",
     bs_first_phone: "الموبايل هيضرب الأول",
@@ -111,6 +112,7 @@ const BS_TEXT = {
     bs_unready: "✏️ Move my ships",
     bs_both_placing: "Both are hiding their fleets…",
     bs_touch: "Ships can't touch, not even at a corner",
+    bs_tap_turn: "Tap it to turn it",
     bs_turn_refused: "No room to turn that ship here",
     bs_first_you: "You fire first",
     bs_first_phone: "The phone fires first",
@@ -1858,11 +1860,29 @@ function bsMiniHtml(s, label) {
   return `<div class="bs-mini"><span class="bs-mini__label">${escapeHTML(label || '')}</span>${bsFlatSeaHtml(s, { mini: true })}</div>`;
 }
 
-function bsFleetHtml(sea, label, color) {
+/**
+ * A fleet as five small ship silhouettes (1056, 7 Oct 2026): a hull as long as the
+ * ship, a red dot on each square hit, a sunk ship greyed. `fleet` is given only for
+ * a fleet this screen may know (your own, or both once revealed): the other side's
+ * hits can't be put on a ship, so it shows only what is sunk.
+ */
+function bsFleetHtml(sea, label, color, fleet) {
   const gone = (sea.sunk || []).map(x => x.i);
+  const grid = sea.grid || [];
+  const ship = (sh, i) => {
+    const sunk = gone.indexOf(i) !== -1;
+    const cells = !sunk && fleet && fleet[i] ? bsShipCells(fleet[i], sh.len) : [];
+    const hits = [];
+    cells.forEach((c, k) => { if (grid[c] === BS_HIT) hits.push(k); });
+    const w = sh.len * 10;
+    const say = bsShipShort(i) + (sunk ? ' ✕' : hits.length ? ' · ' + hits.length + '/' + sh.len : '');
+    return `<svg class="bs-fleet__ship ${sunk ? 'is-sunk' : ''}" viewBox="-1 0 ${w + 2} 12" style="width:${(sh.len * 0.62 + 0.15).toFixed(2)}rem" role="img" aria-label="${escapeHTML(say)}"><title>${escapeHTML(say)}</title>
+        <path class="bs-fleet__hull" d="M0 5 H${w} L${w - 4} 11 H4 Z"/><rect class="bs-fleet__deck" x="${w * 0.3}" y="1.5" width="${w * 0.34}" height="4" rx="1"/>
+        ${hits.map(k => `<circle class="bs-fleet__hit" cx="${k * 10 + 5}" cy="8" r="2.4"/>`).join('')}</svg>`;
+  };
   return `<div class="bs-fleet" style="--bs-c:${color}" title="${escapeHTML(label || '')}">
       <span class="bs-fleet__who">${escapeHTML(label || '')}</span>
-      <span class="bs-fleet__ships">${BS_SHIPS.map((s, i) => `<span class="bs-fleet__ship ${gone.indexOf(i) !== -1 ? 'is-sunk' : ''}" title="${escapeHTML(bsShipShort(i))}" aria-label="${escapeHTML(bsShipShort(i))}${gone.indexOf(i) !== -1 ? ' ✕' : ''}">${'<i></i>'.repeat(s.len)}</span>`).join('')}</span>
+      <span class="bs-fleet__ships">${BS_SHIPS.map(ship).join('')}</span>
     </div>`;
 }
 
@@ -1907,8 +1927,42 @@ function bsViewShow(host, model) {
     if (peek.textContent !== model.peek.label) peek.textContent = model.peek.label;
     peek.onclick = model.peek.onClick;
   } else peek.hidden = true;
-  if (bsView.r) { bsView.r.setModel(model); return; }
+  if (bsView.r) { bsView.r.setModel(model); bsTurnTip(); return; }
   if (!bsView.loading) bsViewStart();
+}
+
+/**
+ * 1057 (7 Oct 2026): «اضغط عليها عشان تلف» over the first ship, once on this phone,
+ * the first time a fleet is placed; a touch anywhere or a few seconds sends it away.
+ */
+const BS_TIP_KEY = 'ashryBsTurnTip_v1';
+function bsTipSeen() { try { localStorage.setItem(BS_TIP_KEY, '1'); } catch (e) {} }
+function bsTurnTip() {
+  const m = bsView.model, r = bsView.r, root = bsView.root;
+  if (!m || !r || !root || !m.input || m.input.mode !== 'place' || !m.input.fleet || !m.input.fleet[0] || !r.screenOf) return;
+  try { if (localStorage.getItem(BS_TIP_KEY)) return; } catch (e) { return; }
+  bsTipSeen();
+  const side = m.input.side, first = m.input.fleet[0];
+  setTimeout(() => {
+    if (bsView.root !== root || !bsView.model || !bsView.model.input || bsView.model.input.mode !== 'place') return;
+    const cells = bsShipCells(first, BS_SHIPS[0].len);
+    const at = r.screenOf(side, cells[Math.floor(cells.length / 2)]);
+    const box = root.getBoundingClientRect();
+    if (!at || !box.width) return;
+    const tip = document.createElement('div');
+    tip.className = 'bs-tip';
+    tip.textContent = bsT('bs_tap_turn');
+    tip.style.left = Math.round(Math.max(70, Math.min(box.width - 70, at.x - box.left))) + 'px';
+    tip.style.top = Math.round(at.y - box.top) + 'px';
+    root.appendChild(tip);
+    const gone = () => {
+      root.removeEventListener('pointerdown', gone);
+      tip.classList.add('is-gone');
+      setTimeout(() => tip.remove(), 320);
+    };
+    root.addEventListener('pointerdown', gone);
+    setTimeout(gone, 4500);
+  }, 700);
 }
 
 function bsViewStart() {
@@ -1920,6 +1974,7 @@ function bsViewStart() {
     root.classList.remove('is-loading');
     if (bsView.model) bsView.r.setModel(bsView.model);
     bsViewFresh();
+    bsTurnTip();
   };
   if (typeof loadThree !== 'function' || typeof threeCanDraw !== 'function' || !threeCanDraw()) { flat(); return; }
   bsView.loading = true;
@@ -1932,6 +1987,7 @@ function bsViewStart() {
     root.classList.remove('is-loading', 'is-flat');
     if (bsView.model) bsView.r.setModel(bsView.model);
     bsViewFresh();
+    bsTurnTip();
   }).catch(() => {
     if (bsView.root !== root) return;
     bsView.loading = false;
@@ -2016,7 +2072,10 @@ function bsWireInput(root) {
     if (!d || !press.moved || !m || !r || !m.input) return;
     // Placing ended under the finger (the 90 s clock, the host's "play for"): nothing more to move.
     if (m.input.mode !== 'place' || m.input.side !== d.side) return;
-    const p = r.pick(e.clientX, e.clientY);
+    // 1057 (7 Oct 2026): a finger hides the squares under it, so the ship rides a little
+    // above it (as a chess piece lifts); a mouse moves it where it points.
+    const lift = e.pointerType === 'touch' || e.pointerType === 'pen' ? 44 : 0;
+    const p = r.pick(e.clientX, e.clientY - lift);
     if (!p || p.side !== m.input.side) return;
     const len = BS_SHIPS[d.i].len, dir = d.from.d;
     const x = clamp(Math.floor(p.fx) - (dir === 'h' ? d.k : 0), 0, dir === 'h' ? 10 - len : 9);
@@ -2041,7 +2100,7 @@ function bsWireInput(root) {
     if (d) {
       if (m.input.mode !== 'place' || side !== d.side) return;
       if (cancel) { r.settleShip(side, d.i, d.from); return; }
-      if (!pr.moved) { bsTurnShip(m, d.i); return; }
+      if (!pr.moved) { bsTipSeen(); bsTurnShip(m, d.i); return; }
       if (d.ok && (d.pos.x !== d.from.x || d.pos.y !== d.from.y)) {
         const fleet = m.input.fleet.slice();
         fleet[d.i] = d.pos;
@@ -2570,7 +2629,7 @@ function bsPhoneSideHtml(s, model, flying) {
     // The small map waits for the shell too (the other sea can be looked at while it flies).
     const sea = Object.assign({}, model.seas[other], bsSeaShown(s.seas, model.seas[other].k, s.last, flying));
     parts.push(bsMiniHtml(sea, sea.label));
-    parts.push(`<div class="bs-fleets">${bsFleetHtml(bsSeaShown(s.seas, 0, s.last, flying), bsT('bs_fleet_you'), BS_SIDE_COL[0])}${bsFleetHtml(bsSeaShown(s.seas, 1, s.last, flying), bsT('xo_phone'), BS_SIDE_COL[1])}</div>`);
+    parts.push(`<div class="bs-fleets">${bsFleetHtml(bsSeaShown(s.seas, 0, s.last, flying), bsT('bs_fleet_you'), BS_SIDE_COL[0], s.fleet)}${bsFleetHtml(bsSeaShown(s.seas, 1, s.last, flying), bsT('xo_phone'), BS_SIDE_COL[1])}</div>`);
     // «الرادار»: what each sweep said - your count; only where the phone looked.
     if (s.radarOn) {
       const held = bsPhoneLocal.sweeping && s.scan ? s.scan.seat : -1;
@@ -3037,7 +3096,10 @@ function bsRoomFleetsHtml(state) {
   const s = state.shared;
   const names = duelRoomNames(state);
   const flying = !!bsRoomLocal.flying && s.last;
-  return `<div class="bs-fleets">${[0, 1].map(k => bsFleetHtml(bsSeaShown(s.seas, k, s.last, flying), names[k] || '', BS_SIDE_COL[k])).join('')}</div>`;
+  // Your own fleet (your secret slice) carries its hits; the other's shows only what is sunk.
+  const seat = state.youAreScreen ? -1 : bsRoomSeat(state);
+  const mine = (state.you || {}).fleet || null;
+  return `<div class="bs-fleets">${[0, 1].map(k => bsFleetHtml(bsSeaShown(s.seas, k, s.last, flying), names[k] || '', BS_SIDE_COL[k], k === seat ? mine : null)).join('')}</div>`;
 }
 
 /** The host's way on for a phone that went quiet: after 40 seconds on one step, or at once for one that's away. */

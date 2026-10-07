@@ -351,6 +351,16 @@ The owner's rules are in *The owner's specs*.
 
 Tests: `rules.mjs` («match play:»), `play-all.mjs` (minigolf: a match-play hole on three phones and the TV).
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **1072 The strip on an upright phone.** `mgHudHtml` marks the hole's name, the level
+  chip and «المطلوب 3 · أقصى 6» `.mg-hud__wide`, hidden on an upright phone
+  (`orientation: portrait` and under 600px, never the TV): the strip there is the hole's
+  number and «٢/٦ ضربات» (`mg_strokes_of`: the strokes over the most the hole allows,
+  `golfMaxOf`; it replaced `mg_strokes` everywhere). The name card that flies in at each
+  hole (`mgNameCard`) already holds the name, the level and the par. A phone on its side,
+  a laptop and the TV keep every chip.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

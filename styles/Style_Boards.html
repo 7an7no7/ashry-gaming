@@ -1455,6 +1455,10 @@ body.dark .hm-gallows .hm-hair { fill: #4a3626; }
 /* the final stroke a hole allows (par + 3): said, in red, before it is played */
 .mg-chip--last { background: #d62839; color: #fff; animation: mgLastPulse 1.2s ease-in-out infinite; }
 @keyframes mgLastPulse { 50% { transform: scale(1.06); } }
+/* 1072 (7 Oct 2026): an upright phone keeps the hole's number and the strokes; the rest is the name card's. */
+@media (orientation: portrait) and (max-width: 599px) {
+  .mg-screen:not(.mg-screen--tv) .mg-hud__wide { display: none; }
+}
 
 /* --- the line at the foot, the players' chips, the host's buttons --- */
 .mg-hint {
@@ -1881,10 +1885,27 @@ body.dark .hm-gallows .hm-hair { fill: #4a3626; }
 .bs-fleets { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-solid); }
 .bs-fleet { display: flex; flex-direction: column; align-items: stretch; gap: 0.2rem; min-width: 0; }
 .bs-fleet__who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); font-weight: var(--fw-semi); color: var(--text-2); }
-.bs-fleet__ships { display: flex; flex-wrap: wrap; gap: 0.3rem; direction: ltr; }
-.bs-fleet__ship { display: inline-flex; gap: 1px; }
-.bs-fleet__ship i { display: block; width: 0.55rem; height: 0.55rem; border-radius: 2px; background: var(--bs-c, #3b82f6); }
-.bs-fleet__ship.is-sunk i { background: var(--danger, #d64545); opacity: 0.35; }
+/* 1056 (7 Oct 2026): five ship silhouettes - the hull in the side's colour, a red dot per hit, a sunk ship greyed. */
+.bs-fleet__ships { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.25rem 0.4rem; direction: ltr; }
+.bs-fleet__ship { display: block; flex: none; height: 1.1rem; overflow: visible; }
+.bs-fleet__hull { fill: var(--bs-c, #3b82f6); }
+.bs-fleet__deck { fill: var(--bs-c, #3b82f6); opacity: 0.7; }
+.bs-fleet__hit { fill: #e5383b; stroke: #fff; stroke-width: 1; }
+.bs-fleet__ship.is-sunk .bs-fleet__hull, .bs-fleet__ship.is-sunk .bs-fleet__deck { fill: var(--text-3); opacity: 0.4; }
+/* 1057: «اضغط عليها عشان تلف» over the first ship, once (bsTurnTip). */
+.bs-tip {
+  position: absolute; z-index: 5; pointer-events: none;
+  padding: 0.35rem 0.75rem; border-radius: var(--r-full);
+  background: var(--night, #1d1a2b); color: #fff; font-size: var(--fs-sm); font-weight: var(--fw-bold); white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  transform: translate(-50%, calc(-100% - 0.9rem));
+  animation: bs-tip-in 320ms var(--ease-out) both;
+  transition: opacity 280ms var(--ease-out);
+}
+.bs-tip::after { content: ''; position: absolute; top: 100%; left: 50%; margin-left: -6px; border: 6px solid transparent; border-top-color: var(--night, #1d1a2b); }
+.bs-tip.is-gone { opacity: 0; }
+@keyframes bs-tip-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .bs-tip { animation: none; } }
 .bs-mark {
   display: inline-grid;
   place-items: center;

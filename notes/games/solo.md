@@ -590,6 +590,33 @@ the nonogram bubble), `tools/lazy-split.mjs` (the memory popup's two lines).
 - **(1172) كلمات من حروف «بالدور».** A «طريقة اللعب» switch on the setup (`#wordwheel-way` in Controller.html, `setWordWheelWay`, remembered as `way`, a `prefs` key): لوحدك / بالدور. Start asks two names through the players sheet (`wheelAskDuo` → `askPlayers(2, …, { max: 2 })`, prefilled with the first two in the round). `s.duo = { names, cur, pts, owner: { wi: player } }`. Every try passes the turn - a grid word, a ⭐ bonus word or a miss - except a word already found; a grid word is filled in in its finder's colour (`.is-p0` `--team-red`, `.is-p1` `--team-blue`; a crossing cell keeps the first finder's colour) and scores its letters, the big word double; the bar shows both names and scores, the one whose turn it is ringed, with «دور …» under it; the points count up (`wheelDuoGain`). No hint, no record, never the daily. The grid full: most letters wins, or a draw (`wheelDuoFinish`: 👑 or 🤝, both scores, «العب تاني» keeps the two names). Chosen: a bonus word scores nothing and passes the turn.
 - **(1178) خمّن الدولة «رحلتك».** After a win on one phone the map draws a dotted line from the first pin to the next and on to the gold one, a segment after another (`fmapHtml`'s `route`, `fmapRouteSvg`, `.fmap__route`, opacity only, from 1.4 s); a reload draws it still. «📤 شارك رحلتك» on the finished board (not in the daily or a past day: the picture would give the day's answer away) draws a share card of its own - the map's outlines (`Path2D` from `FMAP_LAND`), the numbered pins in their colours, the gold star, the dotted route, the guesses in order with their km (`fmapDrawRoute` in JS_FlagsMap.html, `flagsShareRoute` / `flagsDrawRouteCard` in JS_Flags.html) - through `shareResultCard`, which now takes `o.draw` (one line in `app/JS_ShareCard.html`). A first-try win has no line (one pin), and still shares.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **1079 الذاكرة: the big board laid out for a wide screen.** `MEMORY_SIZES.l` has
+  `wide: 6`: the 30 cards are 5 × 6 on an upright phone and 6 × 5 on a phone on its side
+  and every wide screen (`--mem-wcols` / `--mem-wrows` on `.mem-grid`, read by the wide
+  layout's rule in `Style_Party.html`), so they are about a fifth bigger there (53px
+  instead of 44 at 667×375). 6 rather than 10: 10 × 3 measured smaller at every size,
+  since the board's width is capped at 62vw. The small and middle boards are unchanged.
+- **1080 الذاكرة: whose turn, impossible to miss.** With two players each chip has a colour
+  dot (player 1 blue, player 2 orange, `--mem-c1` / `--mem-c2`), one ring in the player's
+  colour slides from chip to chip when the turn passes (`.mem-turn`, moved by
+  `memoryTurnSlide` from `memoryPaintBar`, a Web Animation from the old place,
+  transform only, set at once when motion is off), and the board's edge takes that colour
+  (`.mem-grid--duo[data-turn]`).
+- **1095 تحدي اليوم: three states at a glance.** Each row is one of three: «العب» a badge in
+  the game's own colour (`.daily-row__go`), «كمّل» amber with a half ring
+  (`.daily-row__go.is-going`, `.daily-ring`) and an amber edge on the row, done: the row
+  dimmed (`surface-2`, the icon faded) and its result in green. Chosen: the ring is a fixed
+  half ring meaning «started» - the games keep no common measure of progress to fill it
+  with.
+- **1097 تحدي اليوم: the done-all moment.** The first time this phone shows the day's dailies
+  all done (`dailyGreetOnce`, `ashryDailyGreet_v1` = the day, so a reload doesn't greet
+  again) the top card shows the streak (`.daily-allstreak`, 🔥 n days), which pops in and
+  counts up to today's number, the page scrolls to the top, the share buttons pop in after
+  it (`.daily-pop`), and confetti with the success sound follow (`afterReveal`). Later
+  visits that day show the same card, still.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

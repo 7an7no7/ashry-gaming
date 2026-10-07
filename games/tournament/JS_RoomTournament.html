@@ -401,8 +401,7 @@ function tourMeHtml(state) {
     if (f && f.p[0] && f.p[1]) {
       return `<div class="tour-me tour-me--wait">
           <span class="tour-me__round">${escapeHTML(tourRoundName(tr, mine.r))}</span>
-          <span class="tour-me__line">⏳ ${escapeHTML(tourT(bye ? 'tour_bye_wait' : 'tour_you_wait', { a: '⁨' + tourName(state, f.p[0]) + '⁩', b: '⁨' + tourName(state, f.p[1]) + '⁩' }))}</span>
-          ${s.games[f.id] ? `<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="tourShow('${f.id}')">👀 ${escapeHTML(tourT('tour_watch'))}</button>` : ''}
+          ${tourNextVsHtml(state, f, bye)}
         </div>`;
     }
     return `<div class="tour-me tour-me--wait">⏳ ${escapeHTML(tourT(bye ? 'tour_bye_wait_one' : 'tour_you_wait_one'))}</div>`;
@@ -410,6 +409,44 @@ function tourMeHtml(state) {
   if (mine.loser === Room.me) return tourWatchCardHtml(state, `🙌 ${escapeHTML(tourT('tour_out_in', { round: tourOutRound(tr, mine) }))}`, null);
   if (tr.gone[Room.me]) return `<div class="tour-me tour-me--out">🙌 ${escapeHTML(tourT('tour_you_out'))}</div>`;
   return '';
+}
+
+/**
+ * 1050 (7 Oct 2026): waiting for a match whose players aren't known yet - «ماتشك الجاي ضد
+ * الفايز من (منى × أحمد)» and, while it is being played, that match's own small board
+ * (TOUR_CLIENT's `mini`, the TV's live cards'), so the wait has a face; a tap watches it.
+ */
+function tourNextVsHtml(state, f, bye) {
+  const s = state.shared;
+  const g = s.games[f.id];
+  const kind = TOUR_CLIENT[state.game];
+  const names = [0, 1].map(i => tourName(state, ((g && g.seats) || f.p)[i]));
+  const line = tourT(bye ? 'tour_bye_next_vs' : 'tour_next_vs', { a: '⁨' + tourName(state, f.p[0]) + '⁩', b: '⁨' + tourName(state, f.p[1]) + '⁩' });
+  const mini = g && kind && kind.mini ? kind.mini(g, names, f) : '';
+  const live = f.state === 'play' ? `<span class="tour-next__live"><i class="tour-dot" aria-hidden="true"></i>${escapeHTML(tourT('tour_live'))}</span>` : '';
+  return `<span class="tour-me__line">⏳ ${escapeHTML(line)}</span>
+      ${g ? `<div class="tour-next">
+          ${live}${mini ? `<span class="tour-next__mini">${mini}</span>` : ''}
+          <button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="tourShow('${f.id}')">👀 ${escapeHTML(tourT('tour_watch'))}</button>
+        </div>` : ''}`;
+}
+
+/** The match this phone waits on (1050): its next match's other slot, still being decided. */
+function tourWaitFeeder(state) {
+  const tr = state.shared.tour;
+  if (tr.phase === 'over' || state.youAreScreen) return null;
+  const mine = tourMine(tr);
+  if (!mine) return null;
+  const nm = mine.state === 'done' && mine.winner === Room.me ? tourMatchOf(tr, mine.next) : mine;
+  return nm && nm.state === 'wait' ? tourPendingFeeder(tr, nm) : null;
+}
+
+/** What redraws a match's small board: its moves (the TV's live cards, and a phone's wait card). */
+function tourLiveSigOf(state, m) {
+  const g = state.shared.games[m.id];
+  if (!g) return '';
+  const kind = TOUR_CLIENT[state.game];
+  return [m.id, g.phase, g.moves, g.turn, g.turnSeq, g.shots, kind && kind.liveSig ? kind.liveSig(g) : ''].join(':');
 }
 
 /** The podium: the champion in the middle, the runner-up beside them, the two semi-finalists sharing third. */
@@ -485,7 +522,10 @@ function tourScreenHtml(state) {
         <span class="badge badge--accent tour-head__stage">${escapeHTML(tourStageLine(tr))}</span>
       </div>
       ${tr.phase === 'over' ? tourOverHtml(state, false) : tourMeHtml(state) + (tourOnlyWatching(state) ? '' : tourLiveChipsHtml(state, null))}
-      <div class="tour-bracket-wrap">${tourBracketHtml(state, false)}</div>
+      <div class="tour-bracket-box">
+        <div class="tour-bracket-wrap" data-tour-wrap>${tourBracketHtml(state, false)}</div>
+        ${tr.entrants.indexOf(Room.me) !== -1 && tr.phase !== 'over' ? `<button type="button" class="btn btn--primary btn--sm btn--auto tour-where" data-tour-where hidden onclick="tourGoMe(true)">📍 ${escapeHTML(tourT('tour_where_me'))}</button>` : ''}
+      </div>
       ${board ? `${board}<p class="field__hint tour-points-hint">${escapeHTML(tourT('tour_points_hint'))}</p>${roomShareBtnHtml(state, s.board)}` : ''}
       ${renderRoomPlayerStrip(state)}
     </div>`;
@@ -548,8 +588,7 @@ function tourMatchOverCardHtml(state, id, tv) {
         } else {
           const f = tourPendingFeeder(tr, nm);
           next = f && f.p[0] && f.p[1]
-            ? `<p class="tour-over-card__next">⏳ ${escapeHTML(tourT('tour_you_wait', { a: '⁨' + tourName(state, f.p[0]) + '⁩', b: '⁨' + tourName(state, f.p[1]) + '⁩' }))}</p>
-               ${s.games[f.id] ? `<button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="tourShow('${f.id}')">👀 ${escapeHTML(tourT('tour_watch'))}</button>` : ''}`
+            ? `<div class="tour-over-card__next">${tourNextVsHtml(state, f, false)}</div>`
             : `<p class="tour-over-card__next">⏳ ${escapeHTML(tourT('tour_you_wait_one'))}</p>`;
         }
       } else if (m.loser === Room.me) {
@@ -689,10 +728,76 @@ function tourCheer(root, state) {
 function tourAfterPaint(root, state) {
   const kind = TOUR_CLIENT[state.game];
   if (kind && kind.after) kind.after(root, state);
+  if (!state.youAreScreen) tourBracketScroll(root, state);
   tourDealDraw(root, state);
   tourFlyWinners(root, state);
   tourCheer(root, state);
   tourCountLoop();
+}
+
+/**
+ * 1049 (7 Oct 2026): a bracket wider than the phone opens scrolled to this phone's own
+ * match (or the round being played); a scroll by hand is kept across redraws until this
+ * phone's match changes, and «أنا فين؟» shows while your row is out of sight.
+ */
+function tourBracketScroll(root, state) {
+  const wrap = root && root.querySelector('[data-tour-wrap]');
+  if (!wrap) return;
+  const tr = state.shared.tour;
+  const mine = tourMine(tr);
+  const key = [state.code, tourKeyOf(tr), mine ? mine.id + ':' + mine.state : ''].join('|');
+  if (tourLocal.bxKey !== key) { tourLocal.bxKey = key; tourLocal.bxUser = null; }
+  wrap.onscroll = () => { if (!wrap._tourAuto) tourLocal.bxUser = wrap.scrollLeft; tourWhereSync(wrap); };
+  if (wrap.scrollWidth <= wrap.clientWidth + 2) { tourWhereSync(wrap); return; }
+  if (tourLocal.bxUser !== null && tourLocal.bxUser !== undefined) {
+    wrap._tourAuto = true;
+    wrap.scrollLeft = tourLocal.bxUser;
+    setTimeout(() => { wrap._tourAuto = false; tourWhereSync(wrap); }, 60);
+  } else tourGoMe(false);
+}
+
+/** This phone's row in its latest match, or the first match of the round being played. */
+function tourMeTarget(wrap) {
+  const st = Room.state;
+  const tr = st && st.shared && st.shared.tour;
+  if (!tr || !wrap) return null;
+  const mine = tourMine(tr);
+  if (mine) {
+    const row = wrap.querySelector(`[data-tour-row="${mine.id}:${mine.p.indexOf(Room.me)}"]`);
+    if (row) return row;
+  }
+  const on = tr.matches.filter(m => m.state === 'play' || m.state === 'ready').sort((a, b) => a.r - b.r || a.k - b.k)[0];
+  return on ? wrap.querySelector(`[data-tour-m="${on.id}"]`) : null;
+}
+
+/** Scrolls the bracket sideways so `tourMeTarget` is in the middle (its own scrollLeft, never scrollIntoView). */
+function tourGoMe(smooth) {
+  const wrap = document.querySelector('[data-tour-wrap]');
+  const el = tourMeTarget(wrap);
+  if (!wrap || !el) return;
+  const w = wrap.getBoundingClientRect(), r = el.getBoundingClientRect();
+  const dx = (r.left + r.width / 2) - (w.left + w.width / 2);
+  tourLocal.bxUser = null;
+  wrap._tourAuto = true;
+  if (smooth && !motionOff() && wrap.scrollBy) wrap.scrollBy({ left: dx, behavior: 'smooth' });
+  else wrap.scrollLeft += dx;
+  clearTimeout(wrap._tourAutoT);
+  wrap._tourAutoT = setTimeout(() => { wrap._tourAuto = false; tourWhereSync(wrap); }, smooth ? 500 : 60);
+  if (smooth) haptic('light');
+}
+
+/** «أنا فين؟» only while your row is out of the bracket's sight. */
+function tourWhereSync(wrap) {
+  const btn = wrap && wrap.parentNode && wrap.parentNode.querySelector('[data-tour-where]');
+  if (!btn) return;
+  const row = wrap.querySelector('.tour-m__row.is-me');
+  let away = false;
+  if (row && wrap.scrollWidth > wrap.clientWidth + 2) {
+    const w = wrap.getBoundingClientRect(), r = row.getBoundingClientRect();
+    away = r.right < w.left + 8 || r.left > w.right - 8;
+  }
+  if (btn.hidden === !away) return;
+  btn.hidden = !away;
 }
 
 /* --- the phones ------------------------------------------------------------------------- */
@@ -701,11 +806,9 @@ function tourSig(state, focus) {
   const s = state.shared;
   const tr = s.tour;
   // The TV's live cards show each board: every move of a match being played redraws it there.
-  const live = focus === 'tv' ? tr.matches.filter(m => m.state === 'play' && s.games[m.id]).map(m => {
-    const g = s.games[m.id];
-    const kind = TOUR_CLIENT[state.game];
-    return [m.id, g.phase, g.moves, g.turn, g.turnSeq, g.shots, kind && kind.liveSig ? kind.liveSig(g) : ''].join(':');
-  }).join(',') : '';
+  const wf = focus === 'tv' ? null : tourWaitFeeder(state);
+  const live = focus === 'tv' ? tr.matches.filter(m => m.state === 'play' && s.games[m.id]).map(m => tourLiveSigOf(state, m)).join(',')
+    : wf ? tourLiveSigOf(state, wf) : '';
   return ['tour', state.code, tourKeyOf(tr), tr.phase, focus || '', tourLocal.view || '', tr.featured || '', live,
     JSON.stringify(tr.matches.map(m => [m.state, m.p, m.winner, m.games, m.draws, m.startAt])),
     JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name + (p.online ? 1 : 0)).join(','),

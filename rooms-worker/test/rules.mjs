@@ -16121,6 +16121,34 @@ Date.now = duelTestClock;
   applyRoomAction(bn, 'h', 'start', {});
   check(!bn.shared.quiz && !Object.keys(bn.secrets).length, 'packs/buzzer: no quiz, the buzzer as it always was');
 
+  // 769 (7 Oct 2026): «أقسام المسابقة» - a heading starts at a question; kept, cut, carried to the deal.
+  {
+    const PK = await import('../generated/rules.js');
+    const secQuiz = { title: 'العيلة', questions: [Q('أول سؤال', 0), Object.assign(Q('جدو اتولد فين؟', 1), { s: '  أسئلة   عن جدو ' }), Q('جدو بيحب إيه؟', 2), Object.assign(Q('آخر فيلم؟', 3), { s: 'أفلام' + 'م'.repeat(60) }), Object.assign(Q('بطل الفيلم؟', 0), { s: '   ' })] };
+    const sp = packClean('quiz', secQuiz).pack;
+    check(sp && !('s' in sp.questions[0]) && sp.questions[1].s === 'أسئلة عن جدو' && sp.questions[3].s.length === 30 && !('s' in sp.questions[4]),
+      'packs/sections: a heading is kept on its question, folded and cut to 30; an empty one is dropped', JSON.stringify(sp && sp.questions.map((x) => x.s)));
+    check(PK.packHideAnswers(sp).questions[1].s === 'أسئلة عن جدو', 'packs/sections: a quiz without its key keeps its sections');
+    const sr = newRoom(['a', 'b']);
+    applyRoomAction(sr, 'a', 'chooseGame', { game: 'trivia' });
+    sr._packIn = { code: 'QZ7K2B', kind: 'quiz', pack: sp };
+    applyRoomAction(sr, 'a', 'start', { lang: 'ar', pack: 'QZ7K2B' });
+    delete sr._packIn;
+    check(sr._deck.map((d) => d.sec).join('|') === ['', 'أسئلة عن جدو', 'أسئلة عن جدو', sp.questions[3].s, sp.questions[3].s].join('|'), 'packs/sections: each card carries the section it is in');
+    check(!sr.shared.section, 'packs/sections: trivia - a question before any heading has none');
+    applyRoomAction(sr, 'a', 'closeQuestion', {});
+    applyRoomAction(sr, 'a', 'nextQuestion', { qIndex: 0 });
+    check(sr.shared.section === 'أسئلة عن جدو', 'packs/sections: trivia - the room shows the section over its question');
+    const sb = newRoom(['h', 'x']);
+    applyRoomAction(sb, 'h', 'chooseGame', { game: 'buzzer' });
+    sb._packIn = { code: 'QZ7K2B', kind: 'quiz', pack: sp };
+    applyRoomAction(sb, 'h', 'start', { pack: 'QZ7K2B' });
+    delete sb._packIn;
+    applyRoomAction(sb, 'h', 'quizReveal', { n: 0 });
+    applyRoomAction(sb, 'h', 'quizNext', { n: 0 });
+    check(sb.shared.quiz.sec === 'أسئلة عن جدو', 'packs/sections: the buzzer - the section with the question');
+  }
+
   // «كلماتنا» in the word games.
   const wordsPack = { code: 'WRD234', kind: 'words', pack: packClean('words', { title: 'كلماتنا', words: Array.from({ length: 18 }, (_, i) => 'كلمة' + i) }).pack };
   const im = newRoom(['a', 'b', 'c', 'd']);

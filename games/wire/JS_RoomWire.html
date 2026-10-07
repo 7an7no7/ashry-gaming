@@ -43,7 +43,8 @@ const wr = {
   momentTimer: null,
   toastTimer: null,
   hostKey: '',
-  noteKey: ''
+  noteKey: '',
+  fxDrag: null          // a finger on a surprise's cover (792): { fx, x, y, run, total }
 };
 
 const wrT = () => TRANSLATIONS[appState.lang] || {};
@@ -100,7 +101,7 @@ function wrCtlHtml(x) {
       : `${sl}<span class="wr-sl__v" dir="ltr"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></span>${label}`;
   }
   const cls = 'wr-ctl wr-ctl--' + c.t + (c.t === 'slide' ? ' wr-ctl--' + c.o : '');
-  return `<div class="${cls}" data-c="${escapeHTML(x.c)}">${inner}<button type="button" class="wr-smk" data-wr-act="wipe" hidden><em data-wr-smk></em></button></div>`;
+  return `<div class="${cls}" data-c="${escapeHTML(x.c)}">${inner}</div>`;
 }
 
 /** The uncle of the wedding: glad, or angry once his ring is nearly closed (.is-hurry). */
@@ -189,6 +190,7 @@ function wrOverHtml(state) {
       <div class="wr-over__why">${escapeHTML(why)}</div>
       <div class="wr-over__big"><span class="metric" data-wr-won data-to="${s.levelsWon || 0}">${rise ? 0 : (s.levelsWon || 0)}</span></div>
       <div class="wr-over__line">${escapeHTML(t.wr_levels_cleared)}</div>
+      <div class="wr-over__end">${escapeHTML(wrEndLine(s).text)} ${wrEndLine(s).icon}</div>
       <div class="wr-over__best">${s.newBest ? '🏆 ' + escapeHTML(t.wr_new_best) + ' · ' : ''}${escapeHTML(wrFill(t.wr_room_best, { n: s.best || 0 }))}</div>
       ${host}</div>`;
 }
@@ -249,6 +251,8 @@ function wrWire(el) {
   let drag = null;
   root.addEventListener('pointerdown', (e) => {
     wrAskMotion();
+    const fx = e.target.closest('[data-wr-fx]');
+    if (fx) { wrFxDown(fx, e); return; }
     const hit = e.target.closest('[data-wr-act]');
     if (!hit) return;
     const act = hit.dataset.wrAct;
@@ -270,10 +274,11 @@ function wrWire(el) {
       wrSend('press', { c: cid });
     }
   });
-  root.addEventListener('pointermove', (e) => { if (drag) wrSlideTo(drag, e); });
+  root.addEventListener('pointermove', (e) => { if (wr.fxDrag) wrFxMove(e); else if (drag) wrSlideTo(drag, e); });
   // The slider goes to the server once, where the finger lets go: sending every value it
   // passed filled every order on the way (the review of 1 Oct 2026).
-  const end = () => {
+  const end = (e) => {
+    if (wr.fxDrag) { wrFxUp(e); return; }
     if (!drag) return;
     const d = drag;
     drag = null;
@@ -300,17 +305,13 @@ function wrWire(el) {
       wrLocal(cid, v);
       haptic('light'); wrClick(1.2);
       wrSend('ctl', { c: cid, v });
-    } else if (act === 'wipe') {
-      haptic('light');
-      hit.classList.remove('is-wipe'); void hit.offsetWidth; hit.classList.add('is-wipe');
-      const x = wrMine(cid);
-      if (x && x.b && x.b.k === 'smoke') { x.b.left = Math.max(0, x.b.left - 1); wrPaintNow(); }
-      wrSend('wipe', { c: cid });
     } else if (act === 'shake') {
       wrShakeCount(true);
     }
   });
   root.addEventListener('keydown', (e) => {
+    const fx = e.target.closest && e.target.closest('[data-wr-fx]');
+    if (fx && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); wrFxWipe(fx); return; }
     const sl = e.target.closest && e.target.closest('[data-wr-act="slide"]');
     if (!sl) return;
     const cid = sl.closest('[data-c]').dataset.c;
@@ -358,6 +359,249 @@ function wrLocal(cid, v) {
   wrPaintNow();
 }
 
+/* --- 792 «مفاجأة كل مكان»: the place's own surprise over a panel --------------------
+   The server's 'smoke' (a control broken, WIRE_WIPES wipes by its holder, the same clock as
+   before) is drawn as the place's own surprise: a sandstorm over the half of the microbus panel
+   the control is in (swipe it clear), steam fogging the kitchen's panel (rub it off; mum's note
+   stays readable above it), the power cut on the wedding's mixer (dark; the finger is the torch,
+   and the lights come back a step with every wipe). The layer takes the touches over what it
+   covers. Every WR_FX_STEP of the finger's travel is one wipe, and so is a tap (the old four
+   taps still clear it). A phone under reduced motion gets the layer at once and gone at once;
+   the finger's trail is the finger's, not an animation, so it is drawn there too. */
+const WR_FX_KIND = { bus: 'sand', kitchen: 'steam', wedding: 'dark' };
+const WR_FX_STEP = 56;          // px of the finger's travel for one wipe (at least; a fifth of a wide layer)
+
+/** The covers this phone needs: the broken controls grouped by the part of the panel they cover. */
+function wrFxZones(state, root) {
+  const s = state.shared || {};
+  const kind = WR_FX_KIND[s.place] || 'sand';
+  const pnl = root.querySelector('.wr-pnl');
+  const zones = {};
+  if (!pnl || s.phase === 'gameover') return { kind, pnl, zones };
+  const h = pnl.clientHeight;
+  (((state.you || {}).panel) || []).forEach((x) => {
+    if (!x.b || x.b.k !== 'smoke' || !(x.b.left > 0)) return;
+    let z = 'all';
+    if (kind === 'sand') {
+      const ctl = pnl.querySelector(`[data-c="${CSS.escape(x.c)}"]`);
+      const mid = ctl ? ctl.offsetTop + ctl.offsetHeight / 2 : h;
+      z = mid < h / 2 ? 'top' : 'bottom';
+    }
+    (zones[z] = zones[z] || []).push(x);
+  });
+  return { kind, pnl, zones };
+}
+
+function wrFxPaint(state, root) {
+  const t = wrT();
+  const { kind, pnl, zones } = wrFxZones(state, root);
+  if (!pnl) return;
+  pnl.querySelectorAll('[data-wr-fx]').forEach((fx) => { if (!fx.classList.contains('is-gone') && !zones[fx.dataset.wrFx]) wrFxGone(fx); });
+  Object.keys(zones).forEach((z) => {
+    const list = zones[z];
+    let fx = pnl.querySelector(`[data-wr-fx="${z}"]:not(.is-gone)`);
+    if (!fx) {
+      fx = document.createElement('div');
+      fx.className = `wr-fx wr-fx--${kind} wr-fx--${z}`;
+      fx.dataset.wrFx = z;
+      fx.dataset.kind = kind;
+      fx.setAttribute('role', 'button');
+      fx.tabIndex = 0;
+      fx.innerHTML = `<canvas aria-hidden="true"></canvas><div class="wr-fx__tag"><b></b><span class="wr-fx__dots" aria-hidden="true"></span></div>`;
+      pnl.appendChild(fx);
+      if (!motionOff()) { fx.classList.add('is-in'); setTimeout(() => fx.classList.remove('is-in'), 800); }
+    }
+    fx.dataset.cids = list.map((x) => x.c).join(',');
+    const left = list.reduce((a, x) => a + Math.max(0, x.b.left), 0);
+    const total = Math.max(left, list.length * WIRE_WIPES);
+    fx.style.setProperty('--left', (left / total).toFixed(3));
+    const label = t['wr_fx_' + kind] || '';
+    const b = fx.querySelector('.wr-fx__tag b');
+    if (b && b.textContent !== label) b.textContent = label;
+    const aria = label + ' (' + left + ')';
+    if (fx.getAttribute('aria-label') !== aria) fx.setAttribute('aria-label', aria);
+    const dots = fx.querySelector('.wr-fx__dots');
+    const dkey = left + '/' + total;
+    if (dots && dots.dataset.k !== dkey) {
+      dots.dataset.k = dkey;
+      dots.innerHTML = Array.from({ length: total }, (_, i) => `<i class="${i < total - left ? 'is-on' : ''}"></i>`).join('');
+    }
+    wrFxDraw(fx, false);
+  });
+}
+
+/** The cover lifts: a short fade, or gone at once with motion off. */
+function wrFxGone(fx) {
+  if (wr.fxDrag && wr.fxDrag.fx === fx) wr.fxDrag = null;
+  fx.classList.add('is-gone');
+  fx.removeAttribute('role');
+  fx.tabIndex = -1;
+  if (motionOff()) { fx.remove(); return; }
+  setTimeout(() => fx.remove(), 450);
+}
+
+/** A seeded random, so a cover redrawn (a turn of the phone) looks the same. */
+function wrFxRng(seed) {
+  let a = 0;
+  for (let i = 0; i < seed.length; i++) a = (a * 31 + seed.charCodeAt(i)) >>> 0;
+  return () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296; };
+}
+
+/** Paints the cover's texture (only when its size changed, or forced: the dark around the torch). */
+function wrFxDraw(fx, force) {
+  const cv = fx.querySelector('canvas');
+  if (!cv || !cv.getContext) return null;
+  const w = fx.clientWidth, h = fx.clientHeight;
+  if (!w || !h) return null;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = Math.round(w * dpr), H = Math.round(h * dpr);
+  const ctx = cv.getContext('2d');
+  if (!force && cv.width === W && cv.height === H && fx.dataset.drawn) return ctx;
+  cv.width = W; cv.height = H;
+  fx.dataset.drawn = '1';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const kind = fx.dataset.kind;
+  const r = wrFxRng((fx.dataset.cids || '') + kind);
+  if (kind === 'sand') {
+    const edgeTop = fx.dataset.wrFx !== 'top';
+    ctx.beginPath();
+    if (edgeTop) {
+      ctx.moveTo(0, 18); ctx.quadraticCurveTo(w * 0.2, -2, w * 0.4, 14); ctx.quadraticCurveTo(w * 0.6, 28, w * 0.8, 10); ctx.quadraticCurveTo(w * 0.92, 2, w, 8);
+      ctx.lineTo(w, h); ctx.lineTo(0, h);
+    } else {
+      ctx.moveTo(0, 0); ctx.lineTo(w, 0); ctx.lineTo(w, h - 10); ctx.quadraticCurveTo(w * 0.8, h - 28, w * 0.6, h - 12); ctx.quadraticCurveTo(w * 0.4, h + 2, w * 0.2, h - 16); ctx.quadraticCurveTo(w * 0.1, h - 22, 0, h - 8);
+    }
+    ctx.closePath();
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#e8b867'); g.addColorStop(1, '#c58a3c');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    const grains = ['#b9853f', '#f6d38d', '#9c6b2f'];
+    for (let i = 0; i < Math.round(w * h / 260); i++) {
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = grains[i % 3];
+      ctx.beginPath(); ctx.arc(r() * w, r() * h, r() * 2.2 + 0.6, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = '#fff3d6';
+    ctx.lineWidth = 3;
+    for (let k = 0; k < 4; k++) {
+      const y = h * (0.22 + k * 0.2);
+      ctx.beginPath(); ctx.moveTo(-30 + k * 24, y); ctx.quadraticCurveTo(w * 0.3, y - 22, w * 0.6, y); ctx.quadraticCurveTo(w * 0.9, y + 22, w + 40, y - 6); ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  } else if (kind === 'steam') {
+    ctx.fillStyle = 'rgba(238, 243, 248, 0.9)';
+    ctx.fillRect(0, 0, w, h);
+    [[0.2, 0.25], [0.72, 0.18], [0.5, 0.6], [0.15, 0.82], [0.85, 0.74], [0.45, 0.95]].forEach(([x, y]) => {
+      const R = Math.min(w, h) * (0.28 + r() * 0.12);
+      const g = ctx.createRadialGradient(x * w, y * h, 0, x * w, y * h, R);
+      g.addColorStop(0, 'rgba(255, 255, 255, 0.75)'); g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    });
+    ctx.fillStyle = '#b9d9ee';
+    for (let i = 0; i < 7; i++) {
+      const x = (0.1 + r() * 0.8) * w, y = (0.1 + r() * 0.8) * h;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x - 5, y + 11, x, y + 15); ctx.quadraticCurveTo(x + 5, y + 11, x, y); ctx.fill();
+    }
+  } else {
+    ctx.fillStyle = '#05040b';
+    ctx.fillRect(0, 0, w, h);
+    if (wr.fxDrag && wr.fxDrag.fx === fx) wrFxTorchAt(ctx, wr.fxDrag.x, wr.fxDrag.y);
+  }
+  return ctx;
+}
+
+/** The power cut: the finger is the torch, a round of light under it. */
+function wrFxTorchAt(ctx, x, y) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  const g = ctx.createRadialGradient(x, y, 0, x, y, 82);
+  g.addColorStop(0, 'rgba(0, 0, 0, 1)'); g.addColorStop(0.6, 'rgba(0, 0, 0, 0.95)'); g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, 82, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+/** The finger clears its own path: a clean trail in the sand, a wiped streak in the steam. */
+function wrFxErase(fx, x0, y0, x1, y1) {
+  const ctx = wrFxDraw(fx, false);
+  if (!ctx) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  if (fx.dataset.kind === 'steam') {
+    const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 8));
+    for (let i = 0; i <= n; i++) {
+      const x = x0 + (x1 - x0) * i / n, y = y0 + (y1 - y0) * i / n;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, 36);
+      g.addColorStop(0, 'rgba(0, 0, 0, 0.9)'); g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, 36, 0, Math.PI * 2); ctx.fill();
+    }
+  } else {
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 52;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1 + 0.01, y1); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function wrFxPoint(fx, e) {
+  const r = fx.getBoundingClientRect();
+  return [e.clientX - r.left, e.clientY - r.top, r.width];
+}
+function wrFxDown(fx, e) {
+  if (fx.classList.contains('is-gone')) return;
+  e.preventDefault();
+  try { fx.setPointerCapture(e.pointerId); } catch (err) {}
+  const [x, y] = wrFxPoint(fx, e);
+  wr.fxDrag = { fx, x, y, run: 0, total: 0 };
+  if (fx.dataset.kind === 'dark') wrFxDraw(fx, true);
+}
+function wrFxMove(e) {
+  const d = wr.fxDrag;
+  if (!d.fx.isConnected || d.fx.classList.contains('is-gone')) { wr.fxDrag = null; return; }
+  const [x, y, width] = wrFxPoint(d.fx, e);
+  const dist = Math.hypot(x - d.x, y - d.y);
+  if (dist < 2) return;
+  if (d.fx.dataset.kind !== 'dark') wrFxErase(d.fx, d.x, d.y, x, y);
+  d.x = x; d.y = y;
+  if (d.fx.dataset.kind === 'dark') wrFxDraw(d.fx, true);
+  d.run += dist; d.total += dist;
+  const step = Math.max(WR_FX_STEP, width / 5);
+  while (d.run >= step) { d.run -= step; if (!wrFxWipe(d.fx)) break; }
+}
+function wrFxUp() {
+  const d = wr.fxDrag;
+  wr.fxDrag = null;
+  if (!d || !d.fx.isConnected) return;
+  if (d.total < 12) {
+    // A tap: one wipe, and a clean spot where it landed.
+    if (d.fx.dataset.kind !== 'dark') wrFxErase(d.fx, d.x, d.y, d.x, d.y);
+    wrFxWipe(d.fx);
+  }
+  if (d.fx.isConnected && d.fx.dataset.kind === 'dark') wrFxDraw(d.fx, true);
+}
+/** One wipe of the first control under this cover that still needs one, shown at once. */
+function wrFxWipe(fx) {
+  const cids = (fx.dataset.cids || '').split(',');
+  for (let i = 0; i < cids.length; i++) {
+    const x = wrMine(cids[i]);
+    if (x && x.b && x.b.k === 'smoke' && x.b.left > 0) {
+      x.b.left -= 1;
+      haptic('light');
+      wrSend('wipe', { c: cids[i] });
+      if (!motionOff()) { fx.classList.remove('is-wipe'); void fx.offsetWidth; fx.classList.add('is-wipe'); }
+      wrPaintNow();
+      return true;
+    }
+  }
+  return false;
+}
+
 /* --- painting ------------------------------------------------------------------- */
 function wrPaintNow() { if (Room.state && wr.el) (wr.tv ? wrTvPaint : wrPaint)(Room.state, wr.el); }
 
@@ -388,14 +632,9 @@ function wrPaint(state, el) {
     const flip = x.b && x.b.k === 'flip';
     ctl.classList.toggle('is-smoke', !!smoke);
     ctl.classList.toggle('is-flip', !!flip);
-    const smk = ctl.querySelector('.wr-smk');
-    if (smk) {
-      smk.hidden = !smoke;
-      const em = smk.querySelector('[data-wr-smk]');
-      const txt = smoke ? wrFill(t.wr_wipe, { n: x.b.left }) : '';
-      if (em && em.textContent !== txt) em.textContent = txt;
-    }
   });
+  // A control broken under the place's own surprise (792): sand, steam or the power cut over the panel.
+  wrFxPaint(state, root);
   // The order.
   const ord = root.querySelector('[data-wr-ord]');
   if (ord) {
@@ -586,6 +825,8 @@ function wrEvents(state, el) {
       haptic('heavy');
     } else if (e.type === 'break' && e.pid === me) {
       haptic('medium');
+    } else if (e.type === 'fixed' && e.pid === me) {
+      wrStamp(el, 'ok', t.wr_fx_cleared);
     } else if (e.type === 'shake') {
       haptic('heavy');
     } else if (e.type === 'shakeOk') {
@@ -715,16 +956,17 @@ function wrVoiceTick(st, s, now) {
 }
 
 /* --- the big screen: each place its own scene ----------------------------------- */
-function wrTvBusSvg() {
+function wrTvBusSvg(o) {
+  o = o || {};
   return `<svg class="wr-scn" viewBox="0 0 960 540" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
     <rect width="960" height="540" fill="#ffe3ad"/><circle cx="820" cy="150" r="54" fill="#fff4c4" stroke="#f59e0b" stroke-width="6"/>
     <path d="M0 330 Q160 260 330 320 T700 300 T960 320 V540 H0Z" fill="#f2c27b" stroke="#221f36" stroke-width="4"/>
     <path d="M0 385 Q240 345 480 385 T960 372 V540 H0Z" fill="#e9ad5f" stroke="#221f36" stroke-width="4"/>
     <rect y="410" width="960" height="70" fill="#5b5566" stroke="#221f36" stroke-width="4"/>
     <path class="wr-lane" d="M20 446 H940" stroke="#fff" stroke-width="6" stroke-dasharray="40 30"/>
-    <g transform="translate(130 250)"><rect x="-5" y="0" width="10" height="160" fill="#8a6b4a" stroke="#221f36" stroke-width="3"/><rect x="-82" y="-8" width="164" height="54" rx="8" fill="#1f8a4c" stroke="#221f36" stroke-width="4"/><text x="0" y="27" text-anchor="middle" font-size="21" fill="#fff" font-weight="700" font-family="IBM Plex Sans Arabic,Tahoma">${escapeHTML(wrT().wr_tv_sign)}</text></g>
+    <g transform="translate(130 250)"><rect x="-5" y="0" width="10" height="160" fill="#8a6b4a" stroke="#221f36" stroke-width="3"/><rect x="-82" y="-8" width="164" height="54" rx="8" fill="#1f8a4c" stroke="#221f36" stroke-width="4"/><text x="0" y="27" text-anchor="middle" font-size="21" fill="#fff" font-weight="700" font-family="IBM Plex Sans Arabic,Tahoma">${escapeHTML(o.sign || wrT().wr_tv_sign)}</text></g>
     <g transform="translate(700 300)" fill="#6fae5c" stroke="#221f36" stroke-width="4"><path d="M0 110 V20 Q0 0 14 0 Q28 0 28 20 V110Z"/><path d="M0 60 H-18 V36" fill="none"/><path d="M28 50 H44 V26" fill="none"/></g>
-    <g class="wr-bus" transform="translate(330 250)"><g class="wr-bus__body">
+    ${o.busOpen || '<g class="wr-bus" transform="translate(330 250)">'}<g class="wr-bus__body">
       <rect x="60" y="-20" width="120" height="30" rx="6" fill="#c0392b" stroke="#221f36" stroke-width="4"/><rect x="190" y="-14" width="70" height="24" rx="6" fill="#f59e0b" stroke="#221f36" stroke-width="4"/>
       <path d="M10 40 Q10 10 40 10 H300 Q350 10 370 60 L380 150 H10Z" fill="#fff" stroke="#221f36" stroke-width="6" stroke-linejoin="round"/>
       <rect x="10" y="95" width="370" height="20" fill="#2f6fd6" stroke="#221f36" stroke-width="4"/>
@@ -734,7 +976,7 @@ function wrTvBusSvg() {
       <g><circle cx="85" cy="150" r="32" fill="#221f36"/><circle cx="85" cy="150" r="13" fill="#bbb"/><circle cx="300" cy="150" r="32" fill="#221f36"/><circle cx="300" cy="150" r="13" fill="#bbb"/></g>
       <circle class="wr-hz" cx="372" cy="120" r="9" stroke="#221f36" stroke-width="3"/><circle class="wr-hz" cx="18" cy="120" r="9" stroke="#221f36" stroke-width="3"/>
       <g class="wr-puff"><circle cx="360" cy="40" r="18"/><circle cx="372" cy="30" r="14"/><circle cx="350" cy="36" r="16"/></g>
-    </g></g></svg>`;
+    </g></g>${o.busClose || ''}${o.extra || ''}</svg>`;
 }
 function wrTvGaugeSvg() {
   return `<svg viewBox="0 0 110 62" aria-hidden="true"><path d="M8 56 A47 47 0 0 1 102 56" fill="none" stroke="#3c3552" stroke-width="12"/><path d="M8 56 A47 47 0 0 1 55 9" fill="none" stroke="#3ddc84" stroke-width="12"/><path d="M55 9 A47 47 0 0 1 85 20" fill="none" stroke="#ffb938" stroke-width="12"/><path d="M85 20 A47 47 0 0 1 102 56" fill="none" stroke="#ff5f57" stroke-width="12"/><g class="wr-nd"><path d="M52 56 L55 14 L58 56Z" fill="#fff" stroke="#000" stroke-width="2"/></g><circle cx="55" cy="56" r="6" fill="#fff" stroke="#000" stroke-width="2"/></svg>`;
@@ -772,15 +1014,18 @@ function wrTvWeddingSvg() {
 }
 const WR_GUEST_COLORS = ['#e5387b', '#2f6fd6', '#1f9d55', '#f59e0b', '#7c3aed', '#e5383b'];
 function wrGuestsHtml() {
-  return WR_GUEST_COLORS.map((col, k) => `<div class="wr-gst"><svg viewBox="0 0 80 84" aria-hidden="true"><path d="M8 84 Q8 54 40 54 Q72 54 72 84Z" fill="${col}" stroke="#221f36" stroke-width="4"/><circle cx="40" cy="32" r="22" fill="#f2c4a0" stroke="#221f36" stroke-width="4"/>${k % 2
+  return WR_GUEST_COLORS.map((col, k) => `<div class="wr-gst">${wrGuestSvg(col, k)}</div>`).join('');
+}
+function wrGuestSvg(col, k) {
+  return `<svg viewBox="0 0 80 84" aria-hidden="true"><path d="M8 84 Q8 54 40 54 Q72 54 72 84Z" fill="${col}" stroke="#221f36" stroke-width="4"/><circle cx="40" cy="32" r="22" fill="#f2c4a0" stroke="#221f36" stroke-width="4"/>${k % 2
     ? '<path d="M18 30 Q18 8 40 8 Q62 8 62 30 L62 50 Q40 44 18 50Z" fill="#6b4ea0" stroke="#221f36" stroke-width="3"/><circle cx="40" cy="34" r="16" fill="#f2c4a0"/>'
-    : '<path d="M18 26 Q24 8 40 10 Q58 8 62 26 Q50 18 40 18 Q28 18 18 26Z" fill="#3b2a20"/>'}<circle cx="33" cy="32" r="3" fill="#221f36"/><circle cx="47" cy="32" r="3" fill="#221f36"/><path class="wr-hap" d="M32 40 Q40 47 48 40" stroke="#221f36" stroke-width="3" fill="none" stroke-linecap="round"/><path class="wr-sad" d="M32 45 Q40 38 48 45" stroke="#221f36" stroke-width="3" fill="none" stroke-linecap="round"/></svg></div>`).join('');
+    : '<path d="M18 26 Q24 8 40 10 Q58 8 62 26 Q50 18 40 18 Q28 18 18 26Z" fill="#3b2a20"/>'}<circle cx="33" cy="32" r="3" fill="#221f36"/><circle cx="47" cy="32" r="3" fill="#221f36"/><path class="wr-hap" d="M32 40 Q40 47 48 40" stroke="#221f36" stroke-width="3" fill="none" stroke-linecap="round"/><path class="wr-sad" d="M32 45 Q40 38 48 45" stroke="#221f36" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
 }
 
 function wrTvHtml(state, t) {
   const s = state.shared || {};
   const place = s.place || 'bus';
-  const card = `<div class="wr-tvcard" data-wr-tvcard hidden></div><div class="wr-toast" data-wr-toast></div><div class="wr-flash"></div>`;
+  const card = `<div class="wr-tvfx" data-wr-tvfx aria-live="polite"><span data-wr-tvfx-who></span></div><div class="wr-tvcard" data-wr-tvcard hidden></div><div class="wr-toast" data-wr-toast></div><div class="wr-flash"></div>`;
   if (place === 'kitchen') {
     return `<div class="wr-tv wr-tv--kitchen" data-wr-tv>
       <div class="wr-tv__scene">${wrTvKitchenSvg()}
@@ -817,9 +1062,10 @@ function wrTvHtml(state, t) {
 TV_GAMES.wire = {
   sig(state) {
     const s = state.shared || {};
-    return ['wire', roomDealKey(state), s.place, s.level, s.phase === 'gameover', (s.alive || []).join(','), state.youAreHost, appState.lang, wrL()].join('|');
+    const over = s.phase === 'gameover' ? [s.levelsWon, s.why, s.best, !!s.newBest].join(',') : '';
+    return ['wire', roomDealKey(state), s.place, s.level, s.phase === 'gameover', over, (s.alive || []).join(','), state.youAreHost, appState.lang, wrL()].join('|');
   },
-  frame(state, t) { return wrTvHtml(state, t); },
+  frame(state, t) { return (state.shared || {}).phase === 'gameover' ? wrTvEndHtml(state, t) : wrTvHtml(state, t); },
   after(state, rebuilt) {
     const el = document.getElementById('view-room-tv');
     if (!el) return;
@@ -831,6 +1077,106 @@ TV_GAMES.wire = {
     wrStartLoop();
   }
 };
+
+/* --- 796 «نهاية الحكاية»: the place's scene plays on to its ending -------------------
+   At the game's end the TV no longer lays a card over the scene: the scene the table watched
+   all game plays on, full screen, to the ending the levels cleared earned, and the count rises
+   in a corner (with the room's best and, on a TV that hosts, its buttons, once the scene has
+   played). Under 2 levels the bad ending, 2-4 the middle, 5 and more the good one
+   (WR_END_MID, WR_END_GOOD):
+     bus      it drives on from the desert's start and stops where the levels took it - broken
+              down near the start, or steaming a little short of the oasis - or rolls into it;
+     kitchen  the plates fill one by one, and the guests eat their fill, half of them do, or
+              they all walk out to the door hungry;
+     wedding  the lanterns come on one by one over the zaffa, half of them do, or they flicker
+              and die and the bride comes in in the dark, the guests holding up their phones.
+   Played once per deal (motionFirst): a redraw, a reload or motion off draws the ending as it
+   ends, every end state the element's own value (the animations only run from the start). */
+const WR_END_MID = 2;
+const WR_END_GOOD = 5;
+const wrEndTier = (n) => (n >= WR_END_GOOD ? 'good' : n >= WR_END_MID ? 'mid' : 'bad');
+const WR_END_ICON = { bus: { good: '🌴', mid: '🛞', bad: '🚐' }, kitchen: { good: '😋', mid: '🍽️', bad: '🚪' }, wedding: { good: '💃', mid: '💡', bad: '🕯️' } };
+/** The ending's line, for the TV's corner and the phones' end card. */
+function wrEndLine(s) {
+  const t = wrT();
+  const place = s.place || 'bus';
+  const tier = wrEndTier(s.levelsWon || 0);
+  return { icon: (WR_END_ICON[place] || WR_END_ICON.bus)[tier], text: t['wr_end_' + place + '_' + tier] || '' };
+}
+
+function wrEndBusScene(n, tier, t) {
+  // From off the road's start (left) to where the levels took it: past the sign when broken down, a little short of the oasis in the middle, into it.
+  const x1 = tier === 'good' ? 560 : tier === 'mid' ? 270 + n * 50 : 230 + n * 70;
+  const sign = tier === 'good' ? t.wr_end_sign_good : wrFill(t.wr_end_sign_km, { n: (WR_END_GOOD - Math.min(n, WR_END_GOOD - 1)) * 20 + 20 });
+  const palm = (x, y, k) => `<g transform="translate(${x} ${y}) scale(${k})"><path d="M0 0 Q6 -60 -4 -120" stroke="#7a4a2a" stroke-width="12" fill="none"/>${[[-60, -110], [60, -112], [-50, -140], [50, -142], [0, -160]].map(([a, b]) => `<path d="M-4 -120 Q${a / 2} ${b - 20} ${a} ${b + 10}" stroke="#2f8a3c" stroke-width="14" fill="none" stroke-linecap="round"/>`).join('')}</g>`;
+  const oasis = `<g class="wr-end__oasis"><ellipse cx="850" cy="440" rx="150" ry="24" fill="#3fa7d6" stroke="#221f36" stroke-width="4"/>${palm(760, 430, 0.9)}${palm(940, 435, 1.1)}${palm(860, 420, 0.7)}</g>`;
+  const steam = tier === 'good' ? '' : `<g transform="translate(${x1 + 296} 300)"><g class="wr-end__steam"><circle r="14"/><circle cx="12" cy="-24" r="18"/><circle cx="-4" cy="-52" r="22"/></g></g>`;
+  return wrTvBusSvg({ sign, busOpen: `<g class="wr-end__bus" style="--x0:-340px;--x1:${x1}px"><g class="wr-bus" transform="translate(0 250) scale(.8) translate(0 50)">`, busClose: '</g>', extra: oasis + steam });
+}
+
+function wrEndKitchenScene(tier) {
+  const full = tier === 'good' ? 6 : tier === 'mid' ? 3 : 0;
+  const food = ['#e5383b', '#4f7d3a', '#f59e0b', '#c0392b', '#7a4a2a', '#2f8a3c'];
+  const plates = food.map((col, k) => `<g transform="translate(${130 + k * 95} 388)"><ellipse rx="38" ry="14" fill="#fff" stroke="#221f36" stroke-width="4"/>${k < full ? `<ellipse class="wr-end__food" style="--k:${k}" cy="-6" rx="24" ry="10" fill="${col}"/>` : ''}</g>`).join('');
+  const door = `<g transform="translate(18 150)"><rect width="66" height="180" rx="6" fill="#8a5a3a" stroke="#221f36" stroke-width="5"/><circle cx="14" cy="96" r="6" fill="#ffd166" stroke="#221f36" stroke-width="3"/></g>`;
+  const svg = wrTvKitchenSvg().replace('</svg>', door + plates + '</svg>');
+  const sad = (k) => tier === 'bad' || (tier === 'mid' && k >= 3);
+  const guests = WR_GUEST_COLORS.map((c, k) => `<div class="wr-end__g ${sad(k) ? 'is-sad' : ''}" style="--k:${k}">${wrGuestSvg(c, k)}</div>`).join('');
+  return `<div class="wr-tv__scene">${svg}</div><div class="wr-end__guests is-${tier}" dir="ltr">${guests}</div>`;
+}
+
+function wrEndWeddingScene(tier) {
+  let svg = wrTvWeddingSvg();
+  const lit = tier === 'good' ? 12 : tier === 'mid' ? 6 : 0;
+  let i = 0;
+  svg = svg.replace(/class="wr-blb"/g, () => { const k = i++; return `class="wr-blb wr-end__blb${k < lit ? ' is-on' : ''}" style="--k:${k}"`; });
+  const lanterns = [140, 300, 660, 820].map((x, k) => `<g transform="translate(${x} ${200 + (k % 2) * 30})"><path d="M0 -40 V-10" stroke="#221f36" stroke-width="3"/><path class="wr-end__lan${(tier === 'good' || (tier === 'mid' && k % 2 === 0)) ? ' is-on' : ''}" style="--k:${k}" d="M-16 -10 h32 l6 40 l-22 18 l-22 -18z" stroke="#221f36" stroke-width="4"/></g>`).join('');
+  const dark = tier === 'bad' ? `<rect class="wr-end__dark" width="960" height="540" fill="#030208"/>${[[300, 360], [520, 380], [700, 350]].map(([x, y], k) => `<g class="wr-end__torch" style="--k:${k}"><circle cx="${x}" cy="${y}" r="26" fill="#fff6c4" opacity=".55"/><circle cx="${x}" cy="${y}" r="6" fill="#fff"/></g>`).join('')}` : '';
+  svg = svg.replace('</svg>', lanterns + dark + '</svg>');
+  const sad = (k) => tier === 'bad' || (tier === 'mid' && k % 2 === 1);
+  const crowd = WR_GUEST_COLORS.map((c, k) => `<div class="wr-gst wr-end__g ${sad(k) ? 'is-sad' : ''}" style="--k:${k}">${wrGuestSvg(c, k)}</div>`).join('');
+  return `${svg}<div class="wr-crowd">${crowd}</div>`;
+}
+
+/** The ending, full screen: the scene and the corner's count (the TV's frame at gameover). */
+function wrTvEndHtml(state, t) {
+  const s = state.shared || {};
+  const place = s.place || 'bus';
+  const n = s.levelsWon || 0;
+  const tier = wrEndTier(n);
+  // Played once per deal, and only just after the game ended: a TV that reloads or joins later sees the ending as it ends.
+  wrNoteTime(state);
+  const lost = (s.events || []).filter((e) => e.type === 'lost').pop();
+  const play = !!lost && wrNow() - (lost.at || 0) < 6000 && motionFirst(['wr-end', roomDealKey(state)].join('|'));
+  const end = wrEndLine(s);
+  const why = s.why === 'time' ? t.wr_over_time : s.why === 'left' ? t.wr_over_left : t.wr_over_damage;
+  const scene = place === 'kitchen' ? wrEndKitchenScene(tier) : place === 'wedding' ? wrEndWeddingScene(tier) : wrEndBusScene(n, tier, t);
+  const host = state.youAreHost ? `<div class="tv-actions">${tvBtn('▶ ' + t.wr_again, "roomAct('playAgain', {})")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : '';
+  return `<div class="wr-tv wr-tv--${place} wr-end wr-end--${tier} ${play ? 'is-play' : ''}" data-wr-tv data-wr-end="${play ? 'play' : 'still'}">
+    ${scene}
+    <div class="wr-endb ${tier === 'good' ? 'is-good' : ''}" data-reveal-ms="${play ? 2900 : 0}">
+      <small>${escapeHTML(t.wr_levels_cleared)}</small>
+      <b class="metric" data-wr-endn data-to="${n}">${play ? 0 : n}</b>
+      <span>${escapeHTML(end.text)} ${end.icon}</span>
+      <div class="wr-endb__more">
+        <em>${escapeHTML(why)}</em>
+        <em>${s.newBest ? '🏆 ' + escapeHTML(t.wr_new_best) + ' · ' : ''}${escapeHTML(wrFill(t.wr_room_best, { n: s.best || 0 }))}</em>
+        ${host}
+      </div>
+    </div></div>`;
+}
+
+/** Once, when the ending is drawn with motion: the count rises with the scene, a good ending's confetti after it. */
+function wrTvEndPaint(state, tv) {
+  if (tv.dataset.wrEnd !== 'play' || tv.dataset.counted) return;
+  tv.dataset.counted = '1';
+  const num = tv.querySelector('[data-wr-endn]');
+  if (num) setTimeout(() => { if (num.isConnected) countUp(num, 0, Number(num.dataset.to) || 0); }, 900);
+  const s = state.shared || {};
+  if (wrEndTier(s.levelsWon || 0) === 'good' || (s.newBest && (s.levelsWon || 0) > 0)) {
+    afterReveal(tv, () => { if (tv.isConnected && typeof confetti === 'function') confetti({ particleCount: 140, spread: 90, origin: { y: 0.55 } }); });
+  }
+}
 
 /** The latest order given out: what the bus's ticker and the uncle shout. */
 function wrLatestOrder(s) {
@@ -844,6 +1190,7 @@ function wrTvPaint(state, el) {
   const s = state.shared || {};
   const tv = el.querySelector('[data-wr-tv]');
   if (!tv) return;
+  if (tv.hasAttribute('data-wr-end')) { wrTvEndPaint(state, tv); wrFrame(); return; }
   const p = Math.min(1, (s.progress || 0) / Math.max(1, s.target || 1));
   const d = Math.min(1, (s.damage || 0) / Math.max(1, s.dmgMax || 1));
   tv.style.setProperty('--p', p.toFixed(3));
@@ -874,18 +1221,22 @@ function wrTvPaint(state, el) {
       }).join('');
     }
   }
-  // The level's card over the scene: ready, won, the end.
+  // The place's surprise (792): a veil over the scene and whose panel it is on, while it lasts.
+  const fx = tv.querySelector('[data-wr-tvfx]');
+  if (fx) {
+    const cover = s.phase === 'play' ? Object.keys(s.cover || {}).filter((pid) => (s.alive || []).indexOf(pid) !== -1) : [];
+    const who = cover.map((pid) => wrFill(t.wr_tv_fx_who, { name: wrIso(wrName(state, pid)) })).join(' · ');
+    const txt = who ? (WR_TV_FX_ICON[WR_FX_KIND[s.place] || 'sand'] + ' ' + who) : '';
+    const w = fx.querySelector('[data-wr-tvfx-who]');
+    if (w && w.textContent !== txt) w.textContent = txt;
+    fx.classList.toggle('is-on', !!who);
+  }
+  // The level's card over the scene: ready, won (the end is the ending's own frame, 796).
   const card = tv.querySelector('[data-wr-tvcard]');
   if (card) {
     let html = '';
     if (s.phase === 'ready') html = `<div class="wr-tvcard__big">${escapeHTML(wrFill(t.wr_level, { n: s.level || 1 }))}</div><div class="wr-tvcard__line">${escapeHTML(wrFill(t.wr_tv_target, { n: s.target || 0 }))}</div><div class="wr-tvcard__line metric" data-wr-cd></div>`;
     else if (s.phase === 'won') html = `<div class="wr-tvcard__big">🎉 ${escapeHTML(wrFill(t.wr_level_won, { n: s.level || 1 }))}</div><div class="wr-tvcard__line" data-wr-cd></div>${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.wr_next_now, `roomAct('nextLevel', { lv: ${Number(s.level) || 0} })`, 'secondary')}</div>`)}`;
-    else if (s.phase === 'gameover') {
-      const why = s.why === 'time' ? t.wr_over_time : s.why === 'left' ? t.wr_over_left : t.wr_over_damage;
-      html = `<div class="wr-tvcard__line">${escapeHTML(why)}</div><div class="wr-tvcard__big metric">${s.levelsWon || 0}</div><div class="wr-tvcard__line">${escapeHTML(t.wr_levels_cleared)}</div>
-        <div class="wr-tvcard__line">${s.newBest ? '🏆 ' + escapeHTML(t.wr_new_best) + ' · ' : ''}${escapeHTML(wrFill(t.wr_room_best, { n: s.best || 0 }))}</div>
-        ${state.youAreHost ? `<div class="tv-actions">${tvBtn('▶ ' + t.wr_again, "roomAct('playAgain', {})")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
-    }
     const key = [s.phase, s.level, s.levelsWon, s.best, state.youAreHost, !!state.hostAway, appState.lang].join('|');
     if (card.dataset.key !== key) {
       card.dataset.key = key;
@@ -896,6 +1247,8 @@ function wrTvPaint(state, el) {
   }
   wrFrame();
 }
+
+const WR_TV_FX_ICON = { sand: '🌪️', steam: '♨️', dark: '🔌' };
 
 function wrTvFrame(st, el, now) {
   const s = st.shared || {};
@@ -934,7 +1287,7 @@ function wrTvMoment(state, el, e) {
   const tick = tv.querySelector('[data-wr-tick]');
   if (tick && (e.type === 'done' || e.type === 'miss')) tick.textContent = wireOrderText(e, wrL()) || tick.textContent;
   let msg = '';
-  if (e.type === 'break') msg = wrFill(e.k === 'smoke' ? t.wr_tv_smoke : t.wr_tv_flip, { name: wrIso(wrName(state, e.pid)), c: wireName(e.c, wrL()) });
+  if (e.type === 'break') msg = (e.k === 'smoke' ? WR_TV_FX_ICON[WR_FX_KIND[(state.shared || {}).place] || 'sand'] + ' ' : '') + wrFill(e.k === 'smoke' ? t['wr_tv_fx_' + (WR_FX_KIND[(state.shared || {}).place] || 'sand')] : t.wr_tv_flip, { name: wrIso(wrName(state, e.pid)), c: wireName(e.c, wrL()) });
   else if (e.type === 'shake') msg = t.wr_shake_title + ' 📳';
   else if (e.type === 'shakeFail') msg = t.wr_shake_fail;
   if (msg) {

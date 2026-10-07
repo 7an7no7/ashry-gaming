@@ -39,7 +39,6 @@ gameText({
       wr_surprises_hint: "لوحات جديدة كل مستوى، حاجات بتبوظ فجأة، و«الكل يهز الموبايل!».",
       wr_lobby_hint: "كل موبايل لوحة، والأمر غالبًا على لوحة حد تاني… زعّق بيه!",
       wr_level: "المستوى {n}",
-      wr_wipe: "امسح! ({n})",
       wr_get_ready: "استعدوا! المستوى {n}",
       wr_learn_panel: "اتعرّف على لوحتك",
       wr_level_won: "عدّينا المستوى {n}!",
@@ -60,7 +59,25 @@ gameText({
       wr_tv_last: "آخر أمر:",
       wr_tv_phone_of: "موبايل {name}",
       wr_tv_target: "{n} أمر لازم يتعمل",
-      wr_tv_smoke: "لوحة {name}: دخان على «{c}» — امسحه!",
+      wr_fx_sand: "عاصفة رملية! اسحب صباعك عليها",
+      wr_fx_steam: "البخار غطّى كل حاجة! امسح",
+      wr_fx_dark: "النور قطع! صباعك هو الكشاف… لِف بيه",
+      wr_fx_cleared: "برافو! كمّل",
+      wr_tv_fx_sand: "لوحة {name}: عاصفة رملية — اسحبها!",
+      wr_tv_fx_steam: "لوحة {name}: البخار غطّاها — امسحها!",
+      wr_tv_fx_dark: "لوحة {name}: النور قطع — نوّرها بصباعك!",
+      wr_tv_fx_who: "لوحة {name}",
+      wr_end_sign_good: "وصلنا!",
+      wr_end_sign_km: "الواحة {n} كم",
+      wr_end_bus_good: "وصلتوا الواحة!",
+      wr_end_bus_mid: "الميكروباص وقف قبل الواحة بشوية…",
+      wr_end_bus_bad: "الميكروباص اتعطل في أول الطريق…",
+      wr_end_kitchen_good: "الضيوف كلوا وشبعوا!",
+      wr_end_kitchen_mid: "الضيوف كلوا… ونصهم لسه جعان",
+      wr_end_kitchen_bad: "الضيوف مشيوا جعانين…",
+      wr_end_wedding_good: "الزفة تحت الفوانيس منوّرة!",
+      wr_end_wedding_mid: "الزفة على نص نور",
+      wr_end_wedding_bad: "العروسة دخلت في الضلمة…",
       wr_tv_flip: "لوحة {name}: «{c}» بالمقلوب!",
     },
     en: {
@@ -99,7 +116,6 @@ gameText({
       wr_surprises_hint: "New panels every level, controls breaking out of nowhere, and «Everyone shake!».",
       wr_lobby_hint: "Every phone is a panel, and your order is usually on someone else's… shout it!",
       wr_level: "Level {n}",
-      wr_wipe: "Wipe! ({n})",
       wr_get_ready: "Get ready! Level {n}",
       wr_learn_panel: "Learn your panel",
       wr_level_won: "Level {n} cleared!",
@@ -120,7 +136,25 @@ gameText({
       wr_tv_last: "Last order:",
       wr_tv_phone_of: "{name}'s phone",
       wr_tv_target: "{n} orders to do",
-      wr_tv_smoke: "{name}'s panel: smoke on «{c}» — wipe it!",
+      wr_fx_sand: "Sandstorm! Swipe it clear",
+      wr_fx_steam: "Steam everywhere! Rub it off",
+      wr_fx_dark: "Power cut! Your finger is the torch… sweep it",
+      wr_fx_cleared: "Nice! Keep going",
+      wr_tv_fx_sand: "{name}'s panel: a sandstorm — swipe it!",
+      wr_tv_fx_steam: "{name}'s panel: steamed up — rub it!",
+      wr_tv_fx_dark: "{name}'s panel: power cut — light it with your finger!",
+      wr_tv_fx_who: "{name}'s panel",
+      wr_end_sign_good: "Made it!",
+      wr_end_sign_km: "Oasis {n} km",
+      wr_end_bus_good: "You reached the oasis!",
+      wr_end_bus_mid: "The microbus stopped just short of the oasis…",
+      wr_end_bus_bad: "The microbus broke down at the start of the road…",
+      wr_end_kitchen_good: "The guests ate their fill!",
+      wr_end_kitchen_mid: "The guests ate… and half are still hungry",
+      wr_end_kitchen_bad: "The guests left hungry…",
+      wr_end_wedding_good: "The zaffa under the lit lanterns!",
+      wr_end_wedding_mid: "A zaffa in half the light",
+      wr_end_wedding_bad: "The bride came in, in the dark…",
       wr_tv_flip: "{name}'s panel: «{c}» is upside down!",
     }
   },
@@ -137,9 +171,9 @@ gameText({
                 <li>📣 <b>المنادي</b>: اللي داخل في النص أو الزيادة عن 8 بيتفرج، وموبايله بيوريه كل الأوامر المفتوحة وشريط كل واحد، فينادي للترابيزة على الأمر اللي قرّب يتحرق.</li>
             </ol>
             <p class="help-sub">🎁 المفاجآت</p>
-            <p class="text-xs">لو المضيف سايبها شغّالة: اللوحات بتتغير كل مستوى، حاجة بتبوظ فجأة (دخان امسحه بالضغط، أو تتقلب بالمقلوب شوية)، و«الكل يهز الموبايل!» — كله يهز في نفس الوقت (أو يدوس 3 مرات).</p>
+            <p class="text-xs">لو المضيف سايبها شغّالة: اللوحات بتتغير كل مستوى، حاجة بتبوظ فجأة بمفاجأة المكان (عاصفة رملية على نص لوحة الميكروباص اسحبها بصباعك، بخار بيغبّش لوحة المطبخ امسحه، والنور بيقطع على لوحة الفرح وصباعك هو الكشاف — 4 مسحات أو دوسات وترجع)، أو تتقلب بالمقلوب شوية، و«الكل يهز الموبايل!» — كله يهز في نفس الوقت (أو يدوس 3 مرات).</p>
             <p class="help-sub">📺 التلفزيون</p>
-            <p class="text-xs">المشهد والتقدّم والضرر والساعة، والإنذارات بصوت عالي. من غير تلفزيون كل موبايل بيوري الضرر والوقت، والصوت من موبايل المضيف.</p>`,
+            <p class="text-xs">المشهد والتقدّم والضرر والساعة، والإنذارات بصوت عالي، ولوحة مين عليها المفاجأة. وفي الآخر المشهد بيكمّل لنهايته على قد المستويات اللي عدّيتوها: الميكروباص يوصل الواحة ولا يقف قبلها، الضيوف ياكلوا ولا يمشوا جعانين، والزفة منوّرة ولا في الضلمة (5 مستويات وأكتر النهاية الحلوة). من غير تلفزيون كل موبايل بيوري الضرر والوقت، والصوت من موبايل المضيف.</p>`,
     },
     en: {
       wire: `
@@ -153,9 +187,9 @@ gameText({
                 <li>📣 <b>The caller</b>: someone who joins mid-game or is the ninth watches, and their phone shows every open order with its bar, so they shout out the one about to burn.</li>
             </ol>
             <p class="help-sub">🎁 Surprises</p>
-            <p class="text-xs">If the host leaves them on: new panels every level, a control breaking out of nowhere (smoke to wipe off with taps, or turned upside down for a while), and «Everyone shake your phone!» - all at once (or tap 3 times).</p>
+            <p class="text-xs">If the host leaves them on: new panels every level, a control breaking out of nowhere under the place's own surprise (a sandstorm over half the microbus panel to swipe away, steam fogging the kitchen panel to rub off, a power cut on the wedding panel where your finger is the torch - 4 swipes or taps bring it back), or turned upside down for a while, and «Everyone shake your phone!» - all at once (or tap 3 times).</p>
             <p class="help-sub">📺 The TV</p>
-            <p class="text-xs">The scene, the progress, the damage and the clock, and the alarms out loud. With no TV every phone shows the damage and the time, and the host's phone plays the sound.</p>`,
+            <p class="text-xs">The scene, the progress, the damage and the clock, the alarms out loud, and whose panel the surprise is on. At the end the scene plays on to its ending by the levels cleared: the microbus reaches the oasis or stops short, the guests eat or leave hungry, the zaffa is lit or in the dark (5 levels or more for the happy ending). With no TV every phone shows the damage and the time, and the host's phone plays the sound.</p>`,
     }
   }
 });

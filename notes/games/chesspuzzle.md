@@ -125,6 +125,24 @@ section 33 (`.chpz-*`). The game's id is **`chesspuzzle`**, the screens
   drawn) and writes it in text with `dailyIconText` (a drawn icon writes
   nothing: its line carries ♟️).
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **1015 «اللي غلبوني», the retry pile** - every puzzle of the bank you got wrong or gave up
+  on (free, the daily, the streak) goes into `s.pile` ({ id, ok, at }, kept on the phone as a
+  pref, at most 60, `chPzPileNote` from `chPzSolved`, `chPzGiveUp` and the streak's
+  `chPzWrongMode`); a row on the setup screen («🔁 اللي غلبوني (n)», `chPzPileWayHtml`) deals
+  the one missed longest ago (mode `retry`, `chPzStartPile`; «اللي بعده» `chPzPileNext` skips
+  the one just played). Chosen here: **solved with no wrong move and no hint counts one; two in
+  a row and it leaves** (a toast says so); a wrong move or the solution resets its count and
+  sends it to the back; a hint keeps it but resets the count; a solve in any mode counts, not
+  only in the pile. The puzzles from your own mistakes stay out (they have their own list);
+  a puzzle gone from the bank (a new build) drops out. The tag shows «🔁 اللي غلبوني · 1/2».
+- **1017 who you play, big** - the first line is the king of your colour and «انت الأبيض» /
+  «انت الأسود» big, then the task («العب واكسب», «موّت في 2 نقلات», «لاقي أحسن نقلة»;
+  `chPzYouHtml`, `chPzTask`); the status under it says «دورك!» until the first move. The board
+  was already turned to your side (`orient: chPzSide(s)`, the side to move in the FEN, 2D and
+  3D), so nothing to fix there.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

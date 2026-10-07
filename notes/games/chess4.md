@@ -193,6 +193,27 @@ rules are named `chess4` / `CHESS4_` and the page's code `ch4`.
   square is under 34 px (a laptop or TV never sees it). Letting go plays exactly as before.
 - Tests: `rules.mjs`, "chess4 bots only:" and "chess4 first move:".
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **986 «دور سريع» (speed round)** - the owner: build as described, simple family details.
+  A fifth clock choice in the lobby, `CHESS4_SPEED` (-1) in `CHESS4_CLOCKS` (Chess4.js),
+  labelled «⚡ دور سريع»: **every move, the first too, has `CHESS4_SPEED_MS` (10 s) by the
+  server's clock, then an easy computer move is played for the player** (`auto: 'time'`, the
+  log's 🤖) - the first move's 45 s machinery reused: the game's clock is `{ speed: true,
+  first, at: null, moved, left: [0,0,0,0] }`, `chess4ClockTurn` sets `first` on every turn,
+  `chess4Deadline` / `chess4Timeout` use 10 s instead of 45. Chosen for a family: **nobody is
+  ever out on time** (no bank of minutes, no increment), so a quiet phone only costs its own
+  move. On the screens: the corner chips carry no clock, the status carries a ⚡ count of the
+  move's seconds (`ch4FirstLeft` / `ch4FirstText`, red from 3 s, `ch4FirstLow`), and the head
+  a «⚡ دور سريع» badge. Tests: `rules.mjs` "chess4 speed:", `play-all.mjs` (`--only=chess4`:
+  red sits still and the server moves for it).
+- **988 whose turn round the board** - the board's outer frame takes the colour to move
+  (`ch4PaintTurnFrame` sets `data-turn` r/b/y/g on `.ch4b`; a `::after` ring just outside the
+  squares, so it never covers one; it breathes on your own move, `.ch4b.is-live`), and the
+  status starts with the turn in that colour: «دورك!» in your colour on your turn
+  (`ch4StatusHtml`, `.ch4-tx--*`: the colour's dark edge on a light page, its light tint on a
+  dark one), a dot of the colour before anyone else's «دور …». Phones and the TV alike.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -148,6 +148,33 @@ The owner's rules are in *The owner's specs*. Game id `handbrain`, view
   decision, 130 ms at the worst.
 - Tests: `rules.mjs`, "handbrain recall:".
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **991 «الكابتن» breaks the tie (vote chess)** - the owner: the host can tap a captain per
+  team in the lobby; if not, one is drawn at random at the start. A tie goes to the captain's
+  vote; if the captain voted for none of the tied moves (or didn't vote), the tie is drawn at
+  random as before. (It replaces *a tie is drawn at random* above for a captain who voted.)
+  Built: `shared.lobby.caps` ([White's, Black's], `captain { pid }`, the host's 🎖️ beside each
+  name, a second tap takes it off, a captain moved across is dropped by `vcFitCaps`);
+  `shared.captains` at the start (`vcPickCaptain`: the lobby's if still on that team, else
+  drawn); in `vcClose` a tie whose captain voted for one of the tied moves is `how: 'captain'`
+  with `tally.captain` («🎖️ تعادل في الأصوات: الكابتن (…) حسمها»). Chosen here: resigning still
+  needs a clear majority (a captain's 🏳️ never wins a tie); a captain who leaves - another
+  member is drawn; play again keeps the captains with their teams (their colour swapped). The
+  captain's chip wears a gold band and 🎖️ under the team's pill (`.vc-mem.is-cap`), in the
+  lobby too, on the phones and the TV. Tests: `rules.mjs` "votechess captain:", `play-all.mjs`.
+- **996 your vote, visible** - under the board a voter sees «🗳️ صوتك: ♞f3 · تقدر تغيّره» with
+  ✕ (`vcMyVoteHtml`, `.vc-myvote` in the premove blue); ✕ is `unvote { n }` (`vcUnvote`, drawn at
+  once and put back if refused): the vote, its arrow, the secret slice and the dot go, and the
+  vote stays open. The status then says «✅ صوتك اتحسب، مستنيين الباقيين» (`vc_voted_wait`).
+  Tests: `rules.mjs` "votechess unvote:", `play-all.mjs`.
+- **1004 the role on the top line (المخ والإيد)** - a seated phone's first line is always its
+  role and its job (`hbRoleHtml`): «🧠 انت المخ - سمّي قطعة», «✋ انت الإيد - حرّك الحصان» in the
+  accent when it is your job now, and dimmed while you wait («- الإيد بتحرّك», «- استنى المخ»,
+  «- استنى دور فريقك»). The status no longer repeats your own job (only a check), and the
+  Brain's «الإيد بتاعتك بتحرّك… استنى» line under the board went (the role line says it). Not on
+  the TV (it sits nowhere).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

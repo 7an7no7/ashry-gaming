@@ -254,6 +254,157 @@ function dbCallResultHtml(state, e, tv) {
     </div>`;
 }
 
+/* --- the pile as a crooked heap (909, look ب «كومة مكركبة») ------------------------ */
+
+// The game's own card backs heaped up: each a little higher than the one under it, shifted and
+// tilted, the heap taller and leaning further with each play. Its height is capped (--db-rise,
+// reserved above the pile as its margin), so it never reaches the claim line over it at any size.
+// It wobbles at «كدّاب!» and falls in an arc toward whoever takes it; it lifts away when it goes
+// out. Transform and opacity only; with motion off the heap is simply drawn.
+const DB_TOWER_MAX = 24;
+const DB_TOWER_CSS = `
+.db-pile.is-tower { --db-rise: calc(var(--pc-w, 3.3rem) * 0.9); margin-top: calc(var(--db-rise) + var(--pc-w, 3.3rem) * 0.18); }
+.pc-stage.db-tv .db-pile.is-tower, .pc-stage.db-tv .db-pile.is-tower .pc-card { --pc-w: min(12vmin, 8vw); }
+.pc-stage.db-tv .db-table { justify-content: safe center; }
+.pc-stage.db-tv .db-table > .db-pilezone { flex-shrink: 0; }
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) and (min-height: 501px) {
+  .pc-stage:not(.db-tv) .db-pile.is-tower { --db-rise: calc(var(--pc-w, 3.3rem) * 0.55); }
+}
+.db-tw-all { position: absolute; inset: 0; transform-origin: 50% 100%; }
+.db-tw { position: absolute; inset: 0; transform-origin: 50% 70%; transform: translate(calc(var(--pc-w, 3.3rem) * var(--x, 0)), calc(var(--db-rise, 0px) * var(--f, 0) * -1)) rotate(var(--r, 0deg)); }
+.db-tw > .pc-card { box-shadow: 0 0.2em 0.55em rgba(0, 0, 0, 0.42); }
+.db-twghost { position: fixed; z-index: var(--z-fx-ghost); pointer-events: none; }
+.db-twghost .db-tw-all, .db-twghost .db-tw { will-change: transform; }
+`;
+function dbTowerStyleOn() {
+  if (document.getElementById('db-tower-style')) return;
+  const st = document.createElement('style');
+  st.id = 'db-tower-style';
+  st.textContent = DB_TOWER_CSS;
+  document.body.appendChild(st);
+}
+dbTowerStyleOn();
+
+/** A steady jitter in -1..1 for card j (the same card keeps its place as the heap grows). */
+function dbTowerJit(j, salt) {
+  const x = Math.sin((j + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+  return (x - Math.floor(x)) * 2 - 1;
+}
+
+/** Where each card of a pile of n sits: x in card widths, f a share of the heap's height, r degrees. */
+function dbTowerSlots(n) {
+  const m = Math.min(Math.max(0, n | 0), DB_TOWER_MAX);
+  const lean = n > 1 ? Math.min(1, (n - 1) / 24) : 0;
+  const step = m > 1 ? Math.min(0.11, 1 / (m - 1)) : 0;
+  const out = [];
+  for (let j = 0; j < m; j++) {
+    const k = m > 1 ? j / (m - 1) : 0;
+    out.push({
+      x: -lean * 0.25 + Math.pow(k, 1.5) * lean * 0.6 + dbTowerJit(j, 1) * 0.08,
+      f: j * step,
+      r: dbTowerJit(j, 2) * 8 + k * lean * 16
+    });
+  }
+  return out;
+}
+
+function dbTowerCardsHtml(n) {
+  return `<span class="db-tw-all">${dbTowerSlots(n).map((p, j) => `<span class="db-tw" data-pc-at="pile:${j}" style="--x:${p.x.toFixed(3)};--f:${p.f.toFixed(3)};--r:${p.r.toFixed(1)}deg">${pcCardHtml(null, { size: 'fly' })}</span>`).join('')}</span>`;
+}
+
+/** The pile on the table (the stack of five backs it was is this heap now). */
+function dbTowerHtml(n) {
+  return `<span class="db-pile is-tower ${n ? '' : 'is-empty'}" data-pc-at="pile">${n ? dbTowerCardsHtml(n) : '<span class="db-pile__empty" aria-hidden="true"></span>'}</span>`;
+}
+
+/**
+ * A stand-in heap of n cards laid over the pile, for a call or the pile going out: the table was
+ * redrawn with the pile already gone, so the heap that falls is drawn over its old place.
+ */
+function dbTowerGhost(fx, root, n, shown) {
+  const live = pcEl(root, 'pile');
+  const r = live && live.getBoundingClientRect();
+  if (!r || !r.width || !n || !pcCanMove()) return null;
+  const rise = parseFloat(getComputedStyle(live).marginTop) - r.width * 0.18;   // the margin is the rise and 0.18 of a card
+  const g = pcLayer(root, { left: r.left, top: r.top, width: r.width, height: r.height }, 'pc-ghost db-twghost', dbTowerCardsHtml(n));
+  g.style.setProperty('--pc-w', r.width + 'px');
+  g.style.setProperty('--db-rise', (rise > 0 ? rise : r.width * 0.62) + 'px');
+  if (!shown) g.style.visibility = 'hidden';
+  // Never left behind, whatever happens to the steps that move it.
+  fx.timers.push(setTimeout(() => g.remove(), 15000));
+  return g;
+}
+
+/** «كدّاب!»: the heap sways on its foot. */
+function dbTowerWobble(g) {
+  const all = g && g.querySelector('.db-tw-all');
+  if (!all || !pcCanMove()) return;
+  all.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(-4.5deg)', offset: 0.18 }, { transform: 'rotate(3.5deg)', offset: 0.42 },
+    { transform: 'rotate(-2.2deg)', offset: 0.64 }, { transform: 'rotate(1deg)', offset: 0.84 }, { transform: 'rotate(0deg)' }],
+  { duration: 950, easing: 'ease-in-out' });
+}
+
+/** The heap falls in an arc toward a place (whoever takes it), the top cards first. */
+function dbTowerFall(g, to, tv) {
+  if (!g) return;
+  if (!to || !pcCanMove()) { g.remove(); return; }
+  const cards = [...g.querySelectorAll('.db-tw')].reverse();
+  const tx = to.left + to.width / 2, ty = to.top + to.height / 2;
+  let last = 0;
+  cards.forEach((el, i) => {
+    const b = el.getBoundingClientRect();
+    const dx = tx - (b.left + b.width / 2), dy = ty - (b.top + b.height / 2);
+    const m = getComputedStyle(el).transform;
+    const own = m && m !== 'none' ? m : '';
+    const arc = (tv ? 1.6 : 1) * (40 + Math.abs(dx) * 0.18);
+    const spin = (dx < 0 ? -1 : 1) * (40 + i * 21);
+    const delay = i * 32;
+    last = Math.max(last, delay + 620);
+    el.animate([
+      { transform: `translate(0px, 0px) ${own}`, opacity: 1 },
+      { transform: `translate(${(dx * 0.45).toFixed(1)}px, ${(dy * 0.45 - arc).toFixed(1)}px) ${own} rotate(${(spin * 0.5).toFixed(0)}deg)`, opacity: 1, offset: 0.45 },
+      { transform: `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) ${own} rotate(${spin}deg) scale(0.42)`, opacity: 0 }
+    ], { duration: 620, delay: delay, easing: 'cubic-bezier(0.45, 0, 0.3, 1)', fill: 'both' });
+  });
+  setTimeout(() => g.remove(), last + 80);
+}
+
+/** Everyone passed: the heap lifts off and fades, card by card from the top. */
+function dbTowerLift(g) {
+  if (!g) return;
+  if (!pcCanMove()) { g.remove(); return; }
+  const cards = [...g.querySelectorAll('.db-tw')].reverse();
+  const h = g.getBoundingClientRect().height || 80;
+  let last = 0;
+  cards.forEach((el, i) => {
+    const m = getComputedStyle(el).transform;
+    const own = m && m !== 'none' ? m : '';
+    const delay = i * 28;
+    last = Math.max(last, delay + 560);
+    el.animate([
+      { transform: `translate(0px, 0px) ${own}`, opacity: 1 },
+      { transform: `translate(${(dbTowerJit(i, 3) * 30).toFixed(0)}px, ${(-h * 1.5).toFixed(0)}px) ${own} rotate(${(dbTowerJit(i, 4) * 40).toFixed(0)}deg)`, opacity: 0 }
+    ], { duration: 560, delay: delay, easing: 'ease-in', fill: 'both' });
+  });
+  setTimeout(() => g.remove(), last + 80);
+}
+
+/** The heap's older cards slide from where they stood to where its new lean puts them. */
+function dbTowerSettle(fx, root, delay) {
+  if (!pcCanMove() || !root) return;
+  root.querySelectorAll('.db-pile.is-tower .db-tw').forEach((el) => {
+    const was = fx.rects[el.getAttribute('data-pc-at')];
+    if (!was || el.classList.contains('pc-hold')) return;
+    const b = el.getBoundingClientRect();
+    const dx = was.left + was.width / 2 - (b.left + b.width / 2), dy = was.top + was.height / 2 - (b.top + b.height / 2);
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+    const m = getComputedStyle(el).transform;
+    const own = m && m !== 'none' ? m : '';
+    el.animate([{ transform: `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px) ${own}` }, { transform: `translate(0px, 0px) ${own}` }],
+      { duration: 380, delay: delay || 0, fill: 'backwards', easing: 'cubic-bezier(0.3, 1.3, 0.5, 1)' });
+  });
+}
+
 /** The middle of the table: what was claimed, the pile, the rank, the plays of this rank. */
 function dbTableHtml(state, tv) {
   const s = dbShared(state);
@@ -272,9 +423,6 @@ function dbTableHtml(state, tv) {
   } else if (s.phase === 'play' && s.turn) {
     top = banner(escapeHTML(pcT(ev && ev.type === 'pileOut' ? 'db_pile_went' : 'db_new_rank', { name: pcName(state, s.turn.pid) })), escapeHTML(pcT('db_rank_open_big')), 'is-quiet');
   } else top = '';
-  const layers = Math.min(n, 5);
-  let stack = '';
-  for (let k = 0; k < layers; k++) stack += `<span class="db-pile__card" style="--k:${k};--tilt:${((k * 47 + n * 13) % 22) - 11}deg">${pcCardHtml(null, { size: tv ? 'lg' : 'md' })}</span>`;
   const rank = s.rank ? `<span class="db-rank"><span class="db-rank__label">${escapeHTML(pcT('db_rank'))}</span><b>${escapeHTML(pcRankPlural(s.rank))}</b></span>` : '';
   const chips = plays.length ? `<div class="db-plays">${plays.map((p, i) => `<span class="db-play ${i === plays.length - 1 ? 'is-top' : ''}"><bdi>${escapeHTML(pcName(state, p.pid))}</bdi> <b class="metric">${dbTimes(p.n)}</b></span>`).join('')}</div>` : '';
   return `<div class="db-table pc-spot">
@@ -282,7 +430,7 @@ function dbTableHtml(state, tv) {
       ${top}
       <div class="db-pilezone">
         <span class="pc-spot__floor" aria-hidden="true"></span>
-        <span class="db-pile ${n ? '' : 'is-empty'}" data-pc-at="pile">${stack || '<span class="db-pile__empty" aria-hidden="true"></span>'}</span>
+        ${dbTowerHtml(n)}
       </div>
       <div class="db-pileinfo"><span class="db-pile__n"><b class="metric">${n}</b> ${escapeHTML(pcT('db_in_pile'))}</span>${rank}</div>
       ${chips}
@@ -765,6 +913,32 @@ function dbPlay(root, state, list, delay, handWas) {
   const was = Array.isArray(handWas) ? handWas : null;
   const gone = was ? was.filter(c => !handNow.some(x => x.i === c.i)) : [];
   const came = was ? handNow.filter(c => !was.some(x => x.i === c.i)) : [];
+  // The heap (909): which of its drawn cards each play laid (only plays nothing took away after),
+  // hidden now and landed by their flights; and how big it was at each call or going out.
+  const pileN = Number(s.pileCount) || 0;
+  const drawnFrom = pileN - Math.min(pileN, DB_TOWER_MAX);
+  const slotsOf = new Map();
+  const ghosts = new Map();
+  let after = pileN, live = true, settled = false;
+  for (let i = list.length - 1; i >= 0; i--) {
+    const e = list[i];
+    if (e.type === 'play') {
+      const n = Math.max(1, Number(e.n) || 1);
+      if (live) {
+        const slots = [];
+        for (let j = Math.max(0, after - n - drawnFrom); j < after - drawnFrom; j++) slots.push(j);
+        slotsOf.set(e, slots);
+      }
+      after -= n;
+    } else if (e.type === 'call' || e.type === 'pileOut' || e.type === 'deal') {
+      live = false;
+      after = e.type === 'deal' ? 0 : (Number(e.n) || 0);
+    }
+  }
+  slotsOf.forEach(slots => slots.forEach(j => pcHold(fx, root, 'pile:' + j)));
+  list.forEach((e, i) => {
+    if (e.type === 'call' || e.type === 'pileOut') ghosts.set(e, dbTowerGhost(fx, root, Number(e.n) || 0, i === 0));
+  });
   list.forEach((e) => {
     const A = e.pid;
     switch (e.type) {
@@ -789,16 +963,34 @@ function dbPlay(root, state, list, delay, handWas) {
         break;
       }
       case 'play': {
-        // The pile hides its new cards only once they are on their way to it.
-        at(t, () => pcHold(fx, root, 'pile'));
-        const n = Math.min(e.n || 1, 6);
         const mine = mineHere(A) && gone.length;
-        for (let k = 0; k < n; k++) {
-          const c = mine ? gone[k] : null;
-          const from = c ? 'card:' + c.i : seatKey(A);
-          at(t + k * 70, () => pcFly(fx, root, from, 'pile', c ? c.c : null, { flip: c ? 'down' : null, arc: 30, spin: (k - n / 2) * 7, duration: 440, width: tv ? 80 : 50, hold: k === n - 1 ? ['pile'] : [] }));
+        const slots = slotsOf.get(e);
+        if (slots) {
+          // Each card lands on its own place in the heap, tilted as it will lie there; the older
+          // cards slide to the heap's new lean as the first one lands.
+          const shape = dbTowerSlots(pileN);
+          const n = Math.min(slots.length, 8);
+          const rest = slots.slice(0, slots.length - n);
+          const top = slots.slice(slots.length - n);
+          // Started now and held where they stood until then, so nothing jumps.
+          if (!settled) { settled = true; dbTowerSettle(fx, root, t + 300); }
+          top.forEach((j, k) => {
+            const c = mine ? gone[k] : null;
+            const from = c ? 'card:' + c.i : seatKey(A);
+            const key = 'pile:' + j;
+            at(t + k * 70, () => pcFly(fx, root, from, key, c ? c.c : null, { flip: c ? 'down' : null, arc: 30, spin: shape[j] ? shape[j].r : 0, duration: 440, width: tv ? 80 : 50, hold: [key].concat(k === n - 1 ? rest.map(x => 'pile:' + x) : []) }));
+          });
+          t += (Math.max(1, n) - 1) * 70 + 450;
+        } else {
+          // A play a call or the pile going out took away later in this batch: it lands on the pile's place.
+          const n = Math.min(e.n || 1, 6);
+          for (let k = 0; k < n; k++) {
+            const c = mine ? gone[k] : null;
+            const from = c ? 'card:' + c.i : seatKey(A);
+            at(t + k * 70, () => pcFly(fx, root, from, 'pile', c ? c.c : null, { flip: c ? 'down' : null, arc: 30, spin: (k - n / 2) * 7, duration: 440, width: tv ? 80 : 50 }));
+          }
+          t += (n - 1) * 70 + 450;
         }
-        t += (n - 1) * 70 + 450;
         at(t, () => pcPop(fx, root, 'pile', dbTimes(e.n), { big: true, duration: 900 }));
         t += 120;
         break;
@@ -808,7 +1000,8 @@ function dbPlay(root, state, list, delay, handWas) {
         t += 260;
         break;
       case 'call': {
-        at(t, () => pcShout(fx, root, seatKey(A), pcT('db_call'), 0));
+        const heap = ghosts.get(e);
+        at(t, () => { pcShout(fx, root, seatKey(A), pcT('db_call'), 0); if (heap) { heap.style.visibility = ''; dbTowerWobble(heap); } });
         t += 520;
         const cards = e.cards || [];
         let revealEnd = 0;
@@ -819,14 +1012,23 @@ function dbPlay(root, state, list, delay, handWas) {
         const flyN = Math.min(e.n || 1, 6);
         const to = e.taker;
         const intoMine = mineHere(to) && came.length;
+        // The heap falls in an arc toward whoever takes it (on your own phone, toward your hand).
+        if (heap) {
+          at(t, () => {
+            const seat = pcRect(fx, root, seatKey(to));
+            const hand = !seat && came.length ? pcRect(fx, root, 'card:' + came[0].i) : null;
+            const foot = { left: window.innerWidth / 2 - 20, top: window.innerHeight - 60, width: 40, height: 40 };
+            dbTowerFall(heap, seat || hand || foot, tv);
+          });
+        }
         for (let k = 0; k < flyN; k++) {
           const c = intoMine ? came[k] : null;
+          if (heap && !c) continue;
           const dest = c ? 'card:' + c.i : seatKey(to);
           if (c) pcHold(fx, root, dest);
-          at(t + k * 70, () => pcFly(fx, root, 'pile', dest, c ? c.c : null, { flip: c ? 'up' : null, arc: 26, duration: 460, width: tv ? 64 : 40, hold: c ? [dest] : [] }));
+          at(t + 240 + k * 70, () => pcFly(fx, root, 'pile', dest, c ? c.c : null, { flip: c ? 'up' : null, arc: 26, duration: 460, width: tv ? 64 : 40, hold: c ? [dest] : [] }));
         }
-        if (intoMine) came.slice(flyN).forEach(c => { /* the rest simply appear */ });
-        t += (flyN - 1) * 70 + 480;
+        t += (flyN - 1) * 70 + 480 + (heap ? 240 : 0);
         at(t, () => { pcPop(fx, root, seatKey(to), '\u2066+' + e.n + '\u2069', { big: true }); pcShake(fx, root, seatKey(to), 0); });
         t += 300;
         break;
@@ -834,7 +1036,10 @@ function dbPlay(root, state, list, delay, handWas) {
       case 'pileOut': {
         const n = Math.min(e.n || 1, 5);
         const r = pcRect(fx, root, 'pile');
-        if (r) {
+        const heap = ghosts.get(e);
+        if (heap) {
+          at(t, () => { heap.style.visibility = ''; dbTowerLift(heap); });
+        } else if (r) {
           const away = { left: r.left, top: r.top - r.height * 1.6, width: r.width, height: r.height };
           for (let k = 0; k < n; k++) at(t + k * 60, () => pcFly(fx, root, 'pile', away, null, { duration: 520, spin: (k - 2) * 14, fade: true, width: tv ? 80 : 50 }));
         }

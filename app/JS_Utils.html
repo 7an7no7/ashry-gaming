@@ -1603,6 +1603,25 @@ function toggleResults() {
       return { os: ios ? 'ios' : 'android', browser: browser };
   }
 
+  /* Inside another app's browser (the owner's pick 1264, 7 Oct 2026): names, groups and the
+     dealt-words memory live in this browser's storage, which Instagram's or Facebook's own
+     browser may throw away, so a slim bar under the header says so on every screen - once a
+     visit, ✕ closes it until the next one; a tap on its words opens the steps (the install
+     sheet's «افتحه في المتصفح» ones). From the end of the intro (introDone, JS_Core.html). */
+  const INAPP_BAR_KEY = 'ashryInappBarClosed';
+  function inappBarCheck() {
+      const who = installTarget();
+      if (!who || who.browser !== 'inapp') return;
+      try { if (sessionStorage.getItem(INAPP_BAR_KEY)) return; } catch (e) {}
+      const el = document.getElementById('inapp-bar');
+      if (el) el.classList.remove('hidden');
+  }
+  function inappBarClose() {
+      try { sessionStorage.setItem(INAPP_BAR_KEY, '1'); } catch (e) {}
+      const el = document.getElementById('inapp-bar');
+      if (el) el.classList.add('hidden');
+  }
+
   const INSTALL_GLYPHS = {
       share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M7 10H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1"/></svg>',
       add: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/></svg>',
@@ -2037,7 +2056,7 @@ const ROOM_HELP_KEY = { chess: 'shatranj' };
  */
 function helpContextKey() {
   const view = appState.currentView;
-  if (view === 'room-lobby' && typeof Room !== 'undefined' && Room.isIn
+  if ((view === 'room-lobby' || view === 'room-tv') && typeof Room !== 'undefined' && Room.isIn
       && Room.state && Room.state.game && helpEntry(ROOM_HELP_KEY[Room.state.game] || Room.state.game)) {
     return ROOM_HELP_KEY[Room.state.game] || Room.state.game;
   }
@@ -2085,6 +2104,34 @@ function openHelpModal() {
   // would otherwise still be scrolled to wherever it was left.
   const body = document.getElementById('help-content-area');
   if (body) body.scrollTop = 0;
+  helpScrollToWay();
+}
+
+/* From a room (the owner's pick 1243, 7 Oct 2026): the game's card opens at the part for this
+   way of playing - its «📱» sub-head on a phone, its «📺» one on the TV - with a short glow of
+   the screen's colour, the steps above it a scroll away. The sheet's own scrollTop, never
+   scrollIntoView (it would scroll the page under it too). */
+function helpScrollToWay() {
+  const view = appState.currentView || '';
+  // Not from the lobby: there the game hasn't started and its steps are the question.
+  if (!/^room-/.test(view) || view === 'room-join' || view === 'room-lobby') return;
+  const mark = view === 'room-tv' ? '📺' : '📱';
+  const sub = [...document.querySelectorAll('#help-context .help-hero__body .help-sub')]
+    .find(el => (el.textContent || '').trim().indexOf(mark) === 0);
+  const area = document.getElementById('help-content-area');
+  if (!sub || !area) return;
+  // A part folded under its own heading (سكرو's «help-more») is opened first.
+  const fold = sub.closest('details');
+  if (fold && !fold.open) fold.open = true;
+  requestAnimationFrame(() => {
+    const r = sub.getBoundingClientRect(), a = area.getBoundingClientRect();
+    area.scrollTop = Math.max(0, area.scrollTop + r.top - a.top - 16);
+    if (typeof motionOff === 'function' && motionOff()) return;
+    sub.classList.remove('help-sub--glow');
+    void sub.offsetWidth;
+    sub.classList.add('help-sub--glow');
+    setTimeout(() => sub.classList.remove('help-sub--glow'), 1700);
+  });
 }
 
 /** Jump from the context card to a related entry and open it. */

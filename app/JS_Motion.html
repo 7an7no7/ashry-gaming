@@ -786,9 +786,41 @@ FX.spyWhoosh = (at) => {
  * - low: the lowest score wins (سكرو, ميني جولف, كونكان): the rows are ranked
  *   lowest first, whatever order they come in, and 0 or below stands on a step
  *   like any other number - the real numbers are printed, no mirrored board;
- * - unit: a word under each number (ضربة), in small type;
+ * - unit: a word under each number, in small type (the owner's pick 1226, third batch): a
+ *   kind from PODIUM_UNITS' words ('pt', 'stroke', 'miss', 'round', 'win', 'loss', 'pound'),
+ *   counted for each number («١٢ نقطة», «٣ ضربات», «٢ غلطة»), or a word printed as it is, or
+ *   false for none. Left out, the game's own (podiumUnitOf: نقطة unless the game counts
+ *   something else);
  * - noScore: the places are the ranking (the bracket), so no number at all.
+ *
+ * A high-wins board where only one person scored (1230) gets one raised step: the winner,
+ * the crown and the confetti (.podium--solo), so a lone win isn't flatter than a three-way one.
  */
+// The games whose numbers aren't points; any other is نقطة. Keyed by the room game's id, or a
+// one-phone game's podium code ('bomb'). 'none': the number is a place or a mix (الليزر's
+// rounds lasted, the solve engine's ranks).
+const PODIUM_UNITS = {
+  win: ['bank', 'ludo', 'snakes', 'chairs', 'doubt', 'skull', 'bumper', 'connect4', 'dots', 'xo', 'chess', 'bughouse', 'handbrain', 'votechess', 'guesswho', 'battleship'],
+  loss: ['oldmaid'], round: ['bomb'], pound: ['box'], none: ['laser', 'solve', 'tourney']
+};
+function podiumUnitOf(state) {
+  const s = state || {};
+  if ((s.shared || {}).tournament) return 'pt';   // the duels' tournament: its table is points
+  if (s.game === 'minigolf') return ((s.shared || {}).settings || {}).scoring === 'match' ? 'pt' : 'stroke';
+  for (const kind in PODIUM_UNITS) {
+    if (PODIUM_UNITS[kind].indexOf(s.game) !== -1 || PODIUM_UNITS[kind].indexOf(s.code) !== -1) return kind;
+  }
+  return 'pt';
+}
+/** The word for `n` of a unit: Arabic counts 3-10 in the plural («٣ ضربات») and the rest in the singular. */
+function podiumUnitWord(unit, n) {
+  if (unit === false || unit === 'none' || unit == null || unit === '') return '';
+  const forms = (TRANSLATIONS[appState.lang] || {})['unit_' + unit];
+  if (!forms) return String(unit);
+  const [one, many] = forms.split('|');
+  const k = Math.abs(Number(n) || 0);
+  return (appState.lang === 'en' ? k === 1 : !(k >= 3 && k <= 10)) ? one : (many || one);
+}
 function renderPodium(state, board, opts) {
   const o = opts || {};
   const low = !!o.low;
@@ -797,21 +829,28 @@ function renderPodium(state, board, opts) {
   if (low) all = all.filter((p) => p && Number.isFinite(Number(p.score))).sort((a, b) => num(a) - num(b));
   // Nobody stands on a step with 0 once somebody scored (a high-wins board only).
   const top = (low ? all : (all[0] && num(all[0]) > 0 ? all.filter((p) => num(p) > 0) : all)).slice(0, 3);
-  if (top.length < 2 || (!low && !(num(top[0]) > 0))) return '';
+  // A lone winner (1230): two or more played, only one scored.
+  const solo = !low && !o.noScore && top.length === 1 && all.length >= 2 && num(top[0]) > 0;
+  if ((top.length < 2 && !solo) || (!low && !(num(top[0]) > 0))) return '';
   const rankOf = (p) => 1 + all.filter((x) => (low ? num(x) < num(p) : num(x) > num(p))).length;
   const rise = motionFirst(['podium', roomDealKey(state), state && state.game, JSON.stringify(top)].join('|'));
   const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
   const atOf = (i) => 150 + (top.length - 1 - i) * 520;
   const winMs = atOf(0) + 620;
-  const unit = o.unit ? '<small class="podium__unit">' + escapeHTML(String(o.unit)) + '</small>' : '';
-  return '<div class="podium' + (rise ? ' podium--rise" data-reveal-ms="' + winMs + '"' : '"') + '>' +
+  const unitKind = o.unit === undefined ? podiumUnitOf(state) : o.unit;
+  const unitOf = (p) => {
+    const w = o.noScore ? '' : podiumUnitWord(unitKind, num(p));
+    return w ? '<small class="podium__unit">' + escapeHTML(w) + '</small>' : '';
+  };
+  return '<div class="podium' + (solo ? ' podium--solo' : '') + (rise ? ' podium--rise" data-reveal-ms="' + winMs + '"' : '"') +
+    (solo && rise ? ' data-confetti="' + winMs + '"' : '') + '>' +
     top.map((p, i) => {
       const rank = Math.min(3, rankOf(p));
       return '<div class="podium__place podium__place--' + (i + 1) + ' podium__place--rank' + rank + '" style="--at:' + atOf(i) + 'ms">' +
                '<div class="podium__who">' +
                  '<span class="podium__medal" aria-hidden="true">' + medals[rank] + '</span>' +
                  '<span class="podium__name">' + escapeHTML(p.name) + '</span>' +
-                 (o.noScore ? '' : '<span class="podium__score metric">' + num(p) + '</span>' + unit) +
+                 (o.noScore ? '' : '<span class="podium__score metric">' + num(p) + '</span>' + unitOf(p)) +
                '</div>' +
                '<div class="podium__block"><span class="metric">' + rank + '</span></div>' +
              '</div>';
@@ -875,6 +914,10 @@ function podCastDress(root) {
   list.forEach((pod) => {
     if (pod.classList.contains('podium--plain') || pod.dataset.cast) return;
     pod.dataset.cast = '1';
+    // A lone winner's step (renderPodium's .podium--solo, 1230) brings its own confetti as it lands.
+    if (pod.dataset.confetti && typeof confetti === 'function' && !motionOff()) {
+      setTimeout(() => { if (pod.isConnected) confetti({ particleCount: 120, spread: 70, origin: { y: 0.4 } }); }, Number(pod.dataset.confetti) || 0);
+    }
     const small = pod.classList.contains('podium');
     pod.querySelectorAll(small ? ':scope > .podium__place' : ':scope > .tv-podium__place').forEach((place) => {
       const m = place.className.match(small ? /podium__place--rank(\d)/ : /tv-podium__place--(\d)/);

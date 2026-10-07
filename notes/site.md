@@ -251,3 +251,25 @@ through Chrome usually does receive its own links.
   the worker's own record and the page can read it, so `sw.js` did not change. Nothing
   is shown in the preview or a browser with no worker. The chess engine's files are not
   in the count (they are not chunks).
+
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+All three run once the intro has gone (`introDone` → after 1.2 s, JS_Core.html).
+
+- **1241 Offer the TV size on a TV.** `uiScaleOfferTv()`: 1600px wide or more, Settings →
+  حجم الشاشة still on «تلقائي», not the room's TV screen, and never asked before on this
+  browser (`ashryUiScaleAsked`): one info toast «شاشة كبيرة؟ كبّر الواجهة» with a button
+  «كبّر 150%» - the first of `UI_SCALES` bigger than the size the screen gives now (150% on a
+  1920 TV, 125% on a 1680 monitor). The tap saves it as the setting would.
+- **1264 A bar inside Instagram's browser.** `inappBarCheck()` (JS_Utils.html): when
+  `installTarget()` says `inapp`, `#inapp-bar` (Controller.html, in the icon banner's row 3:
+  the icon banner is only for an installed iPhone copy, so never both) shows «إنت فاتح من جوّه
+  التطبيق · افتحه في المتصفح عشان يفتكر أساميك»; its words open the install sheet (the
+  open-in-browser steps), ✕ (`inappBarClose`) hides it for the visit (`sessionStorage`).
+- **1265 «اتحدّث» names what's new.** `appUpdateNews()`: the build this phone last ran is kept
+  (`ashryLastBuild`). A newer build says «اتحدّث ✨ · جديد: الليزر» (up to two games whose
+  `added` is after the last build's day and not after today, switched-off games left out)
+  with «جرّبها» opening the first (`catalogOpen`); with no new game it speaks only when the
+  page was switched to by itself - `reloadApp` (whose callers are all a new build) marks
+  `ashrySwitched` in `sessionStorage` - as «اتحدّث ✨» alone. A first visit, the preview (no
+  `BUILD_ID`) and private browsing say nothing.

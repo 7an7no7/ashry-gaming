@@ -84,7 +84,9 @@ function shareCardText(html) {
 /**
  * Draws the card and resolves with a PNG blob, or null if the browser would
  * not give one up.
- *   o: { title, icon, rows: [{ name, value } | 'a line'], footer, board }
+ *   o: { title, icon, rows: [{ name, value, unit? } | 'a line'], footer, board, unit }
+ * unit (or a row's own): a kind podiumUnitWord counts after each number (JS_Motion.html).
+ * Five rows or fewer make the chat-sized 4:5 card (shareCardLayout).
  * board (optional, شطرنج): { board: 64 piece codes, last: { from, to }, orient }
  * - the position drawn big in the middle, the rows under it. A card without it
  * is drawn exactly as it always was.
@@ -95,9 +97,19 @@ async function drawShareCard(o) {
   if (o.board && typeof chDrawBoardCanvas === 'function') return drawShareBoardCard(o);
   const c = shareCardColours();
   const rtl = (appState.lang || 'ar') === 'ar';
+  const rows = (o.rows || []).slice(0, Math.min(SHARE_CARD.hardMaxRows, o.maxRows || SHARE_CARD.maxRows));
+  // The night's card: a row of the evening's games and the date under the champion's line
+  // (o.games, o.date; the owner's pick 1268) take some of the plate's room.
+  const strip = (o.games || []).filter(Boolean).slice(0, 12);
+  const extra = strip.length || o.date ? 160 : 0;
+  // A chat-sized card (the owner's pick 1270, 7 Oct 2026): five rows or fewer make a
+  // 1080x1350 (4:5) card, which WhatsApp shows whole in the chat; a longer board, or the
+  // night's card with its games and date under the rows, keeps the tall 9:16 one.
+  const L = shareCardLayout(rows.length <= 5 && !extra);
+  const H = L.h;
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_CARD.w;
-  canvas.height = SHARE_CARD.h;
+  canvas.height = H;
   const ctx = canvas.getContext && canvas.getContext('2d');
   if (!ctx) return null;
 
@@ -111,34 +123,29 @@ async function drawShareCard(o) {
 
   // The ground, corner to corner, and a soft light in the top corner - the
   // same shape as the mark's own highlight.
-  const ground = ctx.createLinearGradient(0, 0, SHARE_CARD.w, SHARE_CARD.h);
+  const ground = ctx.createLinearGradient(0, 0, SHARE_CARD.w, H);
   ground.addColorStop(0, c.ground[0]);
   ground.addColorStop(0.52, c.ground[1]);
   ground.addColorStop(1, c.ground[2]);
   ctx.fillStyle = ground;
-  ctx.fillRect(0, 0, SHARE_CARD.w, SHARE_CARD.h);
+  ctx.fillRect(0, 0, SHARE_CARD.w, H);
   const light = ctx.createRadialGradient(240, 200, 0, 240, 200, 900);
   light.addColorStop(0, 'rgba(255,255,255,0.16)');
   light.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = light;
-  ctx.fillRect(0, 0, SHARE_CARD.w, SHARE_CARD.h);
+  ctx.fillRect(0, 0, SHARE_CARD.w, H);
 
   // The rows, on a plate of their own so the names read against the ground.
   // The plate has a fixed room between the title and the mark, so the rows
   // share it: three names are large, ten are smaller, and neither runs off
   // the card. Whatever room they leave is split above and below, so a card
   // with three names is not three names and a field of nothing.
-  const rows = (o.rows || []).slice(0, Math.min(SHARE_CARD.hardMaxRows, o.maxRows || SHARE_CARD.maxRows));
-  // The night's card: a row of the evening's games and the date under the champion's line
-  // (o.games, o.date; the owner's pick 1268) take some of the plate's room.
-  const strip = (o.games || []).filter(Boolean).slice(0, 12);
-  const extra = strip.length || o.date ? 160 : 0;
-  const plateRoom = 830 - extra;
+  const plateRoom = L.plateRoom - extra;
   const pad = 96;
   const rowH = Math.min(132, Math.floor((plateRoom - 56) / Math.max(1, rows.length)));
   const rowFont = Math.max(30, Math.min(54, Math.round(rowH * 0.42)));
   const slack = Math.round(Math.max(0, (plateRoom - 56) - rows.length * rowH) / 2);
-  const plateTop = 640 + slack;
+  const plateTop = L.plateTop + slack;
 
   const mid = SHARE_CARD.w / 2;
   ctx.textAlign = 'center';
@@ -146,11 +153,11 @@ async function drawShareCard(o) {
 
   // A drawn icon (أونو, الدومينو) is an image; an emoji is text.
   const art = await artIconImage(o.icon, 512);
-  if (art) ctx.drawImage(art, mid - 120, 330 + slack - 120, 240, 240);
-  else { font('900', 190); ctx.fillText(String(o.icon || '🏆'), mid, 330 + slack); }
+  if (art) ctx.drawImage(art, mid - L.icon / 2, L.iconY + slack - L.icon / 2, L.icon, L.icon);
+  else { font('900', Math.round(L.icon * 0.8)); ctx.fillText(String(o.icon || '🏆'), mid, L.iconY + slack); }
 
-  font('900', 78);
-  ctx.fillText(shareCardFit(ctx, o.title || '', SHARE_CARD.w - 140), mid, 520 + slack);
+  font('900', L.titleFont);
+  ctx.fillText(shareCardFit(ctx, o.title || '', SHARE_CARD.w - 140), mid, L.titleY + slack);
   if (rows.length) {
     const plateH = rows.length * rowH + 56;
     ctx.fillStyle = 'rgba(255,255,255,0.10)';
@@ -177,8 +184,21 @@ async function drawShareCard(o) {
         // A number is drawn left to right, as on the board card: in an Arabic
         // line -12 came out as «12-». A value with words keeps the line's direction.
         const numeric = /^[-+]?[\d.,/:\s]+$/.test(String(value));
+        // Its unit after it, smaller (the owner's pick 1269): «١٢ نقطة», «٣ ضربات» - the word
+        // on the inner side of the number, in the line's reading order.
+        const word = numeric && typeof podiumUnitWord === 'function' ? podiumUnitWord(row.unit !== undefined ? row.unit : o.unit, value) : '';
+        let edge = rtl ? pad : SHARE_CARD.w - pad;
+        if (word) {
+          font('700', Math.round(rowFont * 0.62));
+          ctx.fillStyle = 'rgba(255,255,255,0.82)';
+          const w = shareCardFit(ctx, word, 150);
+          ctx.fillText(w, edge, y + 2);
+          edge += (rtl ? 1 : -1) * (ctx.measureText(w).width + 14);
+          font('900', rowFont + 4);
+          ctx.fillStyle = c.token;
+        }
         if (numeric) ctx.direction = 'ltr';
-        ctx.fillText(shareCardFit(ctx, value, 260), rtl ? pad : SHARE_CARD.w - pad, y);
+        ctx.fillText(shareCardFit(ctx, value, word ? 150 : 260), edge, y);
         if (numeric) ctx.direction = rtl ? 'rtl' : 'ltr';
       }
     });
@@ -192,22 +212,29 @@ async function drawShareCard(o) {
     ctx.textAlign = 'center';
     // Clamped, so a full plate of ten names does not push this line into the mark.
     ctx.fillText(shareCardFit(ctx, foot, SHARE_CARD.w - 160), mid,
-                 Math.min(1500 - extra, plateTop + rows.length * rowH + 150));
+                 Math.min(L.footMax - extra, plateTop + rows.length * rowH + L.footGap));
   }
-  if (extra) await drawShareNightStrip(ctx, strip, o.date, Math.min(1500 - extra, plateTop + rows.length * rowH + 150) + (foot ? 84 : 0), font);
+  if (extra) await drawShareNightStrip(ctx, strip, o.date, Math.min(L.footMax - extra, plateTop + rows.length * rowH + L.footGap) + (foot ? 84 : 0), font);
 
   // The mark and the link, at the foot.
   const mark = await shareCardMark();
-  if (mark) ctx.drawImage(mark, mid - 82, SHARE_CARD.h - 330, 164, 164);
+  if (mark) ctx.drawImage(mark, mid - L.mark / 2, H - L.markUp, L.mark, L.mark);
   ctx.fillStyle = 'rgba(255,255,255,0.82)';
-  font('700', 40);
+  font('700', L.linkFont);
   ctx.textAlign = 'center';
   ctx.direction = 'ltr';        // a URL is left-to-right in either language
-  ctx.fillText(shareCardFit(ctx, appLink().replace(/^https?:\/\//, ''), SHARE_CARD.w - 120), mid, SHARE_CARD.h - 112);
+  ctx.fillText(shareCardFit(ctx, appLink().replace(/^https?:\/\//, ''), SHARE_CARD.w - 120), mid, H - L.linkUp);
 
   return await new Promise((resolve) => {
     try { canvas.toBlob(resolve, 'image/png'); } catch (e) { resolve(null); }
   });
+}
+
+/** Where everything sits on the card: the tall 9:16 one, or the chat-sized 4:5 one (`short`, 1270). */
+function shareCardLayout(short) {
+  return short
+    ? { h: 1350, icon: 170, iconY: 190, titleY: 340, titleFont: 70, plateTop: 420, plateRoom: 600, footGap: 130, footMax: 1070, mark: 120, markUp: 235, linkFont: 36, linkUp: 70 }
+    : { h: SHARE_CARD.h, icon: 240, iconY: 330, titleY: 520, titleFont: 78, plateTop: 640, plateRoom: 830, footGap: 150, footMax: 1500, mark: 164, markUp: 330, linkFont: 40, linkUp: 112 };
 }
 
 /**
@@ -466,13 +493,18 @@ function shareRoomResult() {
   const rows = memo || shareBoardRows(state.shared && state.shared.board);
   if (!rows.length) return;
   const title = (meta && t[meta.title]) || t['setup_' + state.game] || '';
+  // The board is best first, so a low-wins game's champion (سكرو, ميني جولف) is row one as it is.
   const top = rows[0];
+  // The podium's unit (1269): نقطة, ضربة, مرة… after each number.
+  const unit = typeof podiumUnitOf === 'function' ? podiumUnitOf(state) : '';
+  const word = top && typeof podiumUnitWord === 'function' ? podiumUnitWord(unit, top.value) : '';
   return shareResultCard({
     title: title,
     icon: (meta && meta.icon) || '🏆',
     rows: rows,
+    unit: unit,
     footer: top ? '🏆 ' + top.name : '',
-    text: (title ? title + ' · ' : '') + (top ? top.name + ' ' + top.value : '')
+    text: (title ? title + ' · ' : '') + (top ? top.name + ' ' + top.value + (word ? ' ' + word : '') : '')
   });
 }
 </script>

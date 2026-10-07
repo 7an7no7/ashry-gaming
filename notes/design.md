@@ -735,3 +735,36 @@ fixed layer so it costs no repaints.
   `shareNightRemember` on `Room.onChange`: a game counts once it is dealt); a phone that
   came in late knows the games since it came. The plate gives 160px of its room to the
   two lines when they are there.
+
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **1226 A word under the number.** `renderPodium` (JS_Motion.html) prints a counted unit
+  under every step's score: `opts.unit` is a kind (`'pt'`, `'stroke'`, `'miss'`, `'round'`,
+  `'win'`, `'loss'`, `'pound'`), a word printed as it is, or `false`; left out it is the
+  game's own (`podiumUnitOf(state)`: `PODIUM_UNITS` lists the games whose numbers are not
+  points - wins for the race-to-the-end and duel games, الشايب's losses, the one-phone
+  bomb's rounds (`code: 'bomb'`), المزاد's pounds, none for الليزر, the solve engine and the
+  bracket; ميني جولف is strokes, or points in «ماتش بلاي»; the duels' tournament is points;
+  everything else نقطة). `podiumUnitWord(unit, n)` counts it from `unit_<kind>` in
+  JS_Translations.html («نقطة|نقط»): Arabic plural for 3-10 and the singular otherwise
+  («١٢ نقطة», «٣ ضربات», «٢ غلطة»), English singular for 1. No caller had to change.
+- **1230 A lone winner.** Two or more on a high-wins board and only one scored:
+  `renderPodium` draws one raised step (`.podium--solo`, 6.5rem, Style_Finish.html) instead
+  of nothing, so the callers' plain lines no longer show; the cast's figure wears the crown
+  (podCastDress) and the step carries `data-confetti` - podCastDress fires confetti when it
+  lands (only on the drawing that rises, never with motion off). A caller that also throws
+  confetti at the end throws it twice; harmless.
+- **1269 Units on the card.** The share card draws a row's unit (`row.unit` or `o.unit`, the
+  same kinds) after its number in smaller type, on the number's inner side in reading order.
+  `shareRoomResult` passes `podiumUnitOf(state)`; its text fallback says it too. The board is
+  best first, so a low-wins champion is row one as it is (nothing re-sorts it).
+- **1270 A chat-sized card.** Five rows or fewer (and no night strip) draw a 1080x1350 (4:5)
+  card; longer boards and the night's card (games and date, another builder's rows) keep
+  9:16. Every position is in `shareCardLayout(short)`.
+- **1256 Toasts at the top while playing.** Under `body.in-play` / `body.in-room-game` (not
+  the TV) the toast stack hangs under the header (`--safe-top + --header-h`), newest on top
+  (`column-reverse`), entering and leaving upward; a full-screen view puts it at the top edge.
+- **1257 An icon for each kind.** `showToast` marks success ✓, `warn` (or `'warning'`) ⚠
+  (text presentation) and error ✕; info keeps ℹ️. `.toast.warn` got its colour
+  (`--warning-btn` / `--warning-on`); it had none. `showToast(msg, type, { action: { label,
+  run }, ms })` can carry one small button (`.toast__btn`).

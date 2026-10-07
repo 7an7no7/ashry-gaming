@@ -91,3 +91,15 @@ belongs in Settings, which is where it now is — only.
   opened while searching (by a tap, or the single hit opened for you) scrolls its first
   mark to a third of the way down the sheet (`helpScrollToMark`, the sheet's own
   `scrollTo`, never `scrollIntoView`), from a `toggle` listener on the document (capture).
+
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **1243 Help opens at the part for this way of playing.** From a room's game screen (not
+  the lobby, where the steps are the question, and not the join screen) `openHelpModal`
+  calls `helpScrollToWay()`: in the context card it finds the first `.help-sub` starting
+  with «📱» (on the TV, `room-tv`, «📺»), opens a folded `.help-more` around it, scrolls the
+  sheet's own `scrollTop` to put it at the top (16px under the edge) - the steps above stay a
+  scroll away - and lights it with `.help-sub--glow` (a pseudo-element of the screen's
+  `--accent-soft`, opacity only, 1.6 s; nothing with motion off). A game with no such
+  sub-head opens at the top as before. `helpContextKey` now also gives the room's game on
+  `room-tv`.

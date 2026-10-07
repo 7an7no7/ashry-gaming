@@ -1562,6 +1562,13 @@
     setTimeout(() => document.body.classList.remove('intro-reveal'), 900);
     // A phone's browser is asked to put the app on the home screen (JS_Utils.html).
     if (typeof installAskSoon === 'function') installAskSoon();
+    // The quiet notes of a start (the owner's picks of 7 Oct 2026, third batch): what a new
+    // build brought, the bigger size on a TV, the bar inside another app's browser.
+    setTimeout(() => {
+      try { appUpdateNews(); } catch (e) {}
+      try { uiScaleOfferTv(); } catch (e) {}
+      if (typeof inappBarCheck === 'function') inappBarCheck();
+    }, 1200);
   }
 
   /** A tap on the intro: straight into the app, as soon as it is ready. */
@@ -1785,7 +1792,39 @@
 
   function reloadApp() {
       try { saveToLocal(); } catch (e) {}
+      // Every caller is a new build being switched to: the next page says so (appUpdateNews).
+      try { sessionStorage.setItem(APP_SWITCHED_KEY, '1'); } catch (e) {}
       location.reload();
+  }
+
+  /* «اتحدّث» names what's new (the owner's pick 1265, 7 Oct 2026). The build this phone last
+     ran is kept; once the intro has gone, a page that is a newer build than that says so in one
+     quiet toast: «اتحدّث ✨ · جديد: الليزر», the games whose `added` date (Games.js) is after
+     the last build's day, with a button that opens the first. With no new game it speaks only
+     when it was switched to by itself (reloadApp), «اتحدّث ✨» alone; a first visit says nothing. */
+  const APP_LAST_BUILD_KEY = 'ashryLastBuild';
+  const APP_SWITCHED_KEY = 'ashrySwitched';
+  function appUpdateNews() {
+    const now = String(window.BUILD_ID || '');
+    if (!/^\d{14}$/.test(now)) return;
+    let prev = '', switched = false;
+    try {
+      prev = localStorage.getItem(APP_LAST_BUILD_KEY) || '';
+      switched = sessionStorage.getItem(APP_SWITCHED_KEY) === '1';
+      sessionStorage.removeItem(APP_SWITCHED_KEY);
+      localStorage.setItem(APP_LAST_BUILD_KEY, now);
+    } catch (e) { return; }
+    if (!/^\d{14}$/.test(prev) || prev >= now) return;
+    const day = prev.slice(0, 4) + '-' + prev.slice(4, 6) + '-' + prev.slice(6, 8);
+    const today = now.slice(0, 4) + '-' + now.slice(4, 6) + '-' + now.slice(6, 8);
+    const fresh = (typeof GAME_LIST !== 'undefined' ? GAME_LIST : [])
+      .filter(g => g.added && g.added > day && g.added <= today && !(typeof catalogOff === 'function' && catalogOff(g.id)));
+    if (!fresh.length && !switched) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const names = fresh.slice(0, 2).map(g => t[g.title] || g.id).join(appState.lang === 'en' ? ', ' : '، ');
+    const msg = (t.update_done || '') + (names ? ' · ' + (t.update_new || '{names}').replace('{names}', names) : '');
+    showToast(msg, 'info', fresh.length && typeof catalogOpen === 'function'
+      ? { ms: 8000, action: { label: t.update_try || '', run: () => catalogOpen(fresh[0].id) } } : null);
   }
 
   // Clock handles and timeout ids are parked on appState, but they mean nothing
@@ -3340,6 +3379,26 @@
     haptic('light');
   }
 
+  /* A TV or a big monitor (the owner's pick 1241, 7 Oct 2026): the first time the app opens
+     1600px wide or more, on the size it picked itself, one quiet toast offers the next size up
+     of Settings → حجم الشاشة (the first of its steps bigger than what the screen gives now:
+     150% on a 1920 TV, 125% on a 1680 monitor). Asked once on this browser, never on the
+     room's TV screen (it sizes itself). */
+  const UI_SCALE_ASKED_KEY = 'ashryUiScaleAsked';
+  function uiScaleOfferTv() {
+    if (window.innerWidth < 1600 || uiScale() !== 'auto' || document.body.classList.contains('is-tv-view')) return;
+    try { if (localStorage.getItem(UI_SCALE_ASKED_KEY)) return; localStorage.setItem(UI_SCALE_ASKED_KEY, '1'); } catch (e) { return; }
+    const now = 100 * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16;
+    const next = UI_SCALES.filter(v => v !== 'auto' && Number(v) > now + 1)[0];
+    if (!next) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    showToast(t.ui_scale_offer || '', 'info', { ms: 9000, action: { label: (t.ui_scale_offer_btn || '') + ' ' + next + '%', run: () => {
+      try { localStorage.setItem(UI_SCALE_KEY, next); } catch (e) {}
+      applyUiScale();
+      updateSettingsLabels();
+    } } });
+  }
+
   applyUiScale();
   applyMotionPref();
 
@@ -3886,7 +3945,7 @@
   }
   function toastArm(el) {
     clearTimeout(el._timer);
-    el._timer = setTimeout(() => toastDismiss(el), toastMs(el._msg, el._type));
+    el._timer = setTimeout(() => toastDismiss(el), el._ms || toastMs(el._msg, el._type));
   }
 
   /** A setup screen's Start bar sits where the toasts do: the stack goes just above it, so a
@@ -3903,7 +3962,12 @@
     if (floor > r.top) stack.style.bottom = Math.round(h - r.top + 8) + 'px';
   }
 
-  function showToast(msg, type = 'info') {
+  /* opts (the owner's picks of 7 Oct 2026, third batch): { action: { label, run } } puts a small
+     button in the toast (a tap on it runs `run`, a tap anywhere else only dismisses), and
+     { ms } holds it longer. 'warning' is 'warn'. */
+  function showToast(msg, type = 'info', opts) {
+    if (type === 'warning') type = 'warn';
+    const o = opts || {};
     const stack = toastStack();
     if (!stack.children.length) toastClearStart(stack);
     const live = [...stack.children].filter(n => !n._leaving);
@@ -3923,16 +3987,26 @@
     el.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
     el.setAttribute('aria-atomic', 'true');
     el.addEventListener('click', () => toastDismiss(el));
-    let icon = 'ℹ️';
-    if(type === 'success') icon = '✅';
-    if(type === 'error') icon = '⚠️';
+    // The kind reads without the colour (the owner's pick 1257): ✓ done, ⚠ careful, ✕ didn't work.
+    const icon = { success: '✓', warn: '⚠︎', error: '✕' }[type] || 'ℹ️';
     const iconSpan = document.createElement('span');
     iconSpan.setAttribute('aria-hidden', 'true');
+    iconSpan.className = 'toast__icon';
     iconSpan.innerText = icon;
     const msgSpan = document.createElement('span');
+    msgSpan.className = 'toast__msg';
     el.appendChild(iconSpan);
     el.appendChild(document.createTextNode(' '));
     el.appendChild(msgSpan);
+    if (o.action && typeof o.action.run === 'function') {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'toast__btn';
+      b.textContent = o.action.label || '';
+      b.addEventListener('click', (e) => { e.stopPropagation(); toastDismiss(el); o.action.run(); });
+      el.appendChild(b);
+    }
+    if (o.ms) el._ms = o.ms;
     if (toastStill()) el.style.transition = 'none';
     stack.appendChild(el);
     // Room for the new one: the oldest go first.

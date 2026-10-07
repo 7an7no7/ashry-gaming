@@ -489,15 +489,15 @@ function renderRoomPlayerStrip(state) {
       ${state.players.map(p => `
         <span class="chip chip--plain ${p.online ? '' : 'is-away'}">
           <span class="presence-dot ${p.online ? 'is-online' : ''}"></span>
-          <span class="chip__label">${p.bot ? '<span aria-hidden="true">🤖</span> ' : ''}${typeof roomNameHtml === 'function' ? roomNameHtml(state, p) : escapeHTML(p.name)}</span>
+          <span class="chip__label">${p.bot ? '<span aria-hidden="true">🤖</span> ' : roomFaceChip(p.id)}${typeof roomNameHtml === 'function' ? roomNameHtml(state, p) : escapeHTML(p.name)}</span>
           ${typeof roomKickButton === 'function' ? roomKickButton(state, p) : ''}
         </span>`).join('')}
     </div>`;
 }
 
-/** A name's first letter, for the round bubble of a player chip (.talk-person__av). */
+/** A name's first letter, for the round bubble of a player chip (.talk-person__av); their drawn face if they made one (1282). */
 function roomInitial(name) {
-  return escapeHTML(Array.from(String(name || '').trim())[0] || '?');
+  return roomFaceHtml(roomFaceOf('', name), true) || escapeHTML(Array.from(String(name || '').trim())[0] || '?');
 }
 
 /**

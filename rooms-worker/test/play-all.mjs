@@ -90,19 +90,19 @@ class Bot {
     this.closedWith = null;
   }
 
-  static async host(name, game, screen = false) {
+  static async host(name, game, screen = false, extra = {}) {
     const bot = new Bot(name);
     // test: not counted in the plays (room.js), so the weekly live run doesn't skew them.
-    const res = await api('/create', { name, game, screen, test: true });
+    const res = await api('/create', Object.assign({ name, game, screen, test: true }, extra));
     if (!res.ok) throw new Error('create failed: ' + res.error);
     Object.assign(bot, { code: res.state.code, pid: res.playerId, key: res.key, state: res.state });
     await bot.connect();
     return bot;
   }
 
-  static async join(code, name, screen = false) {
+  static async join(code, name, screen = false, extra = {}) {
     const bot = new Bot(name);
-    const res = await api('/join', { code, name, screen });
+    const res = await api('/join', Object.assign({ code, name, screen }, extra));
     if (!res.ok) throw new Error('join failed: ' + res.error);
     Object.assign(bot, { code, pid: res.playerId, key: res.key, state: res.state });
     await bot.connect();
@@ -7561,6 +7561,35 @@ async function moveRobots() {
   check((await api('/move/get', { code: put.code })).error === 'not_found', 'move: a stopped code is gone');
 }
 
+/* --- «اعمل وشك» (the looks of 7 Oct 2026, 1282): a player's face, through the real server ------- */
+async function facesRobots() {
+  console.log('• a player\'s drawn face: sent on create, join, rename and becomePlayer, checked by the server');
+  const FACE = '01231210011';
+  const FACE2 = '23462102001';
+  const F1 = await Bot.host('فرح', null, false, { face: FACE });
+  check((F1.state.players.find((p) => p.id === F1.pid) || {}).face === FACE, 'the host\'s face comes with the room it opens');
+  const F2 = await Bot.join(F1.code, 'فادي', false, { face: '<img src=x onerror=alert(1)>' });
+  check(!('face' in (F2.state.players.find((p) => p.id === F2.pid) || {})), 'a join with a bad face gets in, with no face');
+  const F3 = await Bot.join(F1.code, 'فاطمة', false, { face: FACE2 });
+  const F4 = await Bot.join(F1.code, 'فؤاد');
+  await all([F1, F2, F3, F4], (s) => s.players.length === 4 && (s.players.find((p) => p.id === F3.pid) || {}).face === FACE2 &&
+    !('face' in s.players.find((p) => p.id === F4.pid)), 'everyone sees the faces made, and a phone that sent none has none');
+  await F2.must('rename', { name: 'فادي', face: FACE2 });
+  await all([F1, F2, F3, F4], (s) => (s.players.find((p) => p.id === F2.pid) || {}).face === FACE2, 'a face made in the lobby reaches every phone');
+  check((await F2.act('rename', { name: 'فادي', face: '99999999999' })).ok === false, 'a rename with a face out of its lists is refused');
+  check((await F2.act('rename', { name: 'فادي', face: { skin: 1 } })).ok === false, 'a rename with a face that is not a string is refused');
+  await F2.must('rename', { name: 'فادي الصغير' });
+  await all([F1, F2], (s) => { const p = s.players.find((x) => x.id === F2.pid); return p.name === 'فادي الصغير' && p.face === FACE2; },
+    'a rename from an old phone (no face sent) keeps the face');
+  await F2.must('rename', { name: 'فادي', face: '' });
+  await all([F1, F2], (s) => !('face' in s.players.find((x) => x.id === F2.pid)), 'the initial chosen again takes the face away');
+  // A screen that becomes a player brings its face.
+  const TV = await Bot.join(F1.code, '', true);
+  await TV.must('becomePlayer', { name: 'تلفزيون', face: FACE });
+  await F1.waitFor((s) => (s.players.find((p) => p.id === TV.pid) || {}).face === FACE, 'a screen turned player brings its face');
+  [F1, F2, F3, F4, TV].forEach((b) => b.close());
+}
+
 const SEGMENTS = [
   { name: 'err', run: errRobots, secs: 5 },
   { name: 'move', run: moveRobots, secs: 2 },
@@ -7614,6 +7643,7 @@ const SEGMENTS = [
   { name: 'crew', run: crewRobots, secs: 6 },
   { name: 'crewlink', run: crewLinkRobots, secs: 12 },
   { name: 'laser', run: laserRobots, secs: 8 },
+  { name: 'faces', run: facesRobots, secs: 3 },
 ];
 const EXCLUSIVE = new Set([]);
 

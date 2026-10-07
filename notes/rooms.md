@@ -823,3 +823,54 @@ for a family table and are open to change; each says so. Styles: section 72 at t
   game's icon. A night kept before this shows no icons.
 - **1323 and 1322**: the room link's preview for a program or a crew night, and the /r page's
   button - `notes/previews-errors.md`. **1328**, the program's share card - `notes/games/program.md`.
+
+## The looks of 7 Oct 2026, second sheet (the owner's picks): built
+
+- **1282 ب «اعمل وشك»** (the owner picked ب over my أ): a player's own drawn face, like خمّن مين's.
+  - **The maker** is in the name sheet (`#name-modal`: «أنت: منى ✏️», Settings → your name, a TV
+    turning player, a phone with no name): titled «اسمك ووشّك»; with no face it shows the initial in
+    a circle and «🎨 اعمل وشك» (a random face to start from); with one, the face big and a row each
+    for الشعر (5 colours), التسريحة (8 small faces), البشرة (4), اللبس (8), الحاجات (👓 🕶️ 🧕 🧢 🎧 🧔,
+    toggles: a hijab hides the hair rows and takes off a cap and headphones; a cap takes off
+    headphones), a colour row for the hijab or the cap when worn, then «🎲 وش تاني» and «الحرف بس»
+    (back to the initial). Each change pops the big face (a Web Animation, transform only, nothing
+    when `motionOff()`). On a phone on its side the face sits beside the rows. Eyes and mouth come
+    from 🎲 only (decided here: these rows were enough before playing).
+  - **The face** is a string of 11 digits, one per part (`FACE_PARTS` in `rooms/Faces.js`: skin,
+    hair, style, shirt, eyes, mouth, eyewear, hijab, cap, headphones, beard). `faceClean` is the one
+    check, on both sides: '' for none, the string when every digit is within its part (what can't be
+    worn together is settled), `null` for anything else. `faceRandom` is 🎲.
+  - **Kept** on the phone in `localStorage.ashryFace` (`roomFace` in JS_Room.html, next to
+    `roomName`), saved on «تأكيد» (`facePickerTake`, null when the maker never showed); moved by
+    «انقل لموبايل تاني» (`MOVE_KEYS.ashryFace: 'fill'`).
+  - **Sent** on `/create` and `/join` (`face`; room.js `roomWithFace`: a bad one is dropped, the
+    phone still gets in), on `rename { name, face }` (RoomGames.js: a bad one is refused with
+    «الوش ده مش مظبوط», '' takes it off, no `face` at all - an old phone - keeps the one it has;
+    lobby only, as the name) and on `becomePlayer { name, face }` (dropped when bad). Kept on
+    `room.players[].face`; `roomView` (view.js) gives it to everyone (it is public), never on a bot.
+  - **Drawn** by `faceSvg(face, tiny)` in `rooms/JS_Faces.html` (the chunk `faces`, which also has
+    `gwFaceSvg`, moved there from خمّن مين's chunk): flat colours and no ids, so one face is one markup
+    (frames' signatures hold still, nothing points at a gradient in a hidden view), memoised;
+    `tiny` crops to the head for chips of 24-32px. The shell never draws one: `roomFaceHtml(face,
+    tiny)` (JS_Room.html) returns '' and asks for the chunk the first time a room has a face, then
+    `routeRoomState` draws again (the TV lobby's signature carries the faces and whether they have
+    come). The shell grew 0.8 KB (752.2 → 753.0); the chunk's styles are `FACE_CSS`, put in the page
+    when it runs.
+  - **Where it shows**: the lobby rows (`lobbyAvatarHtml(name, online, emoji, p)`, `.has-face`; a
+    face changed since this phone last drew it lands with a pop, `roomFaceNew`), «أنت: منى ✏️»
+    (`roomMeHtml`), the TV stage's faces (`tvLobbyAvatarHtml`) and its chips (`tvStrip`), the room
+    player strip (`renderRoomPlayerStrip`), the talk's chips and the ballots' tiles (`roomInitial`,
+    by name), the boards and the night's table (`renderScoreboard` by id, the TV's idle table), and
+    every podium (`podCastDress` adds `.pod-face` over the medal, by the name on the step). Anyone
+    with no face keeps the initial on its colour (or nothing extra where there was no initial).
+  - Tests: `rules.mjs` («A player's face (1282)»: every refusal, the tidy-up, 300 dice faces, rename,
+    an old phone, becomePlayer, the view); `play-all.mjs --only=faces` (create, a join with markup
+    for a face, rename, an old phone's rename, back to the initial, a screen turned player).
+  - **Shared functions changed:** `lobbyAvatarHtml`, `roomMeHtml`, `roomRenameMe`, `promptForName`,
+    `submitNameModal`, `renderRoomLobby` (one line), `Room.create`, `Room.join` (JS_Room.html);
+    `renderRoomPlayerStrip`, `roomInitial` (JS_RoomImposter.html); `renderScoreboard`
+    (JS_RoomVoting.html); `roomBecomePlayer`, `tvStrip`, `tvLobbySig`, `tvLobby`'s tile,
+    `tvIdleTableHtml` (JS_RoomTv.html); `podCastDress` (JS_Motion.html); `applyRoomAction`'s
+    `rename` and `becomePlayer` (RoomGames.js); `create`, `join` (room.js); `roomView`; `handle`
+    (index.js); `MOVE_KEYS`. New: `rooms/Faces.js` (SHARED_LISTS, the server's FILES and EXPORTS),
+    `rooms/JS_Faces.html` (the chunk `faces`, SHELL_USES_OK).

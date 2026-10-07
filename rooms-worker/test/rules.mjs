@@ -11829,6 +11829,52 @@ Date.now = duelTestClock;
   check(r.phase !== 'lobby' && threw(() => applyRoomAction(r, 'a', 'rename', { name: 'X' })), 'rename: not while a game is being played');
 }
 
+/* --- «اعمل وشك» (the looks of 7 Oct 2026, 1282): a player's face, checked by the server ------- */
+{
+  console.log('\nA player\'s face (1282)');
+  const { faceClean, faceRandom, FACE_PARTS, FACE_LEN } = await import('../generated/rules.js');
+  const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  const good = '01231210011';
+  check(FACE_LEN === 11 && FACE_PARTS.length === FACE_LEN, 'face: eleven parts, one digit each');
+  check(faceClean(good) === good, 'face: every digit within its part is kept as it is');
+  check(faceClean('') === '' && faceClean(undefined) === '' && faceClean(null) === '', 'face: nothing sent is no face (the initial)');
+  check(faceClean('0123121001') === null && faceClean(good + '0') === null, 'face: a string one digit short or long is refused');
+  check(faceClean('41231210011') === null, 'face: a skin past its four is refused');
+  check(faceClean('05231210011') === null, 'face: a hair colour past its five is refused');
+  check(faceClean('01231210021') === null, 'face: headphones are on or off, nothing else');
+  check(faceClean('0123121001a') === null && faceClean('0123121001-') === null && faceClean('٠١٢٣٤١٢١١٠٠') === null, 'face: a letter, a sign or another script\'s digit is refused');
+  check(faceClean(1231210011) === null && faceClean({ skin: 1 }) === null && faceClean([good]) === null, 'face: a number, an object or a list is refused');
+  check(faceClean('<svg onload=x>') === null, 'face: markup is refused');
+  check(faceClean('01231214310') === '01231214000', 'face: a hijab takes off a cap and headphones');
+  check(faceClean('01231210310') === '01231210300', 'face: a cap takes off headphones');
+  let allGood = true;
+  for (let i = 0; i < 300; i++) { const f = faceRandom(); if (faceClean(f) !== f) allGood = false; }
+  check(allGood, 'face: 300 faces from 🎲 are all good faces');
+
+  const r = newRoom(['a', 'b']);
+  applyRoomAction(r, 'a', 'rename', { name: 'منى', face: good });
+  check(r.players[0].face === good && r.players[0].name === 'منى', 'face: rename keeps the face made with the name');
+  applyRoomAction(r, 'a', 'rename', { name: 'منى' });
+  check(r.players[0].face === good, 'face: a phone that sends no face (an old one) keeps the one it has');
+  check(threw(() => applyRoomAction(r, 'a', 'rename', { name: 'منى', face: '9'.repeat(11) })) && r.players[0].face === good, 'face: rename refuses a bad face and changes nothing');
+  check(threw(() => applyRoomAction(r, 'a', 'rename', { name: 'منى', face: 'x' })) && r.players[0].name === 'منى', 'face: rename refuses a face that is no face');
+  applyRoomAction(r, 'a', 'rename', { name: 'منى', face: '' });
+  check(!('face' in r.players[0]), 'face: an empty face goes back to the initial');
+  // A screen that becomes a player brings its face; a bad one is dropped there.
+  r.screens = [{ id: 's' }, { id: 't' }];
+  applyRoomAction(r, 's', 'becomePlayer', { name: 'سارة', face: good });
+  check((r.players.find(p => p.id === 's') || {}).face === good, 'face: becomePlayer brings the face');
+  applyRoomAction(r, 't', 'becomePlayer', { name: 'كريم', face: 'abc' });
+  const k = r.players.find(p => p.id === 't');
+  check(k && !('face' in k), 'face: becomePlayer drops a bad face and seats the player');
+  const { roomView } = await import('../src/view.js').catch(() => ({}));
+  if (roomView) {
+    applyRoomAction(r, 'a', 'rename', { name: 'منى', face: good });
+    const v = roomView(r, 'b', new Set(['a', 'b']));
+    check(v.players.find(p => p.id === 'a').face === good && !('face' in v.players.find(p => p.id === 'b')), 'face: the view gives everyone the faces made, and no face to the rest');
+  }
+}
+
 /* --- Games switched off for a fix (DisabledGames.js, 28 Sep 2026) --- */
 {
   console.log('\nGames switched off');

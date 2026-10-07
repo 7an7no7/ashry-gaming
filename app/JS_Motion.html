@@ -943,6 +943,17 @@ function podCastDress(root) {
       cast.innerHTML = podCastSvg(rank, /[a-z]/i.test(first) ? first.toUpperCase() : first, POD_CAST_HAIR[h % POD_CAST_HAIR.length]) + bub;
       if (small) place.insertBefore(cast, place.querySelector(':scope > .podium__block'));
       else place.insertBefore(cast, place.firstChild);
+      // «اعمل وشك» (1282): in a room, a player's drawn face over the medal (by the name on the step).
+      const face = typeof roomFaceOf === 'function' ? roomFaceHtml(roomFaceOf('', name)) : '';
+      if (face && nameEl) {
+        const f = document.createElement('span');
+        f.className = 'pod-face';
+        f.setAttribute('aria-hidden', 'true');
+        f.innerHTML = face;
+        const who = small ? place.querySelector('.podium__who') : null;
+        if (who) who.insertBefore(f, who.firstChild);
+        else nameEl.parentNode.insertBefore(f, nameEl);
+      }
     });
   });
 }

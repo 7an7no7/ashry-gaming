@@ -12,8 +12,17 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, roomSeatAway, roomClaimsPrune, roomClaimAsk, roomClaimAnswer, roomClaimTake, bumperRelaying, bumperJoined, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, missionJoined, missionPlayerLeft, HUM_SONGS, humSongIndexOf, roomGameIsOff } from '../generated/rules.js';
+import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, roomSeatAway, roomClaimsPrune, roomClaimAsk, roomClaimAnswer, roomClaimTake, bumperRelaying, bumperJoined, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, missionJoined, missionPlayerLeft, HUM_SONGS, humSongIndexOf, roomGameIsOff, faceClean } from '../generated/rules.js';
 import { roomView } from './view.js';
+
+/* «اعمل وشك» (1282): the face a phone sends on create and join is kept on its player only when
+   every digit is within its part (faceClean, rooms/Faces.js); anything else is dropped there, so a
+   bad face never keeps anyone out of a room (the rename action refuses it outright). */
+const roomWithFace = (player, rawFace) => {
+  const face = faceClean(rawFace);
+  if (face) player.face = face;
+  return player;
+};
 
 const MAX_PLAYERS = 12;
 // Big screens (a TV, a laptop) showing the room. They take no player seat.
@@ -653,7 +662,7 @@ export class Room extends DurableObject {
 
   /* --- the API (called by the Worker in index.js) -------------------------- */
 
-  async create(code, name, game, screen, test) {
+  async create(code, name, game, screen, test, rawFace) {
     await this.load();
     if (this.room) {
       // A code is only reused once its old room has been left for good.
@@ -672,7 +681,7 @@ export class Room extends DurableObject {
       phase: 'lobby',
       hostId,
       // A room opened from a TV has that screen as its host and no players yet.
-      players: screen ? [] : [{ id: hostId, name: String(name || '').trim().slice(0, 24) || 'Host' }],
+      players: screen ? [] : [roomWithFace({ id: hostId, name: String(name || '').trim().slice(0, 24) || 'Host' }, rawFace)],
       screens: screen ? [{ id: hostId }] : [],
       shared: {},
       secrets: {},
@@ -692,7 +701,7 @@ export class Room extends DurableObject {
     return { ok: true, playerId: hostId, key, state: this.project(hostId, this.onlineIds()) };
   }
 
-  async join(rawName, screen) {
+  async join(rawName, screen, rawFace) {
     await this.load();
     // المهمة السرية on: whoever comes in later is dealt a file, with the shared memory as a deal
     // has it - read before anything changes, so the room is looked at again after the wait.
@@ -720,7 +729,7 @@ export class Room extends DurableObject {
         return { ok: false, error: 'الاسم ده مستخدم في الغرفة، اختار اسم تاني',
           taken: { name: taken.name, away: roomSeatAway(room, taken.id, this.onlineIds(), Date.now()) } };
       }
-      room.players.push({ id: pid, name });
+      room.players.push(roomWithFace({ id: pid, name }, rawFace));
       roomEvent(room, 'joined', { name });
       // المهمة السرية on: whoever comes in later is dealt a file (with the shared memory, as a deal).
       if (room.mission && room.mission.on) {

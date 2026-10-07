@@ -44,6 +44,7 @@ const MOVE_FORMAT = 1;
  */
 const MOVE_KEYS = {
   ashryName: 'fill',                 // the name in rooms: only when this phone has none
+  ashryFace: 'fill',                 // the face made in the name sheet (1282, rooms/Faces.js): likewise
   ashryPlayers_v1: 'names',          // the saved names: both, one spelling each (the name fold)
   ashry_saved_groups: 'groups',      // the groups: both; one name on both phones gets everyone
   ashryCrews_v1: 'crews',            // «الشلة»: every crew, with its key

@@ -11,6 +11,9 @@ gameText({
       streak_emoji_q: "الإيموجي دي معناها إيه؟",
       streak_over: "خلصت القلوب",
       streak_in_a_row: "إجابة صح",
+      streak_heart_back: "5 صح ورا بعض: قلب رجعلك!",
+      streak_heal_hint: "5 إجابات صح ورا بعض بترجّع قلب",
+      streak_review: "راجع غلطاتك",
     },
     en: {
       race_unit_questions: "questions",
@@ -20,6 +23,9 @@ gameText({
       streak_emoji_q: "What do these emoji stand for?",
       streak_over: "Out of hearts",
       streak_in_a_row: "right answers",
+      streak_heart_back: "Five in a row: a heart back!",
+      streak_heal_hint: "Five right answers in a row bring a heart back",
+      streak_review: "Your misses",
     }
   },
   rules: {
@@ -28,6 +34,8 @@ gameText({
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>سؤال واحد و4 إجابات و<b>20 ثانية</b>.</li>
                 <li>معاك <b>3 قلوب</b>: الغلط أو الوقت لو خلص بياخد قلب. اللعبة بتخلص مع آخر قلب.</li>
+                <li><b>5 صح ورا بعض</b> بيرجّعوا قلب ضاع (عمرهم ما يزيدوا عن 3)، والعدّ بيبدأ من الأول.</li>
+                <li>في الآخر <b>📝 راجع غلطاتك</b>: الأسئلة اللي فاتتك وإجاباتها الصح.</li>
                 <li>النتيجة عدد الإجابات الصح، وأحسن نتيجة بتتحفظ لكل نوع أسئلة: معلومات، إيموجي، أمثال أو مكس.</li>
             </ol>
             <p class="help-sub">📱 سباق ألغاز (في غرفة)</p>
@@ -44,6 +52,8 @@ gameText({
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>One question, four answers, <b>20 seconds</b>.</li>
                 <li>You have <b>3 hearts</b>: a wrong answer or running out of time costs one. The game ends with the last heart.</li>
+                <li><b>Five right in a row</b> bring a lost heart back (never more than 3), and the count starts again.</li>
+                <li>At the end, <b>📝 Your misses</b>: the questions you missed with their right answers.</li>
                 <li>Your score is the number of right answers, and the best is kept for each kind: trivia, emoji, sayings or a mix.</li>
             </ol>
             <p class="help-sub">📱 Puzzle race (in a room)</p>

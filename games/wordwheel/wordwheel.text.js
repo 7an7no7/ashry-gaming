@@ -10,6 +10,18 @@ gameText({
       wheel_erase: "امسح آخر حرف",
       wheel_submit: "جرّب الكلمة",
       wheel_already: "الكلمة دي لقيتها قبل كده",
+      wheel_big: "الكبيرة",
+      wheel_big_found: "الكلمة الكبيرة!",
+      wheel_way: "طريقة اللعب",
+      wheel_way_solo: "لوحدك",
+      wheel_way_duo: "بالدور",
+      wheel_way_duo_n: "اتنين على موبايل",
+      wheel_way_solo_hint: "خلّص الشبكة كلها في أقل وقت.",
+      wheel_way_duo_hint: "كل واحد كلمة في دوره، وكلمته بتتلوّن بلونه. الكلمة بعدد حروفها، والكبيرة بالدبل، والأكتر حروف يكسب.",
+      wheel_duo_turn: "دور {name}",
+      wheel_duo_won: "{name} كسب!",
+      wheel_duo_draw: "تعادل!",
+      wheel_duo_letters: "حرف",
     },
     en: {
       wheel_words: "Words",
@@ -18,6 +30,18 @@ gameText({
       wheel_erase: "Delete the last letter",
       wheel_submit: "Try the word",
       wheel_already: "You already found that one",
+      wheel_big: "Big word",
+      wheel_big_found: "The big word!",
+      wheel_way: "How to play",
+      wheel_way_solo: "On your own",
+      wheel_way_duo: "Take turns",
+      wheel_way_duo_n: "Two on one phone",
+      wheel_way_solo_hint: "Fill the whole grid as fast as you can.",
+      wheel_way_duo_hint: "One word each turn, filled in in your colour. A word scores its letters, the big word double; most letters wins.",
+      wheel_duo_turn: "{name}'s turn",
+      wheel_duo_won: "{name} wins!",
+      wheel_duo_draw: "A draw!",
+      wheel_duo_letters: "letters",
     }
   },
   rules: {
@@ -28,7 +52,14 @@ gameText({
                 <li>كل كلمة من الكلمات المتقاطعة بتتملى لما تكتبها. خلّصهم كلهم وتكسب.</li>
                 <li>كلمة صح مش في الشبكة بتتحسب <b>⭐ كلمة زيادة</b>.</li>
                 <li><b>🔀 لخبط</b> بيغيّر أماكن الحروف، و<b>💡 تلميح</b> بيفتح حرف في الشبكة (والوقت ساعتها مش بيدخل في أحسن نتيجة).</li>
+                <li><b>🏆 الكلمة الكبيرة</b>: الكلمة اللي فيها كل الحروف بتنوّر بالدهبي.</li>
             </ol>
+            <p class="help-sub">👥 بالدور (اتنين على موبايل واحد)</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>كل واحد بيجرّب كلمة في دوره، وبعدها الدور للتاني (كلمة لقيتوها قبل كده مش بتضيّع الدور).</li>
+                <li>كلمة الشبكة بتتلوّن بلون اللي لقاها وبتاخد عدد حروفها نقط، و<b>الكلمة الكبيرة بالدبل</b>. الكلمة الزيادة ⭐ من غير نقط.</li>
+                <li>لما الشبكة تتملى، الأكتر حروف يكسب. من غير تلميحات.</li>
+            </ul>
             <p class="help-sub">📱 سباق ألغاز (في غرفة)</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>نفس اللغز للكل، وكل واحد بيحلّه على موبايله. الشاشة والتلفزيون بيوروا التقدم بس: الكلمات اللي اتلقت.</li>
@@ -45,7 +76,14 @@ gameText({
                 <li>A word in the crossword fills in as soon as you make it. Fill them all to win.</li>
                 <li>A real word that isn't in the grid counts as a <b>⭐ bonus word</b>.</li>
                 <li><b>🔀 Shuffle</b> moves the letters around, and <b>💡 Hint</b> opens a letter in the grid (the time then doesn't count for your best).</li>
+                <li><b>🏆 The big word</b>: the word with all the letters lights up in gold.</li>
             </ol>
+            <p class="help-sub">👥 Take turns (two on one phone)</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Each tries one word on their turn, then it passes (a word already found doesn't cost the turn).</li>
+                <li>A grid word fills in in its finder's colour and scores its letters; <b>the big word scores double</b>. A ⭐ bonus word scores nothing.</li>
+                <li>When the grid is full, most letters wins. No hints.</li>
+            </ul>
             <p class="help-sub">📱 Puzzle race (in a room)</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The same puzzle for everyone, each solving on their own phone. The screens show progress only: words found.</li>

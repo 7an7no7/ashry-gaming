@@ -25,6 +25,11 @@
    turns over for everyone (svRevealHtml, motionFirst), the points a phone won
    fly to its row (flyPoints) and the board counts up (animateScoreboards); the
    game ends on the podium with confetti.
+
+   «أصعب لغز الليلة» (1193, the owner's picks of 7 Oct 2026): at game over the
+   secret that took the most tries (shared.hardest, RoomSolve.js) is crowned
+   with its setter's name and shown again, on every phone and the TV
+   (svHardestHtml).
    ========================================================================= */
 
 const svT = (key, vars) => {
@@ -648,6 +653,21 @@ function svResultHtml(kind, state, tv) {
     </div>`;
 }
 
+/** 1193: «أصعب لغز الليلة» - the hardest secret of the game, its setter crowned, shown again. */
+function svHardestHtml(kind, state, tv) {
+  const s = state.shared || {};
+  const h = s.hardest;
+  if (s.phase !== 'gameover' || !h || !h.reveal) return '';
+  const pop = motionFirst(['sv-hardest', state.code, s.dealId, tv ? 'tv' : 'phone'].join('|'));
+  const card = `<div class="card card--accent sv-result sv-hardest ${tv ? 'sv-result--tv' : ''} ${pop ? 'is-turning is-in' : ''}">
+      <p class="eyebrow">🏆 ${escapeHTML(svT('sv_hardest'))}</p>
+      <p class="sv-hardest__who">👑 ${escapeHTML(svT('sv_hardest_by', { name: h.setterName || '' }))}</p>
+      <div class="sv-result__secret">${svSecretHtml(kind, h.reveal, s)}</div>
+      <p class="field__hint">${escapeHTML(svT('sv_hardest_line', { n: h.avg, s: h.solved, m: h.of }))}</p>
+    </div>`;
+  return tv ? `<div class="tv-scale">${card}</div>` : card;
+}
+
 function svStopClock() {
   if (svRoom.clock) svRoom.clock.stop();
   svRoom.clock = null;
@@ -745,6 +765,7 @@ function svRender(kind, state) {
       return `<div class="sv-room">
           ${s.result && s.result.reveal ? svResultHtml(kind, state) : ''}
           ${podium || renderScoreboard(s.board)}
+          ${svHardestHtml(kind, state, false)}
           ${state.youAreHost
             ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(svT('play_again'))}</button>
                <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(svT('room_another_game'))}</button></div>`
@@ -851,6 +872,7 @@ function svTvFrame(kind, state, t) {
     return `<div class="tv-vote" data-accent="${accent}">
         <div class="tv-title tv-center-text">🏆</div>
         ${renderPodium(state, s.board) || `<div class="tv-scale">${renderScoreboard(s.board)}</div>`}
+        ${svHardestHtml(kind, state, true)}
         ${host([[t.play_again, "roomAct('playAgain')"], [t.room_another_game, "roomAct('backToHub')", 'ghost']])}
       </div>`;
   }

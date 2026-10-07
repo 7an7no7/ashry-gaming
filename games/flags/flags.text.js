@@ -10,6 +10,8 @@ gameText({
       flags_tries: "محاولات",
       flags_won: "عرفتها! 🎉",
       flags_lost: "المرة دي فاتتك",
+      flags_route_share: "شارك رحلتك",
+      flags_route_title: "رحلتي لـ{name}",
       flags_cont_af: "في أفريقيا",
       flags_cont_as: "في آسيا",
       flags_cont_eu: "في أوروبا",
@@ -24,6 +26,8 @@ gameText({
       flags_tries: "guesses",
       flags_won: "Got it! 🎉",
       flags_lost: "Not this time",
+      flags_route_share: "Share your route",
+      flags_route_title: "My route to {name}",
       flags_cont_af: "In Africa",
       flags_cont_as: "In Asia",
       flags_cont_eu: "In Europe",
@@ -42,12 +46,14 @@ gameText({
                 <li>اكتب أول حروف الدولة واختارها من الاقتراحات. كل تخمين غلط بيقولك إنت على بعد كام <b>كيلو</b>، و<b>السهم</b> بيشاور على اتجاهها، والنسبة بتقولك قربت قد إيه.</li>
                 <li>كل تخمين دبوس على الخريطة، لونه على قد قربه (أحمر بعيد، أخضر قريب). بعد تالت غلطة قارة الدولة بتنوّر (بالمسافة بعد الرابعة)، وبعدها أول حرف.</li>
                 <li><b>سهل</b> من الدول المشهورة، <b>صعب</b> من كل الدول. المسافة محسوبة من نص كل دولة.</li>
+                <li><b>رحلتك</b>: لما تعرفها، خط منقّط بيمشي من أول دبوس للي بعده لحد الدبوس الدهبي، و<b>📤 شارك رحلتك</b> بيبعتها صورة (مش في تحدي اليوم).</li>
             </ol>
             <p class="help-sub">👥 كل واحد من موبايله</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li><b>واحد يختار</b> أي دولة (بيدوّر عليها بالعربي أو الإنجليزي)، والباقي كل واحد يخمّنها على موبايله، من العلم أو بالمسافة زي ما المضيف اختار. الموبايل بيوري تخميناتك انت بس، والتلفزيون وقت اللعب بيوري عدد تخمينات كل واحد بس؛ ولما الجولة تخلص دبابيس الكل بتنزل على خريطته مرة واحدة، بأول حرف من اسم كل واحد.</li>
                 <li><b>سباق</b>: التطبيق بيختار دولة للكل، من المشهورة أو من كل الدول.</li>
                 <li>اللي يعرفها ياخد 10، والأول +5، التاني +4… واللي اختارها ياخد 5 عن كل واحد ماعرفهاش. لو متعادلين، المحاولات الأقل تسبق.</li>
+                <li>🏆 <b>أصعب لغز الليلة</b>: في الآخر، اللغز اللي أخد أكتر محاولات بيرجع يظهر، واللي حطّه بيتتوّج.</li>
             </ul>
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -63,12 +69,14 @@ gameText({
                 <li>Type the start of a country's name and pick it from the suggestions. Each wrong guess shows how many <b>km</b> away it is, an <b>arrow</b> pointing the way, and a percentage for how close you are.</li>
                 <li>Each guess is a pin on the map, coloured by how close it is (red far, green close). After the third miss the country's continent lights up (by distance, the fourth), then the first letter.</li>
                 <li><b>Easy</b> asks well-known countries, <b>hard</b> any country. Distances are measured from the middle of each country.</li>
+                <li><b>Your route</b>: once you get it, a dotted line runs from your first pin to the next and on to the gold one, and <b>📤 Share your route</b> sends it as a picture (not in the daily).</li>
             </ol>
             <p class="help-sub">👥 Each on their own phone</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li><b>One sets</b> any country (searched in Arabic or English) and everyone else guesses it on their own phone, from the flag or by distance as the host chose. A phone shows only its own guesses; while the round is played the TV shows only how many each has made, and at the end everyone's pins drop onto its map together, with each one's first letter.</li>
                 <li><b>Race</b>: the app picks a country for everyone, well-known ones or any.</li>
                 <li>Getting it is 10 points, +5 for the first, +4 for the second…; the setter scores 5 for everyone who misses it. On a tie, fewer tries ranks higher.</li>
+                <li>🏆 <b>The hardest one tonight</b>: at the end, the secret that took the most tries is shown again and its setter crowned.</li>
             </ul>
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

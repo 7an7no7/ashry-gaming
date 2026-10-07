@@ -56,6 +56,9 @@
      endsAt    the clock
      result    { reveal, setter, setterName, setterPts, rows: [{ id, name, state, n, pts }] }
      scores · tries (per player, on the secrets they got) · board (best first, fewer tries on a tie)
+     hardest   at game over (one sets): «أصعب لغز الليلة» - the secret that took the most tries
+               { round, setter, setterName, reveal, avg, solved, of } (svHardestNote, svCrownHardest);
+               kept in room._svHardest until then, so no past secret sits in shared mid-game
    ========================================================================= */
 const SV_GRACE_MS = 1500;
 const SV_SOLVE_POINTS = 10;
@@ -233,6 +236,9 @@ const svOptions = (kind, payload, prev, room) => {
       mode: 'race',
       rounds: svPick(SV_RACE_ROUNDS, p.rounds, was.rounds, 3),
       clock: SV_RACE_CLOCKS[kind] || 120,
+      // 1185 (the owner, 7 Oct 2026): the last round's points count double - a lobby switch, on by default
+      // (a phone that doesn't send it, or sends anything but false, keeps it on).
+      double: p.double === false ? false : (p.double === true ? true : was.double !== false),
       lang: p.lang === 'en' ? 'en' : (p.lang === 'ar' ? 'ar' : (was.lang === 'en' ? 'en' : 'ar'))
     }, SOLVE_KINDS[kind].options(p, was, room));
   }
@@ -409,6 +415,8 @@ const svEndRound = (room) => {
   // grace's finishers 2, «الكل يخلّص» the engine's 10 + the order's bonus.
   const ranks = {};
   if (s.race) svRaceRank(room).forEach((r, i) => { ranks[r.pid] = { at: i, score: r.score, grace: r.grace }; });
+  // 1185: the race's last round counts double (svRaceDouble).
+  const mult = svRaceDouble(s) ? 2 : 1;
   Object.keys(h.boards).forEach(pid => {
     const b = h.boards[pid];
     // Still solving when the round closed: out of time (⏳), not beaten (💀).
@@ -418,6 +426,7 @@ const svEndRound = (room) => {
     if (b.state === 'won') {
       if (s.race && s.settings.finish === 'fast3') pts = ranks[pid] && !ranks[pid].grace && at < SV_RACE_POINTS.length ? SV_RACE_POINTS[at] : SV_RACE_GRACE_POINTS;
       else pts = SV_SOLVE_POINTS + (at !== -1 ? (SV_SPEED_BONUS[at] || 0) : 0);
+      pts *= mult;
       s.tries[pid] = (s.tries[pid] || 0) + b.n;
       s.solves[pid] = (s.solves[pid] || 0) + 1;
       if (s.race) s.secs[pid] = (s.secs[pid] || 0) + svSecs(room, b);
@@ -437,14 +446,45 @@ const svEndRound = (room) => {
     setterPts = failed * SV_SETTER_POINTS;
     if (setterPts) addScore(room, s.setter, setterPts);
   }
+  if (s.settings.mode !== 'race' && s.setter) svHardestNote(room, K);
   rows.sort((a, b) => b.pts - a.pts || (s.race ? (b.score || 0) - (a.score || 0) || (a.secs || 0) - (b.secs || 0) : a.n - b.n));
   s.result = { reveal: K.reveal(h.secret, s.settings), setter: s.setter || null, setterName: s.setterName || '', setterPts: setterPts, rows: rows };
+  if (mult > 1) s.result.double = true;
   s.endsAt = null;
   s.board = svBoard(room);
   s.phase = s.round >= s.rounds ? 'gameover' : 'result';
   room.phase = s.phase === 'gameover' ? 'gameover' : 'play';
+  if (s.phase === 'gameover') svCrownHardest(room);
   svWriteSecrets(room);
 };
+
+/**
+ * «أصعب لغز الليلة» (1193, the owner's picks of 7 Oct 2026): each set secret, once its round is
+ * scored, is weighed by the tries its solvers spent - a board that never got it counts the game's
+ * most tries and one more - and the hardest so far is kept (a tie goes to fewer solved, then the
+ * earlier one). Rounds the app dealt (the race) have no setter and are never weighed.
+ */
+const svHardestNote = (room, K) => {
+  const s = room.shared;
+  const h = room._solve || { boards: {} };
+  const ids = Object.keys(h.boards || {});
+  if (!ids.length || !h.secret) return;
+  const max = K.tries(h.secret, s.settings) || 0;
+  let sum = 0, solved = 0;
+  ids.forEach(pid => { const b = h.boards[pid]; if (b.state === 'won') { solved++; sum += b.n; } else sum += Math.max(b.n, max) + 1; });
+  const avg = Math.round(sum / ids.length * 10) / 10;
+  const was = room._svHardest;
+  if (was && (was.avg > avg || (was.avg === avg && was.solved / was.of <= solved / ids.length))) return;
+  room._svHardest = { round: s.round, setter: s.setter, setterName: s.setterName || roomPlayerName(room, s.setter), reveal: K.reveal(h.secret, s.settings), avg: avg, solved: solved, of: ids.length };
+};
+
+/** At game over: the hardest secret goes on the table, to be crowned and shown again. */
+const svCrownHardest = (room) => {
+  if (room._svHardest && room.shared) room.shared.hardest = room._svHardest;
+};
+
+/** 1185: a race's last round, when the lobby's «الجولة الأخيرة بالدبل» is on (the points ×2). */
+const svRaceDouble = (s) => !!(s && s.race && s.settings && s.settings.double !== false && s.rounds > 1 && s.round >= s.rounds);
 
 /** Fewer than two: nobody to solve, or nobody to set for. */
 const svTooFew = (room) => room.players.length < 2;
@@ -482,6 +522,7 @@ const svNewGame = (room, playerId, kind, payload, again) => {
     board: []
   };
   room.phase = 'play';
+  room._svHardest = null;
   svDeal(room);
   room.shared.board = svBoard(room);
 };
@@ -614,6 +655,7 @@ const svPlayerLeft = (room, playerId) => {
     room.phase = 'gameover';
     s.endsAt = null;
     s.board = svBoard(room);
+    svCrownHardest(room);
     svWriteSecrets(room);
     return;
   }

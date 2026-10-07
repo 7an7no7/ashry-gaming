@@ -71,6 +71,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>المضيف بيختار الطريقة: <b>واحد يكتب</b> فزورة (الإجابة، ونوعها: فيلم، مثل، أكلة، مكان أو حاجة، والفزورة بالإيموجي بس) والباقي كل واحد يخمّنها على موبايله؛ أو <b>سباق</b> على فوازير التطبيق؛ أو <b>المسابقة</b>.</li>
                 <li>في "واحد يكتب" والسباق: 6 محاولات، ومحدش بيشوف تخمينات التاني. "🔥 قريب" لو قربت. اللي يعرفها ياخد 10، والأول +5، التاني +4… واللي كتبها ياخد 5 عن كل واحد ماعرفهاش. الإيموجي اللي بيتهجّى الإجابة (زي حروف الأعلام) مش مقبول.</li>
+                <li>🏆 <b>أصعب لغز الليلة</b>: في الآخر، اللغز اللي أخد أكتر محاولات بيرجع يظهر، واللي حطّه بيتتوّج.</li>
                 <li>المسابقة: الفزورة على كل موبايل وعلى التلفزيون و45 ثانية. كل واحد يكتب إجابته، والغلط بيظهر للكل وتحاول تاني، واللي قرّب الكل يشوف «🔥 فلان قرّب» وهو بس يشوف اللي كتبه. الإجابة الصح 10 نقاط، وزيادة للأسرع (+5 للأول، +4 للتاني…).</li>
             </ul>`,
       proverbs: `
@@ -98,6 +99,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The host picks the way: <b>one sets</b> a riddle (the answer, what it is - a film, a saying, a dish, a place or a thing - and the clue in emoji only) and everyone else guesses on their own phone; a <b>race</b> on the app's riddles; or the <b>quiz</b>.</li>
                 <li>One sets and the race: 6 tries, and nobody sees anyone else's guesses; "🔥 Close" when you nearly have it. Getting it is 10 points, +5 for the first, +4 for the second…; the writer scores 5 for everyone who misses it. Emoji that spell the answer out (like flag letters) are refused.</li>
+                <li>🏆 <b>The hardest one tonight</b>: at the end, the secret that took the most tries is shown again and its setter crowned.</li>
                 <li>The quiz: the riddle on every phone and the TV, with 45 seconds. Everyone types; a wrong guess shows to the table and you try again; a close one shows as «🔥 Omar is close», its text on his phone only. A right answer is 10 points plus a speed bonus (+5 for the first, +4 for the second…).</li>
             </ul>`,
       proverbs: `

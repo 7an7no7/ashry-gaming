@@ -6181,6 +6181,31 @@ Date.now = duelTestClock;
   applyRoomAction(tn, 'a', 'closeRound', { round: 1 });
   check(tn.shared.board[0].id === 'b', 'review/solve: a tie on points goes to more rounds solved before fewer tries');
 
+  {
+    // 1193 (the owner, 7 Oct 2026): «أصعب لغز الليلة» - at game over the secret that took the most tries, with its setter.
+    const hr = sv('guessnum', ['a', 'b', 'c'], { rounds: 3, max: 50 });
+    const hs = hr.shared;
+    const setters = [];
+    for (let round = 1; round <= 3; round++) {
+      const st = hs.setter;
+      setters.push(st);
+      applyRoomAction(hr, st, 'setSecret', { n: 20 + round, round });
+      const solvers = ['a', 'b', 'c'].filter((x) => x !== st);
+      // Round 2 is the hard one: its first solver tries 40 and 10 before getting it.
+      if (round === 2) { applyRoomAction(hr, solvers[0], 'guess', { n: 40, round }); applyRoomAction(hr, solvers[0], 'guess', { n: 10, round }); }
+      solvers.forEach((id) => applyRoomAction(hr, id, 'guess', { n: 20 + round, round }));
+      check(round === 3 || !hs.hardest, 'solve/hardest: nothing on the table before the game is over (round ' + round + ')');
+      if (round < 3) applyRoomAction(hr, 'a', 'nextRound', { round });
+    }
+    check(hs.phase === 'gameover' && hs.hardest && hs.hardest.round === 2 && hs.hardest.setter === setters[1] && hs.hardest.reveal.n === 22 && hs.hardest.avg === 2 && hs.hardest.solved === 2 && hs.hardest.of === 2,
+      'solve/hardest: the game over crowns round 2 (2 tries on average) and its setter, the number shown again');
+    applyRoomAction(hr, 'a', 'playAgain', {});
+    check(!hr.shared.hardest, 'solve/hardest: play again starts the night\'s count again');
+    const rc = sv('guessnum', ['a', 'b', 'c'], { mode: 'race', rounds: 3, max: 50 });
+    for (let round = 1; round <= 3; round++) { applyRoomAction(rc, 'a', 'closeRound', { round }); if (round < 3) applyRoomAction(rc, 'a', 'nextRound', { round }); }
+    check(rc.shared.phase === 'gameover' && !rc.shared.hardest, 'solve/hardest: a race has no setter, so nothing is crowned');
+  }
+
   // The setter leaves before setting: the next one sets. The host can skip a quiet setter.
   r = sv('guessnum', ['a', 'b', 'c', 'd'], { rounds: 3, max: 50 });
   s = r.shared;
@@ -10980,6 +11005,35 @@ Date.now = duelTestClock;
   check(r.shared.round === 1 && r.shared.settings.finish === 'all' && r.shared.rounds === 3 && r.shared.phase === 'solving', 'race: play again keeps the rounds and the ending');
   const lang = race(['a', 'b'], 'queens', { lang: 'en' });
   check(lang.shared.settings.lang === 'en' && lang.shared.settings.clock === 180, 'race: the language travels with the start');
+  {
+    // 1185 (the owner, 7 Oct 2026): the last round counts double - a lobby switch, on by default.
+    const crowns = (rm) => { const m = new Array(49).fill(0); rm._solve.secret.solution.forEach((c, row) => { m[row * 7 + c] = 2; }); return m; };
+    const playThree = (rm) => {
+      for (let round = 1; round <= 3; round++) {
+        clock += 10000; applyRoomAction(rm, 'a', 'move', { marks: crowns(rm), round }); applyRoomAction(rm, 'b', 'giveUp', { round });
+        if (round < 3) applyRoomAction(rm, 'a', 'nextRound', { round });
+      }
+    };
+    const on = race(['a', 'b'], 'queens', { finish: 'all' });
+    check(on.shared.settings.double === true, 'race/double: on by default (a phone that sends nothing keeps it on)');
+    playThree(on);
+    check(on.shared.phase === 'gameover' && on.shared.scores.a === 15 + 15 + 30 && on.shared.result.double === true && on.shared.result.rows.find((x) => x.id === 'a').pts === 30,
+      'race/double: rounds 1 and 2 pay 15, the last round 30 (×2), and its result says so');
+    const off = race(['a', 'b'], 'queens', { finish: 'all', double: false });
+    playThree(off);
+    check(off.shared.settings.double === false && off.shared.scores.a === 45 && !off.shared.result.double, 'race/double: switched off, the last round pays as the others (45)');
+    applyRoomAction(off, 'a', 'playAgain', {});
+    check(off.shared.settings.double === false, 'race/double: play again keeps the switch');
+    const f3 = race(['a', 'b', 'c', 'd', 'e'], 'queens', { rounds: 3 });
+    for (let round = 1; round <= 3; round++) {
+      ['a', 'b', 'c', 'd'].forEach((id) => { clock += 2000; applyRoomAction(f3, id, 'move', { marks: crowns(f3), round }); });
+      applyRoomAction(f3, 'e', 'giveUp', { round });
+      if (round < 3) { clock = f3.shared.closeAt + 1600; roomTimeout(f3, clock); applyRoomAction(f3, 'a', 'nextRound', { round }); }
+      else { clock = f3.shared.closeAt + 1600; roomTimeout(f3, clock); }
+    }
+    check(f3.shared.phase === 'gameover' && f3.shared.scores.a === 10 + 10 + 20 && f3.shared.scores.d === 2 + 2 + 4,
+      'race/double: Fast 3 doubles the last round too (10 → 20, the grace\'s 2 → 4)');
+  }
   {
     // «خماسي السهرة» (the owner, 2 Oct 2026): a different puzzle every round, the line-up seen in the lobby.
     const IDS = ['strands', 'wordwheel', 'connections', 'pinpoint', 'queens', 'tango', 'nonogram', 'mines', 'streak', 'sudoku'];

@@ -61,6 +61,7 @@ gameText({
                 <li><b>واحد يكتب</b>: واحد يكتب كلمة من 5 لـ 8 حروف والباقي كل واحد يخمّنها في شبكته على موبايله. محدش بيشوف تخمينات التاني.</li>
                 <li><b>سباق</b>: التطبيق بيدّي الكل نفس الكلمة من كلمات اللعبة، والمضيف بيختار كام حرف.</li>
                 <li>اللي يحلّها ياخد 10، والأول +5، التاني +4… واللي كتبها ياخد 5 عن كل واحد ماعرفهاش. لو اتنين متعادلين، اللي خلّص بمحاولات أقل يسبق.</li>
+                <li>🏆 <b>أصعب لغز الليلة</b>: في الآخر، اللغز اللي أخد أكتر محاولات بيرجع يظهر، واللي حطّه بيتتوّج.</li>
                 <li>المضيف بيختار 3 أو 5 أو 10 كلمات، ووقت لو حابب (90 أو 120 ثانية).</li>
             </ul>
             <p class="help-sub">📺 على التلفزيون</p>
@@ -86,6 +87,7 @@ gameText({
                 <li><b>One sets</b>: one writes a word of 5 to 8 letters and everyone else guesses it in their own grid on their own phone. Nobody sees anyone else's guesses.</li>
                 <li><b>Race</b>: the app gives everyone the same word from the game's lists; the host picks how many letters.</li>
                 <li>A solve is 10 points, +5 for the first, +4 for the second…; the writer scores 5 for everyone who misses it. On a tie, fewer tries ranks higher.</li>
+                <li>🏆 <b>The hardest one tonight</b>: at the end, the secret that took the most tries is shown again and its setter crowned.</li>
                 <li>The host picks 3, 5 or 10 words, and a clock if they like (90 or 120 seconds).</li>
             </ul>
             <p class="help-sub">📺 On the TV</p>

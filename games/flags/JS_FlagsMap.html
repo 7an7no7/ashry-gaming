@@ -30,6 +30,10 @@
      the answer's continent glows on the phone that made them, with a chip
      «في أفريقيا»; on the TV only at the end. At the end the answer's gold pin
      drops with rings.
+   - «رحلتك» (1178, the owner's picks of 7 Oct 2026): after a win on one phone a
+     dotted line runs from the first pin to the next and on to the gold one, a
+     segment at a time (fmapHtml's `route`, fmapRouteSvg); «📤 شارك رحلتك» draws
+     the same map, pins and route as a picture (fmapRouteCard, JS_Flags.html).
    - The map's own CSS is here (fmapStyle, one <style> added once): the shell's
      stylesheet is at its size budget, and every class is the map's own (fmap-).
    ========================================================================= */
@@ -78,6 +82,9 @@ body.dark .fmap__land path.is-glow { fill: color-mix(in srgb, var(--accent) 75%,
 .fmap--anim .fmap__land path.is-glow { animation: fmap-glow 1.6s ease-in-out 3; }
 @keyframes fmap-glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
 .fmap__sea { fill: var(--fmap-sea); }
+.fmap__route { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.fmap__route line { stroke: var(--accent-ink); stroke-width: 2.5; stroke-dasharray: 2 5; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.fmap--anim .fmap__route line { animation: fmap-fade 450ms ease-out calc(1.4s + var(--rd, 0s)) both; }
 .fmap__pins { position: absolute; inset: 0; pointer-events: none; }
 .fmap__pin { position: absolute; width: var(--fmap-ps); height: var(--fmap-ps); transform: translate(-50%, -100%); z-index: 1; }
 .fmap__pin b { position: absolute; inset: 0; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--c); box-shadow: 0 2px 5px -2px rgba(0, 0, 0, 0.5), inset 0 0 0 2px rgba(255, 255, 255, 0.8); }
@@ -192,6 +199,7 @@ function fmapHtml(o) {
     return html;
   }).join('');
   const glow = o.glow || '';
+  const route = fmapRouteSvg(o.route);
   const land = Object.keys(FMAP_LAND).map((k) => `<path d="${FMAP_LAND[k]}"${k === glow ? ' class="is-glow"' : ''}/>`).join('');
   const grat = [71, 142, 213].map((y) => `M0 ${y}H${FMAP_W}`).concat([120, 240, 360, 480, 600].map((x) => `M${x} 0V${FMAP_H}`)).join('');
   return `<div class="fmap${o.anim ? ' fmap--anim' : ''}${o.calls ? '' : ' is-laid'} ${o.cls || ''}" dir="ltr" data-fmap>
@@ -199,10 +207,80 @@ function fmapHtml(o) {
         <svg viewBox="0 0 ${FMAP_W} ${FMAP_H}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
           <path class="fmap__grat" d="${grat}"/><g class="fmap__land">${land}</g><path class="fmap__sea" d="${FMAP_SEA}"/>
         </svg>
-        <div class="fmap__pins">${pins}</div>
+        ${route}<div class="fmap__pins">${pins}</div>
       </div>
       ${o.calls ? `<svg class="fmap__lines" preserveAspectRatio="none" aria-hidden="true"></svg>${calls}` : ''}
     </div>`;
+}
+
+/** 1178: where a country's pin stands in the map's own box (720 x 284), for the route and the picture. */
+function fmapPoint(code) {
+  const c = flagCountry(code);
+  if (!c) return null;
+  const at = fmapAt(c);
+  return { x: at.x / 100 * FMAP_W, y: at.y / 100 * FMAP_H };
+}
+
+/** 1178: «رحلتك» - a dotted line from each pin to the next, in the order guessed, one segment after another. */
+function fmapRouteSvg(codes) {
+  const pts = (codes || []).map(fmapPoint).filter(Boolean);
+  if (pts.length < 2) return '';
+  const lines = pts.slice(1).map((p, i) => `<line style="--rd:${(i * 0.35).toFixed(2)}s" x1="${pts[i].x.toFixed(1)}" y1="${pts[i].y.toFixed(1)}" x2="${p.x.toFixed(1)}" y2="${p.y.toFixed(1)}"/>`).join('');
+  return `<svg class="fmap__route" viewBox="0 0 ${FMAP_W} ${FMAP_H}" preserveAspectRatio="none" aria-hidden="true" focusable="false">${lines}</svg>`;
+}
+
+// The pins' five colours and the gold, for a canvas (the same as --fmap-0..4 in the light theme).
+const FMAP_CANVAS_STEPS = ['#e11d48', '#ea580c', '#ca8a04', '#65a30d', '#059669'];
+const FMAP_CANVAS_GOLD = '#f59e0b';
+
+/**
+ * 1178: the map with its pins and the route, drawn on a canvas at (x, y), `w` wide:
+ * the land as the page's own outlines (Path2D reads the same path data), each pin a
+ * numbered disc in its colour, the answer a gold star, the dotted route between them.
+ */
+function fmapDrawRoute(ctx, guesses, answer, x, y, w) {
+  const k = w / FMAP_W, h = FMAP_H * k;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x - 12, y - 12, w + 24, h + 24, 28); ctx.fill(); } else ctx.fillRect(x - 12, y - 12, w + 24, h + 24);
+  ctx.translate(x, y);
+  ctx.scale(k, k);
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.lineWidth = 1 / k;
+  if (typeof Path2D === 'function') {
+    Object.keys(FMAP_LAND).forEach((key) => { const p = new Path2D(FMAP_LAND[key]); ctx.fill(p); ctx.stroke(p); });
+  }
+  ctx.restore();
+  const pts = (guesses || []).map((g) => ({ g: g, p: fmapPoint(g.code) })).filter((r) => r.p);
+  const at = (p) => ({ x: x + p.x * k, y: y + p.y * k });
+  ctx.save();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  if (ctx.setLineDash) ctx.setLineDash([4, 14]);
+  ctx.beginPath();
+  pts.forEach((r, i) => { const q = at(r.p); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); });
+  ctx.stroke();
+  ctx.restore();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.direction = 'ltr';
+  pts.forEach((r, i) => {
+    const q = at(r.p);
+    const gold = r.g.code === answer;
+    ctx.beginPath();
+    ctx.arc(q.x, q.y, gold ? 30 : 22, 0, Math.PI * 2);
+    ctx.fillStyle = gold ? FMAP_CANVAS_GOLD : FMAP_CANVAS_STEPS[flagsStep(r.g.km)] || FMAP_CANVAS_STEPS[0];
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+    ctx.fillStyle = gold ? '#1c1200' : '#ffffff';
+    ctx.font = '900 ' + (gold ? 30 : 24) + 'px "IBM Plex Sans Arabic", "Segoe UI", sans-serif';
+    ctx.fillText(gold ? '★' : String(i + 1), q.x, q.y + 1);
+  });
+  return h;
 }
 
 /** The legend (far … close) and, once a guess is in, the closest so far. */

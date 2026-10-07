@@ -191,7 +191,10 @@ function paintFlags(freshIndex) {
   const contAt = flagsContAt(s);
   const glow = over || s.guesses.length >= contAt ? target.cont : '';
   const fresh = typeof freshIndex === 'number' ? freshIndex : -1;
-  const map = fmapHtml({ pins: fmapGuessPins(s.guesses, { answer: s.answer, over: over, fresh: fresh, lang: s.lang }), calls: true, glow: glow, anim: fresh >= 0 && !motionOff() })
+  // 1178: «رحلتك» - after a win, the dotted route from the first pin to the gold one.
+  const won = over && s.guesses.length > 0 && s.guesses[s.guesses.length - 1].code === s.answer;
+  const map = fmapHtml({ pins: fmapGuessPins(s.guesses, { answer: s.answer, over: over, fresh: fresh, lang: s.lang }), calls: true, glow: glow, anim: fresh >= 0 && !motionOff(),
+    route: won ? s.guesses.map(g => g.code) : null })
     + fmapSumHtml(s.guesses, s.answer, s.lang);
   const contChip = !over && glow ? fmapHintHtml(glow, fresh === contAt - 1) : '';
   el.innerHTML = `
@@ -221,6 +224,7 @@ function paintFlags(freshIndex) {
       </div>
       <div class="view-actions talk__actions flg-actions">
         ${over ? `<button type="button" class="btn btn--primary btn--lg" onclick="startFlags(false)">${escapeHTML(t.play_again || '')}</button>` : ''}
+        ${won && !s.daily && !s.archive ? `<button type="button" class="btn btn--secondary" onclick="flagsShareRoute()">📤 ${escapeHTML(t.flags_route_share || '')}</button>` : ''}
         <div class="talk__pair">
           <button class="btn btn--ghost btn--sm" onclick="${over ? 'setupFlags()' : 'playExit(setupFlags)'}">${escapeHTML(t.exit || '')}</button>
         </div>
@@ -339,6 +343,86 @@ function flagsFinish(won) {
     valueText: won ? `${tries}/${max}` : `X/${max}`, valueLabel: t.flags_tries || '', lines: detail, shareLines: shareLines, shareIcon: shareIcon, win: won, share: share,
     again: () => startFlags(false), exit: setupFlags
   }));
+}
+
+/**
+ * 1178: «شارك رحلتك» - the route as a picture: the app's card (its ground, the mark and
+ * the link, JS_ShareCard.html) with the map, the pins and the dotted route on it, and the
+ * guesses in order under it. Never for a daily (the picture would give the day's answer away).
+ */
+function flagsShareRoute() {
+  const s = flagsState();
+  const t = TRANSLATIONS[appState.lang] || {};
+  const target = flagCountry(s.answer);
+  if (!target || s.daily || s.archive || !s.guesses.length) return;
+  const guesses = s.guesses.slice();
+  const answer = s.answer;
+  const lang = s.lang;
+  const name = flagName(target, lang);
+  const max = FLAG_MODES[s.playMode] ? FLAG_MODES[s.playMode].guesses : guesses.length;
+  const title = (t.flags_route_title || '{name}').replace('{name}', name);
+  return shareResultCard({
+    title: title,
+    text: `🌍 ${title} · ${guesses.length}/${max}\n${guesses.map((g, i) => `${i + 1}. ${flagName(flagCountry(g.code), lang)}`).join(' ← ')}`,
+    draw: () => flagsDrawRouteCard({ title: title, guesses: guesses, answer: answer, lang: lang, tries: `${guesses.length}/${max}` })
+  });
+}
+
+/** The picture itself (1080 x 1920, as every share card): resolves to a PNG blob, or null. */
+async function flagsDrawRouteCard(o) {
+  const W = SHARE_CARD.w, H = SHARE_CARD.h;
+  const c = shareCardColours();
+  const rtl = (appState.lang || 'ar') === 'ar';
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext && canvas.getContext('2d');
+  if (!ctx) return null;
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) {}
+  const font = (weight, px) => { ctx.font = weight + ' ' + px + 'px "IBM Plex Sans Arabic", "Segoe UI", sans-serif'; };
+  const ground = ctx.createLinearGradient(0, 0, W, H);
+  ground.addColorStop(0, c.ground[0]); ground.addColorStop(0.52, c.ground[1]); ground.addColorStop(1, c.ground[2]);
+  ctx.fillStyle = ground;
+  ctx.fillRect(0, 0, W, H);
+  const mid = W / 2;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.direction = rtl ? 'rtl' : 'ltr';
+  ctx.fillStyle = c.ink;
+  font('900', 150);
+  ctx.fillText('🌍', mid, 230);
+  font('900', 72);
+  ctx.fillText(shareCardFit(ctx, o.title, W - 140), mid, 400);
+  font('900', 64);
+  ctx.fillStyle = c.token;
+  ctx.direction = 'ltr';
+  ctx.fillText(o.tries, mid, 500);
+  const mapTop = 600;
+  const mapH = fmapDrawRoute(ctx, o.guesses, o.answer, 60, mapTop, W - 120);
+  // The guesses in order under the map: «1 · name» on the line's side, the km on the other.
+  const rows = o.guesses.slice(0, 8);
+  const rowH = 76, pad = 110, top = mapTop + mapH + 70;
+  rows.forEach((g, i) => {
+    const y = top + i * rowH;
+    const gold = g.code === o.answer;
+    ctx.direction = rtl ? 'rtl' : 'ltr';
+    ctx.textAlign = rtl ? 'right' : 'left';
+    ctx.fillStyle = c.ink;
+    font(gold ? '900' : '700', 46);
+    ctx.fillText(shareCardFit(ctx, `${gold ? '★' : i + 1} · ${flagName(flagCountry(g.code), o.lang)}`, W - pad * 2 - 260), rtl ? W - pad : pad, y);
+    ctx.textAlign = rtl ? 'left' : 'right';
+    ctx.direction = 'ltr';
+    ctx.fillStyle = gold ? c.token : 'rgba(255,255,255,0.8)';
+    font('800', 42);
+    ctx.fillText(gold ? '100%' : `${Number(g.km).toLocaleString('en-US')} km`, rtl ? pad : W - pad, y);
+  });
+  const mark = await shareCardMark();
+  if (mark) ctx.drawImage(mark, mid - 60, H - 250, 120, 120);
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  font('700', 36);
+  ctx.textAlign = 'center';
+  ctx.direction = 'ltr';
+  ctx.fillText(shareCardFit(ctx, appLink().replace(/^https?:\/\//, ''), W - 120), mid, H - 80);
+  return await new Promise((resolve) => { try { canvas.toBlob(resolve, 'image/png'); } catch (e) { resolve(null); } });
 }
 
 function restoreFlags() {

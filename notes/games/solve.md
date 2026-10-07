@@ -199,6 +199,10 @@ emoji room (`room-emoji`), whose third way is the quiz.
 
 - **A guess already tried** (the audit of 6 Oct 2026): the server ignores it as before; the phone says «جربتها قبل كده» and shakes the row or the form (`svTriedBefore`, Wordle, the number, the emoji riddle) instead of a tap that did nothing. The host's ranges for خمّن الرقم are held left to right («1 - 50» in Arabic too). Play again after a «خماسي السهرة» whose puzzle was switched off since draws the line-up again from the puzzles still on.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built - part two
+
+- **(1193) «أصعب لغز الليلة».** At game over (one sets, everyone solves) the secret that took the most tries is crowned with its setter's name and shown again, under the podium on every phone and on the TV (`svHardestHtml`, `.sv-hardest`). Weighed after each round is scored (`svHardestNote`): the average tries of its solvers, a board that never got it counting the game's most tries and one more; a tie goes to fewer solved, then the earlier secret. Kept in `room._svHardest` while the game is played (so no past secret sits in `shared` mid-game - a setter may set the same word twice) and put on the table as `shared.hardest = { round, setter, setterName, reveal, avg, solved, of }` at game over (`svCrownHardest`, also when too few are left). Play again starts it over; a race (no setter) crowns nothing. Its line is in the room rules of خمن الكلمة, خمّن الرقم, خمّن الدولة and فوازير إيموجي. Tests: rules.mjs «solve/hardest».
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

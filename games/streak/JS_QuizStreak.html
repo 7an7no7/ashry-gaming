@@ -27,6 +27,10 @@
 const STREAK_SECONDS = 20;
 const STREAK_LIVES = 3;
 const STREAK_DAILY = 10;
+// 1153 (the owner's picks, 7 Oct 2026): five right in a row bring a lost heart back.
+const STREAK_HEAL_RUN = 5;
+// 1154: «راجع غلطاتك» keeps the questions missed (the last ones, for the result sheet).
+const STREAK_MISSED_KEEP = 20;
 let streakClock = null;
 let streakNextTimer = null;
 
@@ -100,7 +104,8 @@ function startStreak(daily, sure) {
   const lang = contentLang() === 'en' ? 'en' : 'ar';
   Object.assign(s, {
     daily: daily ? soloToday() : '', lang: lang, playSource: daily ? 'mix' : s.source,
-    deck: daily ? streakDailyDeck(lang) : [], asked: 0, score: 0, lives: STREAK_LIVES, marks: [], q: null, phase: 'play'
+    deck: daily ? streakDailyDeck(lang) : [], asked: 0, score: 0, lives: STREAK_LIVES, marks: [], q: null, phase: 'play',
+    run: 0, missed: []
   });
   streakNext();
   setView('play-streak');
@@ -209,7 +214,7 @@ function paintStreak(fresh) {
       <div class="card stk-card">
         <div class="stk-head">
           <span class="streak-hearts stk-hearts" id="streak-hearts" role="img" aria-label="${escapeHTML(t.streak_lives || '')}: ${s.lives}/${STREAK_LIVES}">${streakHearts(s)}</span>
-          ${archive}
+          ${archive}${streakRunHtml(s, t)}
           <span class="chip chip--plain play-chip">${escapeHTML(label)} <b class="metric" id="streak-score">${s.score}</b></span>
         </div>
         <div class="stk-q">
@@ -258,6 +263,44 @@ function paintStreak(fresh) {
   streakClock = clock;
 }
 
+/**
+ * 1153: while a heart is lost, how far the run is toward bringing it back («🔥 3/5»);
+ * nothing while all three are there.
+ */
+function streakRunHtml(s, t) {
+  if (s.race || s.lives >= STREAK_LIVES || s.lives <= 0) return '';
+  const run = Math.min(STREAK_HEAL_RUN, s.run || 0);
+  return `<span class="chip chip--plain play-chip stk-run" id="streak-run" title="${escapeHTML(t.streak_heal_hint || '')}">🔥 <b class="metric" dir="ltr">${run}/${STREAK_HEAL_RUN}</b></span>`;
+}
+
+/** 1153: the heart that came back flies from the score into its place in the row, and a toast says why. */
+function streakHealFly() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  showToast(`❤️ ${t.streak_heart_back || ''}`, 'success');
+  const s = streakState();
+  const heart = document.querySelector(`#streak-hearts [data-h="${s.lives - 1}"]`);
+  const from = document.getElementById('streak-score');
+  if (!heart || !from || typeof flyEmoji !== 'function') return;
+  if (!flyEmoji('❤️', from.getBoundingClientRect(), parseFloat(getComputedStyle(from).fontSize) || 16, heart, { arc: 40, duration: 700 })) soloPop(heart, 1.4);
+}
+
+/** 1154: a missed question as the result sheet lists it: the question, the right answer, what was picked. */
+function streakMissOf(q, i) {
+  const fill = q.kind === 'proverbs' ? String(q.prompt || '').replace('___', '…') : String(q.prompt || '');
+  return { p: fill, big: q.big || '', a: q.options[q.answer] || '', g: i >= 0 ? (q.options[i] || '') : '' };
+}
+
+/** 1154: «راجع غلطاتك» - the questions missed with their right answers, under the result. */
+function streakReviewHtml(s, t) {
+  const list = (s.missed || []).slice(-10);
+  if (!list.length) return '';
+  const rows = list.map(m => `<span class="stk-review__row">
+      <span class="stk-review__q" dir="auto">${m.big ? `<span dir="ltr">${escapeHTML(m.big)}</span> ` : ''}${escapeHTML(m.p || t.streak_emoji_q || '')}</span>
+      <span class="stk-review__a">✅ <bdi>${escapeHTML(m.a)}</bdi>${m.g ? ` <s class="tx-muted">❌ <bdi>${escapeHTML(m.g)}</bdi></s>` : ` <span class="tx-muted">⏰</span>`}</span>
+    </span>`).join('');
+  return `<span class="stk-review"><b class="stk-review__title">📝 ${escapeHTML(t.streak_review || '')}</b>${rows}</span>`;
+}
+
 /** The score pops on a right answer; a heart jumps on a wrong one. */
 function streakPop(right, lives) {
   if (motionOff()) return;
@@ -288,8 +331,18 @@ function answerStreak(i) {
   }
   q.picked = i;
   const right = i === q.answer;
-  if (right) s.score++;
-  else s.lives--;
+  // 1153: five right in a row bring a lost heart back (never above three), and the count starts again.
+  let healed = false;
+  if (right) {
+    s.score++;
+    s.run = (s.run || 0) + 1;
+    if (s.run >= STREAK_HEAL_RUN && s.lives < STREAK_LIVES) { s.lives++; s.run = 0; healed = true; }
+  } else {
+    s.lives--;
+    s.run = 0;
+    // 1154: kept for «راجع غلطاتك».
+    s.missed = (s.missed || []).concat([streakMissOf(q, i)]).slice(-STREAK_MISSED_KEEP);
+  }
   s.marks.push(right ? '✅' : (i === -1 ? '⏰' : '❌'));
   s.asked++;
   saveToLocal();
@@ -297,6 +350,7 @@ function answerStreak(i) {
   haptic(right ? 'light' : 'medium');
   paintStreak(false);
   streakPop(right, s.lives);
+  if (healed) streakHealFly();
 }
 
 function streakAdvance() {
@@ -325,9 +379,13 @@ function streakFinish() {
     lines.push(s.marks.join(''));
   }
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${rec.prev.score}`);
+  // The share picture (a daily's) never carries the review: its answers are the day's.
+  const shareLines = lines.slice();
+  const review = streakReviewHtml(s, t);
+  if (review) lines.push(review);
   soloResult({
     icon: '🔥', title: s.daily ? (s.lives > 0 ? (t.daily_done_today || '') : (t.streak_over || '')) : (rec.record && s.score ? (t.solo_new_best || '') : (t.streak_over || '')),
-    value: s.score, valueLabel: streakDecked(s) ? `/ ${s.deck.length}` : (t.streak_in_a_row || ''), lines: lines,
+    value: s.score, valueLabel: streakDecked(s) ? `/ ${s.deck.length}` : (t.streak_in_a_row || ''), lines: lines, shareLines: shareLines,
     win: rec.record && s.score > 0 || (streakDecked(s) && s.score >= 7), share: share,
     again: () => startStreak(false), exit: setupStreak
   });

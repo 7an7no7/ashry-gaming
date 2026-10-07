@@ -694,3 +694,34 @@ fixed layer so it costs no repaints.
 - **1213 Tap the title to go to the top.** `titleTapToTop` (JS_Core.html, beside `syncChrome`), wired on `#app-title` at start-up: a tap glides `.shell__main` to the top through `scrollToAction()` (instant with motion off), as an iPhone's status bar does for an ordinary page - which can't work here, since only `.shell__main` scrolls. A focused field in the scroll area is blurred first (`scrollToAction` won't move while one has the focus).
 - **1220 «رجّع الأصلي» and a dot on what changed.** Every remembered setup option (`data-remember`: steppers, switches, lists, a time pick's hidden field, number boxes; never a name typed in a text box, nor the room side of a setup) keeps the game's default on itself the first time it is recalled, before the recall (`setupDefaultSnapshot`, `data-def`; a `<select>` filled in JS takes it again once it has options). `setupResetSync(view)` (end of `paintSetupOptions`, and after every input/change/click on a setup) puts `.is-changed` on the label of each option that differs - a small accent dot after it (`.field__label.is-changed::after`, Style.html beside `.field__hint`) - and, while any visible one does, a ghost «↺ رجّع الأصلي» (`.setup-reset`) under the block of the last of them. `setupResetAll` puts each back, fires its `input` / `change` (the game's own handlers run, `rememberField` remembers the default), then paints the setup again. Not covered: options a game keeps in its own state and paints from appState (the segmented rows of القنبلة, أتوبيس كومبليت, the solo setups…) - the shell can't know their defaults.
 - **1231 The timer and the dice keep the screen on.** `wantsWakeLock` (JS_Utils.html) is also true for `tool-dice`, and for `timers` while the general timer runs; `toggleGenTimer`, its end and `resetGenTimer` call `syncWakeLock(appState.currentView)`, so the lock comes when it starts and goes when it stops - the phone no longer sleeps and lets iOS freeze the page before the alarm.
+
+- **1238 Settings in three groups.** The sheet's rows sit under three small heads
+  (`.settings-group__head`, an `.eyebrow`): «الشكل» (theme, size, motion, colour shapes),
+  «اللعب» (the new sound row, the app's and the games' languages, your name, الشلة) and
+  «التطبيق» (share, install, «انقل لموبايل تاني», version, update); «حذف جميع البيانات»
+  alone at the foot after a line (`.settings-divider`). Chosen: the move-data row went
+  under «التطبيق», the sound row heads «اللعب». Markup in `Controller.html`
+  (`#settings-modal`), styles beside `.setting-row` in `Style.html`.
+- **1254 Confirms that name the action.** `showConfirmModal(msg, cb, { yes, tone, icon })`
+  (JS_Utils.html): `yes` a key of TRANSLATIONS (`cf_restart` «ابدأ من جديد», `cf_guess`
+  «خمّن», `cf_resign` «استسلم», `cf_delete`, `cf_remove`, `cf_end`, `cf_skip`, `cf_clear`…,
+  all in JS_Translations.html) or the words themselves; `tone: 'danger'` (red: something
+  is lost - a game, a score, a member, the data) or `'accent'` (the screen's colour: a
+  guess, a claim, a skip, a draw); `icon` the thing (🎯 a guess, 🏳️ resigning, 🧹 a
+  cleared board). No third argument is the old popup (🤔, red, «نعم»); the button
+  (`#custom-confirm-yes`) and the icon (`#custom-confirm-icon`) are set again on every
+  open. Every caller passes its own (48 calls: الحرباء's and الموقع السري's guesses are
+  «خمّن» on the accent now, not a red delete).
+- **1249 A room link says where it is going.** With `?room=` (SERVER_DATA.room, read in
+  `<head>`), the intro's first script adds «داخلين غرفة K7QM…» / "Joining room K7QM…"
+  under the name (`.loader-room`, the code held left to right in an isolate) and sets
+  `window.INTRO_ROOM_LINE`; the slow-load scene says that line first (its own first line
+  goes back into its bag) and hides the line under the name while it is up.
+- **1268 The night's card shows the night.** `shareRoomNight` (JS_ShareCard.html) adds
+  the evening's games as their icons in one row under the champion's line, in the order
+  first played (a drawn icon drawn as its picture, `drawShareNightStrip`), and the day in
+  words under it («الجمعة ٩ أكتوبر», `shareNightDate`). The room keeps no list of games
+  played, so each phone keeps today's for its room (`ashryNightGames_v1`,
+  `shareNightRemember` on `Room.onChange`: a game counts once it is dealt); a phone that
+  came in late knows the games since it came. The plate gives 160px of its room to the
+  two lines when they are there.

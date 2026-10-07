@@ -185,6 +185,8 @@
   window.addEventListener('pageshow', () => wakeAudio());
 
   function playSound(type, fromTap) {
+    // Settings → الصوت: «الهزة بس» and «مقفول» play no effects (soundPref, below).
+    if (soundPref() !== 'on') return;
     if (type === 'click') {
       const now = Date.now();
       if (fromTap) {
@@ -365,9 +367,32 @@
     updateSettingsLabels();
   }
 
+  /* --- Sound: Settings → الصوت (the owner's pick 1239, 7 Oct 2026) ---------------
+     شغّال: everything; الهزة بس: no taps, dings or fanfares, the buzz stays (a quiet
+     table, a late night); مقفول: neither. Read by playSound, playFx and haptic - the
+     effects. A game whose sound is the game itself plays whatever this says: دندنها's
+     clips, the chairs' music and the zaffa (their own players, not these three), and the
+     soundboard, which is pressed to make a sound. Kept per device, so a TV keeps its own. */
+  const SOUND_PREFS = ['on', 'buzz', 'off'];
+  const SOUND_KEY = 'ashrySound';
+  function soundPref() {
+    try {
+      const v = localStorage.getItem(SOUND_KEY);
+      return SOUND_PREFS.indexOf(v) !== -1 ? v : 'on';
+    } catch (e) { return 'on'; }
+  }
+  function cycleSoundPref() {
+    const next = SOUND_PREFS[(SOUND_PREFS.indexOf(soundPref()) + 1) % SOUND_PREFS.length];
+    try { localStorage.setItem(SOUND_KEY, next); } catch (e) {}
+    updateSettingsLabels();
+    // What it sounds like now: a buzz for «الهزة بس», a click for «شغّال».
+    if (next === 'on') playSound('success');
+    else if (next === 'buzz') haptic('double');
+  }
+
   /** Vibrates if the device and browser allow it. iOS Safari has no vibrate. */
   function haptic(kind = 'light') {
-      if (!navigator.vibrate || prefersReducedMotion()) return;
+      if (!navigator.vibrate || prefersReducedMotion() || soundPref() === 'off') return;
       try { navigator.vibrate(HAPTIC_PATTERNS[kind] || HAPTIC_PATTERNS.light); } catch (e) {}
   }
 
@@ -1705,6 +1730,44 @@
     if (here) { set('ready'); return; }
     set('downloading');
     try { const reg = await navigator.serviceWorker.getRegistration(); if (reg) reg.update(); } catch (e) {}
+  }
+
+  /**
+   * Settings → الإصدار, a second line (the owner's pick 1261, 7 Oct 2026): «جاهز من غير نت ✓»
+   * once every game's chunk of this build is on the phone, «بيتحمّل للعب من غير نت ٤٠/٧٢» while
+   * the worker is still fetching them. Counted here, in the worker's own cache (g-chunks: the
+   * worker fetches every chunk when a build installs, and a chunk opened is kept there too),
+   * against the build's map (LZ_MANIFEST); looked at again every 1.5 s while Settings is open.
+   * Nothing at all where there is no offline copy (the preview, a browser with no worker).
+   */
+  let offlineReadyTimer = null;
+  async function paintOfflineReady() {
+    clearTimeout(offlineReadyTimer);
+    const el = document.getElementById('settings-offline-status');
+    if (!el) return;
+    const lz = window.LZ_MANIFEST;
+    const files = lz && lz.chunks ? Object.keys(lz.chunks).map(id => lz.chunks[id].f) : [];
+    if (!window.STATIC_SITE || !files.length || typeof caches === 'undefined' || !navigator.serviceWorker) { el.hidden = true; return; }
+    let have = 0;
+    try {
+      if (await caches.has('g-chunks')) {
+        const g = await caches.open('g-chunks');
+        const hits = await Promise.all(files.map(f => g.match(new URL((lz.base || 'g/') + f, location.href).href, { ignoreSearch: true })));
+        have = hits.filter(Boolean).length;
+      }
+    } catch (e) { el.hidden = true; return; }
+    // No worker in charge and nothing kept: this browser has no offline copy to talk about.
+    if (!have && !navigator.serviceWorker.controller) { el.hidden = true; return; }
+    const t = TRANSLATIONS[appState.lang] || {};
+    const num = (n) => (appState.lang === 'ar' ? n.toLocaleString('ar-EG') : String(n));
+    const done = have >= files.length;
+    // The count held left to right (an isolate): "40/72" in an Arabic line.
+    el.textContent = done ? (t.offline_ready || '')
+      : String(t.offline_loading || '').replace('{n}', '\u2066' + num(have) + '/' + num(files.length) + '\u2069');
+    el.classList.toggle('tx-success', done);
+    el.hidden = false;
+    const sheet = document.getElementById('settings-modal');
+    if (!done && sheet && !sheet.classList.contains('hidden')) offlineReadyTimer = setTimeout(paintOfflineReady, 1500);
   }
 
   function appVersionTap() {
@@ -3652,6 +3715,7 @@
       playSound('click');
       updateSettingsLabels();
       paintAppVersion();
+      paintOfflineReady();
       const el = document.getElementById('settings-modal');
       if (el) el.classList.remove('hidden');
   }
@@ -3705,6 +3769,11 @@
       if (shapesVal) shapesVal.innerText = colorShapesOn() ? (t.shapes_on || '') : (t.shapes_off || '');
       const motionVal = document.getElementById('settings-motion-value');
       if (motionVal) motionVal.innerText = t['motion_' + motionPref()] || '';
+      const sound = soundPref();
+      const soundVal = document.getElementById('settings-sound-value');
+      if (soundVal) soundVal.innerText = t['sound_' + sound] || '';
+      const soundIcon = document.getElementById('settings-sound-icon');
+      if (soundIcon) soundIcon.innerText = sound === 'on' ? '🔊' : sound === 'buzz' ? '📳' : '🔇';
   }
 
   /* --- CORE UI HELPERS --- */

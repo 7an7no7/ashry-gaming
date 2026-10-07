@@ -233,3 +233,21 @@ Safari, and Safari cannot tell that the home-screen copy exists (their
 storage is separate, which is also why names saved in one aren't in the
 other). Nothing on the page can change that. On Android, an app installed
 through Chrome usually does receive its own links.
+
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **1260 Ask the browser to keep the data.** `keepDataAsk()` (JS_Core.html, already
+  there: asked once, the first time something worth keeping is saved) is now also called
+  after the first game (the "played" hook beside `INSTALL_PLAYED_KEY` in JS_Utils.html).
+  On an iPhone (any browser there) the install sheet has one more line,
+  «ضيفه للشاشة عشان أساميك ماتتمسحش» (`#install-perk-keep`, shown by
+  `paintInstallSheet`): Safari clears a site's storage after 7 days without a visit, the
+  home-screen copy's never.
+- **1261 «جاهز من غير نت ✓».** Settings → الإصدار has a second line
+  (`#settings-offline-status`, `paintOfflineReady` in JS_Core.html): it counts this
+  build's chunks (`LZ_MANIFEST`) in the worker's `g-chunks` cache - «جاهز من غير نت ✓»
+  when all are there, «بيتحمّل للعب من غير نت ٤٠/٧٢» while not, looked at again every
+  1.5 s while Settings is open. Counted by the page, not asked of the worker: the cache is
+  the worker's own record and the page can read it, so `sw.js` did not change. Nothing
+  is shown in the preview or a browser with no worker. The chess engine's files are not
+  in the count (they are not chunks).

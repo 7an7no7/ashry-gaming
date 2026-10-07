@@ -695,7 +695,7 @@ function roomKick(playerId) {
   const t = TRANSLATIONS[appState.lang] || {};
   const msg = (t.room_kick_confirm || (appState.lang === 'en' ? 'Remove {name} from the room? They can join again with the code.' : 'تشيل {name} من الغرفة؟ يقدر يدخل تاني بالكود.'))
     .replace('{name}', p.name);
-  showConfirmModal(msg, () => roomAct('kick', { playerId: playerId }));
+  showConfirmModal(msg, () => roomAct('kick', { playerId: playerId }), { yes: 'cf_remove', tone: 'danger', icon: '👋' });
 }
 
 /**
@@ -1007,7 +1007,7 @@ async function roomCreateFor(gameId) {
     showConfirmModal(String(t.room_new_leaves || '').replace('{code}', inRoom), async () => {
       await Room.leave();
       roomCreateFor(gameId);
-    });
+    }, { yes: 'cf_new_room', tone: 'accent', icon: '🚪' });
     return;
   }
   if (roomCreateScreenOnce) {
@@ -1378,7 +1378,7 @@ async function roomLeave() {
   showConfirmModal(msg, async () => {
     await Room.leave();
     setView('menu');
-  });
+  }, { yes: 'cf_leave', tone: 'accent', icon: '🚪' });
 }
 
 async function roomStartGame() {

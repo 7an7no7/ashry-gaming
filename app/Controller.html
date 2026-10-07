@@ -59,7 +59,11 @@
       #app-loader .intro__line { display: block; width: 132px; height: 4px; margin-top: 22px; border-radius: 4px; background: linear-gradient(90deg, #6d28d9 0%, #a78bfa 50%, #6d28d9 100%); background-size: 200% 100%; animation: intro-line 620ms cubic-bezier(0.65, 0, 0.35, 1) 560ms both, intro-shimmer 1.6s linear 1.6s infinite; }
       .loader-title { margin: 14px 0 0; font-family: 'Cairo', sans-serif; font-size: 22px; font-weight: 900; color: #1e293b; animation: intro-word 480ms ease-out 820ms both; }
       .dark .loader-title { color: #ffffff; }
-      #app-loader.is-flying .intro__line, #app-loader.is-flying .loader-title { animation: intro-fade 260ms ease-out forwards; }
+      /* A room link: where it is going, under the name (the owner's pick 1249); the slow-load scene says it as its first line instead. */
+      .loader-room { margin: 6px 0 0; padding: 0 16px; font-family: 'Cairo', sans-serif; font-size: 16px; font-weight: 700; color: #6d28d9; text-align: center; animation: intro-word 480ms ease-out 900ms both; }
+      .dark .loader-room { color: #c4b5fd; }
+      #app-loader.has-scene .loader-room { display: none; }
+      #app-loader.is-flying .intro__line, #app-loader.is-flying .loader-title, #app-loader.is-flying .loader-room { animation: intro-fade 260ms ease-out forwards; }
       #app-loader.is-flying .intro__ground { opacity: 0; transition: opacity 560ms ease-out 240ms; }
       @keyframes intro-mark { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
       @keyframes intro-line { from { transform: scaleX(0); } to { transform: scaleX(1); } }
@@ -67,7 +71,7 @@
       @keyframes intro-word { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
       @keyframes intro-fade { from { opacity: 1; } to { opacity: 0; } }
       @media (prefers-reduced-motion: reduce) {
-        #app-loader .mark--loader, #app-loader .intro__line, .loader-title { animation: none; }
+        #app-loader .mark--loader, #app-loader .intro__line, .loader-title, .loader-room { animation: none; }
       }
     </style>
 
@@ -129,6 +133,26 @@
           if (saved && saved.lang === 'en') {
             var title = document.querySelector('#app-loader .loader-title');
             if (title) title.textContent = 'Ashry Gaming';
+          }
+        } catch (e) {}
+        // A room link (?room=K7QM, read in <head> into SERVER_DATA.room): the intro says
+        // where it is going (the owner's pick 1249, 7 Oct 2026). The code is held left to
+        // right inside the line (an isolate), so «داخلين غرفة K7QM…» reads right in Arabic.
+        // The slow-load scene below takes INTRO_ROOM_LINE as its first line.
+        try {
+          var code = window.SERVER_DATA && window.SERVER_DATA.room;
+          if (code && /^[A-Z0-9]{1,8}$/.test(code)) {
+            var st = JSON.parse(localStorage.getItem('gameTrackerState_v1') || 'null');
+            var en = st && st.lang ? st.lang === 'en' : /^en/i.test(navigator.language || '');
+            var line = window.INTRO_ROOM_LINE = (en ? 'Joining room ' : 'داخلين غرفة ') + '\u2066' + code + '\u2069' + '…';
+            var title2 = document.querySelector('#app-loader .loader-title');
+            if (title2) {
+              var p = document.createElement('p');
+              p.className = 'loader-room';
+              p.setAttribute('dir', en ? 'ltr' : 'rtl');
+              p.textContent = line;
+              title2.parentNode.insertBefore(p, title2.nextSibling);
+            }
           }
         } catch (e) {}
       })();
@@ -379,7 +403,10 @@
           W.setAttribute('dir', en ? 'ltr' : 'rtl');
           if (still) W.className = 'is-still';
           var mirror = !en && (id === 'domino' || id === 'bus' || id === 'fuse');
-          W.innerHTML = '<div class="isc isc-' + id + (mirror ? ' isc-r' : '') + '">' + stage(id) + '</div><p class="isc-m">' + POOL[id][0][en ? 1 : 0] + '</p>';
+          W.innerHTML = '<div class="isc isc-' + id + (mirror ? ' isc-r' : '') + '">' + stage(id) + '</div><p class="isc-m"></p>';
+          // A room link's line first (the line under the name, which the scene hides), else the scene's own.
+          W.lastChild.textContent = window.INTRO_ROOM_LINE || POOL[id][0][en ? 1 : 0];
+          if (window.INTRO_ROOM_LINE) bags[id] = POOL[id].slice();
           L.appendChild(W);
           // A die shows new pips every time it is thrown again.
           var dice = W.querySelectorAll('.isc-d');
@@ -2880,11 +2907,12 @@
 
     <div id="custom-confirm-modal" class="modal-overlay hidden">
       <div class="modal-content modal-content--simple">
-        <div class="modal-icon" aria-hidden="true">🤔</div>
+        <!-- The icon, the yes button's words and colour are set by showConfirmModal (JS_Utils.html) on every open. -->
+        <div class="modal-icon" id="custom-confirm-icon" aria-hidden="true">🤔</div>
         <div class="sheet__title" data-i18n="confirm_title">تأكيد</div>
         <p id="custom-confirm-msg" class="sheet__subtitle" data-i18n="confirm_msg"></p>
         <div class="modal-actions">
-          <button onclick="onCustomConfirm()" class="btn btn--danger btn--lg" data-i18n="yes">نعم، متأكد</button>
+          <button onclick="onCustomConfirm()" id="custom-confirm-yes" class="btn btn--danger btn--lg">نعم</button>
           <button onclick="closeModal('custom-confirm-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>
         </div>
       </div>
@@ -3071,6 +3099,8 @@
           <li><span class="install-perks__icon" aria-hidden="true">📱</span><span data-i18n="inst_perk_full">يفتح على الشاشة كلها زي أي تطبيق، من غير شريط المتصفح</span></li>
           <li><span class="install-perks__icon" aria-hidden="true">⚡</span><span data-i18n="inst_perk_tap">لمسة واحدة من الشاشة الرئيسية، من غير ما تدوّر على الرابط</span></li>
           <li><span class="install-perks__icon" aria-hidden="true">✈️</span><span data-i18n="inst_perk_offline">ألعاب الموبايل الواحد تشتغل من غير نت</span></li>
+          <!-- An iPhone only (paintInstallSheet): Safari clears a site's data after 7 days unvisited, the home-screen copy's never (the owner's pick 1260). -->
+          <li id="install-perk-keep" class="hidden"><span class="install-perks__icon" aria-hidden="true">🗂️</span><span data-i18n="inst_perk_keep">ضيفه للشاشة عشان أساميك ماتتمسحش</span></li>
         </ul>
         <div id="install-how" class="install-how">
           <div class="eyebrow" data-i18n="inst_how">إزاي تضيفه</div>
@@ -4444,21 +4474,12 @@
           <div class="sheet__title" data-i18n="settings">الإعدادات</div>
         </div>
         <div class="sheet__body">
+          <!-- Three groups (the owner's pick 1238, 7 Oct 2026): the look, the play, the app; deleting everything alone at the foot. -->
+          <div class="settings-group__head eyebrow" data-i18n="settings_group_look">الشكل</div>
           <button class="setting-row" onclick="toggleDarkMode()">
             <span class="setting-row__icon" id="settings-theme-icon" aria-hidden="true">🌙</span>
             <span class="setting-row__text"><span data-i18n="theme">المظهر</span><span class="setting-row__hint" data-i18n="theme_hint">نهاري أو ليلي</span></span>
             <span class="setting-row__value" id="settings-theme-value"></span>
-          </button>
-          <button class="setting-row" onclick="toggleLanguage()">
-            <span class="setting-row__icon" aria-hidden="true">🌐</span>
-            <span class="setting-row__text"><span data-i18n="lang">اللغة</span><span class="setting-row__hint" data-i18n="lang_hint">لغة القوائم والأزرار</span></span>
-            <span class="setting-row__value" id="settings-lang-value"></span>
-          </button>
-          <!-- The words inside the games can stay Arabic while the app is in English, or the other way round. -->
-          <button class="setting-row" onclick="cycleGameLang()">
-            <span class="setting-row__icon" aria-hidden="true">🎲</span>
-            <span class="setting-row__text"><span data-i18n="game_lang">لغة الألعاب</span><span class="setting-row__hint" data-i18n="game_lang_hint">لغة الكلمات والأسئلة جوّه الألعاب</span></span>
-            <span class="setting-row__value" id="settings-gamelang-value"></span>
           </button>
           <!-- Bigger on a TV: every size is in rem, and this sets the root size. -->
           <button class="setting-row" onclick="cycleUiScale()">
@@ -4477,6 +4498,24 @@
             <span class="setting-row__text"><span data-i18n="color_shapes">رموز للألوان</span><span class="setting-row__hint" data-i18n="color_shapes_hint">شكل جنب كل لون في كروت أونو، للي بيلخبط بين الألوان</span></span>
             <span class="setting-row__value" id="settings-shapes-value"></span>
           </button>
+          <div class="settings-group__head eyebrow" data-i18n="settings_group_play">اللعب</div>
+          <!-- «الصوت» (the owner's pick 1239, 7 Oct 2026): the taps, dings and buzz (soundPref in JS_Core.html). -->
+          <button class="setting-row" onclick="cycleSoundPref()">
+            <span class="setting-row__icon" id="settings-sound-icon" aria-hidden="true">🔊</span>
+            <span class="setting-row__text"><span data-i18n="sound_pref">الصوت</span><span class="setting-row__hint" data-i18n="sound_pref_hint">صوت اللمسات والتنبيهات والهزة. أغاني دندنها وموسيقى الكراسي بتشتغل برضه</span></span>
+            <span class="setting-row__value" id="settings-sound-value"></span>
+          </button>
+          <button class="setting-row" onclick="toggleLanguage()">
+            <span class="setting-row__icon" aria-hidden="true">🌐</span>
+            <span class="setting-row__text"><span data-i18n="lang">اللغة</span><span class="setting-row__hint" data-i18n="lang_hint">لغة القوائم والأزرار</span></span>
+            <span class="setting-row__value" id="settings-lang-value"></span>
+          </button>
+          <!-- The words inside the games can stay Arabic while the app is in English, or the other way round. -->
+          <button class="setting-row" onclick="cycleGameLang()">
+            <span class="setting-row__icon" aria-hidden="true">🎲</span>
+            <span class="setting-row__text"><span data-i18n="game_lang">لغة الألعاب</span><span class="setting-row__hint" data-i18n="game_lang_hint">لغة الكلمات والأسئلة جوّه الألعاب</span></span>
+            <span class="setting-row__value" id="settings-gamelang-value"></span>
+          </button>
           <button class="setting-row" onclick="changeSavedName()">
             <span class="setting-row__icon" aria-hidden="true">👤</span>
             <span class="setting-row__text"><span data-i18n="your_name">اسمك</span><span class="setting-row__hint" data-i18n="your_name_hint">الاسم اللي بيظهر في الغرف</span></span>
@@ -4487,11 +4526,7 @@
             <span class="setting-row__text"><span data-i18n="crew_title">الشلة</span><span class="setting-row__hint" data-i18n="crew_settings_hint">جدول العيلة أو الصحاب كل شهر، والأبطال والألقاب</span></span>
             <span class="setting-row__value" id="settings-crew-value"></span>
           </button>
-          <!-- «انقل لموبايل تاني» (the owner, 7 Oct 2026): everything this phone keeps, to another by a 24-hour code (JS_Move.html). -->
-          <button class="setting-row" onclick="openMoveData()">
-            <span class="setting-row__icon" aria-hidden="true">📲</span>
-            <span class="setting-row__text"><span data-i18n="move_data">انقل لموبايل تاني</span><span class="setting-row__hint" data-i18n="move_data_hint">خد أساميك وشللك ومسابقاتك وأرقامك معاك على موبايل جديد</span></span>
-          </button>
+          <div class="settings-group__head eyebrow" data-i18n="settings_group_app">التطبيق</div>
           <button class="setting-row" onclick="shareAppLink()">
             <span class="setting-row__icon" aria-hidden="true">🔗</span>
             <span class="setting-row__text"><span data-i18n="share_app">شارك التطبيق</span><span class="setting-row__hint" data-i18n="share_app_hint">ابعت اللينك لأي حد؛ بيفتح على أي موبايل من غير تحميل</span></span>
@@ -4500,16 +4535,22 @@
             <span class="setting-row__icon" aria-hidden="true">📲</span>
             <span class="setting-row__text"><span data-i18n="install">تثبيت التطبيق</span><span class="setting-row__hint" data-i18n="install_hint">أيقونة على الشاشة الرئيسية، وبيشتغل من غير نت</span></span>
           </button>
+          <!-- «انقل لموبايل تاني» (the owner, 7 Oct 2026): everything this phone keeps, to another by a 24-hour code (JS_Move.html). -->
+          <button class="setting-row" onclick="openMoveData()">
+            <span class="setting-row__icon" aria-hidden="true">📲</span>
+            <span class="setting-row__text"><span data-i18n="move_data">انقل لموبايل تاني</span><span class="setting-row__hint" data-i18n="move_data_hint">خد أساميك وشللك ومسابقاتك وأرقامك معاك على موبايل جديد</span></span>
+          </button>
           <!-- When this copy was published, and whether it is the latest (paintAppVersion in JS_Core.html). -->
           <button class="setting-row" onclick="appVersionTap()">
             <span class="setting-row__icon" aria-hidden="true">🔖</span>
-            <span class="setting-row__text"><span data-i18n="app_version">الإصدار</span><span class="setting-row__hint" id="settings-version-status"></span></span>
+            <span class="setting-row__text"><span data-i18n="app_version">الإصدار</span><span class="setting-row__hint" id="settings-version-status"></span><span class="setting-row__hint" id="settings-offline-status" hidden></span></span>
             <span class="setting-row__value" id="settings-version-value"></span>
           </button>
           <button class="setting-row" onclick="updateApp()">
             <span class="setting-row__icon" aria-hidden="true">↻</span>
             <span class="setting-row__text"><span data-i18n="refresh_data">تحديث التطبيق</span><span class="setting-row__hint" data-i18n="refresh_hint">لو ظهرت نسخة جديدة ومحصلش تحديث</span></span>
           </button>
+          <hr class="settings-divider">
           <button class="setting-row" onclick="hardResetApp()">
             <span class="setting-row__icon" aria-hidden="true">🗑️</span>
             <span class="setting-row__text"><span class="tx-danger" data-i18n="reset_all">حذف جميع البيانات</span><span class="setting-row__hint" data-i18n="reset_hint">يمسح الأسماء والمجموعات والنتائج من الموبايل ده</span></span>

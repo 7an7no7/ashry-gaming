@@ -16,6 +16,9 @@ gameText({
       tl_over: "خلصت اللعبة",
       tl_deck_out: "الورق خلص: يكسب اللي حط أكتر ورق في مكانه الصح",
       tl_nobody: "محدش حط كارت في مكانه الصح",
+      tl_placing: "بيحط ورقة…",
+      tl_right_stays: "صح! الورقة فضلت",
+      tl_wrong_was: "غلط، وقعت",
     },
     en: {
       tl_lobby_hint: "Everyone holds event cards with the year hidden. Put yours in the right place on the timeline.",
@@ -30,6 +33,9 @@ gameText({
       tl_over: "Game over",
       tl_deck_out: "The cards ran out: most cards in the right place wins",
       tl_nobody: "Nobody put a card in the right place",
+      tl_placing: "is placing a card…",
+      tl_right_stays: "Right! The card stays",
+      tl_wrong_was: "Wrong, it drops",
     }
   },
   rules: {

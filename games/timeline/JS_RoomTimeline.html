@@ -13,7 +13,7 @@
    part of the page - there is nothing here to look an answer up in.
    ========================================================================= */
 
-const tlLocal = { pick: null };   // the card this phone has chosen, before the gap
+const tlLocal = { pick: null, fromRect: null };   // the card this phone has chosen, before the gap; where it was tapped
 
 /** The card picked, or nothing. Cleared whenever the turn moves on. */
 function tlPick(id) {
@@ -30,6 +30,9 @@ function tlPick(id) {
 function tlPlace(at) {
   const card = tlLocal.pick;
   if (!card) return;
+  // Where the card leaves from on this phone, for its flight onto the line (737).
+  const picked = document.querySelector('#view-room-timeline .tl-card--mine.is-picked');
+  tlLocal.fromRect = picked ? picked.getBoundingClientRect() : null;
   tlLocal.pick = null;
   haptic('medium');
   roomAct('place', { card: card, at: at });
@@ -37,7 +40,7 @@ function tlPlace(at) {
 
 /** One event on the line: what happened, and the year under it. */
 const tlCardHtml = (card, cls) =>
-  `<div class="tl-card ${cls || ''}">
+  `<div class="tl-card ${cls || ''}"${card.id === undefined ? '' : ` data-tl-id="${escapeHTML(String(card.id))}"`}>
      <span class="tl-card__text">${escapeHTML(card.text || '')}</span>
      ${card.y === undefined ? '' : `<span class="tl-card__year metric">${card.y}</span>`}
    </div>`;
@@ -47,7 +50,7 @@ const tlCardHtml = (card, cls) =>
  * this phone has picked a card to put in one; otherwise they are plain rules,
  * so the line reads as a line rather than as a row of controls.
  */
-function tlLineHtml(s, t, live) {
+function tlLineHtml(s, t, live, cls) {
   const line = s.timeline || [];
   const gap = (at) => (live
     ? `<button type="button" class="tl-gap is-live" onclick="tlPlace(${at})" aria-label="${escapeHTML(t.tl_put_here || '')}">+</button>`
@@ -56,7 +59,7 @@ function tlLineHtml(s, t, live) {
   line.forEach((card, i) => { out += tlCardHtml(card) + gap(i + 1); });
   // dir="ltr": the line is a physical axis, so earlier is always the start
   // edge. Mirrored in Arabic it would read 2015 before 1869.
-  return `<div class="tl-line" dir="ltr">${out}</div>`;
+  return `<div class="tl-line${cls ? ' ' + cls : ''}" dir="ltr">${out}</div>`;
 }
 
 /** Who won: everyone level at the top when the board decided it (winnerNames), in the app's language. */
@@ -96,7 +99,7 @@ function tlHandsHtml(state, s) {
   const hands = s.hands || {};
   const rows = (s.order || []).filter(id => hands[id] !== undefined).map(id => {
     const p = (state.players || []).find(x => x.id === id);
-    return `<span class="mind-hand ${id === s.turnId ? 'is-up' : ''}">${escapeHTML((p && p.name) || '')}
+    return `<span class="mind-hand ${id === s.turnId ? 'is-up' : ''}" data-tl-pid="${escapeHTML(id)}">${escapeHTML((p && p.name) || '')}
         <b class="metric">${hands[id] || 0}</b></span>`;
   }).join('');
   return rows ? `<div class="mind-hands">${rows}</div>` : '';
@@ -111,6 +114,235 @@ function tlLastHtml(s, t) {
       <div class="tl-last__text">${escapeHTML(l.text || '')}</div>
       <div class="metric metric--md">${l.y}</div>
     </div>`;
+}
+
+/* --- «الخط بيفتح» (idea 737, look A, the owner's pick of 7 Oct 2026) -----------------
+   A placement plays on the line, on the TV and on the phones. Right: the line opens -
+   the neighbours slide apart (FLIP from where they stood), the gap is marked dashed, the
+   card flies in an arc from the player's name with its year hidden, lands, its year shows
+   and a +1 rises off it. Wrong: the card flies to where it really goes, held above the
+   line with its year in red, the gap that was chosen marked ✕, and then it drops off the
+   table. Once per placement (motionFirst on the deal and s.last.seq), only when the line
+   was already on this screen (a reload or a TV coming on draws the line as it is), and
+   nothing moves with motion off. Every end state is set by a timer, never an animation event. */
+const TL_CSS = `
+#view-room-timeline { position: relative; }
+.tl-card.is-slot { border-style: dashed; border-color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
+.tl-card.is-slot > * { visibility: hidden; }
+.tl-card.is-landed { border-color: var(--success); animation: tlLand .5s cubic-bezier(.2,1.5,.4,1) both; }
+.tl-card.is-landed .tl-card__year { color: var(--success-ink); }
+@keyframes tlLand { 0% { transform: scale(.9); } 60% { transform: scale(1.07); } 100% { transform: none; } }
+.tl-card { position: relative; }
+.tl-plus { position: absolute; top: -0.9em; inset-inline-end: -0.6em; padding: 0.15em 0.6em; border-radius: 999px; background: var(--success-btn, var(--success)); color: var(--success-on, #fff); font-weight: 900; font-size: 0.95em; pointer-events: none; animation: tlPlus 1.3s ease-out both; }
+@keyframes tlPlus { 0% { opacity: 0; transform: translateY(0.4em) scale(.7); } 20% { opacity: 1; transform: none; } 75% { opacity: 1; transform: translateY(-0.4em); } 100% { opacity: 0; transform: translateY(-1em); } }
+.tl-fly { position: fixed; left: 0; top: 0; z-index: var(--z-fx-ghost); margin: 0; pointer-events: none; will-change: transform; border-color: var(--warning); box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning) 25%, transparent), 0 1.4rem 2.4rem rgba(0,0,0,.4); }
+.tl-fly .tl-card__year { color: var(--warning-ink); }
+.tl-fly.is-wrong { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, var(--surface-solid)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 25%, transparent), 0 0 2.4rem color-mix(in srgb, var(--danger) 35%, transparent); }
+.tl-fly.is-wrong .tl-card__year { color: var(--danger-ink); font-size: 1.25em; }
+.tl-fly__x { position: absolute; top: -0.8em; inset-inline-end: -0.7em; width: 1.6em; height: 1.6em; border-radius: 50%; display: grid; place-items: center; background: var(--danger-btn, var(--danger)); color: var(--danger-on, #fff); font-weight: 900; font-size: 0.9em; }
+.tl-ghost { position: fixed; left: 0; top: 0; z-index: var(--z-fx); pointer-events: none; display: grid; place-items: center; border: 3px dashed var(--danger); border-radius: var(--r-md); color: var(--danger-ink); font-weight: 900; font-size: 1.4em; background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.tl-dropline { position: fixed; left: 0; top: 0; z-index: var(--z-fx); width: 0; border-inline-start: 3px dashed color-mix(in srgb, var(--danger) 60%, transparent); pointer-events: none; }
+.tl-fx-out { animation: tlFxOut .5s ease-in both; }
+@keyframes tlFxOut { to { opacity: 0; } }
+/* The TV: the line is the stage, wrapped into rows when it grows long. */
+.tl-tv { position: relative; display: flex; flex-direction: column; gap: 2vmin; padding: 1.6vmin 2vmin; }
+.tl-tv__top { display: flex; justify-content: flex-start; }
+.tl-tv__line { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; }
+body.is-tv-view .tl-line.tl-line--tv { flex-wrap: wrap; justify-content: center; align-content: center; align-items: stretch; row-gap: 2.4vmin; overflow: visible; width: 100%; padding-block: 2vmin; }
+body.is-tv-view .tl-line.tl-line--tv > :first-child, body.is-tv-view .tl-line.tl-line--tv > :last-child { margin-inline: 0; }
+body.is-tv-view .tl-line.tl-line--tv .tl-card { width: 21vmin; min-height: 14vmin; border-radius: 2vmin; padding: 1.2vmin; box-shadow: 0 0.8vmin 2.4vmin rgba(0,0,0,.28); font-size: var(--tv-sm); }
+body.is-tv-view .tl-line--tv .tl-card__text { font-size: var(--tv-sm); font-weight: 800; }
+body.is-tv-view .tl-line--tv .tl-card__year { font-size: var(--tv-md); }
+body.is-tv-view .tl-line--tv .tl-gap { width: 1.6vmin; }
+body.is-tv-view .tl-fly { font-size: var(--tv-sm); border-radius: 2vmin; }
+body.is-tv-view .tl-fly .tl-card__text { font-size: var(--tv-sm); font-weight: 800; }
+body.is-tv-view .tl-fly .tl-card__year { font-size: var(--tv-md); }
+.tl-who { display: flex; justify-content: center; align-items: center; gap: 1.2vmin; flex-wrap: wrap; font-weight: 700; font-size: var(--tv-sm); color: var(--text-2); text-align: center; }
+.tl-who__chip { padding: 0.3em 1em; border-radius: 999px; background: var(--warning-btn, var(--warning)); color: var(--warning-on, #241500); font-weight: 900; }
+.tl-who.is-right .tl-who__chip { background: var(--success-btn, var(--success)); color: var(--success-on, #fff); }
+.tl-who.is-wrong .tl-who__chip { background: var(--danger-btn, var(--danger)); color: var(--danger-on, #fff); }
+.tl-who b { color: var(--text-strong); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .tl-card.is-landed, .tl-plus, .tl-fx-out { animation: none; } .tl-plus { display: none; } }
+`;
+function tlStyleOn() {
+  if (document.getElementById('tl-style')) return;
+  const st = document.createElement('style');
+  st.id = 'tl-style';
+  st.textContent = TL_CSS;
+  document.body.appendChild(st);
+  if (typeof applyMotionPref === 'function') applyMotionPref();
+}
+tlStyleOn();
+
+const tlFx = { els: [], timers: [] };
+/** Everything a placement put on the page, gone (a new placement, the room moving on). */
+function tlFxClear() {
+  tlFx.timers.forEach(clearTimeout);
+  tlFx.timers = [];
+  tlFx.els.forEach(e => e.remove());
+  tlFx.els = [];
+}
+onRoomClocksReset(tlFxClear);
+const tlFxLater = (fn, ms) => { tlFx.timers.push(setTimeout(fn, ms)); };
+
+/** Where each card of the line stands, in the line's own coordinates (its scroll included). */
+function tlLineSpots(root) {
+  const line = root && root.querySelector('.tl-line');
+  if (!line) return null;
+  const lr = line.getBoundingClientRect();
+  const spots = {};
+  line.querySelectorAll('[data-tl-id]').forEach(c => {
+    const r = c.getBoundingClientRect();
+    spots[c.dataset.tlId] = { x: r.left - lr.left + line.scrollLeft, y: r.top - lr.top + line.scrollTop };
+  });
+  return { spots, scroll: line.scrollLeft };
+}
+
+/** The x of a gap of the line, on the screen (between two cards, or past an end). */
+function tlGapX(cards, g) {
+  if (!cards.length) return null;
+  const r = (i) => cards[i].getBoundingClientRect();
+  if (g <= 0) return r(0).left - 8;
+  if (g >= cards.length) return r(cards.length - 1).right + 8;
+  const a = r(g - 1), b = r(g);
+  // Two cards on different rows (a wrapped TV line): the gap is just past the earlier one.
+  if (Math.abs(a.top - b.top) > a.height / 2) return a.right + 8;
+  return (a.right + b.left) / 2;
+}
+
+/** The card in flight, a copy of a line card with its year hidden, at a fixed size. */
+function tlFlyCard(text, w, h) {
+  const el = document.createElement('div');
+  el.className = 'tl-card tl-fly';
+  el.style.width = w + 'px';
+  el.style.minHeight = h + 'px';
+  el.innerHTML = `<span class="tl-card__text">${escapeHTML(text || '')}</span><span class="tl-card__year">${appState.lang === 'ar' ? '؟' : '?'}</span>`;
+  document.body.appendChild(el);
+  tlFx.els.push(el);
+  return el;
+}
+
+/** Flies `el` (placed at `to`) from the centre of `from` in an arc; resolves through a timer. */
+function tlArc(el, from, to, ms, delay) {
+  el.style.left = to.left + 'px';
+  el.style.top = to.top + 'px';
+  const fx = from.left + from.width / 2 - (to.left + to.width / 2);
+  const fy = from.top + from.height / 2 - (to.top + to.height / 2);
+  const lift = Math.min(fy, 0) - Math.max(60, to.height * 0.9);
+  el.animate([
+    { transform: `translate(${fx}px, ${fy}px) scale(.45) rotate(-8deg)`, opacity: 0 },
+    { transform: `translate(${fx}px, ${fy}px) scale(.55) rotate(-8deg)`, opacity: 1, offset: 0.08 },
+    { transform: `translate(${fx * 0.45}px, ${lift}px) scale(1.06) rotate(7deg)`, opacity: 1, offset: 0.55 },
+    { transform: 'none', opacity: 1 }
+  ], { duration: ms, delay: delay || 0, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'both' });
+}
+
+/**
+ * Plays the last placement on a line that was already on this screen. root holds the
+ * line ([data-tl-id] cards) and the name chips ([data-tl-pid]); before is tlLineSpots of
+ * the line as it stood before the rebuild; fromRect, where the card leaves from on this
+ * phone (its own card, tapped), or null for the player's name chip.
+ */
+function tlPlayPlacement(root, state, before, fromRect) {
+  const s = state.shared;
+  const l = s.last;
+  if (!root || !l || !before || motionOff() || !document.body.animate) return;
+  if (!motionFirst(['tl-fly', roomDealKey(state), l.seq].join('|'))) return;
+  const line = root.querySelector('.tl-line');
+  if (!line) return;
+  tlFxClear();
+  const cards = [...line.querySelectorAll('[data-tl-id]')];
+  if (!cards.length) return;
+  const line0 = s.timeline || [];
+  // Where the card really goes: after every card of an earlier or the same year.
+  const trueGap = l.right ? l.at : line0.filter(c => c.y <= l.y).length;
+  const placed = l.right && line0[l.at] ? line.querySelector(`[data-tl-id="${CSS.escape(String(line0[l.at].id))}"]`) : null;
+  // Keep the line where the eye was, then bring the moment into view (a phone's line scrolls).
+  line.scrollLeft = before.scroll;
+  const focus = placed || cards[Math.min(trueGap, cards.length - 1)];
+  const lr0 = line.getBoundingClientRect(), fr0 = focus.getBoundingClientRect();
+  if (line.scrollWidth > line.clientWidth + 2 && (fr0.left < lr0.left || fr0.right > lr0.right)) {
+    line.scrollLeft += (fr0.left + fr0.width / 2) - (lr0.left + lr0.width / 2);
+  }
+  // The neighbours slide apart: each from where it stood to where it stands now.
+  const lr = line.getBoundingClientRect();
+  cards.forEach(c => {
+    const was = before.spots[c.dataset.tlId];
+    if (!was || c === placed) return;
+    const r = c.getBoundingClientRect();
+    const dx = was.x - (r.left - lr.left + line.scrollLeft), dy = was.y - (r.top - lr.top + line.scrollTop);
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    c.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 460, easing: 'cubic-bezier(.3,.8,.3,1)' });
+  });
+  const chip = root.querySelector(`[data-tl-pid="${CSS.escape(String(l.by || ''))}"]`);
+  const sample = cards[0].getBoundingClientRect();
+  const from = fromRect || (chip ? chip.getBoundingClientRect() : { left: lr.left + lr.width / 2, top: window.innerHeight - 40, width: 1, height: 1 });
+  const FLY = 760, DELAY = 160;
+  if (l.right && placed) {
+    placed.classList.add('is-slot');
+    const to = placed.getBoundingClientRect();
+    const fly = tlFlyCard(l.text, to.width, to.height);
+    tlArc(fly, from, { left: to.left, top: to.top, width: to.width, height: to.height }, FLY, DELAY);
+    let done = false;
+    const land = () => {
+      if (done) return;
+      done = true;
+      fly.remove();
+      placed.classList.remove('is-slot');
+      placed.classList.add('is-landed');
+      const plus = document.createElement('span');
+      plus.className = 'tl-plus';
+      plus.dir = 'ltr';
+      plus.textContent = '✓ +1';
+      placed.appendChild(plus);
+      tlFxLater(() => plus.remove(), 1400);
+    };
+    tlFxLater(land, DELAY + FLY + 40);
+    return;
+  }
+  // Wrong: the chosen gap marked ✕, the card held over its real place in red, then gone.
+  const w = sample.width, h = sample.height;
+  const gx = tlGapX(cards, trueGap), cx = tlGapX(cards, l.at);
+  const rowOf = cards[Math.min(trueGap, cards.length - 1)].getBoundingClientRect();
+  const to = { left: Math.min(Math.max(8, gx - w / 2), window.innerWidth - w - 8), top: Math.max(8, rowOf.top - h * 1.18), width: w, height: h };
+  if (cx !== null) {
+    const ghost = document.createElement('div');
+    ghost.className = 'tl-ghost';
+    ghost.textContent = '✕';
+    const crow = cards[Math.min(Math.max(l.at - 1, 0), cards.length - 1)].getBoundingClientRect();
+    // Under the row, at the gap that was chosen: a mark, not a cover over the cards
+    const gw = Math.max(28, h * 0.42);
+    ghost.style.cssText = `left:${cx - gw / 2}px;top:${crow.bottom + 6}px;width:${gw}px;height:${gw}px`;
+    document.body.appendChild(ghost);
+    tlFx.els.push(ghost);
+    ghost.animate([{ opacity: 0, transform: 'scale(.8)' }, { opacity: 1, transform: 'none' }], { duration: 260, delay: DELAY + FLY * 0.6, fill: 'both' });
+  }
+  const fly = tlFlyCard(l.text, w, h);
+  const x = document.createElement('span');
+  x.className = 'tl-fly__x';
+  x.textContent = '✕';
+  tlArc(fly, from, to, FLY, DELAY);
+  let shown = false;
+  const show = () => {
+    if (shown) return;
+    shown = true;
+    fly.classList.add('is-wrong');
+    fly.appendChild(x);
+    const y = fly.querySelector('.tl-card__year');
+    if (y) y.textContent = l.y;
+    const drop = document.createElement('div');
+    drop.className = 'tl-dropline';
+    drop.style.cssText = `left:${gx}px;top:${to.top + h}px;height:${Math.max(0, rowOf.bottom - (to.top + h))}px`;
+    document.body.appendChild(drop);
+    tlFx.els.push(drop);
+  };
+  tlFxLater(show, DELAY + FLY + 20);
+  // Off the table: the card falls away, and the marks fade with it.
+  tlFxLater(() => {
+    fly.animate([{ transform: 'none', opacity: 1 }, { transform: 'translateY(32vh) rotate(16deg)', opacity: 0 }], { duration: 700, easing: 'cubic-bezier(.5,0,.9,.4)', fill: 'both' });
+    tlFx.els.forEach(e => { if (e !== fly) e.classList.add('tl-fx-out'); });
+  }, DELAY + FLY + 1500);
+  tlFxLater(tlFxClear, DELAY + FLY + 2400);
 }
 
 ROOM_GAMES.timeline = {
@@ -155,6 +387,8 @@ ROOM_GAMES.timeline = {
     }
 
     const live = s.phase === 'play' && s.turnId === Room.me && !!tlLocal.pick;
+    // The line as it stood, so a placement can open it from there (737).
+    const before = el.querySelector('.tl-line [data-tl-id]') ? tlLineSpots(el) : null;
     const sig = ['tl-play', s.turnId, (s.timeline || []).map(c => c.id).join(','),
                  mine.map(c => c.id).join(','), tlLocal.pick, (s.last || {}).seq,
                  JSON.stringify(s.hands || {}), state.youAreHost, appState.lang].join('|');
@@ -177,6 +411,8 @@ ROOM_GAMES.timeline = {
         playSound(s.last.right ? 'success' : 'wrong');
         if (!s.last.right) haptic('heavy');
       }
+      tlPlayPlacement(el, state, before, s.last.by === Room.me ? tlLocal.fromRect : null);
+      tlLocal.fromRect = null;
     }
     refreshRoomPlayerStrip(el, state);
   },
@@ -204,14 +440,28 @@ TV_GAMES.timeline = {
           ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.timeline.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
         </div>`;
     }
+    // The line as it stands before this rebuild, so the next placement opens it from there (737).
+    const stage = document.querySelector('#view-room-tv .tl-tv');
+    tlTv.before = stage && stage.querySelector('[data-tl-id]') ? tlLineSpots(stage) : null;
+    const l = s.last;
+    const who = l
+      ? `<div class="tl-who ${l.right ? 'is-right' : 'is-wrong'}"><span class="tl-who__chip">${escapeHTML(l.name || '')}</span>
+           <span>${l.right ? '✅ ' + escapeHTML(t.tl_right_stays || '') : '❌ ' + escapeHTML(t.tl_wrong_was || '')} · ${escapeHTML(l.text || '')} · <b>${l.y}</b></span></div>`
+      : `<div class="tl-who"><span class="tl-who__chip">${escapeHTML(s.turnName || '')}</span><span>${escapeHTML(t.tl_placing || '')}</span></div>`;
     return `
-      <div class="tv-trivia">
-        <div class="tv-top"><span class="tv-pill">🕰️ ${escapeHTML(t.tl_turn_of || '')} ${escapeHTML(s.turnName || '')}</span></div>
-        <div class="tv-scale">${tlLineHtml(s, t, false)}</div>
-        ${s.last ? `<div class="tv-note">${s.last.right ? '✅' : '❌'} ${escapeHTML(s.last.name || '')} · ${escapeHTML(s.last.text || '')} · ${s.last.y}</div>` : ''}
+      <div class="tl-tv">
+        <div class="tl-tv__top"><span class="tv-pill">🕰️ ${escapeHTML(t.tl_turn_of || '')} ${escapeHTML(s.turnName || '')}</span></div>
+        <div class="tl-tv__line">${tlLineHtml(s, t, false, 'tl-line--tv')}</div>
+        ${who}
         <div class="tv-scale">${tlHandsHtml(state, s)}</div>
         ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.tl_skip, `roomAct('skipTurn', { turnId: '${jsStringAttr(s.turnId || '')}' })`, 'ghost')}</div>`)}
       </div>`;
+  },
+  after(state, rebuilt) {
+    const s = state.shared;
+    if (!rebuilt || s.phase !== 'play' || !s.last) return;
+    tlPlayPlacement(document.querySelector('#view-room-tv .tl-tv'), state, tlTv.before, null);
   }
 };
+const tlTv = { before: null };
 </script>

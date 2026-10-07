@@ -94,6 +94,25 @@ instead of a chip per player - the names still waiting were the roles still deci
   (`refreshMafiaSpectate`), so a pick at night is no rebuild; on the night, the day, the vote and the result.
   The TV is unchanged. Help rule added. Tests: `rules.mjs` (both switch states: who watches, roles, picks, chat,
   vote), a leak probe (`leaks.mjs`: only an out player of the roster, with the switch on, holds `you.spectate`).
+- **539 «الحارة بتنام», look A** (the TV only; the phones are unchanged). The night is one street seen from across
+  the road (`mafiaStreetNightHtml`, `mafiaStreetSvg`, `mafiaHouseSvg` in `JS_RoomMafia.html`): a house for everyone
+  still in, all the same size and named for nobody, a minaret, a dome and two roofs behind, a lamp post at the end
+  (it dims once everyone has tapped), a cat on a low wall at the start (its tail sways). On top: «🌙 الحارة بتنام…»,
+  the clock (`#tv-mafia-clock`, painted by `mafiaTickClock` as before) and «✓ 3/6 · النور بيطفي واحدة واحدة». Every
+  tap tonight puts out one house's windows and its door lamp; which house is a shuffle seeded by the room, the deal
+  and the night (`mafiaStreetOrder`, `mafiaStreetRng`), so it is never the house of whoever tapped. Only a new tap
+  fades with motion (`mafiaStreetSeen`: a reload or a TV that comes on mid-night draws the dark windows as they
+  are); the fade is a CSS animation of opacity (`mafiaLightOff`), its end state the element's own opacity. The
+  morning (`mafiaStreetDayHtml`, phase `day`): the same street by day, the houses of last night (everyone still in
+  plus whoever the night took, in the roster's order), the door of whoever left swung open with a red mat (once,
+  `motionFirst` on the deal, night and day), and the news as a white line on top - «صباح الخير يا حارة» (only when
+  someone left), the news text (`mafiaNewsText`) and the role a beat later. Under it the discussion pill with the
+  clock; the people strip and the host's buttons over the road. The voting, the day's result and the end are as
+  they were. Words: `mafia_street_sleeps`, `mafia_street_lights`, `mafia_street_morning`. The scene's colours are
+  fixed (a painted night and a painted morning, the same in both themes), its words on plates of their own; its
+  CSS is `MAFIA_CSS`, put in once by `mafiaStyleOn` (the way الليزر ships its own), with its reduced-motion line.
+  Chosen where the sheet didn't say: the houses shrink to fit (up to 200 wide, centred when there are few), the
+  role line appears 1.3 s after the news.
 
 ## History
 

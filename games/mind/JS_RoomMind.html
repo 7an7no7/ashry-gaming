@@ -130,10 +130,12 @@ function mindPlay(btn) {
 }
 
 /** The card the table just saw, flying from this phone's hand onto the pile. */
-function mindFlyToPile() {
+function mindFlyToPile(n) {
   const from = mindLocal.from;
   mindLocal.from = null;
-  const target = document.getElementById('mind-pile-card');
+  // Onto its number on the ruler (743); the old pile card where there is no ruler.
+  const target = (n !== null && n !== undefined && document.querySelector(`#view-room-mind .mind-ruler [data-mind-n="${n}"]`))
+    || document.getElementById('mind-pile-card');
   if (!from || !target || typeof flyEmoji !== 'function') return;
   flyEmoji(from.text, from.rect, from.font, target);
 }
@@ -155,6 +157,130 @@ function mindShakeOnLoss(el, state) {
   }
   playSound('wrong');
   haptic('heavy');
+}
+
+/* --- «خط الأرقام» (idea 743, look A, the owner's pick of 7 Oct 2026) -----------------
+   A ruler from 1 to 100 across the TV (and a strip of it on the phone): every card down
+   stands on its number, the last one lit, and the stretch above it - what nobody has
+   said yet - tinted warm with a «؟». A card too close to the one before stands a row up.
+   A missed card drops in red behind the ruler. It reads left to right in both languages
+   (dir="ltr"): it is a physical axis, like قبل ولا بعد's line. Sizes are in container
+   units (the ruler's own width), so one drawing fits a phone, a laptop and a TV. */
+const MIND_CSS = `
+.mind-ruler { container-type: inline-size; width: 100%; direction: ltr; }
+.mind-ruler__in { --mw: 4; position: relative; padding-inline: calc(var(--mw) * 0.6cqw); padding-top: calc(var(--rows, 1) * var(--mw) * 1.62cqw + 2cqw); padding-bottom: calc(5cqw + var(--miss-rows, 0) * var(--mw) * 1.62cqw); }
+.mind-ruler--phone .mind-ruler__in { --mw: 8.5; padding-bottom: calc(9cqw + var(--miss-rows, 0) * var(--mw) * 1.62cqw); }
+.mind-ruler__rail { position: relative; height: max(4px, 0.7cqw); border-radius: 999px; background: color-mix(in srgb, var(--text) 16%, transparent); }
+.mind-ruler__room { position: absolute; bottom: 0; right: 0; height: calc(var(--rows, 1) * var(--mw) * 1.62cqw + 1.4cqw); border-radius: 1.4cqw 1.4cqw 0 0; background: linear-gradient(180deg, color-mix(in srgb, var(--warning) 0%, transparent), color-mix(in srgb, var(--warning) 18%, transparent)); border-bottom: max(4px, 0.7cqw) solid color-mix(in srgb, var(--warning) 60%, transparent); display: grid; place-items: center; pointer-events: none; }
+.mind-ruler__room b { font-size: calc(var(--mw) * 1.6cqw); font-weight: 900; line-height: 1; color: color-mix(in srgb, var(--warning) 60%, transparent); }
+.mind-ruler__tick { position: absolute; top: 100%; width: 0; }
+.mind-ruler__tick i { position: absolute; left: -1px; top: 0.6cqw; width: 2px; height: 1.2cqw; background: color-mix(in srgb, var(--text) 35%, transparent); }
+.mind-ruler__tick.is-big i { height: 2cqw; background: color-mix(in srgb, var(--text) 65%, transparent); }
+.mind-ruler__tick b { position: absolute; top: 2.8cqw; left: -3cqw; width: 6cqw; text-align: center; font-size: max(0.65rem, 1.3cqw); font-weight: 800; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.mind-ruler--phone .mind-ruler__tick b { top: 3.4cqw; font-size: 0.7rem; }
+.mind-ruler__card { position: absolute; width: calc(var(--mw) * 1cqw); height: calc(var(--mw) * 1.4cqw); margin-left: calc(var(--mw) * -0.5cqw); bottom: calc(100% + 0.8cqw + var(--row, 0) * var(--mw) * 1.62cqw); display: grid; place-items: center; border-radius: calc(var(--mw) * 0.2cqw); border: max(2px, 0.25cqw) solid var(--border); background: var(--surface-solid); color: var(--text-strong); font-weight: 900; font-size: calc(var(--mw) * 0.48cqw); font-variant-numeric: tabular-nums; box-shadow: 0 0.6cqw 1.6cqw rgba(0,0,0,.28); }
+.mind-ruler__card.is-last { border-color: var(--accent); background: var(--accent); color: var(--accent-on); box-shadow: 0 0 2.4cqw color-mix(in srgb, var(--accent) 55%, transparent); z-index: 1; }
+.mind-ruler__card.is-miss { bottom: auto; top: calc(100% + 5cqw + var(--row, 0) * var(--mw) * 1.62cqw); border-color: var(--danger); background: var(--danger-btn); color: var(--danger-on); }
+.mind-ruler--phone .mind-ruler__card.is-miss { top: calc(100% + 8.5cqw + var(--row, 0) * var(--mw) * 1.62cqw); }
+.mind-ruler__card.is-miss em { position: absolute; top: calc(var(--mw) * -0.25cqw); right: calc(var(--mw) * -0.25cqw); width: calc(var(--mw) * 0.45cqw); height: calc(var(--mw) * 0.45cqw); border-radius: 50%; display: grid; place-items: center; background: var(--surface-solid); color: var(--danger-ink); font-style: normal; font-size: calc(var(--mw) * 0.25cqw); box-shadow: 0 0 0 1px var(--danger); }
+.mind-tv { display: flex; flex-direction: column; gap: 2vmin; padding: 1.6vmin 3vmin; }
+.mind-tv__ruler { flex: 1 1 0; min-height: 0; container-type: size; display: flex; align-items: center; justify-content: center; }
+/* The whole ruler, its rows up and down included, fits the stage's height: its width comes from --u, its height in widths. */
+.mind-tv__ruler > .mind-ruler { width: min(100cqw, calc(100cqh * 100 / var(--u, 30))); }
+.mind-tv__note { text-align: center; font-size: var(--tv-md); font-weight: 800; color: var(--text-2); }
+.mind-tv__note.is-bad { color: var(--danger-ink); }
+.mind-strip .eyebrow { margin-bottom: var(--sp-2); }
+.mind-strip .mind-ruler { padding-inline: var(--sp-2); box-sizing: border-box; }
+`;
+function mindStyleOn() {
+  if (document.getElementById('mind-style')) return;
+  const st = document.createElement('style');
+  st.id = 'mind-style';
+  st.textContent = MIND_CSS;
+  document.body.appendChild(st);
+  if (typeof applyMotionPref === 'function') applyMotionPref();
+}
+mindStyleOn();
+
+/** Rows: each number on the first row where it clears the last card of that row by a card. */
+function mindRulerRows(nums, w) {
+  const ends = [];
+  return nums.map(n => {
+    const x = (n - 1) / 99 * 100;
+    let r = 0;
+    while (ends[r] !== undefined && x - ends[r] < w * 1.08) r++;
+    ends[r] = x;
+    return r;
+  });
+}
+
+/** The ruler with the level's cards on it. phone: the strip size (bigger cards for a narrow screen). */
+function mindRulerHtml(s, phone) {
+  const w = phone ? 8.5 : 4;
+  const pile = (s.pile || []).slice();
+  const miss = (s.discarded || []).slice().sort((a, b) => a - b);
+  const rows = mindRulerRows(pile, w), missRows = mindRulerRows(miss, w);
+  const nRows = Math.max(1, ...rows.map(r => r + 1)), nMiss = miss.length ? Math.max(...missRows) + 1 : 0;
+  const X = (n) => ((Math.min(100, Math.max(1, n)) - 1) / 99 * 100).toFixed(3) + '%';
+  const top = pile.length ? pile[pile.length - 1] : 0;
+  let ticks = '';
+  (phone ? [1, 25, 50, 75, 100] : [1, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]).forEach(n => {
+    ticks += `<span class="mind-ruler__tick ${n === 1 || n % 50 === 0 ? 'is-big' : ''}" style="left:${X(n)}"><i></i><b>${n}</b></span>`;
+  });
+  const roomLeft = top ? X(top) : '0%';
+  const roomW = 100 - (top ? (top - 1) / 99 * 100 : 0);
+  const room = top < 100 ? `<span class="mind-ruler__room" style="left:${roomLeft}">${roomW > (phone ? 14 : 8) ? `<b>${appState.lang === 'ar' ? '؟' : '?'}</b>` : ''}</span>` : '';
+  const cards = pile.map((n, i) => `<span class="mind-ruler__card${n === top ? ' is-last' : ''}" data-mind-n="${n}" style="left:${X(n)};--row:${rows[i]}">${n}</span>`).join('');
+  const missed = miss.map((n, i) => `<span class="mind-ruler__card is-miss" data-mind-miss="${n}" style="left:${X(n)};--row:${missRows[i]}">${n}<em aria-hidden="true">✕</em></span>`).join('');
+  const u = (nRows + nMiss) * w * 1.62 + 2 + 0.7 + (phone ? 9 : 5) + 3;
+  return `<div class="mind-ruler${phone ? ' mind-ruler--phone' : ''}" dir="ltr" style="--u:${u.toFixed(2)}">
+      <div class="mind-ruler__in" style="--rows:${nRows};--miss-rows:${nMiss}">
+        <div class="mind-ruler__rail">${room}${ticks}${cards}${missed}</div>
+      </div>
+    </div>`;
+}
+
+/** The line under the ruler: who played last, or what the table just lost. */
+function mindRulerNote(s, t) {
+  if (s.lost && (s.lost.missed || []).length) {
+    return { bad: true, text: (t.mind_miss_line || '').replace('{n}', s.lost.card).replace('{m}', s.lost.missed.join(appState.lang === 'ar' ? '، ' : ', ')) };
+  }
+  if (s.last) return { bad: false, text: (t.mind_played_by || '').replace('{name}', s.last.name || '').replace('{n}', s.last.card) };
+  return null;
+}
+
+// What each screen has already seen land this level, so only a new card drops with motion
+// (a reload, or a TV coming on, draws the ruler as it is).
+const mindRulerSeen = {};
+/**
+ * The new cards drop onto their numbers, and a missed card falls in red behind. skip: a
+ * number this phone is flying in itself (its own tap), left to flyEmoji.
+ */
+function mindRulerAfter(root, state, where, skip) {
+  const s = state.shared;
+  const key = [roomDealKey(state), s.level].join('|');
+  const pile = (s.pile || []).length, miss = (s.discarded || []).length;
+  let seen = mindRulerSeen[where];
+  mindRulerSeen[where] = { key, pile, miss };
+  // A new level on a screen that was already watching starts from an empty ruler.
+  if (seen && seen.key !== key) seen = { key, pile: 0, miss: 0 };
+  if (!root || !seen || motionOff() || !document.body.animate) return;
+  const drop = (el, d, red) => el.animate(red
+    ? [{ transform: 'translateY(-3em) rotate(-10deg)', opacity: 0 }, { transform: 'translateY(0.3em) rotate(4deg)', opacity: 1, offset: 0.7 }, { transform: 'none', opacity: 1 }]
+    : [{ transform: 'translateY(-2.4em) rotate(-6deg)', opacity: 0 }, { transform: 'translateY(0.15em)', opacity: 1, offset: 0.75 }, { transform: 'none', opacity: 1 }],
+    { duration: red ? 620 : 480, delay: d, easing: 'cubic-bezier(.3,.8,.4,1)', fill: 'backwards' });
+  (s.pile || []).slice(seen.pile).forEach((n, i) => {
+    if (n === skip) return;
+    const el = root.querySelector(`.mind-ruler [data-mind-n="${n}"]`);
+    if (el) drop(el, i * 90, false);
+  });
+  if (miss > seen.miss) {
+    const fresh = new Set((s.discarded || []).slice(seen.miss));
+    let k = 0;
+    root.querySelectorAll('.mind-ruler [data-mind-miss]').forEach(el => {
+      if (fresh.has(Number(el.dataset.mindMiss))) drop(el, 380 + (k++) * 140, true);
+    });
+  }
 }
 
 ROOM_GAMES.mind = {
@@ -216,18 +342,25 @@ ROOM_GAMES.mind = {
     // own hand, who is still holding and the lives - never a presence tick.
     const sig = ['mind-play', s.level, s.lives, (s.pile || []).join(','), (s.discarded || []).join(','),
                  mine.join(','), JSON.stringify(s.held || {}), appState.lang].join('|');
+    // The pile is a strip of the number line (743): the cards on their numbers, the
+    // stretch above the last one warm, a missed card in red behind.
+    const note = mindRulerNote(s, t);
     const rebuilt = renderRoomFrame(el, sig, () => `
       ${head}
-      <div class="card" style="text-align:center">
-        ${mindPileHtml(s, t)}
-        ${s.last ? `<p class="field__hint">${escapeHTML((t.mind_played_by || '').replace('{name}', s.last.name || '').replace('{n}', s.last.card))}</p>` : ''}
+      <div class="card mind-strip" style="text-align:center">
+        <div class="eyebrow">${escapeHTML(t.mind_ruler || '')}</div>
+        ${mindRulerHtml(s, true)}
+        ${note ? `<p class="field__hint${note.bad ? ' tx-danger' : ''}">${escapeHTML(note.text)}</p>` : ''}
       </div>
-      ${mindDiscardHtml(s, t)}
       <div class="card">${mindMyCardsHtml(state, s, t)}</div>
       ${mindHandsHtml(state, s, t)}
       ${renderRoomPlayerStrip(state)}`);
 
-    if (rebuilt) mindFlyToPile();
+    if (rebuilt) {
+      const mineFlying = mindLocal.from ? Number(mindLocal.from.text) : null;
+      mindRulerAfter(el, state, 'phone', mineFlying);
+      mindFlyToPile(mineFlying);
+    }
     refreshRoomPlayerStrip(el, state);
   }
 };
@@ -262,21 +395,18 @@ TV_GAMES.mind = {
           </div>
         </div>`;
     }
-    const pileTop = (s.pile || [])[(s.pile || []).length - 1];
+    // The number line across the TV (743).
+    const note = mindRulerNote(s, t);
     return `
-      <div class="tv-trivia">${top}
-        <div class="tv-center${typeof tvArtHtml === 'function' ? ' has-art' : ''}">
-          ${typeof tvArtHtml === 'function' ? tvArtHtml('mind') : ''}
-          <div class="tv-eyebrow">${escapeHTML(t.mind_pile || '')}</div>
-          <div class="tv-clock">${pileTop === undefined ? '—' : pileTop}</div>
-          ${s.last ? `<div class="tv-note">${escapeHTML((t.mind_played_by || '').replace('{name}', s.last.name || '').replace('{n}', s.last.card))}</div>` : ''}
-          ${(s.discarded || []).length ? `<div class="tv-note">${escapeHTML(t.mind_missed || '')} ${(s.discarded || []).join(' · ')}</div>` : ''}
-        </div>
+      <div class="tv-trivia mind-tv">${top}
+        <div class="mind-tv__ruler">${mindRulerHtml(s, false)}</div>
+        ${note ? `<div class="mind-tv__note${note.bad ? ' is-bad' : ''}">${escapeHTML(note.text)}</div>` : ''}
         <div class="tv-scale">${mindHandsHtml(state, s, t)}</div>
       </div>`;
   },
   after(state, rebuilt) {
     if (rebuilt && state.shared.phase === 'gameover') mindOverAfter(document.getElementById('view-room-tv'), state);
+    if (rebuilt && state.shared.phase === 'play') mindRulerAfter(document.getElementById('view-room-tv'), state, 'tv', null);
   }
 };
 </script>

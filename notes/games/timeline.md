@@ -48,6 +48,26 @@ a card.
 phone and the TV say them with `tlWinnersText`. The hidden year on a card is `؟` in
 Arabic and `?` in English.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **737 «الخط بيفتح», look A** (the TV and the phones). A placement plays on the line (`tlPlayPlacement` in
+  `JS_RoomTimeline.html`). Right: the neighbours slide apart from where they stood (a FLIP from `tlLineSpots`, the
+  cards' places in the line's own coordinates taken before the rebuild: in `render` on the phone, in `frame` on the
+  TV into `tlTv.before`), the card's place is marked dashed (`.tl-card.is-slot`), and a copy of the card with its
+  year hidden (`tlFlyCard`) flies in an arc (`tlArc`) from the player's name chip (`[data-tl-pid]` on the counts
+  strip) - or, on the phone that placed it, from the card it tapped (`tlLocal.fromRect`, taken in `tlPlace`) -
+  lands, the year shows green and «✓ +1» rises off it (`.is-landed`, `.tl-plus`). Wrong: the chosen gap is marked
+  ✕ under the row (`.tl-ghost`), the card flies to above where it really goes (after every card of an earlier or the
+  same year), its year shows in red with a ✕ and a dashed line down to its place, and after 1.5 s it drops off the
+  table. Once per placement (`motionFirst` on the deal and `s.last.seq`), only when the line was already on that
+  screen (a reload or a TV coming on draws it as it is), nothing with motion off; every step is a timer
+  (`tlFxLater`), and `tlFxClear` (also on `onRoomClocksReset`) takes everything away. A card in the line carries
+  `data-tl-id`. The TV (`.tl-tv`): the turn pill on top, the line as the stage, wrapped into rows when it grows
+  long (`.tl-line--tv`, cards 21vmin), the line under it saying who placed what (`.tl-who`: «صح! الورقة فضلت» /
+  «غلط، وقعت», the event and its year), then the counts. Words: `tl_placing`, `tl_right_stays`, `tl_wrong_was`.
+  Styles: `TL_CSS` (tokens only), put in by `tlStyleOn`. Chosen where the sheet didn't say: on a phone whose line
+  scrolls, the line is brought to the moment first; the wrong card is kept on the screen's width.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -102,6 +102,17 @@ const GENERIC = (room) => {
   return [
     probe('no server-only field reaches a phone', true, (view, pid, idx) => idx.keys.find((k) => /(^|\.)_/.test(k)) || null),
     probe('a screen is sent no secret', true, (view, pid) => (pid === SCREEN && view.you !== null ? 'you' : null)),
+    // «ده أنا» (1272): an ask for a seat back is whose seat, the name and when - never its token or the seat's key.
+    probe('a seat asked back shows no token and no key', true, (view, pid, idx) => {
+      if (!Array.isArray(view.claims)) return 'claims (not a list)';
+      for (const c of view.claims) if (Object.keys(c).sort().join() !== 'at,id,name,seat') return 'claims (' + Object.keys(c).join() + ')';
+      for (const c of room._claims || []) {
+        const hit = idx.find(c.token) || (c.key ? idx.find(c.key) : null);
+        if (hit) return hit;
+      }
+      for (const k of Object.values(room.keys || {})) { const hit = idx.find(k); if (hit) return hit; }
+      return null;
+    }),
     // The ideas of 7 Oct 2026 (view.js): the night's leavers are names only, of people banked on the night
     // and gone from the room (never a computer player); «لعبناها» is room game ids; the TV's QR a time.
     probe('the night names only who has left it, and only their names', true, (view) => {
@@ -1480,7 +1491,11 @@ const table = (game, n, opts = {}) => {
   const room = {
     code: 'LEAK', version: 1, game: null, phase: 'lobby', hostId: opts.screenHost ? SCREEN : ids[0],
     players: ids.map((id, i) => ({ id, name: NAMES[i % NAMES.length] + (i >= NAMES.length ? ' ' + i : '') })),
-    screens: [{ id: SCREEN }], shared: {}, secrets: {}
+    screens: [{ id: SCREEN }], shared: {}, secrets: {},
+    // Every phone's key, and «ده أنا»'s asks for a seat back (1272): one waiting, one answered with its new key.
+    keys: Object.fromEntries(ids.map((id, i) => [id, '9f3c7a' + i + 'e51b0d2a48c6f1'])),
+    _claims: [{ id: 'cl1', seat: ids[ids.length - 1], name: 'x', at: clock, token: '4be0c19d77aa03f2e6', status: 'pending' },
+      { id: 'cl2', seat: ids[0], name: 'y', at: clock, token: 'b81e2d6c0f5a9374ac', status: 'yes', key: '9f3c7a0e51b0d2a48c6f1', doneAt: clock }]
   };
   if (!report.has(game)) report.set(game, { moves: 0, probes: new Map(), leaks: new Map() });
   // opts.tourOf: a tournament of that duel, reported under its own name ('tour:guesswho').

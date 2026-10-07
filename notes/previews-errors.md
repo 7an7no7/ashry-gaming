@@ -126,6 +126,25 @@ Two things, both free on the Cloudflare plan and with nothing to look after.
   (`roomCreateEmpty`), «📱 ادخل بكود تاني» (the join screen, emptied) and «للرئيسية». A code typed
   by hand still gets the line under the field.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **1322, a button on the /r page.** `page()` in `site-worker/src/index.js` takes `code` and `cta`:
+  under the redirect (meta refresh and `location.replace`, unchanged) the body is now the code big
+  (64px, left to right) and a 48px amber button «ادخل الغرفة» / "Join the room" to `/?room=CODE`,
+  then the title small - for a webview that blocks the refresh. The crew's `/s/CODE` page gets the
+  same, «ادخل الشلة» / "Open the crew" (chosen: the same page for both).
+- **1323, a program or a crew night in the preview.** `roomInviteUrl(code, { …, program, crew })`
+  (JS_Room.html) adds `p=<number of games>` while برنامج السهرة runs (not at its finale), else
+  `c=1&n=<the crew's name>` when the room is opened «للشلة»; `roomShareLink` passes them from the
+  room's state (the QR stays bare). The worker: `?p=5` → «سهرة الليلة: ٥ ألعاب - الغرفة ABCD»
+  (Arabic digits; "Tonight's show: 5 games - room ABCD"), `?c=1` → «سهرة الشلة «اسمها» - الغرفة
+  ABCD» ("The crew's night “name” - room ABCD"); a night's preview takes the app's picture
+  (`og/app.jpg`), never one game's. The name is cleaned as the crew page cleans it (no `<>«»"`,
+  30 letters). Chosen: «- الغرفة ABCD» kept after the owner's words, as the game titles have it;
+  a program wins over a crew when both.
+- Tested by importing the worker in node with a fake ASSETS (titles, images and the body for
+  `/r/abcd`, `?g=`, `?p=5`, `?p=5&l=en`, `?c=1&n=…<b>`, `/s/…`); not run in `wrangler dev`.
+
 ## To deploy (the owner or the lead)
 
 1. `cd tools && npm run build:site` (writes `docs/og/` too) and commit `docs/`.

@@ -405,3 +405,11 @@ itself.
 - Shared files touched for it: `rooms/JS_Room.html` (`roomNameHtml` appends the crown),
   `rooms/JS_RoomTv.html` (the lobby tile's name and `tvLobbySig`), `rooms-worker/src/room.js`
   (`setCrew`, `crewCrownSync`, `crewMe`).
+
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **1323, «سهرة الشلة» in the link preview.** A room opened «للشلة» shares `/r/CODE?c=1&n=<the crew's
+  name>` (`roomInviteUrl` / `roomShareLink`, JS_Room.html; the name from `state.crew.name`), and the
+  site worker titles it «سهرة الشلة «الاسم» - الغرفة ABCD» with the app's picture instead of one
+  game (a room also running برنامج السهرة says «سهرة الليلة: ٥ ألعاب» instead). Details:
+  `notes/previews-errors.md`.

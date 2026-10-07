@@ -1899,6 +1899,44 @@ async function hostAwayRobots() {
   [H, J, K].forEach((x) => x.close());
 }
 
+/* --- «ده أنا»: taking your own seat back (the ideas of 7 Oct 2026, 1272 + 1278; --only=claim) --- */
+async function claimRobots() {
+  console.log('• «ده أنا»: a name taken says whose; a seat gone a minute is asked back, the host gives it with a fresh key');
+  const H = await Bot.host('هالة', null);
+  const M = await Bot.join(H.code, 'منى');
+  const J = await Bot.join(H.code, 'Jana');
+  let res = await api('/join', { code: H.code, name: 'مُنى' });
+  check(res.ok === false && res.taken && res.taken.name === 'منى' && res.taken.away === false, 'claim: a name taken says who has it (her phone is here: no «ده أنا»)');
+  res = await api('/claim', { code: H.code, name: 'منى' });
+  check(res.ok === false && /متصل/.test(res.error || ''), 'claim: a seat whose phone is here can\'t be asked for');
+  M.close();
+  await H.waitFor((s) => s.players.some((p) => p.id === M.pid && !p.online), 'claim: her phone goes', 8000);
+  await sleep(62000);
+  res = await api('/join', { code: H.code, name: 'منى' });
+  check(res.ok === false && res.taken && res.taken.away === true, 'claim: gone over a minute, the name taken offers «ده أنا»');
+  const ask = await api('/claim', { code: H.code, name: 'منى' });
+  check(ask.ok === true && ask.waiting === true && ask.claim && ask.token, 'claim: the new phone asks and waits');
+  await all([H, J], (s) => (s.claims || []).length === 1 && s.claims[0].seat === M.pid && s.claims[0].name === 'منى', 'claim: every phone sees the ask', 5000);
+  check(!leaks(J, ask.token) && !leaks(H, ask.token), 'claim: the ask\'s token is on no phone');
+  res = await api('/claim', { code: H.code, claim: ask.claim, token: ask.token });
+  check(res.ok === true && res.waiting === true, 'claim: unanswered, it keeps waiting');
+  check((await J.act('claimSeat', { claim: ask.claim, ok: true })).ok === false, 'claim: with the host here only the host answers');
+  await H.must('claimSeat', { claim: ask.claim, ok: true });
+  await all([H, J], (s) => (s.claims || []).length === 0 && s.chat.some((m) => m.sys === 'back'), 'claim: the question goes, the chat says she is back', 5000);
+  res = await api('/claim', { code: H.code, claim: ask.claim, token: ask.token });
+  check(res.ok === true && res.playerId === M.pid && res.key && res.key !== M.key, 'claim: her new phone gets her seat with a fresh key');
+  const old = await api('/poll', { code: H.code, pid: M.pid, key: M.key, v: 0 });
+  check(old.kicked === true, 'claim: the old key stops working');
+  const M2 = new Bot('منى');
+  Object.assign(M2, { code: H.code, pid: res.playerId, key: res.key, state: res.state });
+  await M2.connect();
+  check(M2.state && M2.state.players.filter((p) => p.name === 'منى').length === 1 && M2.state.players.length === 3, 'claim: one منى in the room, in her own seat');
+  await H.waitFor((s) => s.players.some((p) => p.id === M.pid && p.online), 'claim: she is here again', 5000);
+  res = await api('/claim', { code: H.code, claim: ask.claim, token: ask.token });
+  check(res.ok === false, 'claim: the answer is given once');
+  [H, J, M2].forEach((x) => x.close());
+}
+
 /* --- جمجمة: two people, a computer player and the TV (run alone with --only=skull) --- */
 async function skullRobots() {
   console.log('• skull (discs on their own phones, a disc laid face down, the bet and the passes, «هيعملها؟» hidden until the result, the flips, a game to the end, play again)');
@@ -7514,6 +7552,7 @@ const SEGMENTS = [
   { name: 'snakes', run: snakesRobots, secs: 35 },
   { name: 'bumper', run: bumperRobots, secs: 3 },
   { name: 'hostaway', run: hostAwayRobots, secs: 21 },
+  { name: 'claim', run: claimRobots, secs: 66 },
   { name: 'chess4', run: chess4Robots, secs: 27 },
   { name: 'estimation', run: estimationRobots, secs: 83 },
   { name: 'skull', run: skullRobots, secs: 40 },

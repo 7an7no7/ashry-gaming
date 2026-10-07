@@ -657,3 +657,91 @@ chosen for a family table and are open to change. Styles: the section «ROOMS, T
   `roomJoinFromForm`, `initRooms` (JS_Room.html); `renderScoreboard` (JS_RoomVoting.html);
   `renderRoomTv`, `tvNightLine`, `tvLobby` (JS_RoomTv.html); `paintAudience`; `renderTogether`;
   `shareRoomNight`; `openExitSheet`; `applyRoomAction`; `roomView`.
+
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+Eight of the night / together / between-games ideas. Details the owner didn't answer were chosen
+for a family table and are open to change; each says so. Styles: section 72 at the end of
+`Style_Talk.html`. Words: `JS_Translations.html` (shared room words, after `room_closed_table`).
+
+- **1272 + 1278, «ده أنا»: taking your own seat back** (the owner: the joiner asks; the host's
+  phone or the TV hosting it gets «منى رجعت؟ رجّعها مكانها»; the host away 20 s, anyone seated
+  who isn't a computer player may answer; only for a seat whose phone has been gone over a minute;
+  on yes the phone gets that seat - its id, so its night points and place in the game - with a
+  fresh key, the old key stops working; the chat says it. The taken name says who has it, «ده أنا»
+  only when that seat is away, «اسم تاني» opens the field with «منى ٢»).
+  - Rules, pure and tested (`rooms/RoomGames.js`, after `sameRoomName`): `roomSeatAway` (a person's
+    seat, not online, `lastSeen` at least `SEAT_CLAIM_AWAY_MS` = 60 s ago), `roomClaimAsk`,
+    `roomClaimAnswer`, `roomClaimTake`, `roomClaimsPrune`, `roomClaimsView`. `room._claims` keeps
+    `{ id, seat, name, at, token, status: pending|yes|no, key?, doneAt? }`; an ask lapses after
+    `SEAT_CLAIM_MS` (3 min), at most 4 wait at once, a second ask for the same seat replaces the
+    first. An answer when the seat's own phone came back meanwhile is a no whatever was pressed.
+    Exported from the bundle (`build.mjs` EXPORTS).
+  - Server (`rooms-worker/src/room.js`): `join` answers a taken name with
+    `taken: { name, away }` beside the old error (an old phone reads the error only). New endpoint
+    **`/claim`** (`index.js`; asking counts against the join limiter, coming back for the answer
+    doesn't): `{ code, name }` asks (`{ ok, waiting, claim, token }`), `{ code, claim, token }` comes
+    for the answer every 2 s (`waiting`, or a join's answer `{ playerId, key, state }`, or
+    `CLAIM_NO` / `CLAIM_GONE`), `cancel: true` gives up. Room action **`claimSeat { claim, ok }`**
+    (`Room.claimSeat`, handled before the rules like `kick`): `hostAwaySince` gives how long the
+    host has been away, the seat gets a new key in `room.keys`, any socket still open on the old
+    one is told `kicked`. `view.js` projects `claims` (`roomClaimsView`: id, seat, name, at - never a
+    token or a key); the chat event `back` («منى رجع مكانه من موبايل جديد», `JS_RoomChat.html`).
+  - Page (`rooms/JS_Room.html`): `Room.join` puts `err.taken` on its error; `Room.claimAsk`,
+    `claimPoll` (adopts the seat as a join does), `claimCancel`. `roomJoinFromForm` opens
+    `roomTakenCard` (the room's small sheet): «فيه {name} في الغرفة - إنت {name} تاني؟», the line
+    under it (away: the host can put you back with your points; here: pick a name that tells you
+    apart), «👋 ده أنا» only when away, «✏️ اسم تاني» (`roomTakenOther`: the field with «منى ٢» -
+    «2» in English - selected). «ده أنا» → `roomClaimStart` → the waiting card («مستنيين المضيف
+    يوافق…», «إلغاء») and `roomClaimWait` (every 2 s; a network miss tries again; a no or a lapse
+    says so and opens the field with the name and ٢). The host's side: `roomClaimPrompt` on every
+    state (`Room.onChange`) opens `#room-claim-modal` (new in Controller.html, next to the room
+    sheet) «{name} رجع؟», «🔁 رجّعه مكانه» / «لأ، مش هو» (`roomClaimAnswer` → `claimSeat`), on the
+    host's phone or TV, or on a seated phone once the host's away time (`players[].away`, read by
+    the server's clock) passes 20 s (`roomClaimCanAnswer`, a timer for that moment). Closed by hand
+    it isn't asked again (the ask lapses).
+  - Chosen: the wording is neutral masculine («إنت منى تاني؟», «منى رجع؟ رجّعه مكانه») because the
+    app doesn't know who is a woman; the owner's «رجعت / رجّعها» would need that. No «ده أنا» for a
+    computer player's name or a screen.
+  - Tests: `rules.mjs` («Taking your own seat back»: 26 checks - the minute, the fold منى = مُنى, the
+    view without the token, only the host while here, a bot never, the host's own seat and the
+    20 s, the seat's phone back meanwhile, the lapse, four at most), `leaks.mjs` (every room of
+    every game now carries keys and two asks; a probe checks no token or key reaches any phone and
+    `claims` has only its four fields), `play-all.mjs` segment **`claim`** (about 63 s: it waits out
+    the minute; the whole flow over HTTP and the socket, the old key refused afterwards).
+- **1274, «ارجع للغرفة ABCD» on مع بعض.** `togetherBackHtml` (JS_Catalog.html) draws the join
+  screen's card (`lastRoom()`, kept 6 hours; the same `.room-join-back` look and words
+  `room_back_to` / `room_back_hint`) under the three buttons while this phone is in no room; a tap
+  is `roomOpenJoin(code)`, which joins at once with a saved name. Chosen: hidden while in any room.
+- **1276, the how-to card's spacing.** The «إزاي بتشتغل؟» card is `card card--tight btn-stack`
+  (the design system's gap), and «اعرف أكتر» lost its `style="margin-top: var(--sp-3)"`.
+- **1308, «🔮 توقعوها» on the podium.** `podCalledDress` (JS_Motion.html) rides on the podium
+  observer (`podCastWatch`): any `.podium` or `.tv-podium` put on a room screen, while
+  `state.predict` is this game's, gets a row under it - «🔮 توقعوها» and a chip per person whose
+  pick is named on the first step (`samePlayer` against the step's names, so every game's podium
+  gets it with no change of its own). The first time (`motionFirst` on the deal and the voters),
+  after the podium has risen (`data-reveal-ms`), a 🔮 flies from the winner's step to each chip in
+  turn (`flyEmoji`, 200 ms apart) and the chip pops in as it lands (and by a timer). The chat's
+  line stays. Phones and TV (`.pod-called--tv`).
+- **1313, the night's table after every game.** `nightRecapWatch` (JS_Room.html, `Room.onChange`)
+  keeps the night seen while a game was on; when the room comes back to the hub (game → none) and
+  someone's night points rose, `nightRecapShow` lays a compact «لوحة المذيع» over the hub on the
+  phones and the TV: «🌙 جدول الليلة بعد 🕵️ الجاسوس», the rows (place, name, 👑 on the top,
+  points, ▲ +N) rising one after another, the points counting up from before the game
+  (`countUp`), for 8 s (`NIGHT_RECAP_MS`), a tap («دوسة وتكمّل») skips it; the room's one voice
+  plays a ding. It goes at once when a game is chosen. Nothing new from the server: a phone that
+  joined or reloaded in the hub has nothing to compare and shows nothing. Not while برنامج السهرة
+  runs (it has its own table between games).
+- **1318, the splash with its goal.** `playRoomGameStart` (JS_Motion.html) adds the game's catalog
+  line (`CATALOG_BY_ID[...].desc`) under its name (`.game-splash__line`, big on the TV) and then
+  holds `GAME_SPLASH_LINE_MS` (2.45 s: the 0.95 s it had and 1.5 s to read the line); a tap still
+  skips it. أتوبيس كومبليت's bus waits for the splash, so `STOP_BUS_SPLASH_MS` went from 1250 to
+  2750 (games/stop/JS_StopBus.html).
+- **1311, a night keeps its games** (1268 had already put the evening's icons on the night's share
+  card). `rememberNight` now keeps `games` with each night (the room's «لعبناها» list
+  `state.played`, else this phone's memory of what was dealt), and in أرقامي's «ليالينا» the last
+  five nights are buttons with their first four game icons; a tap (`statsNightOpen`, JS_Daily.html)
+  opens the room's small sheet: «سهرة 25/9», the table (👑 on the top score) and «لعبنا» with every
+  game's icon. A night kept before this shows no icons.
+- **1323 and 1322**: the room link's preview for a program or a crew night, and the /r page's
+  button - `notes/previews-errors.md`. **1328**, the program's share card - `notes/games/program.md`.

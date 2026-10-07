@@ -1581,6 +1581,7 @@ function renderTogether() {
       <button type="button" class="btn btn--neutral" onclick="roomOpenScreen()">📺 ${escapeHTML(t.together_tv || '')}</button>
       <button type="button" class="btn btn--ghost btn--sm" onclick="shareAppLink()">${escapeHTML(t.share_app_btn || '')}</button>
     </div>
+    ${togetherBackHtml(t)}
     ${typeof crewTogetherHtml === 'function' ? crewTogetherHtml(t) : ''}
     <section class="section${shelfOpen.together ? ' is-open' : ''}" data-shelf="together">
       <div class="section__head">
@@ -1592,7 +1593,7 @@ function renderTogether() {
       </div>
       <div class="gcard-grid gcard-grid--shelf hscroll-fade">${games.map(g => togetherCard(g, t)).join('')}</div>
     </section>
-    <section class="card card--tight">
+    <section class="card card--tight btn-stack">
       <div class="eyebrow">${escapeHTML(t.together_how || '')}</div>
       <div class="together-steps">
         ${[1, 2, 3].map(n => `
@@ -1601,7 +1602,7 @@ function renderTogether() {
             <span>${escapeHTML(t['together_step' + n] || '')}</span>
           </div>`).join('')}
       </div>
-      <button type="button" class="btn btn--ghost btn--sm" style="margin-top: var(--sp-3)" onclick="openHelpModal()">📘 ${escapeHTML(t.together_more || '')}</button>
+      <button type="button" class="btn btn--ghost btn--sm" onclick="openHelpModal()">📘 ${escapeHTML(t.together_more || '')}</button>
     </section>`;
   settleStagger(view, 'together');
   view.querySelectorAll('.hscroll-fade').forEach(watchScrollFade);
@@ -1610,6 +1611,18 @@ function renderTogether() {
   wireShelfResize();
   if (togetherLiveLast) paintTogetherLive();
   refreshTogetherLive();
+}
+
+/* «ارجع للغرفة ABCD» on مع بعض itself (the ideas of 7 Oct 2026, 1274): the join screen's way back
+   (lastRoom, JS_Room.html: the last room this phone was in, kept 6 hours) as a slim card under the
+   three buttons, while this phone is in no room. A tap opens the join screen with the code, and
+   with a saved name joins at once (roomOpenJoin), as the join screen's own card does. */
+function togetherBackHtml(t) {
+  const r = typeof lastRoom === 'function' ? lastRoom() : null;
+  if (!r || !/^[A-Z0-9]{4,8}$/.test(String(r.code)) || (typeof Room !== 'undefined' && Room.isIn)) return '';
+  return `<button type="button" class="room-join-back together-back" onclick="roomOpenJoin('${r.code}')">
+      <span aria-hidden="true">↩️</span><span class="room-join-back__text">${escapeHTML(t.room_back_to || '')} <b dir="ltr">${escapeHTML(r.code)}</b>` +
+    `<small>${escapeHTML(t.room_back_hint || '')}</small></span><span class="room-join-back__chev" aria-hidden="true">›</span></button>`;
 }
 
 /* A game's poster on مع بعض (the ideas of 7 Oct 2026, 1273): the same poster, but a tap opens a

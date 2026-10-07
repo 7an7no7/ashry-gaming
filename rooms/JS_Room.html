@@ -440,9 +440,34 @@ const Room = (() => {
 
     async join(code, name, screen) {
       const res = await request('/join', { code: String(code || '').trim().toUpperCase(), name: name, screen: !!screen });
-      if (!res.ok) throw roomError(res.error || roomErrText('join'));
+      if (!res.ok) {
+        const err = roomError(res.error || roomErrText('join'));
+        // «ده أنا» (1278): who has the name, and whether that seat's phone is away (room.js join).
+        err.taken = res.taken && typeof res.taken === 'object' ? res.taken : null;
+        throw err;
+      }
       adoptSession(res, res.state.game);
       return res;
+    },
+
+    /**
+     * «ده أنا» (1272): asks for the seat under `name` back ({ waiting, claim, token }), then
+     * comes for the answer: { waiting } while the host hasn't answered, { joined } once this
+     * phone has the seat (the room adopted as a join's is); throws when refused or lapsed.
+     */
+    async claimAsk(code, name) {
+      const res = await request('/claim', { code: String(code || '').trim().toUpperCase(), name: name });
+      if (!res.ok) throw roomError(res.error || roomErrText('join'));
+      return res;
+    },
+    async claimPoll(code, claim, token) {
+      const res = await request('/claim', { code: String(code || '').trim().toUpperCase(), claim: claim, token: token });
+      if (res.ok && res.playerId && res.state) { adoptSession(res, res.state.game); return { joined: true }; }
+      if (res.ok && res.waiting) return { waiting: true };
+      throw roomError(res.error || roomErrText('join'));
+    },
+    claimCancel(code, claim, token) {
+      return request('/claim', { code: String(code || '').trim().toUpperCase(), claim: claim, token: token, cancel: true }).catch(() => {});
     },
 
     /** Send a move. The server is authoritative: this resolves with the state after it. */
@@ -724,6 +749,8 @@ const ROOM_ERR_EN = {
   'اكتب اسمك الأول': 'Type your name first',
   'الغرفة اتملت': 'The room is full',
   'الاسم ده مستخدم في الغرفة، اختار اسم تاني': 'Someone in the room has that name - pick another',
+  'الاسم ده لسه متصل في الغرفة، اختار اسم تاني': "That name's phone is still in the room - pick another",
+  'استنى شوية وجرب تاني': 'Wait a little and try again',
   'دي للمضيف بس': 'Only the host can do that',
   'مينفعش تطلّع نفسك من الغرفة': "You can't remove yourself from the room",
   'ده لسه متصل، مينفعش يطلع': "They're still connected, so they can't be removed",
@@ -1248,6 +1275,9 @@ function roomInviteUrl(code, opts) {
   const o = opts || {};
   const q = [];
   if (o.game && /^[a-z0-9]{1,24}$/.test(o.game)) q.push('g=' + o.game);
+  // A night, not one game (the ideas of 7 Oct 2026, 1323): برنامج السهرة's number of games, or «الشلة» and its name.
+  if (o.program > 0) q.push('p=' + Math.min(12, Math.floor(o.program)));
+  else if (o.crew) q.push('c=1' + (o.crew.name ? '&n=' + encodeURIComponent(String(o.crew.name).slice(0, 30)) : ''));
   if (o.lang === 'en') q.push('l=en');
   return base.replace(/\/?$/, '/') + 'r/' + code + (q.length ? '?' + q.join('&') : '');
 }
@@ -1262,7 +1292,8 @@ async function roomShareLink() {
   const base = window.SERVER_DATA && window.SERVER_DATA.webAppUrl;
   if (!state || !base) return;
   const t = TRANSLATIONS[appState.lang] || {};
-  const url = roomInviteUrl(state.code, { game: state.game, lang: appState.lang });
+  const prog = state.program && state.program.phase !== 'final' ? (state.program.games || []).length : 0;
+  const url = roomInviteUrl(state.code, { game: state.game, lang: appState.lang, program: prog, crew: state.crew || null });
   return shareOrCopy(url, roomShareText(state, t), t.room_link_copied || '');
 }
 
@@ -1380,13 +1411,180 @@ async function roomJoinFromForm() {
     lobbySkeleton(false);
     setView('room-join');
     const msg = String(err.message || '');
-    // Someone in the room has this phone's name: the field comes back to change it.
-    if (String(err.raw || msg).indexOf('الاسم') !== -1) { roomJoinEditName(); roomJoinFieldError('room-join-name', msg); }
+    // Someone in the room has this phone's name: who, and - their phone gone a while - «ده أنا» (1278).
+    if (err.taken && err.taken.name) roomTakenCard(code, name, err.taken);
+    // An older server: the field comes back to change it.
+    else if (String(err.raw || msg).indexOf('الاسم') !== -1) { roomJoinEditName(); roomJoinFieldError('room-join-name', msg); }
     else if (msg.indexOf('ROOM_NOT_FOUND') !== -1 && roomFromLink === code) { roomFromLink = ''; roomClosedCard(code); }
     else if (msg.indexOf('ROOM_NOT_FOUND') !== -1) roomJoinFieldError('room-join-code', roomErrText('notfound'));
     else showToast(msg, 'error');
   }
 }
+
+/* «ده أنا» (the ideas of 7 Oct 2026, 1272 + 1278). A name that is taken says who has it: «فيه منى
+   في الغرفة - إنت منى تاني؟», with «اسم تاني» (the field back, «منى ٢» in it) and - only when
+   that seat's phone has been gone over a minute - «ده أنا», which asks the host to give this
+   phone the seat back (Room.claimAsk) and waits for the answer, asking every 2 s
+   (roomClaimWait). The host's side is roomClaimPrompt below. The joiner's cards are the
+   room's small sheet (room-sheet-modal); the host's question has its own popup. */
+let roomClaimLive = null;   // { code, claim, token, timer }: the ask this phone is waiting on
+function roomTakenCard(code, name, taken) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const body = document.getElementById('room-sheet-body');
+  const modal = document.getElementById('room-sheet-modal');
+  if (!body || !modal) { roomJoinEditName(); roomJoinFieldError('room-join-name', roomErrLocal('الاسم ده مستخدم في الغرفة، اختار اسم تاني')); return; }
+  body.removeAttribute('data-accent');
+  body.removeAttribute('data-accent-auto');
+  const seat = taken.name || name;
+  const fill = (key) => escapeHTML(t[key] || '').split('{name}').join('<bdi>' + escapeHTML(seat) + '</bdi>');
+  body.innerHTML = `
+    <div class="modal-icon" aria-hidden="true">🙋</div>
+    <div class="sheet__title">${fill('room_taken_q')}</div>
+    <p class="sheet__subtitle">${fill(taken.away ? 'room_taken_away' : 'room_taken_here')}</p>
+    <div class="modal-actions">
+      ${taken.away ? `<button type="button" class="btn btn--primary btn--lg" onclick="roomClaimStart('${jsStringAttr(code)}', '${jsStringAttr(seat)}')">👋 ${escapeHTML(t.room_taken_me || '')}</button>` : ''}
+      <button type="button" class="btn ${taken.away ? 'btn--secondary' : 'btn--primary btn--lg'}" onclick="roomTakenOther('${jsStringAttr(seat)}')">✏️ ${escapeHTML(t.room_taken_other || '')}</button>
+    </div>`;
+  modal.classList.remove('hidden');
+  playSound('alarm');
+}
+
+/** «اسم تاني»: the name field back, with the name and the next number in it («منى ٢»), selected. */
+function roomTakenOther(name) {
+  closeModal('room-sheet-modal');
+  roomJoinEditName();
+  const el = document.getElementById('room-join-name');
+  if (!el) return;
+  el.value = String(name || '').trim().slice(0, 21) + ' ' + (appState.lang === 'ar' ? '٢' : '2');
+  setTimeout(() => { try { el.focus(); el.select(); } catch (e) {} }, 300);
+}
+
+async function roomClaimStart(code, name) {
+  const t = TRANSLATIONS[appState.lang] || {};
+  roomClaimStop(false);
+  let res;
+  try {
+    res = await Room.claimAsk(code, name);
+  } catch (err) {
+    closeModal('room-sheet-modal');
+    // The name is free after all (its seat left meanwhile): join as anyone would.
+    if (String(err.raw || '') === 'CLAIM_NONE') { roomJoinFromForm(); return; }
+    showToast(err.message || roomErrText('join'), 'error');
+    roomTakenOther(name);
+    return;
+  }
+  roomClaimLive = { code: code, name: name, claim: res.claim, token: res.token, timer: null };
+  const body = document.getElementById('room-sheet-body');
+  if (body) {
+    body.innerHTML = `
+      <div class="modal-icon room-claim__wait" aria-hidden="true">⏳</div>
+      <div class="sheet__title">${escapeHTML(t.room_claim_wait || '')}</div>
+      <p class="sheet__subtitle">${escapeHTML(t.room_claim_wait_sub || '').split('{name}').join('<bdi>' + escapeHTML(name) + '</bdi>')}</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--ghost" onclick="roomClaimStop(true); closeModal('room-sheet-modal')">${escapeHTML(t.cancel || '')}</button>
+      </div>`;
+  }
+  roomClaimWait();
+}
+
+/** Asks for the answer every 2 s while the waiting card is up; the card closed some other way gives up. */
+function roomClaimWait() {
+  const live = roomClaimLive;
+  if (!live) return;
+  live.timer = setTimeout(async () => {
+    if (roomClaimLive !== live) return;
+    const modal = document.getElementById('room-sheet-modal');
+    if (!modal || modal.classList.contains('hidden')) { roomClaimStop(true); return; }
+    let got = null;
+    try {
+      got = await Room.claimPoll(live.code, live.claim, live.token);
+    } catch (err) {
+      if (roomClaimLive !== live) return;
+      const raw = String(err.raw || '');
+      // The network let one ask go: the next one tries again (the ask lapses on the server by itself).
+      if (raw !== 'CLAIM_NO' && raw !== 'CLAIM_GONE' && raw !== 'ROOM_NOT_FOUND') { roomClaimWait(); return; }
+      roomClaimLive = null;
+      closeModal('room-sheet-modal');
+      const t = TRANSLATIONS[appState.lang] || {};
+      showToast(raw === 'CLAIM_NO' ? (t.room_claim_no || '') : raw === 'CLAIM_GONE' ? (t.room_claim_gone || '') : (err.message || ''), 'error');
+      roomTakenOther(live.name);
+      return;
+    }
+    if (roomClaimLive !== live) return;
+    if (got && got.joined) {
+      roomClaimLive = null;
+      closeModal('room-sheet-modal');
+      playSound('success');
+      haptic('double');
+      if (Room.state) routeRoomState(Room.state);
+      return;
+    }
+    roomClaimWait();
+  }, 2000);
+}
+
+/** Stops waiting; `tell`: the room is told this phone gave up, so the host's question goes. */
+function roomClaimStop(tell) {
+  const live = roomClaimLive;
+  roomClaimLive = null;
+  if (!live) return;
+  clearTimeout(live.timer);
+  if (tell) Room.claimCancel(live.code, live.claim, live.token);
+}
+
+/* The host's side: «منى رجع؟ رجّعه مكانه» on the host's phone or the TV hosting the room, or on
+   any seated phone once the host has been away 20 s (the server checks again). One ask at a time,
+   oldest first; «لأ» or «رجّعه» answers it (claimSeat), and an ask that lapsed or was taken back
+   simply goes. Closed by hand, it isn't asked again (the asking phone's ask lapses in 3 minutes). */
+let roomClaimShown = '';
+let roomClaimLater = null;
+function roomClaimCanAnswer(state) {
+  if (!state || !state.claims || !state.claims.length) return false;
+  if (state.youAreHost || state.hostAway) return true;
+  const me = (state.players || []).find(p => p.id === Room.me);
+  if (!me || me.bot) return false;
+  const host = (state.players || []).find(p => p.id === state.hostId);
+  if (!host) return !(state.screens || []).some(x => x.id === state.hostId && x.online);
+  if (host.online || !host.away) return false;
+  const wait = host.away + 20000 - (Date.now() - (Room.clockGap || 0));
+  if (wait > 0) {
+    clearTimeout(roomClaimLater);
+    roomClaimLater = setTimeout(() => roomClaimPrompt(Room.state), wait + 300);
+    return false;
+  }
+  return true;
+}
+function roomClaimPrompt(state) {
+  const modal = document.getElementById('room-claim-modal');
+  const body = document.getElementById('room-claim-body');
+  if (!modal || !body) return;
+  const c = roomClaimCanAnswer(state) ? state.claims.find(x => x.seat !== Room.me) : null;
+  if (!c) {
+    if (roomClaimShown && !modal.classList.contains('hidden')) closeModal('room-claim-modal');
+    roomClaimShown = '';
+    return;
+  }
+  if (roomClaimShown === c.id) return;
+  roomClaimShown = c.id;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const fill = (key) => escapeHTML(t[key] || '').split('{name}').join('<bdi>' + escapeHTML(c.name) + '</bdi>');
+  body.innerHTML = `
+    <div class="modal-icon" aria-hidden="true">👋</div>
+    <div class="sheet__title">${fill('room_claim_q')}</div>
+    <p class="sheet__subtitle">${fill('room_claim_q_sub')}</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--primary btn--lg" onclick="roomClaimAnswer('${jsStringAttr(c.id)}', true)">🔁 ${fill('room_claim_yes')}</button>
+      <button type="button" class="btn btn--ghost" onclick="roomClaimAnswer('${jsStringAttr(c.id)}', false)">${fill('room_claim_noit')}</button>
+    </div>`;
+  modal.classList.remove('hidden');
+  playSound('success');
+  haptic('light');
+}
+function roomClaimAnswer(id, yes) {
+  closeModal('room-claim-modal');
+  roomAct('claimSeat', { claim: id, ok: !!yes });
+}
+if (typeof Room !== 'undefined') Room.onChange((state) => roomClaimPrompt(state));
 
 /* A link whose room is gone (the ideas of 7 Oct 2026, 1320): not a red line under the code but a
    kind card - «الغرفة دي قفلت 🌙», «افتح غرفة جديدة» first, another code, and when this phone was
@@ -1932,12 +2130,104 @@ function rememberNight(state) {
   const list = readNights();
   const same = list.findIndex(n => n.code === state.code && n.day === day);
   const sig = JSON.stringify(board);
-  if (same !== -1 && JSON.stringify(list[same].board) === sig) return;
-  const entry = { code: state.code, day: day, board: board };
+  // A night keeps its games (the ideas of 7 Oct 2026, 1311): the room's «لعبناها» list (state.played),
+  // else what this phone saw dealt (the share card's memory), for أرقامي's past night.
+  const played = Array.isArray(state.played) && state.played.length ? state.played
+    : (typeof shareNightGamesOf === 'function' ? shareNightGamesOf(state.code) : []);
+  const games = played.filter(g => typeof g === 'string').slice(-30);
+  const old = same !== -1 ? list[same] : null;
+  if (old && JSON.stringify(old.board) === sig && JSON.stringify(old.games || []) === JSON.stringify(games)) return;
+  const entry = { code: state.code, day: day, board: board, games: games };
   if (same !== -1) list[same] = entry; else list.push(entry);
   try { localStorage.setItem(NIGHTS_KEY, JSON.stringify(list.slice(-NIGHTS_KEEP))); } catch (e) {}
 }
 if (typeof Room !== 'undefined') Room.onChange(rememberNight);
+
+/* The night's table after every game (the ideas of 7 Oct 2026, 1313). Back in the hub from a game
+   that banked points, the phones and the TV show the night's table first, for 8 s: the rows rise,
+   each person's points count up from before the game with ▲ +N beside them (the program's «لوحة
+   المذيع», compact), then it goes and the list is there; a tap skips it. Worked out on each phone
+   from the night it saw during the game and the night it sees back in the hub, so nothing new comes
+   from the server; a phone that joined or reloaded in the hub has nothing to compare and shows
+   nothing. برنامج السهرة has its own table between games, so not while one runs. */
+const NIGHT_RECAP_MS = 8000;
+const nightRecapMem = { code: '', inGame: false, game: '', night: {} };
+function nightRecapWatch(state) {
+  if (!state) { nightRecapMem.code = ''; nightRecapClose(); return; }
+  const snap = Object.assign({}, state.night || {});
+  if (state.code !== nightRecapMem.code) {
+    Object.assign(nightRecapMem, { code: state.code, inGame: !!state.game, game: state.game || '', night: snap });
+    return;
+  }
+  if (state.game) {
+    // A game chosen or dealt: the table makes way for it.
+    if (!nightRecapMem.inGame || nightRecapMem.game !== state.game) nightRecapClose();
+    Object.assign(nightRecapMem, { inGame: true, game: state.game, night: snap });
+    return;
+  }
+  const before = nightRecapMem.night;
+  const was = nightRecapMem.inGame ? nightRecapMem.game : '';
+  Object.assign(nightRecapMem, { inGame: false, game: '', night: snap });
+  if (was && !state.program && typeof onRoomView === 'function' && onRoomView()) nightRecapShow(state, before, was);
+}
+if (typeof Room !== 'undefined') Room.onChange(nightRecapWatch);
+
+function nightRecapShow(state, before, gameId) {
+  const night = state.night || {};
+  const rows = roomNightRows(state).filter(r => !r.bot || r.score > 0);
+  rows.forEach(r => { r.gained = Math.max(0, (Number(night[r.id]) || 0) - (Number(before[r.id]) || 0)); });
+  if (!rows.some(r => r.gained > 0)) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const entry = (typeof ROOM_HUB_GAMES !== 'undefined' ? ROOM_HUB_GAMES : []).find(g => g.id === gameId);
+  const game = entry ? ((iconText(entry.icon) ? iconText(entry.icon) + ' ' : '') + (t[entry.key] || entry.id)) : '';
+  const tv = !!state.youAreScreen;
+  const shown = rows.slice(0, tv ? 8 : 10);
+  nightRecapClose(true);
+  const el = document.createElement('div');
+  el.className = 'night-recap' + (tv ? ' night-recap--tv' : '');
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', String(t.room_recap_title || '').replace('{game}', game));
+  el.setAttribute('data-accent', (entry && entry.accent) || 'violet');
+  el.innerHTML = `
+    <div class="night-recap__card">
+      <div class="night-recap__title">🌙 ${escapeHTML(String(t.room_recap_title || '').replace('{game}', game))}</div>
+      <div class="night-recap__rows">${shown.map((r, i) => {
+        const place = 1 + rows.filter(x => x.score > r.score).length;
+        const from = r.score - r.gained;
+        return `
+        <div class="night-recap__row ${place === 1 ? 'is-top' : ''} ${r.left ? 'is-left' : ''}" style="--i:${i}">
+          <span class="night-recap__p metric">${place}</span>
+          <span class="night-recap__name"><bdi>${escapeHTML(r.name)}</bdi>${place === 1 ? ' <span aria-hidden="true">👑</span>' : ''}</span>
+          <b class="night-recap__pts metric" data-from="${from}" data-to="${r.score}">${r.score}</b>
+          ${r.gained ? `<span class="night-recap__up metric">▲ +${r.gained}</span>` : '<span class="night-recap__up"></span>'}
+        </div>`;
+      }).join('')}</div>
+      <div class="night-recap__skip">${escapeHTML(t.room_recap_skip || '')}</div>
+    </div>`;
+  el.addEventListener('click', () => nightRecapClose());
+  document.body.appendChild(el);
+  if (!motionOff() && typeof countUp === 'function') {
+    el.querySelectorAll('.night-recap__pts').forEach((b, i) => {
+      const from = Number(b.dataset.from) || 0, to = Number(b.dataset.to) || 0;
+      if (from === to) return;
+      b.textContent = String(from);
+      setTimeout(() => { if (b.isConnected) countUp(b, from, to); }, 450 + i * 90);
+    });
+  }
+  // The room's one voice (the TV, or the host's phone with no TV), as the program's table.
+  if ((tv || (state.youAreHost && !roomHasScreen())) && typeof playFx === 'function') playFx('ding');
+  el._timer = setTimeout(() => nightRecapClose(), NIGHT_RECAP_MS);
+}
+
+function nightRecapClose(now) {
+  document.querySelectorAll('.night-recap').forEach(el => {
+    clearTimeout(el._timer);
+    if (now || motionOff()) { el.remove(); return; }
+    if (el.classList.contains('is-leaving')) return;
+    el.classList.add('is-leaving');
+    setTimeout(() => el.remove(), 320);
+  });
+}
 
 /* A group opened in one room's list (chess's ways, the puzzle race) is that room's:
    leaving, opening or joining another starts the list from every game. Registered

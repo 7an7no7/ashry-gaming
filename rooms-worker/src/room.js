@@ -12,7 +12,7 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, bumperJoined, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, missionJoined, missionPlayerLeft, HUM_SONGS, humSongIndexOf, roomGameIsOff } from '../generated/rules.js';
+import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, roomSeatAway, roomClaimsPrune, roomClaimAsk, roomClaimAnswer, roomClaimTake, bumperRelaying, bumperJoined, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, missionJoined, missionPlayerLeft, HUM_SONGS, humSongIndexOf, roomGameIsOff } from '../generated/rules.js';
 import { roomView } from './view.js';
 
 const MAX_PLAYERS = 12;
@@ -711,8 +711,12 @@ export class Room extends DurableObject {
       if (room.players.length >= MAX_PLAYERS) return { ok: false, error: 'الغرفة اتملت' };
       // Joining mid-game is allowed: the newcomer watches until the next round.
       // أحمد and احمد are one name, as on the phone and when a screen becomes a player.
-      if (room.players.some((p) => sameRoomName(p.name, name))) {
-        return { ok: false, error: 'الاسم ده مستخدم في الغرفة، اختار اسم تاني' };
+      const taken = room.players.find((p) => sameRoomName(p.name, name));
+      if (taken) {
+        // «ده أنا» (1278): who has the name, and whether that seat's phone has been gone over a
+        // minute - then this phone may ask for the seat back (claim). Old phones read the error only.
+        return { ok: false, error: 'الاسم ده مستخدم في الغرفة، اختار اسم تاني',
+          taken: { name: taken.name, away: roomSeatAway(room, taken.id, this.onlineIds(), Date.now()) } };
       }
       room.players.push({ id: pid, name });
       roomEvent(room, 'joined', { name });
@@ -737,6 +741,96 @@ export class Room extends DurableObject {
     await this.reportLive();
     await this.scheduleAlarm(Date.now() + ONLINE_WINDOW_MS + 1000);
     return { ok: true, playerId: pid, key, state: this.project(pid, this.onlineIds()) };
+  }
+
+  /**
+   * «ده أنا» (the ideas of 7 Oct 2026, 1272): a phone with no key asks for the seat under its
+   * name back (body.name), and then comes for the answer every couple of seconds (body.claim
+   * and body.token, the ask's own; body.cancel to give up). The host's phone (or anyone
+   * seated, the host away) answers with the room action claimSeat. On yes the answer carries
+   * the seat's id and a fresh key, as a join's does; the seat's old key stops working.
+   */
+  async claim(body) {
+    await this.load();
+    const room = this.room;
+    if (!room) return { ok: false, error: 'ROOM_NOT_FOUND' };
+    const now = Date.now();
+    const id = String((body && body.claim) || '');
+    if (id) {
+      if (body.cancel) {
+        const c = (room._claims || []).find((x) => x.id === id && x.token === String(body.token || ''));
+        if (c) {
+          room._claims = room._claims.filter((x) => x !== c);
+          this.touch(false);
+          await this.save();
+          if (c.status === 'pending') this.broadcast();
+        }
+        return { ok: true, cancelled: true };
+      }
+      const pruned = roomClaimsPrune(room, now);
+      const c = roomClaimTake(room, id, body.token, now);
+      if (!c) {
+        if (pruned) { this.touch(false); await this.save(); this.broadcast(); }
+        return { ok: false, error: 'CLAIM_GONE' };
+      }
+      if (c.status === 'pending') {
+        if (pruned) { this.touch(false); await this.save(); }
+        return { ok: true, waiting: true };
+      }
+      this.touch(false);
+      if (c.status !== 'yes' || !room.keys || room.keys[c.seat] !== c.key || !room.players.some((p) => p.id === c.seat)) {
+        await this.save();
+        return { ok: false, refused: true, error: 'CLAIM_NO' };
+      }
+      // This phone is that seat now: here from this moment, as a join is.
+      if (room.lastSeen) delete room.lastSeen[c.seat];
+      this.polled.set(c.seat, now);
+      await this.save();
+      this.broadcast();
+      await this.reportLive();
+      await this.scheduleAlarm(now + ONLINE_WINDOW_MS + 1000);
+      return { ok: true, playerId: c.seat, key: c.key, state: this.project(c.seat, this.onlineIds()) };
+    }
+    let c;
+    try {
+      c = roomClaimAsk(room, body && body.name, this.onlineIds(), now, 'c' + now.toString(36) + Math.floor(Math.random() * 1e6).toString(36), newKey());
+    } catch (err) {
+      return { ok: false, error: errorText(err) };
+    }
+    this.touch(false);
+    await this.save();
+    this.broadcast();
+    // The ask lapses by itself (roomClaimsView hides it); the alarm needn't wake for it.
+    return { ok: true, waiting: true, claim: c.id, token: c.token, name: c.name };
+  }
+
+  /** The host (or anyone seated, the host away 20 s) answers an ask for a seat back: payload { claim, ok }. */
+  async claimSeat(pid, payload, ws) {
+    const room = this.room;
+    const now = Date.now();
+    const online = this.onlineIds();
+    const since = this.hostAwaySince(online, now);
+    const awayFor = room.hostId === pid || since === null ? 0 : Math.max(0, now - since);
+    let c;
+    try {
+      c = roomClaimAnswer(room, pid, payload && payload.claim, !(payload && payload.ok === false), online, now, awayFor, newKey());
+    } catch (err) {
+      return { ok: false, error: errorText(err) };
+    }
+    if (c) {
+      // The seat's old phone, if a socket of it is still open somewhere: its key is gone.
+      if (c.status === 'yes') {
+        for (const sock of this.openSockets()) {
+          if (this.playerOf(sock) !== c.seat) continue;
+          try { sock.send(JSON.stringify({ t: 'kicked' })); sock.close(4001, 'kicked'); } catch (e) {}
+        }
+      }
+      this.touch();
+      await this.save();
+      this.broadcast({ skip: ws });
+    }
+    if (!ws) this.polled.set(pid, now);
+    return { ok: true, state: this.project(pid, this.onlineIds()) };
   }
 
   /** True when this phone has made more moves than MOVE_LIMIT allows in the window (never a computer player). */
@@ -777,6 +871,8 @@ export class Room extends DurableObject {
     // «الشلة»: checked with the crew's own object, so the room's (the rules' can't wait on it).
     if (action === 'setCrew') return this.setCrew(pid, payload, ws);
     if (action === 'crewMe') return this.crewMe(pid, payload, ws);
+    // «ده أنا»: a seat given back is a key the room hands out (claimSeat).
+    if (action === 'claimSeat') return this.claimSeat(pid, payload, ws);
 
     // The rules change the room in place and may throw halfway through a move,
     // so they work on a copy that only replaces the room if the move is legal.

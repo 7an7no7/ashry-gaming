@@ -820,13 +820,28 @@ function progShare() {
   const title = '🌙 ' + (t.prog_title || '');
   const crown = progFill(champs.length > 1 ? (t.prog_champs || '') : (t.prog_champ || ''), { name: champs.join(t.prog_and || ' & ') });
   const awards = (f.awards || []).slice(0, 3).map(a => (PROG_AWARD_ICON[a.k] || '🏅') + ' ' + progAwardText(a, t).title + ': ' + a.name).join(' · ');
+  // The line-up (the ideas of 7 Oct 2026, 1328): each game played as its icon, its winner's name
+  // under it (first places tied: both; a co-op game: 🤝, everyone won it together).
+  const lineup = progLineupWinners(st.program);
   return shareResultCard({
     title: title,
     icon: '🏆',
     rows: (f.table || []).map(r => ({ name: r.name, value: r.pts })),
     footer: '👑 ' + crown + (awards ? '\n' + awards : ''),
-    text: title + ' · 👑 ' + crown + (awards ? ' · ' + awards : '')
+    games: lineup.map(g => ({ icon: progEntry(g.id).icon, name: g.coop ? '🤝' : g.names.join(' · ') })),
+    text: title + ' · 👑 ' + crown + (awards ? ' · ' + awards : '') +
+      (lineup.length ? '\n' + lineup.map(g => (iconText(progEntry(g.id).icon) || progGameName(g.id, t)) + ' ' + (g.coop ? '🤝' : g.names.join('، '))).join(' · ') : '')
   });
+}
+
+/** The games the program played, in order, each with its winners' names (the public program: done, names). */
+function progLineupWinners(p) {
+  const names = (p && p.names) || {};
+  return ((p && p.done) || []).filter(g => g && g.id && !g.skipped).map(g => ({
+    id: g.id,
+    coop: !!g.coop,
+    names: (g.places || []).filter(x => x.place === 1).map(x => names[x.id] || '').filter(Boolean).slice(0, 2)
+  }));
 }
 
 /* Registered once, when this chunk comes: the pill follows every state, and a room left for good takes it away. */

@@ -130,6 +130,60 @@ drawer) instead of `round % players`. Both deal through `nextPrompts` now (their
 `whoami_<lang>_<category>` - the phone sends `cat` and `lang` with the words (both
 optional; an older phone's list is keyed on its length).
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **501 الجاسوس «صوتك بيتحسب»** (rooms only; one phone keeps a point to every player).
+  On a catch, only the citizens who voted for a spy score 1; anyone who accused an
+  innocent gets nothing that round. `finishImposter` (`RoomImposter.js`) reads
+  `room._ballots` when a vote closed this round (`shared.vote.phase === 'results'`)
+  and publishes `shared.pointIds`; a catch with no vote (a missed «أنا الجاسوس», 502)
+  scores every player, as before. The result card (phone and TV) says who scored
+  (`imposterPointsLine`, `imp_points_to`). This replaces «Caught and wrong, a point to
+  every player» above for rooms. Applies to المختلف too (its catch is a vote).
+- **502 الجاسوس «أنا الجاسوس» in the discussion** (rooms, not المختلف). One quiet ghost
+  button «🕵️ أنا الجاسوس» on every phone in the round during `discuss`
+  (`imposterClaimHtml`, `imposterClaim`); a non-spy's tap only says it is the spy's
+  button (`imp_claim_only_spy`), a spy confirms and sends `spyClaim`. The server
+  (`spyClaim`: phase `discuss`, a spy only) opens the guess from six
+  (`imposterOpenGuess`, shared with a vote's catch) with `shared.claim: true` and clears
+  the limit's clock. Right: outcome `claimed`, 3 points to that spy, the round ends
+  (`imp_claimed`; the living spy plays it as a steal). Wrong: `caught`, every player
+  scores (no vote decided it). The host's skip and the spy leaving are a catch, as
+  before. Chosen: the button is in `discuss` only (not on the card-reveal step).
+- **503 الجاسوس «مين يسأل مين؟» in rooms**: the lobby switch (`room-imp-director`,
+  remembered in `ashryImposterRoomOpts.director`, on by default) sends
+  `director: true`; the server keeps `shared.director` (an older phone sends none and
+  gets none) and at `beginDiscussion` starts `shared.dir = { turn, askerId, targetId,
+  asked, targeted }`: the first asker is `shared.firstId`, then `imposterDirNext` walks
+  the one-phone `random` mode (the asker is whoever has asked least, not the last asker
+  from three people; the target whoever has been asked least, never the asker). Every
+  phone and the TV draw «حسن يسأل منى» in the one-phone `.director` card
+  (`imposterDirHtml`, in place of «يبدأ الأسئلة»); `dirNext { turn }` is the asker's
+  «التالي», or the host's (anyone's once the host is away, a ghost button), and a stale
+  turn does nothing. Someone leaving mid-pair: the host's «التالي» draws again from who
+  is here.
+- **511 الحرباء, the board shuffled every deal**: the room's `start` / `nextRound`
+  shuffles the sixteen words (`shuffled`), and the one-phone deal shuffles them before
+  the coordinates are drawn (`startChameleonGame`), so «A1» is not the same word when a
+  category comes back.
+- **512 الحرباء «الإعادة» on a tie** (rooms; the one-phone accusation is one pick, it
+  can't tie): the first tie (`resolveChameleonVote`) goes to `shared.phase = 'tiebreak'`
+  with `shared.tied` (the first vote's bars shown, nobody lit); each of the tied says one
+  more word, then the host's (move-on) «صوّتوا تاني» (`revote`) opens a vote between the
+  tied only, everyone voting (`shared.revote`). A second tie lets the chameleon escape
+  (today's rule). A tied player who left is off the replay's ballot; one left is named
+  outright (`chameleonAccuse`). This replaces «a tie lets the impostor slip away» for
+  الحرباء's first tie.
+- **513 الحرباء «مين فضحها؟»** (rooms and one phone): a stolen word leaves the result
+  with `shared.blamePending`; the chameleon's phone has chips of the others and «محدش»
+  (`chameleonBlameHtml`), everyone else a waiting line and, for the host, a «محدش» to
+  move on. `blame { id }` (the chameleon only; the move-on side may only pass nobody):
+  the named player -1, `shared.blamedId` / `blamedName`, and «🫢 فضحتها» after their
+  name on the board for the round (`chameleonBoardHtml`, the phone and the TV). One
+  phone: the result sheet's «مين فضحها؟» chips (`paintChameleonBlame`,
+  `chameleonBlame`): another name moves the point, the same name takes it back
+  (`chameleonState.blamed`).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -576,6 +576,136 @@ const leave = (r, id, hook = true) => {
 }
 
 {
+  // The owner's picks of 7 Oct 2026: «صوتك بيتحسب» (501), «أنا الجاسوس» (502), «مين يسأل مين؟» (503).
+  const ids = ['a', 'b', 'c', 'd', 'e'];
+  const r = newRoom(ids);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(r, 'a', 'start', { category: 'حيوانات', spies: 1 });
+  const spy = r._impSpies[0];
+  const [x, y, z, w] = ids.filter((id) => id !== spy);
+  applyRoomAction(r, 'a', 'beginDiscussion', {});
+  check(r.shared.dir === null, 'imposter: no ask director unless the lobby asked (an older phone sends none)');
+  applyRoomAction(r, 'a', 'startVote', {});
+  applyRoomAction(r, x, 'vote', { option: spy });
+  applyRoomAction(r, y, 'vote', { option: spy });
+  applyRoomAction(r, z, 'vote', { option: spy });
+  applyRoomAction(r, w, 'vote', { option: x });
+  applyRoomAction(r, spy, 'vote', { option: x });
+  applyRoomAction(r, spy, 'guess', { word: r.shared.options.find((o) => o !== r._impSecret) });
+  check(r.shared.outcome === 'caught' && r.shared.scores[x] === 1 && r.shared.scores[y] === 1 && r.shared.scores[z] === 1 && !r.shared.scores[w] && !r.shared.scores[spy],
+    'imposter 501: on a catch only those who voted for the spy score; an innocent\'s accuser gets nothing');
+  check(JSON.stringify(r.shared.pointIds.slice().sort()) === JSON.stringify([x, y, z].sort()), 'imposter 501: the result names who scored');
+
+  // «أنا الجاسوس»: right is 3 and the round; wrong is caught, every player scoring (no vote decided it).
+  const c = newRoom(ids);
+  applyRoomAction(c, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(c, 'a', 'start', { category: 'حيوانات', spies: 1 });
+  const cs = c._impSpies[0];
+  let refused = false;
+  try { applyRoomAction(c, cs, 'spyClaim', {}); } catch (e) { refused = true; }
+  check(c.phase === 'reveal', 'imposter 502: no claim before the discussion');
+  applyRoomAction(c, 'a', 'beginDiscussion', {});
+  refused = false;
+  try { applyRoomAction(c, ids.find((id) => id !== cs), 'spyClaim', {}); } catch (e) { refused = true; }
+  check(refused && c.phase === 'discuss', 'imposter 502: only a spy can stop the discussion');
+  applyRoomAction(c, cs, 'spyClaim', {});
+  check(c.phase === 'guess' && c.shared.claim === true && c.shared.guesserId === cs && c.shared.options.length === 6 && c.shared.options.includes(c._impSecret),
+    'imposter 502: the spy picks the word from six');
+  applyRoomAction(c, cs, 'guess', { word: c._impSecret });
+  check(c.shared.outcome === 'claimed' && c.shared.scores[cs] === 3 && ids.filter((id) => id !== cs).every((id) => !c.shared.scores[id]),
+    'imposter 502: the right word is 3 points to that spy');
+  applyRoomAction(c, 'a', 'restart', {});
+  applyRoomAction(c, 'a', 'start', { category: 'حيوانات', spies: 1 });
+  applyRoomAction(c, 'a', 'beginDiscussion', {});
+  const cs2 = c._impSpies[0];
+  applyRoomAction(c, cs2, 'spyClaim', {});
+  applyRoomAction(c, cs2, 'guess', { word: c.shared.options.find((o) => o !== c._impSecret) });
+  check(c.shared.outcome === 'caught' && ids.filter((id) => id !== cs2).every((id) => (c.shared.scores[id] || 0) >= 1),
+    'imposter 502: a wrong word counts as caught: every player scores');
+  const u = newRoom(ids);
+  applyRoomAction(u, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(u, 'a', 'start', { undercover: true, spies: 1 });
+  applyRoomAction(u, 'a', 'beginDiscussion', {});
+  applyRoomAction(u, u._impSpies[0], 'spyClaim', {});
+  check(u.phase === 'discuss', 'imposter 502: not in المختلف');
+
+  // «مين يسأل مين؟»: the first asker starts, nobody asks themselves, the counts stay level.
+  const d = newRoom(ids);
+  applyRoomAction(d, 'a', 'chooseGame', { game: 'imposter' });
+  applyRoomAction(d, 'a', 'start', { category: 'حيوانات', spies: 1, director: true });
+  applyRoomAction(d, 'a', 'beginDiscussion', {});
+  check(!!d.shared.dir && d.shared.dir.askerId === d.shared.firstId && d.shared.dir.targetId !== d.shared.dir.askerId && d.shared.dir.turn === 1,
+    'imposter 503: the first pair starts with the first asker');
+  refused = false;
+  const outsider = ids.find((id) => id !== d.shared.dir.askerId && id !== 'a');
+  try { applyRoomAction(d, outsider, 'dirNext', { turn: 1 }); } catch (e) { refused = true; }
+  check(refused && d.shared.dir.turn === 1, 'imposter 503: only the asker (or the host) moves to the next pair');
+  let selfAsk = false;
+  for (let i = 0; i < 19; i++) {
+    applyRoomAction(d, d.shared.dir.askerId, 'dirNext', { turn: d.shared.dir.turn });
+    if (d.shared.dir.askerId === d.shared.dir.targetId) selfAsk = true;
+  }
+  const asked = Object.values(d.shared.dir.asked), targeted = Object.values(d.shared.dir.targeted);
+  check(!selfAsk && d.shared.dir.turn === 20 && Math.max(...asked) - Math.min(...asked) <= 1 && Math.max(...targeted) - Math.min(...targeted) <= 2,
+    'imposter 503: in 20 turns everyone asks 4 times and is asked about as often');
+  applyRoomAction(d, 'a', 'dirNext', { turn: 3 });
+  check(d.shared.dir.turn === 20, 'imposter 503: a stale «التالي» changes nothing');
+}
+
+{
+  // الحرباء, the owner's picks of 7 Oct 2026: the board shuffled (511), «الإعادة» (512), «مين فضحها؟» (513).
+  const ids = ['a', 'b', 'c', 'd'];
+  const CHAM_DB = new Function(readFileSync(srcPath('ChameleonWords.js'), 'utf8') + '\nreturn CHAMELEON_DB;')();
+  let moved = false;
+  for (let i = 0; i < 6 && !moved; i++) {
+    const r = newRoom(ids);
+    applyRoomAction(r, 'a', 'chooseGame', { game: 'chameleon' });
+    applyRoomAction(r, 'a', 'start', { lang: 'ar' });
+    const entry = CHAM_DB.ar.find((e) => e.category === r.shared.category);
+    if (entry && entry.words.join('|') !== r.shared.words.join('|') && entry.words.slice().sort().join('|') === r.shared.words.slice().sort().join('|')) moved = true;
+  }
+  check(moved, 'chameleon 511: the board\'s sixteen words come in a new order');
+
+  const r = newRoom(ids);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'chameleon' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar' });
+  const cham = r._chamId;
+  const [p, q, o] = ids.filter((id) => id !== cham);
+  applyRoomAction(r, 'a', 'startVote', {});
+  const first = { [cham]: p, [p]: q, [q]: p, [o]: q };
+  ids.forEach((id) => applyRoomAction(r, id, 'vote', { option: first[id] }));
+  check(r.shared.phase === 'tiebreak' && r.shared.tied.slice().sort().join() === [p, q].sort().join() && !r.shared.outcome,
+    'chameleon 512: a tie goes to the replay, not to the chameleon');
+  applyRoomAction(r, 'a', 'revote', {});
+  check(r.shared.phase === 'voting' && r.shared.vote.options.map((x) => x.id).sort().join() === [p, q].sort().join(),
+    'chameleon 512: the replay is between the tied only');
+  applyRoomAction(r, cham, 'vote', { option: p });
+  applyRoomAction(r, p, 'vote', { option: q });
+  applyRoomAction(r, q, 'vote', { option: p });
+  applyRoomAction(r, o, 'vote', { option: q });
+  check(r.shared.phase === 'results' && r.shared.outcome === 'escaped' && r.shared.scores[cham] === 2, 'chameleon 512: a second tie lets the chameleon escape');
+
+  applyRoomAction(r, 'a', 'nextRound', { lang: 'ar' });
+  const ch = r._chamId;
+  const rest = ids.filter((id) => id !== ch);
+  applyRoomAction(r, 'a', 'startVote', {});
+  ids.forEach((id) => applyRoomAction(r, id, 'vote', { option: id === ch ? rest[0] : ch }));
+  const before = Object.assign({}, r.shared.scores);
+  applyRoomAction(r, ch, 'guess', { index: r._chamSecret });
+  check(r.shared.outcome === 'stole' && r.shared.blamePending === true, 'chameleon 513: a stolen word waits for «مين فضحها؟»');
+  let refused = false;
+  try { applyRoomAction(r, rest[1], 'blame', { id: rest[0] }); } catch (e) { refused = true; }
+  check(refused && r.shared.blamePending, 'chameleon 513: only the chameleon names who gave it away');
+  applyRoomAction(r, ch, 'blame', { id: rest[0] });
+  check(!r.shared.blamePending && r.shared.blamedId === rest[0] && r.shared.scores[rest[0]] === (before[rest[0]] || 0) - 1 && r.shared.scores[ch] === (before[ch] || 0) + 2,
+    'chameleon 513: the one named loses a point; the chameleon keeps its two');
+  applyRoomAction(r, ch, 'blame', { id: rest[1] });
+  check(r.shared.blamedId === rest[0], 'chameleon 513: named once');
+  applyRoomAction(r, 'a', 'nextRound', { lang: 'ar' });
+  check(!r.shared.blamedId && !r.shared.blamePending, 'chameleon 513: «فضحتها» is for the round');
+}
+
+{
   // The English spy words (the owner, 26 Sep 2026): an English category deals
   // English words and a guess from six English words; المختلف with lang 'en'
   // deals an English pair; the Arabic game is as it was.

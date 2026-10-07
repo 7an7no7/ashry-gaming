@@ -22,6 +22,7 @@ const chameleonState = {
   revealIndex: 0,
   accusedPlayer: "",
   guessing: false, // the caught chameleon is picking the word
+  blamed: null,     // «مين فضحها؟»: who gave a stolen word away ('' nobody, null not asked)
   scores: {},
   scoreId: 0,
   done: false   // the round's result is out: a second accusation must not score it again
@@ -100,7 +101,9 @@ function startChameleonGame(again) {
   }
 
   chameleonState.category = chosen.category;
-  chameleonState.words = [...chosen.words];
+  // Shuffled at every deal (the owner's pick 511, 7 Oct 2026): «A1» is not the same word
+  // every time a category comes back.
+  chameleonState.words = shuffleArray([...chosen.words]);
 
   // Coordinates: 0..3 for row (A-D) and 0..3 for col (1-4)
   chameleonState.rowIdx = Math.floor(Math.random() * 4);
@@ -116,6 +119,7 @@ function startChameleonGame(again) {
   chameleonState.accusedPlayer = '';
   chameleonState.guessing = false;
   chameleonState.done = false;
+  chameleonState.blamed = null;
 
   resetChameleonTable();
   playSound('click');
@@ -360,8 +364,6 @@ function finishChameleonGame(wasCaught, chameleonGuessedWord) {
     titleEl.className = "sheet__title tx-success";
   }
 
-  const board = chameleonState.players.map(p => ({ id: p, name: p, score: chameleonState.scores[p] || 0 }))
-    .sort((a, b) => b.score - a.score);
   const revealKey = ['cham1', chameleonState.scoreId, cham, chameleonState.accusedPlayer, chameleonState.secretWord].join('|');
   const cover = spyRevealParts(revealKey, t.reveal_chameleon_was);
   const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, chameleonWon ? 'escaped' : 'caught', { kind: 'chameleon' }) : '';
@@ -374,12 +376,51 @@ function finishChameleonGame(wasCaught, chameleonGuessedWord) {
       <div><b>${escapeHTML(t.setup_chameleon || '')}:</b> ${escapeHTML(cham)}</div>
     </div>
     </div>
-    <div class="modal-section">${renderScoreboard(board)}</div>
+    ${wasCaught && chameleonGuessedWord ? '<div class="modal-section" id="chameleon-blame"></div>' : ''}
+    <div class="modal-section" id="chameleon-board">${chameleonOneBoardHtml()}</div>
   `;
+  if (wasCaught && chameleonGuessedWord) paintChameleonBlame();
 
   partyModalButton('chameleon-result-modal', 'chameleon-result-exit', 'exitChameleonPlay()', t.exit_settings || '');
   resultModal.classList.remove('hidden');
   if (typeof animateScoreboards === 'function') animateScoreboards({ code: 'chameleon', game: String(chameleonState.scoreId) });
+}
+
+/** The running board, «فضحتها» on whoever gave this round's word away. */
+function chameleonOneBoardHtml() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const board = chameleonState.players.map(p => ({ id: p, name: p + (p === chameleonState.blamed ? ' · 🫢 ' + (t.cham_blamed_badge || '') : ''), score: chameleonState.scores[p] || 0 }))
+    .sort((a, b) => b.score - a.score);
+  return renderScoreboard(board);
+}
+
+/* «مين فضحها؟» (the owner's pick 513): the chameleon who stole the word names whose clue
+   gave it away (-1 and «فضحتها»), or nobody. A tap on another name moves the point; the
+   same name again takes it back. */
+function paintChameleonBlame() {
+  const el = document.getElementById('chameleon-blame');
+  if (!el) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const cham = chameleonState.chameleonPlayer;
+  const chip = (label, value, on) => `<button type="button" class="pick-chip ${on ? 'is-on' : ''}" aria-pressed="${on}" onclick="chameleonBlame('${jsStringAttr(value)}')">${on ? '<span class="pick-chip__tick" aria-hidden="true">✓</span>' : ''}<span class="pick-chip__name">${escapeHTML(label)}</span></button>`;
+  el.innerHTML = `
+    <div class="eyebrow">🫢 ${escapeHTML(t.cham_blame_title || '')}</div>
+    <p class="field__hint">${escapeHTML(t.cham_blame_hint || '')}</p>
+    <div class="chip-set" style="justify-content:center">
+      ${chameleonState.players.filter(p => p !== cham).map(p => chip(p, p, chameleonState.blamed === p)).join('')}
+      ${chip(t.cham_blame_nobody || '', '', chameleonState.blamed === '')}
+    </div>`;
+}
+function chameleonBlame(name) {
+  const prev = chameleonState.blamed;
+  if (prev) chameleonState.scores[prev] = (chameleonState.scores[prev] || 0) + 1;
+  chameleonState.blamed = prev === name ? null : name;
+  if (chameleonState.blamed) chameleonState.scores[chameleonState.blamed] = (chameleonState.scores[chameleonState.blamed] || 0) - 1;
+  chameleonSave();
+  haptic('light');
+  paintChameleonBlame();
+  const board = document.getElementById('chameleon-board');
+  if (board) board.innerHTML = chameleonOneBoardHtml();
 }
 
 /** The result's main button: the same table again, the score carrying on. */

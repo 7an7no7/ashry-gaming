@@ -657,3 +657,83 @@ chosen for a family table and are open to change. Styles: the section «ROOMS, T
   `roomJoinFromForm`, `initRooms` (JS_Room.html); `renderScoreboard` (JS_RoomVoting.html);
   `renderRoomTv`, `tvNightLine`, `tvLobby` (JS_RoomTv.html); `paintAudience`; `renderTogether`;
   `shareRoomNight`; `openExitSheet`; `applyRoomAction`; `roomView`.
+
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+Twelve room ideas (the lobby, the TV, the banner, the chat, مع بعض), each answered "build as
+described"; the details were chosen for a family table and are open to change. Words:
+`JS_Translations.html` (after `room_playing_status`, ar and en).
+
+- **1281, the three doors as one row.** While the host is in the hub with no family open
+  (`roomLobbyDoorsOn`), «🌙 برنامج السهرة», «🕵️ المهمة السرية» and «🎉 الشلة» are equal chips in one
+  row over the list on the game tab (`roomLobbyDoorsHtml`, JS_Room.html; `.lobby-doors` /
+  `.lobby-door` in the lobby part of `Style_Arcade.html`), each calling what its card called
+  (`roomOpenProgram`, `roomOpenMission`, `crewPickForRoom`). The mission chip is there only while
+  the mission is off (on, its card in `#room-mission` stays); the crew chip only when this phone
+  has a crew or the room counts for one (as its line was), named after the crew once picked
+  (`is-on`) - so a host with no crews sees two chips. With a game chosen, for a guest and on the
+  TV the doors stay where they were (`#room-crew` and `#room-mission` are emptied only while the
+  row stands in for them).
+- **1283, players see the host's choices.** The host's phone sends its folded line
+  (`.lobby-opts__sum`, `lobbyOptsSummarise`) as room action **`lobbySum { game, text }`**
+  (`roomLobbySumShare`, half a second after the last change; host only, lobby only, for the game
+  chosen, control characters out, 120 letters at most: `LOBBY_SUM_MAX`, RoomGames.js); the room
+  keeps `room.lobbySum`, cleared by `chooseGame`, projected as `lobbySum` (view.js: '' outside the
+  lobby or for another game). Every other phone shows it read-only under the chosen game's card
+  (`roomLobbySumHtml`, `.lobby-sum`: «⚙️ 3 جولات · 45 ثانية · سهل»). The line is in the host's
+  language; a game whose options are never folded (`LOBBY_OPTS_UNFOLDED`: sides, seats) sends none.
+  Tests: rules.mjs «lobbySum», the core robots.
+- **1285, the lobby's inline styles.** The code's card (`.room-lobby-card`), `#room-wait-note`'s
+  margin (in `.lobby-start #room-wait-note`) and the night table's centred hint and share row
+  (`.room-night__hint`, `.room-night__share`) are rules now.
+- **1291, 🌓 off the TV lobby's bar.** `tvBar` draws the theme button only outside the lobby (the
+  lobby is always a dark stage); the frame's signature carries the phase, so it comes back with a game.
+- **1293, an idle stage cycles.** A TV that isn't the host, on the stage with no game chosen,
+  waits `TV_IDLE_MS` (2 min) with nothing happening - the key is the code, the phase, who is in,
+  the night and the games played; presence alone doesn't count - then takes turns every
+  `TV_IDLE_STEP_MS` (12 s) at the big QR, the night's full table (`tvIdleTableHtml`, up to ten rows,
+  only when anyone has points) and the faces (`tvIdleSync`, `tvIdleTick`, `data-idle` on the stage;
+  the rest fades to 8%, opacity and transform only; Style_Talk.html after the stage's rules). Any
+  change starts the wait over; a rebuilt frame keeps the step it was on.
+- **1295, unread chat on the banner.** `#arb-chat` («💬 2», beside the code) is painted from
+  `syncRoomChat` (`paintRoomChatBanner`, JS_RoomChat.html) with the same unread count as the chat
+  button's badge; a tap opens the chat (`openRoomChat`, without going back to the room); it goes
+  once the chat is read.
+- **1296, a leave confirm that says what happens.** `roomLeave` mid-game (a game dealt, not over,
+  this phone dealt in, not a screen) asks «إنت في نص {game} - دورك هيعدي، ونقط الليلة هتفضل محفوظة»
+  with «اخرج» and «خليني» (`room_leave_mid`, `cf_stay`); the lobby keeps the short one.
+  `showConfirmModal` takes `no` (a key) for its way out's words now (`#custom-confirm-no`, back to
+  «إلغاء» when not given).
+- **1298, where the game is, on the banner.** «بيلعبوا 🕵️ الجاسوس · جولة 3/5 · النتيجة ظهرت»:
+  `roomBannerWhere` reads `shared.round` and the total from `rounds` / `totalRounds` /
+  `settings.rounds` (`ltrFrac`), and says «النتيجة ظهرت» once `roomGameIsOver` or the phase is a
+  result (`ROOM_BANNER_RESULT_PHASES`). A game with no rounds (or a tournament) shows only its name.
+  «دورك!» still takes the line when the room waits on this phone.
+- **1299, back in with a slide.** `roomReturnToActive`, called from off a room screen, folds a
+  ghost of the banner up where it stood (`roomBannerFold`, `.arb-ghost`, 240 ms, opacity and
+  scaleY) and makes the room's screen enter as a step forward (`roomEnterForward`:
+  `view-enter-back` becomes `view-enter-fwd`). Nothing moves with motion off.
+- **1304, «جديد» in the chat.** Opening the sheet with unread messages remembers the first unread
+  (`roomChat.newFrom`, in `syncRoomChat`), draws a thin «جديد» rule above it (`.chat-new`,
+  Style_Finish.html) while the sheet stays open, and scrolls to it instead of the bottom.
+- **1305, «دورك!» with its clock.** `showTurnBanner` (JS_RoomTurn.html) reads the deadline of the
+  move waited for (`roomTurnEndsAt`: `shared.vote.endsAt` for a vote, else `shared.endsAt`, on the
+  server's clock) and, when there is one, writes «فاضل 12ث» (`turn_left`, a `createClock` with
+  `keepRunning`) and drains a 3 px bar at the banner's foot (one linear scaleX animation), staying
+  until the time is up. Without a clock it keeps its 5 s. Either way a `Room.onChange` hides it the
+  moment `roomTurnOf` no longer names that turn.
+- **1275, the live count says what is being played.** Each room reports its game id with its count
+  (`reportLive` in room.js: `room.game` while not in the lobby, '' otherwise; a change of game
+  reports at once); `LiveStats.report(code, players, game)` keeps it (an id of `[a-z0-9-]`, up to
+  24, or nothing), and `read()` adds up players per game: `top: { game, players }` (a tie goes to
+  the game in more rooms), sent by `GET /live`. The مع بعض line reads «دلوقتي فيه 7 لاعبين في 3 غرف
+  · أكتر لعبة شغالة: 🕵️ الجاسوس» (`paintTogetherLive`, JS_Catalog.html; a game the app doesn't list
+  or has switched off is left out). Rooms are still keyed by code inside LiveStats, as before; the
+  only new thing it holds is the game id, and nothing new leaves it but that id and a count.
+  Tests: the core robots (`/live` names a game by id and no room).
+- **Shared functions changed:** `renderRoomLobby`, `renderRoomHub`, `renderChosenGame`,
+  `roomNightBoardHtml`, `roomLeave`, `roomReturnToActive`, `updateRoomBanner` (JS_Room.html, plus
+  the new functions above); `renderRoomTv`, `tvBar`, `tvLobby` (JS_RoomTv.html); `renderRoomChat`,
+  `syncRoomChat` (JS_RoomChat.html); `showTurnBanner`, `hideTurnBanner` (JS_RoomTurn.html);
+  `showConfirmModal` (JS_Utils.html); `paintTogetherLive` (JS_Catalog.html); `applyRoomAction`
+  (`lobbySum`, `chooseGame`); `roomView`; `reportLive`; `LiveStats.report` / `read`; `/live`.

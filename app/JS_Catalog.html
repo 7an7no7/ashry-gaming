@@ -1700,8 +1700,14 @@ function paintTogetherLive(data) {
   const playersText = (players <= 10 ? t.live_players_few : t.live_players_many || t.live_players_few || '').replace('{n}', players);
   const roomsText = (rooms === 1 ? t.live_rooms_one : rooms === 2 ? t.live_rooms_two
     : rooms <= 10 ? t.live_rooms_few : t.live_rooms_many || '').replace('{n}', rooms);
+  // The game most are playing right now, with its icon (the ideas of 7 Oct 2026, 1275): the server
+  // sends a game id only; one the app doesn't list (or switched off) is left out.
+  const top = data && data.top && typeof ROOM_HUB_GAMES !== 'undefined' ? ROOM_HUB_GAMES.find(g => g.id === data.top.game && !(typeof roomGameIsOff === 'function' && roomGameIsOff(g.id))) : null;
+  const topHtml = top && t.live_top
+    ? ` <span class="together-live__top">· ${escapeHTML(t.live_top).replace('{game}', `<span aria-hidden="true">${iconHtml(top.icon)}</span> <b>${escapeHTML(t[top.key] || top.id)}</b>`)}</span>`
+    : '';
   el.innerHTML = `<span class="presence-dot is-online" aria-hidden="true"></span>` +
-    `<span>${escapeHTML((t.live_line || '').replace('{players}', playersText).replace('{rooms}', roomsText))}</span>`;
+    `<span>${escapeHTML((t.live_line || '').replace('{players}', playersText).replace('{rooms}', roomsText))}${topHtml}</span>`;
   el.hidden = false;
 }
 

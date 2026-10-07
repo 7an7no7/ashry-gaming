@@ -545,7 +545,8 @@ export default {
       if (!liveCache || now - liveCache.at > LIVE_CACHE_MS) {
         try {
           const counts = await env.LIVE.get(env.LIVE.idFromName('live')).read();
-          liveCache = { at: now, body: { ok: true, players: counts.players, rooms: counts.rooms } };
+          // `top`: the game most are playing right now, { game, players } (1275), or null.
+          liveCache = { at: now, body: { ok: true, players: counts.players, rooms: counts.rooms, top: counts.top || null } };
         } catch (err) {
           console.error('/live', err && err.stack || err);
           return json({ ok: false, error: 'unavailable' }, 503);

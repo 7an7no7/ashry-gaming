@@ -56,6 +56,8 @@ export const roomView = (room, pid, online, extra) => {
     nightNames: nightLeftNames(room),
     // «لعبناها» (1314): the games dealt tonight, oldest first (the last ROOM_PLAYED_KEEP).
     played: Array.isArray(room.played) ? room.played : [],
+    // The host's options for the game chosen, as the host's phone summed them up (1283): one line of text.
+    lobbySum: room.lobbySum && room.phase === 'lobby' && room.lobbySum.game === room.game ? String(room.lobbySum.text || '') : '',
     // The host's «كبّر الكود على الشاشة» (1287): when the TV's corner QR was asked for (the server's clock).
     tvQrAt: room.tvQrAt || 0,
     // برنامج السهرة (RoomProgram.js): the list, where it is, the night's table, the finale.

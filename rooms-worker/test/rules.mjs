@@ -18000,6 +18000,27 @@ console.log('• the secret mission');
   }
 }
 
+// The host's options as one line for everyone (the ideas of 7 Oct 2026, 1283): room action lobbySum.
+{
+  const r = newRoom(['a', 'b', 'c']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'trivia' });
+  let threw = false;
+  try { applyRoomAction(r, 'b', 'lobbySum', { game: 'trivia', text: 'x' }); } catch (e) { threw = true; }
+  check(threw && !r.lobbySum, 'lobbySum: only the host sends the options line');
+  applyRoomAction(r, 'a', 'lobbySum', { game: 'trivia', text: '  10 أسئلة' + String.fromCharCode(7) + '·  سهل  ' + 'x'.repeat(300) });
+  check(r.lobbySum && r.lobbySum.game === 'trivia' && r.lobbySum.text.length === 120 && r.lobbySum.text.indexOf(String.fromCharCode(7)) === -1 && r.lobbySum.text.indexOf('10 أسئلة') === 0,
+    'lobbySum: kept as one clean line of at most 120 letters');
+  applyRoomAction(r, 'a', 'lobbySum', { game: 'stop', text: 'stale' });
+  check(r.lobbySum.text.indexOf('10') === 0, 'lobbySum: a line for another game than the one chosen is ignored');
+  applyRoomAction(r, 'a', 'backToHub', {});
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'trivia' });
+  check(!r.lobbySum, 'lobbySum: choosing a game starts with no line');
+  applyRoomAction(r, 'a', 'lobbySum', { game: 'trivia', text: '5' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar', count: 5 });
+  applyRoomAction(r, 'a', 'lobbySum', { game: 'trivia', text: 'mid-game' });
+  check(r.lobbySum.text === '5', 'lobbySum: nothing changes once the game is dealt');
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

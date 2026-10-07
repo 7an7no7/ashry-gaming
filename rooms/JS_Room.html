@@ -1429,11 +1429,21 @@ function roomClosedOtherCode() {
 }
 
 async function roomLeave() {
-  const msg = appState.lang === 'ar' ? 'هتخرج من الغرفة؟' : 'Leave this room?';
+  const t = TRANSLATIONS[appState.lang] || {};
+  const s = Room.state;
+  // Mid-game it says what happens (the ideas of 7 Oct 2026, 1296): «إنت في نص الجاسوس - دورك هيعدي،
+  // ونقط الليلة هتفضل محفوظة», «اخرج» / «خليني». In the lobby, a finished game, a mid-round watcher
+  // or a screen, the short one.
+  const mid = !!s && !s.youAreScreen && s.phase !== 'lobby' && !!s.game && s.inGame !== false &&
+    !(typeof roomGameIsOver === 'function' && roomGameIsOver(s));
+  const entry = mid ? ROOM_HUB_GAMES.find(g => g.id === s.game) : null;
+  const msg = mid && t.room_leave_mid
+    ? t.room_leave_mid.replace('{game}', entry ? (t[entry.key] || entry.id) : s.game)
+    : (appState.lang === 'ar' ? 'هتخرج من الغرفة؟' : 'Leave this room?');
   showConfirmModal(msg, async () => {
     await Room.leave();
     setView('menu');
-  }, { yes: 'cf_leave', tone: 'accent', icon: '🚪' });
+  }, Object.assign({ yes: 'cf_leave', tone: 'accent', icon: '🚪' }, mid ? { no: 'cf_stay' } : {}));
 }
 
 async function roomStartGame() {
@@ -1571,14 +1581,17 @@ function renderRoomLobby(state, opts) {
   }
   // «الشلة»: which crew tonight counts for (JS_CrewCore.html).
   const crewEl = document.getElementById('room-crew');
+  // The host in the hub has it in the doors' row over the list instead (1281, roomLobbyDoorsHtml).
   if (crewEl && typeof crewLobbyHtml === 'function') {
-    const html = crewLobbyHtml(state);
+    const html = roomLobbyDoorsOn(state) ? '' : crewLobbyHtml(state);
     if (crewEl.dataset.sig !== html) { crewEl.innerHTML = html; crewEl.dataset.sig = html; }
   }
   // 🕵️ المهمة السرية: the host's switch, or the evening's file (JS_RoomMission.html).
   const msnEl = document.getElementById('room-mission');
   if (msnEl) {
-    const html = roomMissionSlotHtml(state);
+    // Switched off, the host's door is a chip in the doors' row while the list is up (1281).
+    const msn = state.mission;
+    const html = roomLobbyDoorsOn(state) && !(msn && (msn.on || msn.phase === 'reveal')) ? '' : roomMissionSlotHtml(state);
     if (msnEl.dataset.sig !== html) { msnEl.innerHTML = html; msnEl.dataset.sig = html; }
   }
   // «أنت: منى ✏️» on a phone that plays (a screen has no name).
@@ -1614,10 +1627,11 @@ function renderRoomLobby(state, opts) {
         lobbyOptsSummarise(setup);
       }
     }
+    roomLobbySumShare(state, setup);
     // An option changed in place (a switch, a list) says so in the folded line too.
     if (!setup.dataset.sumWatched) {
       setup.dataset.sumWatched = '1';
-      const later = () => setTimeout(() => lobbyOptsSummarise(setup), 0);
+      const later = () => setTimeout(() => { lobbyOptsSummarise(setup); if (Room.state) roomLobbySumShare(Room.state, setup); }, 0);
       setup.addEventListener('change', later);
       setup.addEventListener('click', later);
     }
@@ -1882,9 +1896,9 @@ function roomNightBoardHtml(state, t) {
         <span class="section__rule"></span>
       </div>
       ${renderScoreboard(board)}
-      <p class="field__hint" style="text-align:center">${escapeHTML(t.room_night_hint || '')}</p>
+      <p class="field__hint room-night__hint">${escapeHTML(t.room_night_hint || '')}</p>
       ${!state.youAreScreen && typeof shareCardBtnHtml === 'function'
-        ? `<div class="btn-row" style="justify-content:center">${shareCardBtnHtml('shareRoomNight()', t.night_share || t.share_card || '')}</div>` : ''}
+        ? `<div class="btn-row room-night__share">${shareCardBtnHtml('shareRoomNight()', t.night_share || t.share_card || '')}</div>` : ''}
       ${typeof crewGuestOfferHtml === 'function' ? crewGuestOfferHtml(state, t) : ''}
     </div>`;
 }
@@ -2128,7 +2142,7 @@ function renderRoomHub(state) {
     </div>`;
 
   return `
-    ${roomProgramDoorHtml(state, t)}
+    ${roomLobbyDoorsHtml(state, t)}
     <div class="section">
       <div class="section__head">
         <h2 class="section__title">${t.room_pick_game || 'اختر لعبة'}</h2>
@@ -2157,6 +2171,33 @@ function roomProgramDoorHtml(state, t) {
       <span class="prog-door__chev" aria-hidden="true">›</span>
     </button>`;
 }
+/* The lobby's three doors as one row (the ideas of 7 Oct 2026, 1281): «🌙 برنامج السهرة»,
+   «🕵️ المهمة السرية» and «🎉 الشلة» were three full-width cards over the host's list, and the first
+   games sat under the fold of a 375x667 phone. Now they are equal chips in one row over the list
+   on the game tab, each opening what it opened. Only while the host is in the hub with no family
+   open; the mission once switched on keeps its card (#room-mission), and «الشلة» shows only when
+   this phone has a crew (or the room counts for one), as its line did. Elsewhere (a game chosen,
+   a guest, the TV) the old doors stay where they were. */
+function roomLobbyDoorsOn(state) {
+  return !!state && !!state.youAreHost && !state.youAreScreen && !state.game && !roomHubGroup;
+}
+function roomLobbyDoorsHtml(state, t) {
+  if (!roomLobbyDoorsOn(state)) return '';
+  const chip = (icon, label, onclick, on) => `
+      <button type="button" class="lobby-door${on ? ' is-on' : ''}" onclick="${onclick}"${on ? ' aria-pressed="true"' : ''}>
+        <span class="lobby-door__icon" aria-hidden="true">${icon}</span>
+        <span class="lobby-door__name">${escapeHTML(label || '')}</span>
+      </button>`;
+  const doors = [chip('🌙', t.prog_title, 'roomOpenProgram()', false)];
+  const m = state.mission;
+  if (!(m && (m.on || m.phase === 'reveal'))) doors.push(chip('🕵️', t.mission_title, 'roomOpenMission()', false));
+  const crew = state.crew;
+  if (typeof crewPickForRoom === 'function' && typeof crewList === 'function' && (crew || crewList().length)) {
+    doors.push(chip('🎉', crew ? crew.name : t.crew_title, 'crewPickForRoom()', !!crew));
+  }
+  return `<div class="lobby-doors" role="group">${doors.join('')}</div>`;
+}
+
 /* 🕵️ المهمة السرية: not a game from the list but a switch on the room, running beside every
    game (RoomMission.js). Its page is the chunk 'mission' (JS_RoomMission.html, with Missions.js),
    loaded as soon as a state carries it; before that, the host's door is drawn from here. */
@@ -2231,6 +2272,7 @@ function renderChosenGame(state, game) {
         ? `<button class="btn btn--ghost btn--xs btn--auto" onclick="roomChangeGame(this)">${t.room_change_game || 'تغيير'}</button>`
         : ''}
     </div>
+    ${roomLobbySumHtml(state)}
     ${firstPlay}
     ${game && game.lobbyTop ? game.lobbyTop(state, false) : ''}
     ${bots}
@@ -2300,6 +2342,36 @@ function lobbyOptsSummarise(root) {
     const text = bits.filter(Boolean).slice(0, 4).join(' · ');
     if (out.textContent !== text) out.textContent = text;
   });
+}
+
+/* Players see the host's choices (the ideas of 7 Oct 2026, 1283): the host's phone sends its folded
+   line («٣ جولات · ٤٥ ثانية · سهل») to the room (room action lobbySum { game, text }, kept on the room
+   for that game, state.lobbySum), and every other phone shows it read-only under the chosen game's
+   card, so nobody asks «كام جولة؟». The line is in the host's language, as the host wrote it; a game
+   whose options are never folded (sides, seats) sends none. */
+const roomLobbySum = { sent: '', timer: 0 };
+function roomLobbySumShare(state, root) {
+  // Back in the hub: the next game chosen (the same one again too) starts with no line on the room.
+  if (!state || !state.game) { roomLobbySum.sent = ''; return; }
+  if (!state.youAreHost || state.youAreScreen || state.phase !== 'lobby') return;
+  const out = root && root.querySelector('.lobby-opts .lobby-opts__sum');
+  const text = out ? out.textContent.trim().slice(0, 120) : '';
+  const key = state.code + '|' + state.game + '|' + text;
+  if ((state.lobbySum || '') === text) { roomLobbySum.sent = key; return; }
+  if (roomLobbySum.sent === key) return;
+  clearTimeout(roomLobbySum.timer);
+  const game = state.game;
+  // A beat, so a host stepping through a list sends where they stopped, not every stop.
+  roomLobbySum.timer = setTimeout(() => {
+    const st = Room.state;
+    if (!st || !st.youAreHost || st.phase !== 'lobby' || st.game !== game) return;
+    roomLobbySum.sent = key;
+    Room.act('lobbySum', { game: game, text: text }).catch(() => { roomLobbySum.sent = ''; });
+  }, 500);
+}
+function roomLobbySumHtml(state) {
+  const text = !state.youAreHost && state.phase === 'lobby' ? String(state.lobbySum || '') : '';
+  return text ? `<p class="lobby-sum"><span aria-hidden="true">⚙️</span> <bdi>${escapeHTML(text)}</bdi></p>` : '';
 }
 
 /** The chunks a room needs: its game's, and every puzzle of a race's line-up (سباق ألغاز, «خماسي السهرة»). */
@@ -2469,7 +2541,10 @@ function roomReturnToActive() {
       if (view) delete view.dataset.sig;
     });
   }
+  const fromBanner = !onRoomView();
+  if (fromBanner) roomBannerFold();
   routeRoomState(state);
+  if (fromBanner) roomEnterForward();
   updateRoomBanner();
 }
 
@@ -2509,7 +2584,11 @@ function updateRoomBanner() {
     desc = (t.room_in_lobby || '') + ' \u2022 \ud83d\udc65 ' + ((s && s.players) ? s.players.length : 1);
   } else {
     const entry = ROOM_HUB_GAMES.find(g => g.id === s.game);
-    desc = (t.room_playing_status || '') + ': ' + (entry ? (iconText(entry.icon) ? iconText(entry.icon) + ' ' : '') + (t[entry.key] || entry.id) : s.game);
+    const name = entry ? (iconText(entry.icon) ? iconText(entry.icon) + ' ' : '') + (t[entry.key] || entry.id) : s.game;
+    // Where the game is (1298): «بيلعبوا الجاسوس · جولة ٣/٥» or «· النتيجة ظهرت».
+    desc = t.room_banner_playing ? t.room_banner_playing.replace('{game}', name) : (t.room_playing_status || '') + ': ' + name;
+    const where = roomBannerWhere(s, t);
+    if (where) desc += ' · ' + where;
   }
   // «دورك!» (the ideas of 7 Oct 2026, 1215 = 1294): the game waits on this phone while it is
   // on another screen of the app - the banner turns the pop colour, says what to do, and buzzes
@@ -2528,6 +2607,55 @@ function updateRoomBanner() {
     leave.title = t.room_leave || '';
     leave.setAttribute('aria-label', leave.title);
   }
+}
+
+/* Where the game is, for the banner (the ideas of 7 Oct 2026, 1298): the round out of how many when
+   the game says (shared.round, and rounds / totalRounds / settings.rounds), and «النتيجة ظهرت» once a
+   round's result or the game's end is on the screens - so someone reading the rules knows whether
+   to hurry back. Nothing when the game keeps no rounds. */
+const ROOM_BANNER_RESULT_PHASES = { result: 1, results: 1, reveal: 1, revealed: 1, scores: 1, roundEnd: 1, roundOver: 1 };
+function roomBannerWhere(state, t) {
+  const sh = state.shared || {};
+  const bits = [];
+  const round = Math.floor(Number(sh.round) || 0);
+  if (round >= 1 && !sh.tour) {
+    const total = Math.floor(Number(sh.rounds || sh.totalRounds || (sh.settings && sh.settings.rounds)) || 0);
+    const n = total >= round && typeof ltrFrac === 'function' ? ltrFrac(round, total) : String(round);
+    if (t.room_banner_round) bits.push(t.room_banner_round.replace('{n}', n));
+  }
+  const over = typeof roomGameIsOver === 'function' && roomGameIsOver(state);
+  if ((over || ROOM_BANNER_RESULT_PHASES[sh.phase] || ROOM_BANNER_RESULT_PHASES[state.phase]) && t.room_banner_result) bits.push(t.room_banner_result);
+  return bits.join(' · ');
+}
+
+/* «عودة» slides the room in (the ideas of 7 Oct 2026, 1299): the banner folds up where it stood (a
+   ghost of it, scaled to nothing from its top, transform and opacity only) while the room's screen
+   enters the way a step forward does (view-enter-fwd), whatever the depth of the screen left. */
+function roomBannerFold() {
+  const banner = document.getElementById('active-room-banner');
+  if (!banner || banner.classList.contains('hidden') || motionOff()) return;
+  const r = banner.getBoundingClientRect();
+  if (!r.height || !banner.animate) return;
+  const ghost = banner.cloneNode(true);
+  ghost.removeAttribute('id');
+  ghost.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+  ghost.querySelectorAll('[onclick]').forEach(el => el.removeAttribute('onclick'));
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.classList.add('arb-ghost');
+  ghost.style.top = r.top + 'px';
+  ghost.style.left = r.left + 'px';
+  ghost.style.width = r.width + 'px';
+  ghost.style.height = r.height + 'px';
+  document.body.appendChild(ghost);
+  const done = () => ghost.remove();
+  const a = ghost.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-0.4rem) scaleY(0.3)' }],
+    { duration: 240, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' });
+  a.onfinish = done;
+  setTimeout(done, 400);
+}
+function roomEnterForward() {
+  const view = document.getElementById('view-' + appState.currentView);
+  if (view && view.classList.contains('view-enter-back')) view.classList.replace('view-enter-back', 'view-enter-fwd');
 }
 
 /* The banner's «دورك!»: one buzz per moment (this deal, this game, this kind of turn), never

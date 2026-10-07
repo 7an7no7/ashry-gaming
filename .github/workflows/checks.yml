@@ -89,6 +89,18 @@ jobs:
           set -o pipefail
           npm test -- --retry --failed-out="$RUNNER_TEMP/out/robots.json" 2>&1 | tee "$RUNNER_TEMP/out/robots.log"
 
+      # A failure said where anyone can read it: the run's logs and artifacts need a GitHub
+      # sign-in, its annotations don't (7 Oct 2026). The failed checks and the log's end.
+      - name: Say what failed
+        if: ${{ failure() }}
+        run: |
+          say() { tr -d '\r' | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+          f="$RUNNER_TEMP/out/robots.log"
+          [ -f "$f" ] || exit 0
+          echo "::error title=robots: what failed::$(grep -E '✗|crashed|^failed|needed a second run' "$f" | head -40 | cut -c1-300 | say)"
+          echo "::warning title=robots: the end of the log::$(tail -30 "$f" | cut -c1-300 | say)"
+          echo "::warning title=robots: the rooms server's log::$(tail -20 "$RUNNER_TEMP/out/rooms-server.log" 2>/dev/null | cut -c1-300 | say)"
+
       - name: Keep the output
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -151,6 +163,18 @@ jobs:
           export UI_SHOTS="$RUNNER_TEMP/out/shots"
           echo "Chrome: $CHROME ($("$CHROME" --version))"
           npm run test:ui -- --retry 2>&1 | tee "$RUNNER_TEMP/out/screens.log"
+
+      # A failure said where anyone can read it: the run's logs and artifacts need a GitHub
+      # sign-in, its annotations don't (7 Oct 2026). The failed checks and the log's end.
+      - name: Say what failed
+        if: ${{ failure() }}
+        run: |
+          say() { tr -d '\r' | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}'; }
+          f="$RUNNER_TEMP/out/screens.log"
+          [ -f "$f" ] || exit 0
+          echo "::error title=screens ${{ matrix.name }}: what failed::$(grep -E '✗|crashed|^failed|needed a second run' "$f" | head -40 | cut -c1-300 | say)"
+          echo "::warning title=screens ${{ matrix.name }}: the end of the log::$(tail -30 "$f" | cut -c1-300 | say)"
+          echo "::warning title=screens ${{ matrix.name }}: the rooms server's log::$(tail -20 "$RUNNER_TEMP/out/rooms-server.log" 2>/dev/null | cut -c1-300 | say)"
 
       - name: Keep the output
         if: ${{ !cancelled() }}

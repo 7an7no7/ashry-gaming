@@ -1109,6 +1109,34 @@ for (const outSee of [undefined, false]) {
     `${tag}: ${on ? "at night the one out sees the mafia's pick as it is made" : 'and sees no pick at night'}`);
 }
 {
+  // مافيا, 537 «حكاية الليالي»: each night and day is kept on the server and told only at the end.
+  const r = newRoom(['h', 'p2', 'p3', 'p4', 'p5', 'p6']);
+  applyRoomAction(r, 'h', 'chooseGame', { game: 'mafia' });
+  applyRoomAction(r, 'h', 'start', { mode: 'roles' });
+  const R = r._mafia.roles;
+  const who = (role) => Object.keys(R).find((id) => R[id] === role);
+  const boss = who('mafia'), doc = who('doctor'), det = who('detective');
+  const town = r.shared.roster.filter((id) => R[id] === 'citizen' || R[id] === 'lawyer');
+  applyRoomAction(r, r.hostId, 'startNight', {});
+  applyRoomAction(r, boss, 'nightPick', { target: town[0] });
+  applyRoomAction(r, doc, 'nightPick', { target: town[0] });
+  applyRoomAction(r, det, 'nightPick', { target: boss });
+  town.forEach((id) => applyRoomAction(r, id, 'nightPick', { target: boss }));
+  check(r.shared.phase === 'day' && r.shared.news.kind === 'saved', 'mafia story: the doctor saved the pick of the mafia');
+  check(!('story' in r.shared) && !Object.keys(r.secrets).some((id) => 'story' in r.secrets[id]), 'mafia story: nothing of the night is told before the end');
+  applyRoomAction(r, r.hostId, 'startVote', {});
+  r.shared.roster.forEach((id) => { if (id !== boss) applyRoomAction(r, id, 'vote', { option: boss }); });
+  if (r.shared.phase === 'voting') applyRoomAction(r, boss, 'vote', { option: town[0] });
+  check(r.shared.phase === 'gameover' && r.shared.winner === 'town', 'mafia story: the town votes the mafia out and wins');
+  const st = r.shared.story || [];
+  const n1 = st[0] || {}, d1 = st[1] || {};
+  check(st.length === 2 && n1.k === 'n' && n1.n === 1 && n1.target === town[0] && n1.save === town[0] && n1.doc === doc && n1.out === null &&
+    n1.kills.length === 1 && n1.kills[0].by === boss && n1.check && n1.check.by === det && n1.check.id === boss && n1.check.mafia === true && n1.alive.length === 6,
+    'mafia story: night 1 says who the mafia chose, the save, the check and nobody out');
+  check(d1.k === 'd' && d1.n === 1 && d1.out === boss && !d1.tie && (d1.votes.find((v) => v.id === boss) || {}).n === 5 && (d1.votes.find((v) => v.id === town[0]) || {}).n === 1,
+    'mafia story: day 1 keeps the counts and who went out');
+}
+{
   // مافيا, a room from before the hook: a player gone but still on the living list is not counted.
   const r = newRoom(['h', 'p2', 'p3', 'p4', 'p5']);
   applyRoomAction(r, 'h', 'chooseGame', { game: 'mafia' });

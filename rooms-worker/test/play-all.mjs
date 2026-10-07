@@ -4660,10 +4660,17 @@ async function mafiaSeg() {
   await detective.waitFor((s) => (s.you.checks || []).some((c) => c.id === boss.pid && c.mafia === true), 'the detective finds the mafia');
   await citizens[1].must('nightPick', { target: detective.pid });
   await all(six, (s) => s.shared.phase === 'day' && s.shared.news.kind === 'saved' && s.shared.alive.length === 4, 'the doctor saves the target');
+  check(six.every((b) => !('story' in b.state.shared) && !('story' in (b.state.you || {}))), 'the story of the nights is told to nobody before the end (537)');
   await A.must('startVote');
   for (const b of [boss, doctor, detective, citizens[1]]) await b.must('vote', { option: b === boss ? detective.pid : boss.pid });
   await all(six, (s) => s.shared.phase === 'gameover' && s.shared.winner === 'town' && s.shared.roles.length === 6, 'the mafia voted out: the town wins and every role is shown');
   check(A.state.shared.news.role === 'mafia', 'a mafia member always shows as mafia');
+  const story = A.state.shared.story || [];
+  check(story.length === 4 && story.map((c) => c.k + c.n).join() === 'n1,d1,n2,d2' &&
+    story[0].out === victim.pid && story[0].kills[0].by === boss.pid && story[0].check.by === detective.pid && story[0].check.id === lawyer.pid && story[0].check.mafia === false &&
+    story[0].save === doctor.pid && story[1].out === lawyer.pid && story[2].save === citizens[1].pid && story[2].target === citizens[1].pid && story[2].out === null &&
+    story[2].check.mafia === true && story[3].out === boss.pid && (story[3].votes.find((v) => v.id === boss.pid) || {}).n === 3,
+  'at the end the story of the nights: the picks of each night, the save, the checks, the counts of each day (537)');
   check(six.every((b) => (A.state.shared.scores[b.pid] || 0) === (['mafia', 'lawyer'].indexOf(roleOf(b)) !== -1 ? 0 : 1)), 'a point to each winner, none to the mafia or the lawyer');
   await A.must('backToHub');
   for (const b of [E, F]) { await api('/leave', { code: A.code, pid: b.pid, key: b.key }); b.close(); }

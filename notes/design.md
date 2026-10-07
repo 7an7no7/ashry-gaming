@@ -774,3 +774,22 @@ fixed layer so it costs no repaints.
 - **1232 The running timer in the header.** `#timer-pill` is a second row of the header's grid (`grid-column: 1 / -1`, so it covers nothing; the header's first row keeps its height through `grid-template-rows`), rose (`data-accent="rose"`, accent tokens), «⏱ 3:42»; under 10 s it turns `--danger-btn`. `timerPillSync()` (JS_Core.html) shows it while `appState.timers.general` runs and the screen is not `timers`, from `updateGenDisplay` (every tick), the end of `toggleGenTimer` and an `onLeaveScreen` hook; it pops in once (transform / opacity, skipped when `motionOff()`). A tap is `timerPillGo()` → `navTo('timers')`, so mid-game on one phone it asks first. Chosen: a paused timer shows no pill.
 - **1236 The timer screen in the design system.** `#view-timers`: «تصفير» is `btn--ghost` beside the primary Start (a `.btn-row`, equal halves); `space-y-4`, `py-10`, `mb-6`, `gap-4`, `mt-4` and the `flex` rows are gone for the card's own padding, `.gtm-card` (centred) and `.gtm-adjust` (a centred `.btn-row`, `--sp-4` under it). Found on the way: the Start button's `data-i18n="start_btn"` made every `applyTranslations` (each `setView`) rewrite a running timer's «إيقاف» back to «ابدأ» - `genTimerBtnKey()` (JS_Utils.html) keeps the key equal to the text.
 - **1237 The chess clock on tokens.** `#view-play-chess` lost its Tailwind and inline styles: `position: fixed; inset: 0; z-index: var(--z-full)` (was 99999 inline), `background: var(--bg)`; `.chess-bar` is `--surface-solid` with `--border-strong` borders (all four solid, the landscape block's `border-width: 0 4px` still lands) and `--sh-4`, `z-index: 1` inside the view (was 100000); `.chess-bar__tools` a flex row with `--sp-4`; the times `.chess-half__time` (4.5rem, 6rem from 768px, tabular). `.chess-half.is-out` is `--danger-btn` / `--danger-on` (was #fff on `--danger`). The bar keeps physical `left` / `width` so the landscape override (the bar as the middle column) still applies in Arabic. Rules beside `.chess-half` in `Style_Screens.html`.
+
+## The looks of 7 Oct 2026, second sheet (the owner's picks): built
+
+- **1253 A, «فانوس جنب العلامة»: the season on the intro's mark.** In Ramadan (Islamic month 9) a
+  small lantern hangs on a string beside the mark - on its reading-start side (the right in
+  Arabic, the left in English, from the saved language as the title reads it) - comes down,
+  swings and settles (one CSS animation, `intro-pend`, transform and opacity only, 2.4 s). In
+  the Eid (Shawwal 1-3 and Dhu al-Hijjah 10-13) 26 amber dots like the mark's own dot burst
+  from it and settle round the mark (`intro-dot`, each dot's place in `--x`/`--y`, its
+  strength in `--o`, a fixed seed so it is the same every time). Everything else on the
+  intro is unchanged. The date is `Intl.DateTimeFormat('en-u-ca-islamic-umalqura')` (then
+  `islamic`; a browser without either shows nothing), so no date is ever updated. It is all
+  in `app/Controller.html`: the styles beside the intro's (`.intro__season` is a zero-size
+  anchor put before the mark, at its top centre, so nothing moves), the script in the intro's
+  first `<script>` (ES5, in a try). It fades with the line when the mark flies home
+  (`#app-loader.is-flying .intro__season`); under reduced motion it stands still at its end.
+  About 1.3 KB gzipped on the first visit. **To see it**: `?season=ramadan` or `?season=eid`
+  on a local preview (localhost, 127.0.0.1, `.localhost`, `.test`; ignored on the live
+  hosts), or `introSeason('ramadan' | 'eid')` from a test while the loader is up.

@@ -114,6 +114,48 @@ instead of a chip per player - the names still waiting were the roles still deci
   Chosen where the sheet didn't say: the houses shrink to fit (up to 200 wide, centred when there are few), the
   role line appears 1.3 s after the news.
 
+## The looks of 7 Oct 2026, second sheet (the owner's picks): built
+
+- **537 «حكاية الليالي», look A «صف الوشوش».** After the roles have turned over, the game is told
+  again a chapter at a time (الليلة 1 › النهار 1 › …, on top; a tap on any chapter plays it from
+  there, ↻ from the start). Everyone's face in one row (a coloured dot with the first letter, the
+  role's icon on it, the name and the role under it); the night's moves fly between the faces: a
+  red dotted arc and 🎯 from each Mafia member to their pick («🌙 المافيا (كريم ويوسف) اختارت
+  سارة…»), then the Doctor's green ring and 🛡️ round whoever was protected («كانت قريبة!» when it
+  was the Mafia's target; «برّه اللعبة» under whoever went out), then a yellow arc and 🔍 from the
+  Detective with the answer the Detective was given («مافيا ✓» / «مش مافيا» - the Lawyer reads as
+  not Mafia, as in the game). A day is a red column over each face with its votes and the
+  verdict in the line («🗳️ كريم 4، عمر 3 · المدينة خرّجت كريم من اللعبة»); whoever is out is grey.
+  A beat every 2.6 s (`MAFIA_TALE_MS`), and it stops on the last.
+  - **The server** keeps the story in `room._mafia.story` (never projected): `mafiaStoryNight` at
+    the end of every night (`{ k: 'n', n, alive, kills: [{ by, to }], target, save, doc, check:
+    { by, id, mafia }, out }`, the kills of the living only, like the tally) and a day entry in
+    `mafiaResolveVote` (`{ k: 'd', n, alive, votes: [{ id, n }], out, tie }`, `nobody` among the
+    ids). `mafiaCheckEnd` copies it to `shared.story` beside `shared.roles`, so nothing reaches a
+    phone before the game is over. A night or a vote that a leave ends the game in the middle of is not added.
+  - **The phone** (`JS_RoomMafia.html`): `mafiaTaleHtml` draws the card under the winner's card
+    (springing in 0.7 s after the winner, through the end reveal's `stageReveal`), `mafiaTaleRun`
+    plays it after every render (a new deal from beat one at that moment; a rebuild of the same
+    deal carries on where it was, `mafiaTale.key`), `mafiaTalePaint` draws a beat (the chapter so
+    far, only the newest move with motion: Web Animations on transform / opacity, none under
+    `motionOff()`), `mafiaTaleArcs` the arcs (an SVG over the row, positions from the layout's
+    offsets so the spring-in doesn't skew them; the icon flies along the curve in 12 keyframes).
+    A ResizeObserver redraws on a new width; `onRoomClocksReset(mafiaTaleStop)` stops its timer.
+  - **The TV**: the tale takes the place of the roles and the board (`.mafia-tale--tv`, over
+    them in `.mafia-tv-end`) 2.2 s after the winner's line, so the reveal and the counting still
+    play first; the scores stay in the bottom strip and the host's buttons under it. The sig is
+    unchanged (the tale plays in `after`).
+  - The scene's colours are fixed (a painted night, a painted day for the vote), the same in
+    both themes, like «الحارة بتنام»; its styles are in `MAFIA_CSS` (the chunk). Faces size by
+    the card's width (`cqw`, at most 64px, 14vh on a short screen, 10vmin on the TV), so 12 still
+    fit one row at 375px. Words: `mafia_tale_*`, `mafia_day_n`. Help rule added.
+  - Tests: `rules.mjs` (nothing told before the end; night 1's picks, save, check; day 1's counts),
+    a leak probe (`leaks.mjs`: `story` on no phone and no screen while the game is on),
+    `play-all.mjs` (the four chapters of the robots' game, and none before the end).
+  - Chosen where the sheet didn't say: the tale runs once and stays on its last beat; the line
+    names the Doctor and the Detective in brackets as it does the Mafia; a night when the Mafia
+    picked nobody says «المافيا ما اختارتش حد الليلة دي».
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

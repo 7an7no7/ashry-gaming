@@ -64,6 +64,8 @@ const bombRoomAction = (room, playerId, action, payload) => {
     s.holderId = present[(at + 1) % present.length];
     s.holderName = roomPlayerName(room, s.holderId);
     s.passes = (s.passes || 0) + 1;
+    // 703: the round's hands, for the TV's replay after the boom (who held it is public).
+    s.trail = (Array.isArray(s.trail) ? s.trail : []).concat([s.holderId]).slice(-BOMB_TRAIL_MAX);
     return;
   }
   if (action === 'sendBack') {
@@ -82,6 +84,7 @@ const bombRoomAction = (room, playerId, action, payload) => {
     s.holderName = roomPlayerName(room, s.holderId);
     s.fromId = null;
     s.passes = Math.max(0, (s.passes || 0) - 1);
+    if (Array.isArray(s.trail) && s.trail.length > 1) s.trail = s.trail.slice(0, -1);
     s.sentBack = (s.sentBack || 0) + 1;
     return;
   }
@@ -100,6 +103,9 @@ const bombRoomAction = (room, playerId, action, payload) => {
   }
   throw new Error('إجراء غير معروف');
 };
+
+/** 703: how many hands the TV's replay keeps (the last ones: the end is the funny part). */
+const BOMB_TRAIL_MAX = 40;
 
 /** The bomb went off in the holder's hands. */
 const explodeBomb = (room) => {
@@ -146,6 +152,7 @@ const dealBomb = (room, o) => {
     holderId: holder,
     holderName: roomPlayerName(room, holder),
     passes: 0,
+    trail: [holder],
     strikes: o.strikes,
     loserId: null,
     loserName: '',

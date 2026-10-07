@@ -39,6 +39,10 @@ program always did.
   tests: a clue inside a board word, a clue with one inside it. The robots' TV clue was `screenclue`, which
   holds the English word Screen: it is `qxtvclue` now.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **552 «كلمة جديدة لما تبدّل»**: `swapWord` takes its word from what the prompt memory hasn't dealt lately - the same memory (`codenames_<lang>`) the board was dealt from (`nextPrompts(room, list, key, 1, accept)` with `accept` = not on the board), so a word of the last board doesn't come straight back; a random word not on the board only if that fails. `swapWord` joined `DEAL_ACTIONS` in `rooms-worker/src/room.js`, so the memory shared across rooms is loaded for it.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -120,13 +120,13 @@ ROOM_GAMES.buzzer = {
       } else if (rank === -1 && out) {
         stage = `<div class="bz-stage"><div class="bz-locked"><span aria-hidden="true">❌</span><p>${escapeHTML(t.bz_out_question || '')}</p></div></div>`;
       } else if (rank === -1) {
-        stage = `<div class="bz-stage">
+        stage = `<div class="bz-stage" data-accent="${bzColourOf(Room.me)}">
           <button type="button" class="bz-button" id="bz-button" onclick="pressBuzzer(this, ${Number(s.round) || 1})" aria-label="${escapeHTML(t.bz_press || '')}">
             <span class="bz-button__icon" aria-hidden="true">🔔</span>
             <span class="bz-button__label">${escapeHTML(t.bz_press || '')}</span>
           </button></div>`;
       } else if (!settled) {
-        stage = `<div class="bz-stage">
+        stage = `<div class="bz-stage" data-accent="${bzColourOf(Room.me)}">
           <div class="bz-rank">
             <span class="bz-rank__medal" aria-hidden="true">🔔</span>
             <span class="bz-rank__n">${escapeHTML(t.bz_pressed || '')}</span>
@@ -134,7 +134,7 @@ ROOM_GAMES.buzzer = {
           </div></div>`;
       } else {
         const medal = ['🥇', '🥈', '🥉'][rank] || '🔔';
-        stage = `<div class="bz-stage">
+        stage = `<div class="bz-stage" data-accent="${bzColourOf(Room.me)}">
           <div class="bz-rank ${rank === 0 ? 'is-first' : ''}">
             <span class="bz-rank__medal" aria-hidden="true">${medal}</span>
             <span class="bz-rank__n">${escapeHTML(t.bz_you_are || '')} <b class="metric">${rank + 1}</b></span>
@@ -151,7 +151,7 @@ ROOM_GAMES.buzzer = {
         <div class="bz-order">
           <div class="eyebrow">${escapeHTML(t.bz_order || '')}</div>
           ${buzzes.length ? `<div class="talk-people">${buzzes.slice(0, 6).map((b, i) =>
-              roomPersonChip(b.name, i === 0 ? `<span class="bz-order__tag">${escapeHTML(t.bz_answering || '')}</span>` : bzGapHtml(buzzes, i), i === 0 ? 'is-first' : '')).join('')}</div>`
+              bzPersonChip(b, i === 0 ? `<span class="bz-order__tag">${escapeHTML(t.bz_answering || '')}</span>` : bzGapHtml(buzzes, i), i === 0 ? 'is-first' : '')).join('')}</div>`
           : `<div class="waiting-note">${escapeHTML(armed ? (t.bz_nobody || '') : (t.bz_locked_hint || ''))}</div>`}
         </div>`;
 
@@ -263,6 +263,40 @@ function bzFinishHtml(buzzes) {
       </div>`;
   }).join('');
   return `<div class="bz-finish" dir="ltr" aria-hidden="true"><div class="bz-finish__line"></div><div class="bz-finish__track"></div>${marks}</div>`;
+}
+
+/*
+ * 731 (7 Oct 2026): لون الجرس. Each phone's bell is its player's colour - the colour their
+ * face has on the TV (tvFaceAccent: the same for the same person all evening) - and so is
+ * their chip in the order. On the TV, the first press of a question floods the screen with
+ * that colour for half a second: from across the room you see who buzzed before the name.
+ */
+function bzColourOf(id) {
+  return typeof tvFaceAccent === 'function' ? tvFaceAccent(id) : 'amber';
+}
+function bzPersonChip(b, extra, cls) {
+  return roomPersonChip(b.name, extra, cls).replace('<span class="talk-person ', `<span data-accent="${bzColourOf(b.id)}" class="talk-person `);
+}
+let bzFloodTimer = null;
+function bzTvFlood(state) {
+  clearTimeout(bzFloodTimer);
+  const s = (state && state.shared) || {};
+  const first = (s.buzzes || [])[0];
+  if (!first || s.phase !== 'armed' || motionOff()) return;
+  // The line may still change for a moment (BZ_SETTLE_MS): the colour is the settled first's.
+  if (!bzSettled(first)) {
+    const left = Number(first.arr) + BZ_SETTLE_MS - roomServerNow();
+    bzFloodTimer = setTimeout(() => { const st = Room.state; if (st && st.game === 'buzzer' && appState.currentView === 'room-tv') bzTvFlood(st); }, Math.min(1000, Math.max(30, left + 30)));
+    return;
+  }
+  if (!motionFirst(['bz-flood', roomDealKey(state, s.round)].join('|'))) return;
+  const el = document.createElement('div');
+  el.className = 'bz-flood';
+  el.setAttribute('aria-hidden', 'true');
+  el.setAttribute('data-accent', bzColourOf(first.id));
+  document.body.appendChild(el);
+  if (el.animate) el.animate([{ opacity: 0 }, { opacity: 0.85, offset: 0.25 }, { opacity: 0 }], { duration: 520, easing: 'ease-out', fill: 'forwards' });
+  setTimeout(() => el.remove(), 640);
 }
 
 /** The press has to feel instant: the button locks before the server answers. */

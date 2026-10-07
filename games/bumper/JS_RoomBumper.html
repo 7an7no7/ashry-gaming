@@ -198,10 +198,42 @@ function bmpSendLobbyMode(state) {
   bmpLobbySent = key;
   roomAct('lobbyMode', { mode });
 }
+/* 862 (7 Oct 2026): عربيات التصادم is the one game that can't start without a big screen, so
+   its «no screen yet» line carries «إزاي أوصل التلفزيون؟», a centred note with the ways onto
+   the big screen (a laptop on HDMI, a mirrored phone, a streaming stick's browser). */
+function bmpNeedTvHtml(t, tag) {
+  const el = tag || 'p';
+  return `<${el} class="${el === 'p' ? 'field__hint' : 'waiting-note'} bmp-need">📺 ${escapeHTML(t.bmp_need_tv)}
+      <button type="button" class="btn btn--ghost btn--sm btn--auto bmp-need__how" onclick="bmpTvWaysOpen()">${escapeHTML(t.bmp_tvways_link || '')}</button></${el}>`;
+}
+
+function bmpTvWaysOpen() {
+  const t = bmpT();
+  let el = document.getElementById('bmp-tvways-modal');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'bmp-tvways-modal';
+    el.className = 'modal-overlay hidden';
+    document.body.appendChild(el);
+    if (typeof adoptModal === 'function') adoptModal(el);
+  }
+  const steps = [t.bmp_tvways_1, t.bmp_tvways_2, t.bmp_tvways_3].filter(Boolean);
+  el.innerHTML = `<div class="modal-content modal-content--simple" role="dialog" aria-modal="true">
+      <div class="modal-icon" aria-hidden="true">📺</div>
+      <div class="sheet__title">${escapeHTML(t.bmp_tvways_title || '')}</div>
+      <p class="sheet__subtitle">${escapeHTML(t.bmp_tvways_lead || '')}</p>
+      <ol class="modal-list bmp-tvways">${steps.map(s => `<li>${escapeHTML(s)}</li>`).join('')}</ol>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--primary btn--lg" onclick="closeModal('bmp-tvways-modal')">${escapeHTML(t.ok_btn || 'OK')}</button>
+      </div>
+    </div>`;
+  el.classList.remove('hidden');
+}
+
 function bmpLobbyHtml(state) {
   const t = bmpT();
   const o = bmpLobbyOpts();
-  const tv = bmpHasScreen(state) ? '' : `<p class="field__hint bmp-need">📺 ${escapeHTML(t.bmp_need_tv)}</p>`;
+  const tv = bmpHasScreen(state) ? '' : bmpNeedTvHtml(t);
   const seg = (items, cur, fn) => `<div class="segmented" role="radiogroup">${items.map(([v, label]) =>
     `<button type="button" class="segmented__item ${cur === v ? 'is-active' : ''}" onclick="${fn}('${v}')">${escapeHTML(label)}</button>`).join('')}</div>`;
   if (!state.youAreHost) {
@@ -561,7 +593,7 @@ ROOM_GAMES.bumper = {
       if (s.phase === 'over' && bmpIsBall(s)) return bmpBallOverHtml(state, s, t) + (driver ? bmpSidesHtml(state, bmpX('next_side')) + bmpGarageHtml(state) : '') + renderRoomPlayerStrip(state);
       if (s.phase === 'over') return bmpOverHtml(state, s, t) + (driver ? bmpGarageHtml(state) : '') + renderRoomPlayerStrip(state);
       const color = bmpColorOf(state, me);
-      const noTv = bmpHasScreen(state) ? '' : `<div class="waiting-note bmp-need">📺 ${escapeHTML(t.bmp_need_tv)}</div>`;
+      const noTv = bmpHasScreen(state) ? '' : bmpNeedTvHtml(t, 'div');
       const ink = bmpCarInk(color);
       const acts = `
         <div class="bmp-acts">

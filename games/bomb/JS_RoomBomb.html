@@ -357,6 +357,71 @@ TV_GAMES.bomb = {
     const el = document.getElementById('view-room-tv');
     bombRoomCharacter(state, el, el && el.querySelector('.tv-stage'), null);
     bombRoomTicking(state, rebuilt);
+    bombTvReplay(state, el);
   }
 };
+
+/*
+ * 703 (7 Oct 2026): the boom's replay on the TV. Once the explosion has played, a little
+ * bomb runs the round's passes again over the names (shared.trail, the last 12 hands) in
+ * fast arcs, slowing on the last one into the loser's hands, as the room laughs. Once per
+ * round, only on a TV that saw it go off (bombFx.live), never with motion off.
+ */
+const BOMB_REPLAY_HOPS = 12;
+function bombTvReplay(state, root) {
+  const s = state.shared || {};
+  if (s.phase !== 'boom' || !root || motionOff()) return;
+  const trail = (Array.isArray(s.trail) ? s.trail : []).slice(-(BOMB_REPLAY_HOPS + 1));
+  if (trail.length < 2) return;
+  const key = roomDealKey(state, s.round);
+  if (!bombFx.live[key] || !motionFirst('bomb-replay|' + key)) return;
+  const wait = Math.max(400, BOMB_BOOM_MS - (Date.now() - (bombFx.boomAt[key] || Date.now())) + 300);
+  setTimeout(() => bombTvReplayRun(state, trail, key), wait);
+}
+function bombTvReplayRun(state, trail, key) {
+  const st = Room.state;
+  if (!st || st.game !== 'bomb' || !st.shared || st.shared.phase !== 'boom' || roomDealKey(st, st.shared.round) !== key) return;
+  const tv = document.getElementById('view-room-tv');
+  const chipOf = (id) => tv && Array.from(tv.querySelectorAll('.tv-order [data-bm-pid]')).find(c => c.getAttribute('data-bm-pid') === id);
+  const spots = trail.map(chipOf);
+  if (spots.some(c => !c)) return;
+  const ghost = document.createElement('div');
+  ghost.className = 'bomb-replay';
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.textContent = '💣';
+  const tag = document.createElement('div');
+  tag.className = 'bomb-replay__tag';
+  tag.textContent = '🔁 ' + ((TRANSLATIONS[appState.lang] || {}).bomb_replay || '');
+  document.body.appendChild(ghost);
+  document.body.appendChild(tag);
+  const centre = (c) => { const r = c.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top }; };
+  let i = 0;
+  const hop = () => {
+    // Done, or the TV redrew its names under it (a host's correction): the replay just ends.
+    if (!ghost.isConnected || i >= spots.length - 1 || !spots[i].isConnected || !spots[i + 1].isConnected) { ghost.remove(); tag.remove(); return; }
+    const a = centre(spots[i]);
+    const b = centre(spots[i + 1]);
+    const last = i === spots.length - 2;
+    const ms = last ? 900 : 190;
+    const lift = Math.max(40, Math.abs(b.x - a.x) * 0.35);
+    const anim = ghost.animate([
+      { transform: `translate(${a.x}px, ${a.y}px) translate(-50%, -100%)`, opacity: 1 },
+      { transform: `translate(${(a.x + b.x) / 2}px, ${Math.min(a.y, b.y) - lift}px) translate(-50%, -100%) rotate(${last ? 200 : 120}deg)`, offset: 0.5 },
+      { transform: `translate(${b.x}px, ${b.y}px) translate(-50%, -100%) rotate(${last ? 360 : 240}deg)`, opacity: 1 }
+    ], { duration: ms, easing: last ? 'cubic-bezier(0.2, 0.7, 0.3, 1)' : 'ease-in-out', fill: 'forwards' });
+    const land = () => {
+      if (spots[i + 1].animate) spots[i + 1].animate([{ transform: 'scale(1.18)' }, { transform: 'none' }], { duration: last ? 420 : 200, easing: 'ease-out' });
+      if (last) { playSound('tick'); haptic('light'); }
+      i++;
+      hop();
+    };
+    let done = false;
+    const once = () => { if (!done) { done = true; land(); } };
+    anim.onfinish = once;
+    setTimeout(once, ms + 120);
+  };
+  hop();
+  // Whatever happens, the ghost goes.
+  setTimeout(() => { ghost.remove(); tag.remove(); }, spots.length * 260 + 2500);
+}
 </script>

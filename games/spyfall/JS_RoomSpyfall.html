@@ -72,6 +72,7 @@ ROOM_GAMES.spyfall = {
     const sig = ['spy', s.phase, s.round, (v.voted || []).length, v.phase, s.outcome, state.youAreHost, appState.lang,
                  spyfallRoom.guessing, [...spyfallRoom.crossed].join(','), JSON.stringify(s.scores || {})].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => spyfallFrame(state, t));
+    if (rebuilt) spyfallFirstSpin(el, state, 'phone');
     if (rebuilt && s.phase === 'results' && s.outcome === 'caught' && typeof confetti === 'function') afterReveal(el, () => confetti({ particleCount: 120, spread: 70 }));
     refreshRoomPlayerStrip(el, state);
     if (s.phase === 'play' && s.endsAt) startSpyfallRoomClock(s); else stopSpyfallRoomClock();
@@ -123,7 +124,7 @@ function spyfallFrame(state, t) {
       ? `<button class="btn btn--ghost btn--sm" onclick="spyfallToggleGuess()"><span aria-hidden="true">🕵️ </span>${escapeHTML(t.spy_guess_short || '')}</button>`
       : '';
     return head + card + `
-      <p class="field__hint" style="text-align:center">🎤 ${escapeHTML(t.spy_first || '')}: <b>${escapeHTML(nameOf(s.firstId))}</b></p>
+      <p class="field__hint spy-first" style="text-align:center">🎤 ${escapeHTML(t.spy_first || '')}: <b class="spy-first__name" data-spy-first>${escapeHTML(nameOf(s.firstId))}</b></p>
       <div class="card card--tight ${guessing ? 'spy-guess-card' : ''}">
         <div class="eyebrow ${guessing ? 'tx-danger' : ''}">${escapeHTML(guessing ? (t.spy_pick_place || '') : (t.spy_places || ''))}</div>
         ${guessing ? `<p class="field__hint tx-danger">🎯 ${escapeHTML(t.spy_bold_hint || '')}</p>` : ''}
@@ -268,7 +269,7 @@ TV_GAMES.spyfall = {
     if (s.phase === 'play') {
       return `<div class="tv-vote">${head}
         <div class="tv-timer tv-timer--big" id="tv-spy-timer">${spyfallClockText(s.endsAt)}</div>
-        <div class="tv-note">🎤 ${t.spy_first || ''}: ${escapeHTML(nameOf(s.firstId))} · ${t.spy_tv_hint || ''}</div>
+        <div class="tv-note spy-first">🎤 ${t.spy_first || ''}: <b class="spy-first__name" data-spy-first>${escapeHTML(nameOf(s.firstId))}</b> · ${t.spy_tv_hint || ''}</div>
         ${places}
         ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.spy_start_vote, "roomAct('startVote')")}</div>`)}</div>`;
     }
@@ -294,9 +295,31 @@ TV_GAMES.spyfall = {
       <div class="tv-scale">${renderScoreboard(s.board)}</div>
       ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.next_round, `roomAct('nextRound', { lang: '${VOTE_LANG()}' })`)}${state.youAreHost ? tvBtn(t.room_another_game, "tvBackToHub()", 'ghost') : ''}</div>`)}</div>`;
   },
-  after(state) {
+  after(state, rebuilt) {
     const s = state.shared || {};
+    if (rebuilt) spyfallFirstSpin(document.getElementById('view-room-tv'), state, 'tv');
     if (s.phase === 'play' && s.endsAt) startSpyfallRoomClock(s); else stopSpyfallRoomClock();
   }
 };
+
+/*
+ * 523 (7 Oct 2026): who asks first is a little show that opens every round - the name
+ * spins through everyone in the round (spinLetter over their names) on the phones and the
+ * TV and lands on the one the server picked. Once per round on each screen (motionFirst),
+ * and only in the round's first 20 seconds: a phone reloaded later just shows the name.
+ * Off with motion (spinLetter sets the name at once).
+ */
+function spyfallFirstSpin(root, state, where) {
+  const s = state.shared || {};
+  if (!root || s.phase !== 'play' || !s.firstId) return;
+  const el = root.querySelector('[data-spy-first]');
+  if (!el) return;
+  const minutes = Number(s.minutes) || 0;
+  const now = typeof roomServerNow === 'function' ? roomServerNow() : Date.now();
+  if (!minutes || !s.endsAt || s.endsAt - now < minutes * 60000 - 20000) return;
+  if (!motionFirst(['spy-first', where, roomDealKey(state, s.round)].join('|'))) return;
+  const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '';
+  const pool = (s.roster || []).map(nameOf).filter(Boolean);
+  spinLetter(el, nameOf(s.firstId), pool);
+}
 </script>

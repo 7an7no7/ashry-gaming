@@ -243,7 +243,11 @@ function mindRulerHtml(s, phone) {
 /** The line under the ruler: who played last, or what the table just lost. */
 function mindRulerNote(s, t) {
   if (s.lost && (s.lost.missed || []).length) {
-    return { bad: true, text: (t.mind_miss_line || '').replace('{n}', s.lost.card).replace('{m}', s.lost.missed.join(appState.lang === 'ar' ? '، ' : ', ')) };
+    // 745: each missed card with who held it, in a kind line under the red one.
+    const sep = appState.lang === 'ar' ? '، ' : ', ';
+    const who = (s.lost.who || []).map(h => (t.mind_miss_with || '').replace('{n}', h.n).replace('{name}', h.name || '')).join(sep);
+    return { bad: true, text: (t.mind_miss_line || '').replace('{n}', s.lost.card).replace('{m}', s.lost.missed.join(sep)),
+      who: who ? (t.mind_miss_who || '{list}').replace('{list}', who) : '' };
   }
   if (s.last) return { bad: false, text: (t.mind_played_by || '').replace('{name}', s.last.name || '').replace('{n}', s.last.card) };
   return null;
@@ -351,6 +355,7 @@ ROOM_GAMES.mind = {
         <div class="eyebrow">${escapeHTML(t.mind_ruler || '')}</div>
         ${mindRulerHtml(s, true)}
         ${note ? `<p class="field__hint${note.bad ? ' tx-danger' : ''}">${escapeHTML(note.text)}</p>` : ''}
+        ${note && note.who ? `<p class="field__hint mind-who">${escapeHTML(note.who)}</p>` : ''}
       </div>
       <div class="card">${mindMyCardsHtml(state, s, t)}</div>
       ${mindHandsHtml(state, s, t)}
@@ -401,6 +406,7 @@ TV_GAMES.mind = {
       <div class="tv-trivia mind-tv">${top}
         <div class="mind-tv__ruler">${mindRulerHtml(s, false)}</div>
         ${note ? `<div class="mind-tv__note${note.bad ? ' is-bad' : ''}">${escapeHTML(note.text)}</div>` : ''}
+        ${note && note.who ? `<div class="mind-tv__note mind-who">${escapeHTML(note.who)}</div>` : ''}
         <div class="tv-scale">${mindHandsHtml(state, s, t)}</div>
       </div>`;
   },

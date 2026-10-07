@@ -43,6 +43,7 @@ const LASER_REVEAL_MS = 7000;        // a round with a hit
 const LASER_REVEAL_QUIET_MS = 4000;  // nobody hit
 const LASER_HIDE_MIN_S = 8;
 const LASER_INTRO_MS = 2000;         // round one: the map draws itself before the clock starts
+const LASER_IDLE_ROUNDS = 2;         // 871: rounds untouched before a standing player is moved
 // LASER_BODY, laserK, the maps, laserFit, laserTiles, laserAngle, laserTrace and laserMineHits are in Laser.js.
 
 /** The game's options from a start payload, every one with its default (the owner's). */
@@ -174,12 +175,19 @@ const laserShareMates = (room) => {
 const laserHide = (room) => {
   const s = room.shared;
   const A = laserArena(s);
+  // 871 (7 Oct 2026, the owner's pick, changing «a player who chose nothing stays where they
+  // were»): after two rounds untouched (a phone left on the table), a random spot and aim.
+  const idle = room._laserIdle || {};
+  const moved = [];
   s.alive.forEach(pid => {
     const old = room.secrets[pid];
-    const mine = old && !old.ghost ? old : laserRandomSpot(A);
+    const away = !s.practice && (idle[pid] || 0) >= LASER_IDLE_ROUNDS;
+    if (away) moved.push(pid);
+    const mine = old && !old.ghost && !away ? old : laserRandomSpot(A);
     const p = laserFit(A, mine.x, mine.y);
     room.secrets[pid] = { x: p.x, y: p.y, a: laserAngle(mine.a), a2: laserAngle(mine.a2 === undefined ? mine.a + 90 : mine.a2), ready: false, shield: false, use: false, round: s.round };
   });
+  if (moved.length) s.moved = moved; else delete s.moved;
   laserCrack(room);
   laserSpawnPickups(room);
   laserGhosts(room).forEach(pid => { room.secrets[pid] = { ghost: true, mine: null, round: s.round }; });
@@ -209,6 +217,7 @@ const laserDeal = (room, payload) => {
   room._laserPracticed = true;
   room.secrets = {};
   room._laserBest = null;
+  room._laserIdle = {};
   roster.forEach(pid => { room.secrets[pid] = laserRandomSpot({ map, k: 1, pillars, fallen: [], turret }); });
   const hearts = {};
   roster.forEach(pid => { hearts[pid] = opts.hearts; });
@@ -292,6 +301,12 @@ const laserReveal = (room) => {
   if (s.phase !== 'hide') return;
   const alive = laserAlive(room);
   s.alive = alive;
+  // 871: rounds in a row each standing player chose nothing (no spot, aim, pickup, shield or
+  // ready); the practice round counts nothing.
+  if (!s.practice) {
+    const idle = room._laserIdle || (room._laserIdle = {});
+    alive.forEach(pid => { const m = room.secrets[pid]; idle[pid] = m && m.touched ? 0 : (idle[pid] || 0) + 1; });
+  }
   const A = laserArena(s);
   s.shots = alive.map(pid => {
     const m = room.secrets[pid] && !room.secrets[pid].ghost ? room.secrets[pid] : laserRandomSpot(A);
@@ -522,6 +537,7 @@ ROOM_RULES.laser = {
       if (s.phase !== 'hide' || staleTap(payload, 'round', s.round) || !standing || !mine || mine.ghost) return;
       const p = laserFit(laserArena(s), payload.x, payload.y);
       mine.x = p.x; mine.y = p.y; mine.a = laserAngle(payload.a);
+      mine.touched = true;
       if (payload.a2 !== undefined && payload.a2 !== null) mine.a2 = laserAngle(payload.a2);
       laserShareMates(room);
       return;
@@ -529,11 +545,13 @@ ROOM_RULES.laser = {
     if (action === 'use') {
       if (s.phase !== 'hide' || staleTap(payload, 'round', s.round) || !standing || !mine || mine.ghost || !s.held[playerId]) return;
       mine.use = payload.on !== false;
+      mine.touched = true;
       return;
     }
     if (action === 'shield') {
       if (s.phase !== 'hide' || staleTap(payload, 'round', s.round) || !standing || !mine || mine.ghost || s.shieldUsed[playerId]) return;
       mine.shield = payload.on !== false;
+      mine.touched = true;
       laserShareMates(room);
       return;
     }
@@ -547,6 +565,7 @@ ROOM_RULES.laser = {
     if (action === 'ready') {
       if (s.phase !== 'hide' || staleTap(payload, 'round', s.round) || !standing || !mine || mine.ghost) return;
       mine.ready = payload.on !== false;
+      mine.touched = true;
       laserCheckReady(room);
       return;
     }

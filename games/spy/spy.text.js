@@ -10,6 +10,7 @@ gameText({
       imp_dir_switch: "🎤 مين يسأل مين؟",
       imp_dir_hint: "التطبيق يقول كل مرة مين يسأل مين: اللي سأل أقل يسأل اللي اتسأل أقل، عشان محدش يستخبى.",
       imp_claim_btn: "🕵️ أنا الجاسوس",
+      imp_peek: "كلمتي",
       imp_claim_only_spy: "الزرار ده للجاسوس بس: أنت معاك الكلمة",
       imp_claim_confirm: "توقف النقاش وتختار الكلمة من 6؟ صح = 3 نقط، غلط = كأنهم مسكوك.",
       imp_claim_hint: "اختار الكلمة: صح = 3 نقط، غلط = كأنهم مسكوك.",
@@ -24,6 +25,7 @@ gameText({
       imp_dir_switch: "🎤 Who asks whom?",
       imp_dir_hint: "The app names who asks whom each time: whoever has asked least asks whoever has been asked least, so nobody hides.",
       imp_claim_btn: "🕵️ I'm the imposter",
+      imp_peek: "My word",
       imp_claim_only_spy: "This button is the imposter's: you have the word",
       imp_claim_confirm: "Stop the discussion and pick the word from six? Right = 3 points, wrong = you're caught.",
       imp_claim_hint: "Pick the word: right = 3 points, wrong = you're caught.",
@@ -40,7 +42,7 @@ gameText({
                 <li>مرر الموبايل: كل واحد يدوس مطوّل على الكارت ويشوف الكلمة السرية، إلا الجاسوس يشوف «أنت الجاسوس». أول ما يشيل صباعه تستخبى.</li>
                 <li>اسألوا بعض أسئلة عن الكلمة من غير ما تقولوها. الجاسوس بيحاول يتمشّى مع الكلام ويعرف الكلمة، والباقي بيحاولوا يمسكوه من إجاباته.</li>
                 <li>لما تتأكدوا، اضغطوا <b>اتهموا حد</b> واختاروا واحد (دوسة تختاره ودوسة كمان تأكد). لو طلع الجاسوس، ياخد الموبايل ويختار الكلمة من 6 كلمات.</li>
-                <li>مسكتوه وغلط = نقطة لكل واحد مش جاسوس. هرب أو عرف الكلمة = نقطتين لكل جاسوس. «العب تاني» بيكمّل على نفس النقط. <b>كشف من غير تصويت</b> يوري الإجابة من غير نقط.</li>
+                <li>مسكتوه وغلط = نقطة لكل واحد مش جاسوس. هرب أو عرف الكلمة = نقطتين لكل جاسوس. اللي كان الجاسوس الجولة اللي فاتت فرصته يطلع جاسوس تاني نص فرصة الباقيين (بس ممكن). «العب تاني» بيكمّل على نفس النقط. <b>كشف من غير تصويت</b> يوري الإجابة من غير نقط.</li>
             </ol>
             <p class="help-sub">🎤 مين يسأل مين؟</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -48,7 +50,7 @@ gameText({
             </ul>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>نفس اللعبة من غير تمرير: كل واحد يشوف كلمته على موبايله. بعد النقاش المضيف يفتح <b>التصويت</b>؛ لو مسكتوا الجاسوس عنده فرصة أخيرة يختار الكلمة من 6 كلمات. مسكتوه وغلط = نقطة لكل اللي صوّت عليه، هرب أو عرف الكلمة = نقطتين له. النقاط بتتجمع على طول السهرة.</li>
+                <li>نفس اللعبة من غير تمرير: كل واحد يدوس مطوّل على كارته ويشوف كلمته على موبايله، وتستخبى أول ما يشيل صباعه. في النقاش والتصويت <b>👁️ كلمتي</b> يوريها تاني وأنت دايس. بعد النقاش المضيف يفتح <b>التصويت</b>؛ لو مسكتوا الجاسوس عنده فرصة أخيرة يختار الكلمة من 6 كلمات. مسكتوه وغلط = نقطة لكل اللي صوّت عليه، هرب أو عرف الكلمة = نقطتين له. النقاط بتتجمع على طول السهرة.</li>
                 <li>كل جولة التطبيق بيختار مين <b>يبدأ الأسئلة</b>، أي حد، حتى الجاسوس نفسه.</li>
                 <li>المضيف يقدر يحط <b>حد للنقاش</b> (3 أو 5 أو 8 دقايق): لما الوقت يخلص، التصويت بيفتح لوحده.</li>
                 <li>بعد التصويت بتظهر الأصوات واحد واحد، وعمود الجاسوس آخر واحد، وبعدها الكارت يتقلب.</li>
@@ -64,7 +66,7 @@ gameText({
                 <li>Pass the phone: each player presses and holds the card to see the secret word, except the imposter, who sees "You are the imposter". It hides again the moment they let go.</li>
                 <li>Ask each other about the word without saying it. The imposter tries to blend in and work out the word; the rest try to catch them from their answers.</li>
                 <li>When you are sure, press <b>Accuse someone</b> and pick one (tap to pick, tap again to confirm). If it is the imposter, they take the phone and pick the word from six.</li>
-                <li>Caught and wrong = a point to everyone who isn't an imposter. Escaped or guessed the word = two to each imposter. Play again keeps the score. <b>Reveal without a vote</b> shows the answer with no points.</li>
+                <li>Caught and wrong = a point to everyone who isn't an imposter. Escaped or guessed the word = two to each imposter. Last round's imposter is half as likely as the others to be the imposter again (but still can be). Play again keeps the score. <b>Reveal without a vote</b> shows the answer with no points.</li>
             </ol>
             <p class="help-sub">🎤 Who asks whom?</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -72,7 +74,7 @@ gameText({
             </ul>
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>The same game with no passing: everyone sees their word on their own phone. After the discussion the host opens the <b>vote</b>; a caught imposter gets one last pick of the word from six. Caught and wrong = a point to each who voted for them; escaped or guessed = two for the imposter. Points add up all evening.</li>
+                <li>The same game with no passing: everyone presses and holds their card to see their word on their own phone, and it hides when they let go. During the discussion and the vote, <b>👁️ My word</b> shows it again while held. After the discussion the host opens the <b>vote</b>; a caught imposter gets one last pick of the word from six. Caught and wrong = a point to each who voted for them; escaped or guessed = two for the imposter. Points add up all evening.</li>
                 <li>Every round the app picks who <b>asks first</b>: anyone, the imposter included.</li>
                 <li>The host can set a <b>discussion limit</b> (3, 5 or 8 minutes): when it runs out, the vote opens by itself.</li>
                 <li>After the vote the ballots rise one by one, the imposter's bar last, and then the card turns over.</li>

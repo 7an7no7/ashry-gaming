@@ -9,6 +9,7 @@ gameText({
                 <li>واحد يمسك الموبايل ويوصف الكلمة لفريقه بأي كلام، بس <b>ممنوع</b> الكلمات الحمرا اللي تحتها.</li>
                 <li>قال كلمة ممنوعة؟ يتخطاها. عرفوها؟ <b>صح</b>.</li>
                 <li>اجمع أكبر عدد كلمات قبل ما الوقت يخلص. الكروت مش بتتكرر على نفس الموبايل لحد ما تخلص كلها.</li>
+                <li>لما الوقت يخلص تشوف كل كروت الجولة، وتقدر تصلّح أي حكم بلمسة. الكارت اللي كان على الشاشة مع الجرس بييجي في الآخر <b>🔔 كان على الشاشة</b> من غير حكم: لو عرفوه مع الجرس المسه ويتحسب.</li>
             </ol>
             <p class="help-sub">👥 فريقين</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -22,6 +23,7 @@ gameText({
                 <li>One player holds the phone and describes the word to their team any way they like, but the red words underneath are <b>forbidden</b>.</li>
                 <li>Said a forbidden word? Skip it. Got it? <b>Correct</b>.</li>
                 <li>Collect as many words as you can before time runs out. Cards don't repeat on the same phone until they have all been played.</li>
+                <li>When time is up you see the turn's cards, and a tap fixes any verdict. The card that was up when the bell rang comes last, <b>🔔 was on the screen</b>, with no verdict: if the team got it with the bell, tap it and it counts.</li>
             </ol>
             <p class="help-sub">👥 Two teams</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

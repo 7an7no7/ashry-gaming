@@ -255,6 +255,79 @@ function paintEmoji() {
       e.revealed ? [t.emoji_next, 'nextEmojiRiddle()'] : ['👀 ' + (t.emoji_reveal || ''), 'revealEmoji()'],
       e.revealed ? '' : 'nextEmojiRiddle()', scoring, 'finishEmojiGame()', 'setupEmoji()')}`;
   if (scoring) quizSettleBoard(e, 'emoji');
+  // 607: a new riddle's emoji land one after another, once per riddle dealt.
+  if (!e.revealed && motionFirst(['emoji1', e.n, r.e].join('|'))) emojiSpinIn(stage.querySelector('.emoji-card__e'), r.e);
+}
+
+/*
+ * 607 (7 Oct 2026): الإيموجي بتلف. A new card's emoji land one after another like a
+ * slot machine: each one flickers through emoji from the bank and stops on its own,
+ * in the line's own order (the first of the riddle first), a tick as each lands.
+ * On the one-phone card and on the TV; with motion off the riddle is simply there.
+ */
+let emojiSpinPoolCache = null;
+function emojiGraphemes(text) {
+  const s = String(text || '');
+  try {
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) return Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(s), x => x.segment);
+  } catch (err) { /* an old browser: the line as one reel */ }
+  return [s];
+}
+function emojiSpinPool() {
+  if (emojiSpinPoolCache) return emojiSpinPoolCache;
+  const seen = {};
+  const out = [];
+  const bank = typeof EMOJI_RIDDLES !== 'undefined' ? (EMOJI_RIDDLES.ar || []).concat(EMOJI_RIDDLES.en || []) : [];
+  for (let i = 0; i < bank.length && out.length < 160; i++) {
+    emojiGraphemes(bank[i] && bank[i].e).forEach(g => { if (g && !/^\s+$/.test(g) && !seen[g]) { seen[g] = true; out.push(g); } });
+  }
+  emojiSpinPoolCache = out;
+  return out;
+}
+function emojiSpinIn(host, text) {
+  if (!host || motionOff()) return;
+  const parts = emojiGraphemes(text);
+  const pool = emojiSpinPool();
+  if (parts.length < 1 || pool.length < 4) return;
+  host.innerHTML = parts.map(p => (/^\s+$/.test(p) ? escapeHTML(p) : `<span class="emoji-slot">${escapeHTML(p)}</span>`)).join('');
+  const slots = host.querySelectorAll('.emoji-slot');
+  slots.forEach((el, i) => emojiSlotRoll(el, el.textContent, pool, 600 + i * 300));
+}
+function emojiSlotRoll(el, real, pool, stopAfter) {
+  const token = {};
+  el._roll = token;
+  const others = pool.filter(x => x !== real);
+  const pick = (not) => { let x = others[Math.floor(Math.random() * others.length)]; if (x === not) x = others[(others.indexOf(x) + 1) % others.length]; return x; };
+  // The real one never shows first: a stand-in goes in before the frame is drawn.
+  let shown = pick('');
+  el.textContent = shown;
+  el.classList.add('is-rolling');
+  let start = 0;
+  const land = () => {
+    if (el._roll !== token) return;
+    el._roll = null;
+    el.textContent = real;
+    el.classList.remove('is-rolling', 'motion-landed');
+    void el.offsetWidth;
+    el.classList.add('motion-landed');
+    setTimeout(() => el.classList.remove('motion-landed'), 520);
+    playSound('tick');
+  };
+  const flick = () => {
+    if (el._roll !== token) return;
+    if (!el.isConnected) { el._roll = null; return; }
+    const at = Date.now() - start;
+    if (at >= stopAfter) { land(); return; }
+    shown = pick(shown);
+    el.textContent = shown;
+    if (el.animate) el.animate([{ transform: 'translateY(-35%)', opacity: 0.35 }, { transform: 'none', opacity: 0.9 }], { duration: 70, easing: 'ease-out' });
+    const f = at / stopAfter;
+    setTimeout(flick, 55 + Math.round(150 * f * f));
+  };
+  // The clock starts on the first frame drawn (a screen being rebuilt may take a while).
+  requestAnimationFrame(() => { start = Date.now(); flick(); });
+  // Whatever happens to the frames, the real emoji is there in the end.
+  setTimeout(land, stopAfter + 1500);
 }
 
 function restoreEmoji() {

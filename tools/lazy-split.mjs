@@ -342,7 +342,7 @@ export const SHELL_USES_OK = {
   JS_RoomTrivia: 'triviaRevealPlan startTriviaClock stopTriviaClock triviaRevealRun',
   JS_RoomDraw: 'drawHintHtml resetDrawSurface bindDrawSurface paintStrokes paintGuessList drawPaintCategory startDrawClock stopDrawClock',
   JS_RoomFakeArtist: 'faOnline faDot faName faSkipTurnCall faResultLine faFakeName fakeArt bindFakeArtistCanvas paintFakeArtist',
-  JS_RoomBuzzer: 'bzFinishHtml bzGapHtml bzUndoHtml bzQuizHtml bzBoardHtml',
+  JS_RoomBuzzer: 'bzFinishHtml bzGapHtml bzUndoHtml bzQuizHtml bzBoardHtml bzTvFlood',
   JS_StopBus: 'stopBusSceneHtml stopBusRoomPax stopBusLeftHtml stopBusLeftNames stopBusMem stopBusSyncPax stopBusWhenDriving',
   JS_RoomStop: 'stopRoundKey stopUnknownCount stopReviewTable startStopRoomClock stopStopRoomClock',
   JS_Flags: 'startFlags',

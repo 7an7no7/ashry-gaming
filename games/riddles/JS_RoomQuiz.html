@@ -305,6 +305,12 @@ function quizTv(game) {
     after(state, rebuilt) {
       const s = state.shared;
       if (s.phase === 'answering') armQuizClock(s.endsAt); else stopQuizClock();
+      // 607: a new riddle's emoji land one by one on the TV, once per card.
+      if (game === 'emoji' && rebuilt && s.phase === 'answering' && s.card && typeof emojiSpinIn === 'function'
+          && motionFirst(['emoji-tv', roomDealKey(state, s.qIndex)].join('|'))) {
+        const tv = document.getElementById('view-room-tv');
+        emojiSpinIn(tv && tv.querySelector('.emoji-card__e'), s.card.e || '');
+      }
       if (rebuilt && s.phase === 'gameover' && typeof confetti === 'function') confetti({ particleCount: 180, spread: 100, origin: { y: 0.6 } });
     }
   };

@@ -29,6 +29,8 @@ gameText({
       laser_out_watch: "خرجت. بتتفرج على الباقيين",
       laser_watch: "بتتفرج: هتلعب الجاية",
       laser_tv_hide: "استخبّوا وصوّبوا على موبايلاتكم",
+      laser_moved_tv: "مش هنا؟ {names} اتنقل لمكان عشوائي",
+      laser_moved_you: "مش هنا؟ فضلت مكانك جولتين، فاتنقلت لمكان عشوائي",
       laser_show: "اظهروا!",
       laser_charge: "بيشحنوا…",
       laser_fire: "⚡ ضرب!",
@@ -166,6 +168,8 @@ gameText({
       laser_out_watch: "You're out. Watching the others",
       laser_watch: "Watching: you're in the next game",
       laser_tv_hide: "Hide and aim on your phones",
+      laser_moved_tv: "Not here? {names} moved to a random spot",
+      laser_moved_you: "Not here? You stood still two rounds, so you were moved to a random spot",
       laser_show: "Show yourselves!",
       laser_charge: "Charging…",
       laser_fire: "⚡ Fire!",
@@ -282,7 +286,7 @@ gameText({
     ar: {
       laser: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>كل جولة: المس مكانك على الحلبة واسحب لاتجاهك (أو ⟲ ⟳ للظبط). محدش شايف حد. الوقت بيقل ثانية كل جولة.</li>
+                <li>كل جولة: المس مكانك على الحلبة واسحب لاتجاهك (أو ⟲ ⟳ للظبط). محدش شايف حد. الوقت بيقل ثانية كل جولة. ما لمستش حاجة؟ بتفضل مكانك، بس بعد جولتين من غير ما تلمس الموبايل بتتنقل لمكان عشوائي.</li>
                 <li>بعدين الكل يظهر و<b>الكل يضرب مرة واحدة</b>. الليزر بيعدّي من كل اللي في خطه، واللي يتضرب يخسر قلب، ولو مالوش قلوب يخرج.</li>
                 <li><b>🛡️ الدرع</b> مرة واحدة في اللعبة: بيوقف أي ليزر، بس مش هتضرب الجولة دي.</li>
                 <li><b>👻 الأشباح</b>: اللي خرج يحط لغم مستخبي كل جولة، واللي يقف عليه يتضرب.</li>
@@ -299,7 +303,7 @@ gameText({
     en: {
       laser: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
-                <li>Each round: touch your spot on the arena and drag to aim (or ⟲ ⟳ to fine-tune). Nobody sees anyone. The clock is a second shorter each round.</li>
+                <li>Each round: touch your spot on the arena and drag to aim (or ⟲ ⟳ to fine-tune). Nobody sees anyone. The clock is a second shorter each round. Touched nothing? You stay where you were, but after two rounds without touching the phone you are moved to a random spot.</li>
                 <li>Then everyone appears and <b>everyone fires at once</b>. A laser goes through everyone in its line; whoever is hit loses a heart, and with none left is out.</li>
                 <li><b>🛡️ The shield</b>, once a game: it stops every laser, but you don't fire that round.</li>
                 <li><b>👻 Ghosts</b>: whoever is out drops a hidden mine each round; whoever stands on it is hit.</li>

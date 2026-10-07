@@ -265,6 +265,10 @@ Decided here (open to change, each in one place):
   - Shots: `scratchpad/sheet7/built/858-*.png` (phone garage 375 ar dark / en light / 667x375, the TV lobby's
     plinths 1280x720, the 3D rink).
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **862 «إزاي أوصل التلفزيون؟»**: the game that can't start without a big screen says how to get one. The «no screen yet» line (the lobby, for the host and everyone, and a phone in a game whose screen left) carries a ghost button (`bmpNeedTvHtml`) that opens a centred note (`bmpTvWaysOpen`, a popup made on first use and adopted like the others): open the room's link on the big screen and pick «شاشة العرض», by a laptop on HDMI, a mirrored phone (AirPlay, Smart View / Cast) or a streaming stick's browser - the same three ways as the old-browser page. Words in `bumper.text.js` (`bmp_tvways_*`), styles in `Style_Rooms.html` (`.bmp-need__how`, `.bmp-tvways`).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

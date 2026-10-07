@@ -59,6 +59,10 @@ the server), so timing the first step no longer tells the table when it goes off
   ticks the same steps), and `bombHeatOf(total, remaining, steps)` reads it (a round saved before
   it: the fixed steps). `BOMB_HEAT_AT_PAGE` is gone.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+- **703 the boom's replay on the TV**: the server keeps the round's hands, `shared.trail` (the starter, then every pass; a send-back takes its pass off; the last 40, `BOMB_TRAIL_MAX`) - who held the bomb is public, the fuse stays secret. After the explosion (`BOMB_BOOM_MS`), a TV that saw it go off replays the last 12 passes (`bombTvReplay` → `bombTvReplayRun` in `JS_RoomBomb.html`): a little 💣 arcs from name to name over the TV's order strip (`.tv-order [data-bm-pid]`), 0.19 s a hop and 0.9 s for the last one into the loser's hands, each name it lands on pulsing, with a «🔁 الإعادة» tag at the top (`.bomb-replay`, `.bomb-replay__tag` in `Style_Party.html`, `bomb_replay`). Once per round (`motionFirst`), never with motion off; it stops if the TV redraws its names. Help says it.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -408,7 +408,7 @@ async function handle(env, path, body) {
     // Codes are short, so a live one may already hold the name; try another.
     for (let attempt = 0; attempt < 8; attempt++) {
       const code = randomCode();
-      const res = await roomStub(env, code).create(code, body.name, body.game, !!body.screen);
+      const res = await roomStub(env, code).create(code, body.name, body.game, !!body.screen, body.test === true);
       if (!res.taken) return res;
     }
     return { ok: false, error: 'معرفناش نفتح الغرفة، جرّب تاني' };

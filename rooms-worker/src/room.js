@@ -619,7 +619,7 @@ export class Room extends DurableObject {
 
   /* --- the API (called by the Worker in index.js) -------------------------- */
 
-  async create(code, name, game, screen) {
+  async create(code, name, game, screen, test) {
     await this.load();
     if (this.room) {
       // A code is only reused once its old room has been left for good.
@@ -645,6 +645,10 @@ export class Room extends DurableObject {
       keys: { [hostId]: key },
       lastSeen: {},
       createdAt: now,
+      // A robot test's room (play-all.mjs says so on /create): played like any other, but not
+      // counted in the plays, or the weekly test:live on GitHub would add its games every
+      // week and the monthly report would never show a room game nobody started (7 Oct 2026).
+      _test: test ? true : undefined,
       updatedAt: now
     };
     await this.save();
@@ -801,7 +805,7 @@ export class Room extends DurableObject {
     }
     // How often each game is played (the improvement plan's numbers): a game
     // dealt from the lobby counts once, by the month, as a room or on a TV.
-    if (action === 'start' && before.phase === 'lobby' && next.phase !== 'lobby' && next.game && this.env.WORDS) {
+    if (action === 'start' && before.phase === 'lobby' && next.phase !== 'lobby' && next.game && this.env.WORDS && !next._test) {
       const mode = (next.screens || []).length ? 'tv' : 'room';
       this.env.WORDS.get(this.env.WORDS.idFromName('plays'))
         .add([{ lang: mode, cat: new Date().toISOString().slice(0, 7), word: String(next.game), keep: true }]).catch(() => {});

@@ -92,7 +92,8 @@ class Bot {
 
   static async host(name, game, screen = false) {
     const bot = new Bot(name);
-    const res = await api('/create', { name, game, screen });
+    // test: not counted in the plays (room.js), so the weekly live run doesn't skew them.
+    const res = await api('/create', { name, game, screen, test: true });
     if (!res.ok) throw new Error('create failed: ' + res.error);
     Object.assign(bot, { code: res.state.code, pid: res.playerId, key: res.key, state: res.state });
     await bot.connect();

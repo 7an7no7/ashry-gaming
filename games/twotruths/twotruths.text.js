@@ -26,6 +26,7 @@ gameText({
       tt_need_lie: "علّم الكذبة الأول",
       tt_tv_writing: "كل واحد بيكتب حقيقتين وكذبة على موبايله",
       tt_the_lie: "الكذبة",
+      tt_late_hint: "الأدوار بدأت، بس لسه تقدر تبعت جملك: هتدخل في آخر الدور.",
     },
     en: {
       tt_lobby_hint: "Everyone writes two truths and a lie about themselves on their phone; the others spot the lie.",
@@ -50,6 +51,7 @@ gameText({
       tt_need_lie: "Mark the lie first",
       tt_tv_writing: "Everyone is writing two truths and a lie",
       tt_the_lie: "The lie",
+      tt_late_hint: "The turns have started, but you can still send yours: you go last.",
     }
   },
   rules: {
@@ -60,6 +62,7 @@ gameText({
                 <li>واحد بالدور: جمله الثلاثة تظهر للكل، والباقي يصوّتوا على اللي شايفينها الكذبة.</li>
                 <li>اللي مسك الكذبة ياخد نقطة. وصاحب الجمل ياخد نقطة عن كل واحد اتضحك عليه.</li>
                 <li>لما الكل ياخد دوره، أعلى نقاط يكسب. أحلى مع ناس تعرف بعض.</li>
+                <li>المضيف بدأ قبل ما تخلّص؟ كمّل وابعت: جملك تدخل في آخر الدور.</li>
             </ol>
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -77,6 +80,7 @@ gameText({
                 <li>One player at a time: their three statements show to everyone, and the others vote for the lie.</li>
                 <li>Spotting the lie is a point. The storyteller gets a point for every voter they fooled.</li>
                 <li>After everyone's turn the highest score wins. Best with people who know each other.</li>
+                <li>The host started before you finished? Finish and send: your turn goes on the end.</li>
             </ol>
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

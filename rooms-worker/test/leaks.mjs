@@ -286,6 +286,11 @@ const PROBES = {
     }
     out.push(probe('nothing names the truth while voting', s.phase === 'voting', (view) =>
       (hasKey(view.shared, 'truth') || hasKey(view.shared, 'truthId') ? 'shared.truth' : null)));
+    // «متأكد ✌️» (591): who is sure is their own business until the reveal.
+    const sure = Object.keys(room._fibSure || {});
+    out.push(probe('who is sure stays on their own phone while voting', s.phase === 'voting' && sure.length > 0, (view, pid) =>
+      (hasKey(view.shared, 'sure') ? 'shared.sure'
+        : view.you && 'fibSure' in view.you && sure.indexOf(pid) === -1 ? 'you.fibSure' : null)));
     return out;
   },
   drawguess(room) {
@@ -481,8 +486,19 @@ const PROBES = {
     const card = room._card || {};
     const out = [];
     if (s.phase === 'answering') {
-      out.push(secret('the answer stays on the server while answering', card.a, []));
-      for (const alt of card.alt || []) out.push(secret('the other spellings of the answer too', alt, []));
+      // كمّل المثل's three choices (612) carry the word, once their time has come: there only.
+      const except = Array.isArray(s.choices) ? ['shared.choices'] : [];
+      out.push(secret('the answer stays on the server while answering', card.a, [], { except }));
+      for (const alt of card.alt || []) out.push(secret('the other spellings of the answer too', alt, [], { except }));
+      if (s.choicesAt) out.push(probe('the choices wait for their time', !s.choices, (view) =>
+        (hasKey(view.shared, 'choices') ? 'shared.choices' : null)));
+      // A near miss's text is on its guesser's phone only (603, 611).
+      for (const id of Object.keys(room.secrets || {})) {
+        const q = (room.secrets[id] || {}).quiz;
+        if (!q) continue;
+        for (const text of Object.values(q.close || {})) out.push(secret('a close guess is shown to its guesser only', text, [id]));
+        if (q.near) out.push(secret('a close answer is shown to its writer only', q.near, [id]));
+      }
     }
     const deck = room._deck || [];
     // Two cards of a deck can end in the same word (several proverbs do): once the card
@@ -1623,10 +1639,12 @@ const DRIVERS = {
     const T = table('fibbage', 4);
     must(T, T.host, 'start', { lang: 'ar' });
     T.ids.forEach((id, i) => must(T, id, 'submitLie', { lie: 'كذبة رقم ' + (i + 1) }));
-    for (const id of T.ids) {
+    T.ids.forEach((id, i) => {
       const own = (T.room.secrets[id] || {}).voteOwn;
-      must(T, id, 'vote', { option: S(T).vote.options.find((o) => o.id !== own).id });
-    }
+      // The first is sure with the vote, the second after it (591).
+      must(T, id, 'vote', { option: S(T).vote.options.find((o) => o.id !== own).id, round: S(T).round, sure: i === 0 });
+      if (i === 1) must(T, id, 'sure', { round: S(T).round });
+    });
     return S(T).phase === 'results';
   },
   drawguess() {
@@ -1732,8 +1750,13 @@ const DRIVERS = {
   twotruths() {
     const T = table('twotruths', 3);
     must(T, T.host, 'start', {});
-    for (const id of T.ids) must(T, id, 'submit', { statements: [id + ' جملة أولى', id + ' جملة تانية', id + ' جملة تالتة'], lie: 1 });
-    for (let guard = 0; guard < 6 && S(T).phase !== 'gameover'; guard++) {
+    // The last writer is late (596): the host starts the turns without them, and their sheet
+    // comes in while the first storyteller is being voted on.
+    T.ids.slice(0, -1).forEach((id) => must(T, id, 'submit', { statements: [id + ' جملة أولى', id + ' جملة تانية', id + ' جملة تالتة'], lie: 1 }));
+    must(T, T.host, 'closeWriting');
+    const lateId = T.ids[T.ids.length - 1];
+    must(T, lateId, 'submit', { statements: [lateId + ' جملة أولى', lateId + ' جملة تانية', lateId + ' جملة تالتة'], lie: 1 });
+    for (let guard = 0; guard < 8 && S(T).phase !== 'gameover'; guard++) {
       const s = S(T);
       if (s.phase === 'voting') for (const id of T.ids) if (id !== s.subjectId) act(T, id, 'vote', { option: 'i' + Math.floor(Math.random() * 3) });
       if (S(T).phase === 'result') must(T, T.host, 'next');
@@ -1951,7 +1974,14 @@ const DRIVERS = {
     for (let q = 0; q < 5; q++) {
       if (q) must(T, T.host, 'nextQuestion');
       must(T, 'p2', 'guess', { text: 'غلط تماما' });
+      // A near miss: the answer and one more letter (close, never right, for a word of 3+).
+      if (q === 0) must(T, 'p3', 'guess', { text: T.room._card.a + 'كك' });
       if (q === 1) must(T, 'p3', 'guess', { text: T.room._card.a });
+      // The choices come down by the clock (كمّل المثل), and one is picked.
+      if (q === 2 && S(T).choicesAt) {
+        runClock(T, (r) => Array.isArray(r.shared.choices));
+        must(T, 'p3', 'pick', { i: 0, qIndex: S(T).qIndex });
+      }
       if (q === 3) runClock(T, (r) => r.shared.phase === 'results');
       else act(T, T.host, 'closeQuestion');
     }

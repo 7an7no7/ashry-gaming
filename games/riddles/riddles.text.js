@@ -26,6 +26,9 @@ gameText({
       prov_device_hint: "مين يكمّل المثل؟",
       prov_n: "مثل",
       quiz_who_got: "مين عرفها؟",
+      quiz_close_other: "{name} قرّب",
+      quiz_near: "قرّبت! جرّب تاني، بنص النقط",
+      quiz_choices_hint: "أو اختار من التلاتة، بنص النقط (الكتابة بالنقط كاملة)",
     },
     en: {
       quiz_count_label: "How many",
@@ -50,6 +53,9 @@ gameText({
       prov_device_hint: "Who can finish it?",
       prov_n: "Proverb",
       quiz_who_got: "Who got it?",
+      quiz_close_other: "{name} is close",
+      quiz_near: "Close! One more try, for half the points",
+      quiz_choices_hint: "Or pick one of the three, for half the points (typing still pays full)",
     }
   },
   rules: {
@@ -65,7 +71,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>المضيف بيختار الطريقة: <b>واحد يكتب</b> فزورة (الإجابة، ونوعها: فيلم، مثل، أكلة، مكان أو حاجة، والفزورة بالإيموجي بس) والباقي كل واحد يخمّنها على موبايله؛ أو <b>سباق</b> على فوازير التطبيق؛ أو <b>المسابقة</b>.</li>
                 <li>في "واحد يكتب" والسباق: 6 محاولات، ومحدش بيشوف تخمينات التاني. "🔥 قريب" لو قربت. اللي يعرفها ياخد 10، والأول +5، التاني +4… واللي كتبها ياخد 5 عن كل واحد ماعرفهاش. الإيموجي اللي بيتهجّى الإجابة (زي حروف الأعلام) مش مقبول.</li>
-                <li>المسابقة: الفزورة على كل موبايل وعلى التلفزيون و45 ثانية. كل واحد يكتب إجابته، والغلط بيظهر للكل وتحاول تاني. الإجابة الصح 10 نقاط، وزيادة للأسرع (+5 للأول، +4 للتاني…).</li>
+                <li>المسابقة: الفزورة على كل موبايل وعلى التلفزيون و45 ثانية. كل واحد يكتب إجابته، والغلط بيظهر للكل وتحاول تاني، واللي قرّب الكل يشوف «🔥 فلان قرّب» وهو بس يشوف اللي كتبه. الإجابة الصح 10 نقاط، وزيادة للأسرع (+5 للأول، +4 للتاني…).</li>
             </ul>`,
       proverbs: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -76,6 +82,8 @@ gameText({
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>المثل على كل موبايل وعلى التلفزيون و25 ثانية. كل واحد يكتب الكلمة مرة واحدة بس. الصح 10 نقاط وزيادة للأسرع، ولما الوقت يخلص الكلمة تظهر مع اللي كتبه كل واحد.</li>
+                <li><b>قرّبت؟</b> لو اللي كتبته قريب (حرف غلط مثلا) مش بيتحسب عليك: محاولة كمان بنص النقط.</li>
+                <li>بعد <b>12 ثانية</b> تنزل تلات اختيارات للي لسه ماجاوبش: الكلمة واتنين من أمثال تانية. الاختيار الصح بنص النقط، والغلط صفر ومافيش محاولة تانية. الكتابة لسه بالنقط كاملة.</li>
             </ul>`,
     },
     en: {
@@ -90,7 +98,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The host picks the way: <b>one sets</b> a riddle (the answer, what it is - a film, a saying, a dish, a place or a thing - and the clue in emoji only) and everyone else guesses on their own phone; a <b>race</b> on the app's riddles; or the <b>quiz</b>.</li>
                 <li>One sets and the race: 6 tries, and nobody sees anyone else's guesses; "🔥 Close" when you nearly have it. Getting it is 10 points, +5 for the first, +4 for the second…; the writer scores 5 for everyone who misses it. Emoji that spell the answer out (like flag letters) are refused.</li>
-                <li>The quiz: the riddle on every phone and the TV, with 45 seconds. Everyone types; a wrong guess shows to the table and you try again. A right answer is 10 points plus a speed bonus (+5 for the first, +4 for the second…).</li>
+                <li>The quiz: the riddle on every phone and the TV, with 45 seconds. Everyone types; a wrong guess shows to the table and you try again; a close one shows as «🔥 Omar is close», its text on his phone only. A right answer is 10 points plus a speed bonus (+5 for the first, +4 for the second…).</li>
             </ul>`,
       proverbs: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
@@ -101,6 +109,8 @@ gameText({
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The proverb on every phone and the TV, with 25 seconds. Everyone types the word once. Right is 10 points plus a speed bonus, and when time is up the word shows with what everyone typed.</li>
+                <li><b>Close?</b> An answer that is nearly right (a letter off) is not spent: one more try, for half the points.</li>
+                <li>After <b>12 seconds</b> three choices come down for whoever hasn't answered: the word and two from other proverbs. A right pick is half the points; a wrong one is 0 and spends your answer. Typing still pays full.</li>
             </ul>`,
     }
   }

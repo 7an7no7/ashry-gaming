@@ -2,6 +2,14 @@
    first-play card). The build puts them into TRANSLATIONS and GAME_RULES (tools/game-text.cjs):
    read them as t.<key> and GAME_RULES[lang].<id>, as everywhere. */
 gameText({
+  translations: {
+    ar: {
+      charades_on_screen: "كان على الشاشة",
+    },
+    en: {
+      charades_on_screen: "was on the screen",
+    }
+  },
   rules: {
     ar: {
       charades: `
@@ -9,7 +17,7 @@ gameText({
                 <li>اختار فئة (أفلام، أفعال…) ووقت الجولة.</li>
                 <li>واحد يمسك الموبايل ويمثّل الكلمة <b>من غير كلام</b>، والباقي يخمّنوا.</li>
                 <li>عرفوها؟ اضغط <b>صح</b> أو على الكارت. صعبة؟ <b>تجاوز</b>.</li>
-                <li>لما الوقت يخلص تشوف عدد الكلمات الصح.</li>
+                <li>لما الوقت يخلص تشوف عدد الكلمات الصح، وتقدر تصلّح أي حكم بلمسة. الكارت اللي كان على الشاشة مع الجرس بييجي في الآخر <b>🔔 كان على الشاشة</b> من غير حكم: لو قالوه مع الجرس المسه ويتحسب.</li>
             </ol>
             <p class="help-sub">👥 فريقين</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -23,7 +31,7 @@ gameText({
                 <li>Pick a category (films, actions…) and the round length.</li>
                 <li>One player holds the phone and acts the word out <b>without talking</b>; the rest guess.</li>
                 <li>Got it? Press <b>Correct</b> or tap the card. Too hard? <b>Pass</b>.</li>
-                <li>When time is up you see how many were right.</li>
+                <li>When time is up you see how many were right, and a tap fixes any verdict. The card that was up when the bell rang comes last, <b>🔔 was on the screen</b>, with no verdict: if the team shouted it with the bell, tap it and it counts.</li>
             </ol>
             <p class="help-sub">👥 Two teams</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

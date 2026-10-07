@@ -706,7 +706,7 @@ function charadesStartClock() {
         },
         onEnd: () => {
             appState.charades.interval = null;
-            finishCharadesGame();
+            finishCharadesGame(true);
         }
     });
 }
@@ -813,7 +813,24 @@ function undoCharadesCard() {
     showToast(t.undo_done || '', 'success');
 }
 
-function finishCharadesGame() {
+/**
+ * «مع الجرس» (idea 640, 7 Oct 2026): when time runs out, the card on the screen ends the
+ * turn's list, marked «كان على الشاشة» and untagged - one tap scores it if the team
+ * shouted it with the bell. Only the card really showing (not one still flipping in).
+ */
+function charadesBellCard() {
+    const hist = appState.charades.history || [];
+    const last = hist[hist.length - 1];
+    const judged = appState.charades.judged || [];
+    if (!last || (judged.length && judged[judged.length - 1].word === last)) return null;
+    const el = document.getElementById('charades-word');
+    if (!el || el.innerText.trim() !== String(last).trim()) return null;
+    return { w: last, ok: false, bell: true };
+}
+
+function finishCharadesGame(timeUp) {
+    // Read before the flip is cleared: the word on the card is the one the table saw.
+    const bell = timeUp === true ? charadesBellCard() : null;
     clearCharadesFlip();
     partyCountdownStop();
     countdownClear();
@@ -821,8 +838,10 @@ function finishCharadesGame() {
     appState.charades.interval = null;
 
     // Every card of the turn, for the list where a verdict can be put right
-    // (ideas batch: party1). The card on screen was never judged: it isn't in it.
+    // (ideas batch: party1). The card on screen was never judged: it comes last,
+    // as the bell's card, when the time ran out on it.
     const cards = (appState.charades.judged || []).map(j => ({ w: j.word, ok: j.action === 'correct' }));
+    if (bell) cards.push(bell);
     appState.charades.judged = [];
     appState.charades.score = cards.filter(c => c.ok).length;
     appState.charades.sum = { cards: cards, relay: relayPlaying(appState.charades), at: Date.now() };

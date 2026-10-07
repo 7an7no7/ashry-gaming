@@ -74,6 +74,16 @@ runs `JS_Charades.html`, `JS_DescribeIt.html`, `JS_JustOne.html`,
 without JS_Core: a top-level `onLeaveScreen` or `onLanguageChange` call in
 those files has to be guarded with `typeof`.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **640 بدون كلام: «مع الجرس», the last card counts.** When the clock runs out
+  (`finishCharadesGame(true)` from the turn clock's end only; «إنهاء» is not the bell), the
+  card on the screen (`charadesBellCard`: the last card dealt, not judged, and really showing,
+  not one still flipping in) ends the turn's list as `{ w, ok: false, bell: true }`:
+  untagged (🔔, no ✓ or ⏭) and marked «🔔 كان على الشاشة» (`charades_on_screen`,
+  `partyTurnChipHtml` in `JS_TeamRelay.html`). One tap scores it, like any card in the list;
+  in team mode it counts for the team when the turn is banked. أوصف لي is unchanged.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

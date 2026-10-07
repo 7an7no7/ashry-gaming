@@ -2626,8 +2626,13 @@ async function coreSeg() {
   check((await A.act('vote', { option: ownOf(A) })).ok === false, 'you cannot vote for your own lie');
   await A.must('vote', { option: fibTruth });
   await B.must('vote', { option: ownOf(A) });
-  await C.must('vote', { option: fibTruth });
+  // «متأكد ✌️» (591): B after voting, C with the vote; nobody else is told until the reveal.
+  await B.must('sure', { round: B.state.shared.round });
+  check(B.state.you && B.state.you.fibSure === B.state.shared.round && !('sure' in B.state.shared), 'fibbage: «متأكد» is on that phone only while voting');
+  await C.must('vote', { option: fibTruth, round: C.state.shared.round, sure: true });
   await D.must('vote', { option: fibTruth });
+  await all(bots, (s) => s.shared.phase === 'results' && s.shared.scores[C.pid] === 2000 && s.shared.scores[B.pid] === -500 &&
+    (s.shared.sure || []).length === 2, 'fibbage: sure and right is 2000, sure and fooled costs 500, and the sure ones are shown');
   await all(bots, (s) => s.shared.phase === 'results' && s.shared.scores[A.pid] === 1500 && s.shared.truthId === fibTruth &&
     s.shared.vote.results.find((r) => r.id === ownOf(A)).ownerId === A.pid, 'fibbage scores truth + fooling, and names the truth and the owners after');
   await A.must('nextRound', { lang: 'ar', round: A.state.shared.round });
@@ -2919,10 +2924,15 @@ async function coreSeg() {
   await all(bots, (s) => s.shared.phase === 'answering' && s.shared.card.p.indexOf('___') !== -1, 'a proverb with a blank');
   await B.must('guess', { text: 'nonsense' });
   await all(bots, (s) => s.shared.tried.length === 1, 'one wrong answer is one try used');
+  // 612: three choices come down by the server's clock after 12 s; a pick is an answer.
+  check(!A.state.shared.choices && !!A.state.shared.choicesAt, 'proverbs: the choices wait on the server');
+  await all(bots, (s) => Array.isArray(s.shared.choices) && s.shared.choices.length === 3 && s.shared.phase === 'answering', 'proverbs: three choices come down after 12 s', 16000);
+  await D.must('pick', { i: 0, qIndex: D.state.shared.qIndex });
+  await all(bots, (s) => s.shared.tried.indexOf(D.pid) !== -1 || s.shared.solved.indexOf(D.pid) !== -1, 'proverbs: a pick is an answer');
   await B.must('guess', { text: 'nonsense again' });
-  check(B.state.shared.tried.length === 1, 'a second answer is ignored');
+  check(B.state.shared.tried.filter((id) => id === B.pid).length === 1, 'a second answer is ignored');
   await A.must('closeQuestion');
-  await all(bots, (s) => s.shared.phase === 'results' && !!s.shared.answer && s.shared.answers.length === 1, 'the answer and what was typed are shown');
+  await all(bots, (s) => s.shared.phase === 'results' && !!s.shared.answer && s.shared.answers.length === 2, 'the answer and what was typed are shown');
   await A.must('backToHub');
 
   /* --- خمس ثواني ----------------------------------------------------------------- */

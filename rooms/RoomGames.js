@@ -1445,7 +1445,7 @@ const gameDeadline = (room) => {
   }
   if (room.game === 'stop' && s.phase === 'writing' && s.endsAt) return s.endsAt + STOP_GRACE_MS;
   if (room.game === 'stop' && s.phase === 'collecting' && s.collectEndsAt) return s.collectEndsAt + STOP_GRACE_MS;
-  if (QUIZ_GAMES[room.game] && s.phase === 'answering' && s.endsAt) return s.endsAt + QUIZ_GRACE_MS;
+  if (QUIZ_GAMES[room.game] && s.phase === 'answering' && s.endsAt) return quizDeadline(room);
   if (room.game === 'fiveseconds' && s.phase === 'counting' && s.endsAt) return s.endsAt + FIVE_GRACE_MS;
   if (room.game === 'telephone' && s.phase === 'working' && s.endsAt) return s.endsAt + TELE_GRACE_MS;
   if (room.game === 'telephone' && s.phase === 'collecting' && s.collectEndsAt) return s.collectEndsAt + TELE_GRACE_MS;
@@ -1572,7 +1572,7 @@ const gameTimeout = (room, now) => {
     if (s.phase === 'collecting') { scoreStopRound(room); return true; }
     return false;
   }
-  if (QUIZ_GAMES[room.game]) { closeQuizCard(room); return true; }
+  if (QUIZ_GAMES[room.game]) return quizTimeout(room, now);
   if (room.game === 'fiveseconds') {
     if (room.shared.phase !== 'counting') return false;
     room.shared.phase = 'judging';

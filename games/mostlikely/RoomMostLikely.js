@@ -39,11 +39,17 @@ const mostLikelyAction = (room, playerId, action, payload) => {
   throw new Error('إجراء غير معروف');
 };
 
-/** Whoever the room picked takes the point; a tie shares it. */
+/** In a room of four or more, a top of one vote is no pick at all (idea 633): «الأصوات اتفرّقت». */
+const MOST_LIKELY_SCATTER_MIN = 4;
+
+/** Whoever the room picked takes the point; a tie shares it - unless the votes scattered. */
 const scoreMostLikely = (room) => {
-  const results = room.shared.vote.results || [];
+  const v = room.shared.vote;
+  const results = v.results || [];
   const top = Math.max(0, ...results.map(r => r.count));
-  if (top > 0) results.filter(r => r.count === top).forEach(r => addScore(room, r.id, 1));
+  // Everyone tied on one vote used to give everyone a point.
+  room.shared.scattered = top === 1 && (v.options || []).length >= MOST_LIKELY_SCATTER_MIN;
+  if (top > 0 && !room.shared.scattered) results.filter(r => r.count === top).forEach(r => addScore(room, r.id, 1));
   room.shared.board = scoreboardOf(room);
   room.shared.phase = 'results';
 };

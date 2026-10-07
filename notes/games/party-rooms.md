@@ -90,6 +90,62 @@ Cotton candy) and Places (Luxor, Venice, the Great Wall of China). The checks ar
 ones the lists already had: one blank, the answer not written in the proverb, no answer
 or emoji twice.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+This file also keeps كذبة وصدقة (فيبج, `games/fibbage/RoomFibbage.js`) and مين أكثر واحد
+(`games/mostlikely/RoomMostLikely.js`), whose screens are in `rooms/JS_RoomVoting.html`
+and `rooms/JS_RoomTv.html`; neither had a notes file of its own.
+
+- **589 كذبة وصدقة: the lie that is the truth.** `submitLie` refuses a lie that
+  `fibbageLieIsTruth(lie, truth, question)` calls the truth: the same fold (digits ٠-٩ and
+  ۰-۹ read as 0-9, `fibbageDigits`), or what `guessVerdict` calls right (the same stem,
+  one letter off in a long word, a measure word: راس for راسه, كوب شاي for شاي), after
+  dropping the question's own words from the lie («168 حرف» for «فيه ___ حرف» is 168). A
+  number is its digits: «31 ألف» against «30 ألف» and 1931 against 1930 stay fair lies.
+- **591 كذبة وصدقة: «متأكد ✌️».** Always there (the owner): a voter who is sure gets
+  2000 for the truth instead of 1000, and a lie picked costs them 500 (the lie's writer
+  still gets their 500); a score can go below 0 (chosen: the simplest, and it is what the
+  table bet). Before voting it is a switch above the ballot (`fibSureHtml`, `fibSureArm`,
+  sent with the vote as `sure: true` through `renderBallot`'s new `extra`, since the last
+  vote closes the vote at once); after voting, while the vote is open, a button (action
+  `sure { round }`, one way, stale rounds dropped). It stays on the server
+  (`room._fibSure`) and on that phone only (`you.fibSure`, the round) until the reveal,
+  which publishes `shared.sure` (ids): the reveal's names carry a ×2 chip, the truth's
+  points fly as +2000 and a sure loser's −500 flies from the lie they picked
+  (`fibRevealRun`). The TV shows the same reveal.
+- **633 مين أكثر واحد: the votes scattered.** `scoreMostLikely`: when the top count is 1
+  and the question was dealt to four or more (`MOST_LIKELY_SCATTER_MIN`), nobody scores and
+  `shared.scattered` is set; the phone and the TV draw «الأصوات اتفرّقت» with no bar lit
+  (`mltResultsHtml`). Three people tied on one vote still share the point.
+- **596 صدق ولا كذب: the late sheet.** After `closeWriting`, a roster member who hasn't
+  sent may still `submit` while the turns run (voting or a result): the sheet goes on the
+  end of `s.order`, once; after the game is over it is refused. The phone keeps the writing
+  card above the round for them (`ttWriteCardHtml(t, true)`, «الأدوار بدأت…»), other
+  people's votes don't rebuild it, and what is typed (and the caret) survives the rebuilds
+  that do happen (`ttDraft`, `ttDraftSave`, `ttRestoreDraft`).
+- **603 فوازير إيموجي: «قرّب» for its guesser only.** A close guess goes into the feed
+  as `{ n, name, close: true }` with no text; the text is in the guesser's own slice
+  (`you.quiz.close[n]`, `quizSlice`), so only their phone shows it. Others read «🔥 عمر
+  قرّب» (`quiz_close_other`), on the TV too. Wrong guesses are still shown to everyone.
+- **611 كمّل المثل: «قرّبت؟ جرّب تاني».** In rooms a close answer (guessVerdict) is not
+  spent: `room._quizNear`, «قرّبت! جرّب تاني، بنص النقط» on that phone (`you.quiz.near`),
+  and the second try, if right, is worth half (`half`, `quizPointsFor`: half of the place's
+  points, rounded up). A second close or wrong answer spends it.
+- **612 كمّل المثل: three choices after 12 s.** `QUIZ_GAMES.proverbs.choicesMs`: each card
+  has `shared.choicesAt`; the choices (the word and two other proverbs' words, none from
+  this game's deck and none a spelling of the word: `quizChoicesFor`) wait in
+  `room._quizChoices` and come down by the server's clock (`quizDeadline`,
+  `quizTimeout`, called from `gameDeadline` / `gameTimeout` in RoomGames.js) as
+  `shared.choices`. Action `pick { i, qIndex }`: right is half the points, wrong is 0 and
+  spends the answer; typing still pays full. They show under the box for anyone who hasn't
+  answered (`quizExtrasHtml`, drawn in place so the box keeps what is typed) and as chips
+  on the TV.
+
+Tests: `rules.mjs` (each number), `leaks.mjs` (the choices wait for their time and carry
+the word only there; a close text on its guesser's phone only; who is sure stays on their
+own phone while voting; a late sheet in صدق ولا كذب), `play-all.mjs` core (the sure votes,
+the choices coming down).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

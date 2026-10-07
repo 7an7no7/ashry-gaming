@@ -92,7 +92,7 @@ function renderBallot(state, opts) {
     if (typeof x === 'number') return `, ${k}: ${x}`;
     if (typeof x === 'string' && x) return `, ${k}: '${jsStringAttr(x)}'`;
     return '';
-  }).join('');
+  }).join('') + ((opts && opts.extra) || '');   // `extra`: more payload, a JS fragment (فيبج's «متأكد»)
   if (people) return ballotPeopleHtml(state, opts, stamp, false) + progress();
   return `<div class="btn-stack">
       ${v.options.map((o, i) => {
@@ -295,13 +295,22 @@ ROOM_GAMES.mostlikely = {
         <div class="eyebrow">${t.round || 'جولة'} ${state.shared.round}</div>
         <div class="prompt-text">${escapeHTML(state.shared.prompt || '')}</div>
       </div>
-      ${v.phase === 'voting' ? renderBallot(state, { bar: true }) : renderVoteResults(state)}
+      ${v.phase === 'voting' ? renderBallot(state, { bar: true }) : mltResultsHtml(state, t)}
       ${v.phase === 'results' ? renderScoreboard(state.shared.board) + renderRoundFooter(state, t.next_question || 'سؤال جديد') : ''}
       ${renderRoomPlayerStrip(state)}
       ${renderBallotBar(state)}`);
     refreshRoomPlayerStrip(el, state);
   }
 };
+
+/**
+ * The bars; when the votes scattered (one each at most, four or more in the room:
+ * shared.scattered, idea 633) no bar is lit, nobody scored, and a line says so.
+ */
+function mltResultsHtml(state, t) {
+  if (!state.shared.scattered) return renderVoteResults(state);
+  return `<div class="waiting-note">🤷 ${escapeHTML(t.mlt_scattered || '')}</div>` + renderVoteResults(state, { highlightId: '-' });
+}
 
 /* ==========================================================================
    فيبج — invent an answer, then find the real one
@@ -349,8 +358,9 @@ ROOM_GAMES.fibbage = {
     }
 
     if (s.phase === 'voting' || (s.vote && s.vote.phase === 'voting')) {
-      renderRoomFrame(el, ['fibvote', s.dealId, s.round, s.vote.voted.length, (s.vote.eligible || []).length, state.youAreHost].join('|'),
-                      () => question + renderBallot(state) + renderRoomPlayerStrip(state));
+      const sure = fibIsSure(state);
+      renderRoomFrame(el, ['fibvote', s.dealId, s.round, s.vote.voted.length, (s.vote.eligible || []).length, state.youAreHost, sure, appState.lang].join('|'),
+                      () => question + fibSureHtml(state, t) + renderBallot(state, { extra: ', sure: fibSureArmed()' }) + renderRoomPlayerStrip(state));
       refreshRoomPlayerStrip(el, state);
       return;
     }
@@ -376,6 +386,47 @@ ROOM_GAMES.fibbage = {
 const FIB_FOOL_PTS = 500;     // FIBBAGE_FOOL_POINTS in RoomGames.js
 const FIB_TRUTH_PTS = 1000;   // FIBBAGE_TRUTH_POINTS
 const FIB_STEP_MS = 900;
+const FIB_SURE_PTS = 2000;    // FIBBAGE_SURE_TRUTH_POINTS
+const FIB_SURE_COST = 500;    // FIBBAGE_SURE_LIE_COST
+
+/* --- «متأكد ✌️» (idea 591, the owner, 7 Oct 2026) ---------------------------------
+   A voter may be sure: the truth then pays 2000, a lie picked costs 500. Before voting
+   it is a switch sent with the vote (the last voter closes the vote with it); after
+   voting, while the vote is open, a button (action `sure`). Only this phone knows
+   until the reveal, where the sure ones carry a ×2 chip (shared.sure). */
+const fibSureArm = { key: '', on: false };
+/** Has this phone said «متأكد» this round (its own slice says so)? */
+function fibIsSure(state) {
+  const you = state && state.you;
+  return !!(you && you.fibSure !== undefined && you.fibSure !== null && String(you.fibSure) === String(state.shared.round));
+}
+function fibSureArmed() {
+  const st = Room.state;
+  return !!(st && fibSureArm.on && fibSureArm.key === ballotKey(st));
+}
+function fibSureToggle(on) {
+  const st = Room.state;
+  fibSureArm.key = st ? ballotKey(st) : '';
+  fibSureArm.on = !!on;
+  haptic('light');
+}
+/** The switch above the ballot, the button after voting, or the chip once sure. */
+function fibSureHtml(state, t) {
+  const v = state.shared.vote || {};
+  if ((v.eligible || []).indexOf(Room.me) === -1 || v.phase !== 'voting') return '';
+  const hint = `<p class="field__hint">${escapeHTML(t.fib_sure_hint || '')}</p>`;
+  if (fibIsSure(state)) return `<div class="card card--tight" style="text-align:center"><span class="badge badge--accent">✌️ ${escapeHTML(t.fib_sure_on || '')} ×2</span>${hint}</div>`;
+  if (v.voted.indexOf(Room.me) !== -1) {
+    return `<div class="card card--tight" style="text-align:center">
+        <button type="button" class="btn btn--secondary" onclick="roomAct('sure', { round: ${Number(state.shared.round) || 0} })">✌️ ${escapeHTML(t.fib_sure || '')}</button>${hint}</div>`;
+  }
+  const on = fibSureArm.on && fibSureArm.key === ballotKey(state);
+  return `<div class="card card--tight"><div class="field">
+      <label class="switch-row" for="fib-sure">
+        <span class="field__label">✌️ ${escapeHTML(t.fib_sure || '')}</span>
+        <span class="switch"><input type="checkbox" id="fib-sure" role="switch" ${on ? 'checked' : ''} onchange="fibSureToggle(this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+      </label>${hint}</div></div>`;
+}
 
 /** The round's options in the order they turn over, each with its moment. */
 function fibRevealPlan(state) {
@@ -395,7 +446,10 @@ function fibRevealHtml(state, t, o) {
   const plan = fibRevealPlan(state);
   const st = stageReveal(['fib-rev', opt.tv ? 'tv' : 'ph', roomDealKey(state), s.round].join('|'), state);
   const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
-  const voters = (r) => r.voters && r.voters.length ? `<div class="fib-card__voters">${r.voters.map(v => `<bdi>${escapeHTML(v)}</bdi>`).join('، ')}</div>` : '';
+  // The sure ones carry a ×2 (591): the truth doubled, or a lie that cost them.
+  const sureNames = (s.sure || []).map(nameOf);
+  const voter = (v) => `<bdi>${escapeHTML(v)}</bdi>${sureNames.indexOf(v) !== -1 ? ' <span class="badge badge--accent">×2</span>' : ''}`;
+  const voters = (r) => r.voters && r.voters.length ? `<div class="fib-card__voters">${r.voters.map(voter).join('، ')}</div>` : '';
   const lies = plan.lies.map((r, i) => `
     <div class="fib-card ${r.count ? 'is-fooled' : ''}" data-fib-owner="${escapeHTML(String(r.ownerId || ''))}" data-fib-n="${r.count}"${st.at(plan.lieAt(i), 'pop')}>
       <div class="fib-card__label">${escapeHTML(r.label)}</div>
@@ -409,7 +463,7 @@ function fibRevealHtml(state, t, o) {
       ${st.on ? stageCoverHtml(t.fib_truth) : ''}
       <div class="fib-card__eyebrow">✅ ${escapeHTML(t.fib_truth || '')}</div>
       <div class="fib-card__truth">${escapeHTML(s.truth || truth.label || '')}</div>
-      <div class="fib-card__line">${truth.count ? `${escapeHTML(t.fib_found_by || '')}: ${truth.voters.map(v => `<bdi>${escapeHTML(v)}</bdi>`).join('، ')}` : escapeHTML(t.fib_found_none || '')}</div>
+      <div class="fib-card__line">${truth.count ? `${escapeHTML(t.fib_found_by || '')}: ${truth.voters.map(voter).join('، ')}` : escapeHTML(t.fib_found_none || '')}</div>
     </div>`;
   const board = st.board(renderScoreboard(s.board), plan.boardAt);
   return `<div class="fib-reveal ${opt.tv ? 'fib-reveal--tv' : ''}"${st.end(900)} data-fib-stage="${st.on ? '1' : ''}">
@@ -444,11 +498,20 @@ function fibRevealRun(root, state) {
         if (row) setTimeout(() => card.isConnected && flyPoints('+' + n * FIB_FOOL_PTS, card.getBoundingClientRect(), row), 120 + (k++) * 200);
       });
       const truthCard = box.querySelector('[data-fib-truth]');
+      const sure = state.shared.sure || [];
       (plan.truth.voters || []).forEach(name => {
         const p = state.players.find(x => x.name === name);
         const row = p && rowOf(p.id);
-        if (row && truthCard) setTimeout(() => truthCard.isConnected && flyPoints('+' + FIB_TRUTH_PTS, truthCard.getBoundingClientRect(), row), 120 + (k++) * 200);
+        const pts = p && sure.indexOf(p.id) !== -1 ? FIB_SURE_PTS : FIB_TRUTH_PTS;
+        if (row && truthCard) setTimeout(() => truthCard.isConnected && flyPoints('+' + pts, truthCard.getBoundingClientRect(), row), 120 + (k++) * 200);
       });
+      // A sure voter who picked a lie: its cost flies from that lie to their row.
+      plan.lies.forEach((r, i) => (r.voters || []).forEach(name => {
+        const p = state.players.find(x => x.name === name);
+        const row = p && sure.indexOf(p.id) !== -1 && rowOf(p.id);
+        const card = box.querySelectorAll('.fib-card:not(.fib-card--truth)')[i];
+        if (row && card) setTimeout(() => card.isConnected && flyPoints('−' + FIB_SURE_COST, card.getBoundingClientRect(), row), 120 + (k++) * 200);
+      }));
     }, plan.boardAt + 200);
   }
   if (typeof confetti === 'function') afterReveal(box.parentElement, () => { if (box.isConnected && !document.hidden) confetti({ particleCount: 110, spread: 80, origin: { y: 0.6 } }); });

@@ -23,6 +23,8 @@ ROOM_GAMES.twotruths = {
     const s = state.shared;
     const mine = s.submitted && s.submitted.indexOf(Room.me) !== -1;
     const inRound = (s.roster || []).indexOf(Room.me) !== -1;
+    // What is typed and where the caret is, as the screen stands before any rebuild.
+    if (document.getElementById('tt-s0')) ttDraftSave();
 
     if (s.phase === 'writing') {
       // The count of who else has finished is left out of the signature while
@@ -35,31 +37,25 @@ ROOM_GAMES.twotruths = {
           <div id="tt-progress" class="vote-progress"></div>
         </div>
         ${roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('closeWriting')">${escapeHTML(t.tt_start_anyway || '')}</button></div>`)}
-        ${renderRoomPlayerStrip(state)}` : `
-        <div class="card">
-          <div class="card__title">${escapeHTML(t.tt_write_title || '')}</div>
-          <p class="card__subtitle">${escapeHTML(t.tt_write_hint || '')}</p>
-          ${[0, 1, 2].map(i => `
-            <div class="field">
-              <label class="field__label" for="tt-s${i}">${escapeHTML(t.tt_statement || '')} ${i + 1}</label>
-              <div class="tt-row">
-                <input type="text" id="tt-s${i}" maxlength="80" autocomplete="off" placeholder="${escapeHTML(t.tt_placeholder || '')}">
-                <button type="button" class="tt-lie ${i === ttLie ? 'is-on' : ''}" data-i="${i}" onclick="ttPickLie(${i})" aria-pressed="${i === ttLie}">${escapeHTML(t.tt_this_is_lie || '')}</button>
-              </div>
-            </div>`).join('')}
-          <button class="btn btn--primary btn--lg" onclick="ttSubmit()">${escapeHTML(t.send || '')}</button>
-        </div>
-        ${renderRoomPlayerStrip(state)}`, 'tt-write');
+        ${renderRoomPlayerStrip(state)}` : ttWriteCardHtml(t, false) + renderRoomPlayerStrip(state), 'tt-write');
+      ttRestoreDraft();
       const prog = document.getElementById('tt-progress');
       if (prog) prog.innerHTML = `<span>${escapeHTML(t.tt_written || '')}: ${ltrFrac((s.submitted || []).length, (s.roster || []).length)}</span>`;
       refreshRoomPlayerStrip(el, state);
       return;
     }
 
+    // Still writing when the host started the turns (596): the card stays up above the
+    // round, and a sheet sent now goes on the end of the order. While it is up, other
+    // people's votes don't rebuild the screen (they would take what is being typed).
+    const late = inRound && !mine && (s.phase === 'voting' || s.phase === 'result');
+    const lateCard = late ? ttWriteCardHtml(t, true) : '';
+
     if (s.phase === 'voting') {
       const subject = s.subjectId === Room.me;
       const v = s.vote || {};
-      renderRoomFrame(el, ['tt-vote', s.turn, subject, (v.voted || []).length, state.youAreHost, appState.lang].join('|'), () => `
+      const votedSig = late ? (v.voted || []).indexOf(Room.me) !== -1 : (v.voted || []).length;
+      renderRoomFrame(el, ['tt-vote', s.turn, subject, votedSig, late, state.youAreHost, appState.lang].join('|'), () => lateCard + `
         <div class="card card--accent" style="text-align:center">
           <div class="eyebrow">${escapeHTML(t.tt_turn_of || '')} · ${ltrFrac(s.turn + 1, (s.order || []).length)}</div>
           <div class="metric metric--md">${escapeHTML(s.subjectName || '')}</div>
@@ -67,14 +63,15 @@ ROOM_GAMES.twotruths = {
         </div>
         ${subject
           ? `<div class="card card--tight">${(s.items || []).map((x, i) => `<div class="tt-item"><span class="tt-item__n">${i + 1}</span><span>${escapeHTML(x)}</span></div>`).join('')}</div>${renderVoteProgress(state)}`
-          : `<div class="card card--tight">${renderBallot(state)}</div>`}
+          : `<div class="card card--tight">${renderBallot(state, late ? { bar: true } : undefined)}</div>`}
         ${renderRoomPlayerStrip(state)}`);
+      if (late) ttRestoreDraft();
       refreshRoomPlayerStrip(el, state);
       return;
     }
 
     if (s.phase === 'result') {
-      const fresh = renderRoomFrame(el, ['tt-result', s.turn, state.youAreHost, appState.lang].join('|'), () => `
+      const fresh = renderRoomFrame(el, ['tt-result', s.turn, late, (s.order || []).length, state.youAreHost, appState.lang].join('|'), () => lateCard + `
         <div class="card" style="text-align:center">
           <div class="eyebrow">${escapeHTML(s.subjectName || '')}</div>
           ${(s.items || []).map((x, i) => `<div class="tt-item ${i === s.lieIndex ? 'is-lie' : 'is-true'}"><span class="tt-item__n">${i === s.lieIndex ? '🤥' : '✅'}</span><span>${escapeHTML(x)}</span></div>`).join('')}
@@ -89,6 +86,7 @@ ROOM_GAMES.twotruths = {
           `<button class="btn btn--primary btn--lg" onclick="roomAct('next', { turn: ${Number(s.turn) || 0} })">${escapeHTML(s.turn + 1 >= (s.order || []).length ? (t.tt_final || '') : (t.tt_next || ''))}</button>`,
           `<div class="waiting-note">${t.room_wait_host}</div>`)}
         ${renderRoomPlayerStrip(state)}`);
+      if (late) ttRestoreDraft();
       if (fresh && s.subjectId === Room.me && (s.fooled || []).length && typeof confetti === 'function') confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
       refreshRoomPlayerStrip(el, state);
       return;
@@ -118,6 +116,51 @@ ROOM_GAMES.twotruths = {
   }
 };
 
+/** The three statements and the lie's mark; `late`: the turns have started (596). */
+function ttWriteCardHtml(t, late) {
+  return `
+        <div class="card ${late ? 'card--accent' : ''}">
+          <div class="card__title">${escapeHTML(t.tt_write_title || '')}</div>
+          <p class="card__subtitle">${escapeHTML(late ? (t.tt_late_hint || '') : (t.tt_write_hint || ''))}</p>
+          ${[0, 1, 2].map(i => `
+            <div class="field">
+              <label class="field__label" for="tt-s${i}">${escapeHTML(t.tt_statement || '')} ${i + 1}</label>
+              <div class="tt-row">
+                <input type="text" id="tt-s${i}" maxlength="80" autocomplete="off" placeholder="${escapeHTML(t.tt_placeholder || '')}" oninput="ttDraftSave()">
+                <button type="button" class="tt-lie ${i === ttLie ? 'is-on' : ''}" data-i="${i}" onclick="ttPickLie(${i})" aria-pressed="${i === ttLie}">${escapeHTML(t.tt_this_is_lie || '')}</button>
+              </div>
+            </div>`).join('')}
+          <button class="btn btn--primary btn--lg" onclick="ttSubmit()">${escapeHTML(t.send || '')}</button>
+        </div>`;
+}
+
+/* What is typed survives a rebuild of the screen (a turn moving on while a late
+   writer types): the three lines, and the focus and caret of the one being typed in. */
+const ttDraft = { key: '', lines: ['', '', ''], focus: -1, caret: 0 };
+function ttDraftKey() {
+  const st = Room.state;
+  return st ? [st.code, (st.shared || {}).dealId || ''].join('|') : '';
+}
+function ttDraftSave() {
+  const a = document.activeElement;
+  if (!document.getElementById('tt-s0')) { ttDraft.focus = -1; return; }
+  ttDraft.key = ttDraftKey();
+  ttDraft.lines = [0, 1, 2].map(i => ((document.getElementById('tt-s' + i) || {}).value || ''));
+  ttDraft.focus = a && /^tt-s[0-2]$/.test(a.id || '') ? Number(a.id.slice(4)) : -1;
+  ttDraft.caret = ttDraft.focus >= 0 ? (a.selectionStart || 0) : 0;
+}
+function ttRestoreDraft() {
+  if (ttDraft.key !== ttDraftKey()) return;
+  [0, 1, 2].forEach(i => {
+    const input = document.getElementById('tt-s' + i);
+    if (input && !input.value && ttDraft.lines[i]) input.value = ttDraft.lines[i];
+  });
+  const f = ttDraft.focus >= 0 && document.getElementById('tt-s' + ttDraft.focus);
+  if (f && document.activeElement !== f) {
+    try { f.focus({ preventScroll: true }); f.setSelectionRange(ttDraft.caret, ttDraft.caret); } catch (e) {}
+  }
+}
+
 // None marked until the writer marks one: statement 1 used to be the lie by default.
 let ttLie = null;
 function ttPickLie(i) {
@@ -140,6 +183,8 @@ async function ttSubmit() {
   try {
     await Room.act('submit', { statements: statements, lie: ttLie });
     ttLie = null;
+    ttDraft.lines = ['', '', ''];
+    ttDraft.focus = -1;
   } catch (err) {
     if (!err.quiet) showToast(err.message || 'تعذر تنفيذ الإجراء', 'error');
   }

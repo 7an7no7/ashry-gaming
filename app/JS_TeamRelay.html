@@ -256,8 +256,11 @@ function partyTurnListHtml(cards, t, toggleFn) {
 }
 
 function partyTurnChipHtml(c, i, toggleFn) {
+  // `bell`: the card that was up when time ran out (بدون كلام, idea 640): no verdict mark
+  // until it is tapped, and «كان على الشاشة» beside it.
+  const bell = c.bell ? ` <small class="tx-muted">🔔 ${escapeHTML((TRANSLATIONS[appState.lang] || {}).charades_on_screen || '')}</small>` : '';
   return `<button type="button" class="pt-chip${c.ok ? ' is-right' : ''}" data-pt="${i}" onclick="${toggleFn}(${i})" aria-pressed="${c.ok ? 'true' : 'false'}">` +
-    `<span aria-hidden="true">${c.ok ? '✓' : '⏭'}</span> ${escapeHTML(c.w)}</button>`;
+    `<span aria-hidden="true">${c.ok ? '✓' : c.bell ? '🔔' : '⏭'}</span> ${escapeHTML(c.w)}${bell}</button>`;
 }
 
 /** Flips one card's verdict in `sum` and repaints its chip and the score (`scoreId`). */

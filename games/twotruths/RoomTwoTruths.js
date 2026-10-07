@@ -33,8 +33,12 @@ const twoTruthsAction = (room, playerId, action, payload) => {
   const s = room.shared;
 
   if (action === 'submit') {
-    if (s.phase !== 'writing') throw new Error('انتهى وقت الكتابة');
+    // A sheet that comes in after the host started the turns still counts (596): its
+    // writer goes to the end of the order, so nobody who wrote is dropped.
+    const late = s.phase === 'voting' || s.phase === 'result';
+    if (s.phase !== 'writing' && !late) throw new Error('انتهى وقت الكتابة');
     if (s.roster.indexOf(playerId) === -1) throw new Error('ستدخل من الجولة القادمة');
+    if (late && (s.submitted.indexOf(playerId) !== -1 || s.order.indexOf(playerId) !== -1)) throw new Error('انتهى وقت الكتابة');
     const list = (Array.isArray(payload && payload.statements) ? payload.statements : [])
       .map(x => String(x || '').trim().slice(0, TT_MAX_LEN));
     const lie = Number(payload && payload.lie);
@@ -44,6 +48,7 @@ const twoTruthsAction = (room, playerId, action, payload) => {
     const order = shuffled([0, 1, 2]);
     room._tt[playerId] = { items: order.map(i => list[i]), lie: order.indexOf(lie) };
     if (s.submitted.indexOf(playerId) === -1) s.submitted.push(playerId);
+    if (late) { s.order.push(playerId); return; }
     if (activeRoster(room, s.roster).every(id => s.submitted.indexOf(id) !== -1)) {
       s.order = shuffled(s.submitted.slice());
       nextTwoTruthsTurn(room);

@@ -422,6 +422,131 @@ const leave = (r, id, hook = true) => {
 }
 
 {
+  // فيبج, the ideas of 7 Oct 2026: a lie that is the truth heard another way (589), «متأكد ✌️» (591).
+  const r = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'fibbage' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar' });
+  const refused = (lie, truth, q) => {
+    r._truth = truth; r.shared.question = q || 'سؤال فيه ___ هنا.';
+    return threw(() => applyRoomAction(r, 'a', 'submitLie', { lie }));
+  };
+  check(refused('راس', 'راسه'), 'fibbage 589: «راس» for «راسه» is the truth (the same stem)');
+  check(refused('168 حرف', '168', 'أطول اسم لمدينة في العالم فيه ___ حرف.'), 'fibbage 589: «168 حرف» is 168 when the question says حرف');
+  check(refused('١٦٨', '168'), 'fibbage 589: Arabic digits are the same number');
+  check(refused('كوب شاي', 'شاي'), 'fibbage 589: a measure word does not make it a lie');
+  check(refused('برتقانة', 'برتقالة'), 'fibbage 589: one letter off in a long word is the truth');
+  check(!refused('31 ألف', '30 ألف'), 'fibbage 589: another number is a fair lie');
+  check(!refused('1931', '1930'), 'fibbage 589: a year one off is a fair lie');
+  check(!refused('قطة', 'كلب'), 'fibbage 589: another word is a fair lie');
+  // A fresh round to vote in.
+  const r2 = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(r2, 'a', 'chooseGame', { game: 'fibbage' });
+  applyRoomAction(r2, 'a', 'start', { lang: 'ar' });
+  ['a', 'b', 'c', 'd'].forEach((id, i) => applyRoomAction(r2, id, 'submitLie', { lie: 'zzkadhba' + 'xyzw'[i] }));
+  const truth = r2._fibTruthId;
+  const own = (id) => r2.secrets[id].voteOwn;
+  const round = r2.shared.round;
+  check(threw(() => applyRoomAction(r2, 'a', 'sure', { round })), 'fibbage 591: «متأكد» comes after a vote');
+  applyRoomAction(r2, 'a', 'vote', { option: truth, round, sure: true });
+  check(r2.secrets.a.fibSure === round && !('sure' in r2.shared) && !(r2.secrets.b || {}).fibSure, 'fibbage 591: sure is on that phone only while voting');
+  applyRoomAction(r2, 'b', 'vote', { option: own('a'), round });
+  applyRoomAction(r2, 'b', 'sure', { round });
+  applyRoomAction(r2, 'c', 'sure', { round: round - 1 });
+  check(!(r2._fibSure || {}).c, 'fibbage 591: a stale «متأكد» is dropped');
+  applyRoomAction(r2, 'c', 'vote', { option: truth, round });
+  applyRoomAction(r2, 'd', 'vote', { option: own('a'), round });
+  const sc = r2.shared.scores;
+  check(r2.shared.phase === 'results' && sc.a === 2000 + 1000 && sc.b === -500 && sc.c === 1000 && (sc.d || 0) === 0,
+    'fibbage 591: sure and right 2000, sure and fooled -500, the lie still pays its writer');
+  check(JSON.stringify(r2.shared.sure.slice().sort()) === '["a","b"]', 'fibbage 591: who was sure is published with the result');
+  applyRoomAction(r2, 'a', 'nextRound', { lang: 'ar', round });
+  check(!r2.secrets.a || !r2.secrets.a.fibSure, 'fibbage 591: a new round forgets who was sure');
+}
+
+{
+  // مين أكثر واحد: the votes scattered (633).
+  const r = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'mostlikely' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar' });
+  const round = r.shared.round;
+  [['a', 'b'], ['b', 'c'], ['c', 'd'], ['d', 'a']].forEach(([id, opt]) => applyRoomAction(r, id, 'vote', { option: opt, round }));
+  check(r.shared.phase === 'results' && r.shared.scattered === true && Object.values(r.shared.scores).every((n) => !n),
+    'mostlikely 633: one vote each among four: nobody scores, «الأصوات اتفرّقت»');
+  applyRoomAction(r, 'a', 'nextRound', { lang: 'ar', round });
+  [['a', 'b'], ['b', 'b'], ['c', 'd'], ['d', 'a']].forEach(([id, opt]) => applyRoomAction(r, id, 'vote', { option: opt, round: round + 1 }));
+  check(!r.shared.scattered && r.shared.scores.b === 1 && !r.shared.scores.a, 'mostlikely 633: two votes is a pick');
+  const r3 = newRoom(['a', 'b', 'c']);
+  applyRoomAction(r3, 'a', 'chooseGame', { game: 'mostlikely' });
+  applyRoomAction(r3, 'a', 'start', { lang: 'ar' });
+  [['a', 'b'], ['b', 'c'], ['c', 'a']].forEach(([id, opt]) => applyRoomAction(r3, id, 'vote', { option: opt, round: 1 }));
+  check(!r3.shared.scattered && r3.shared.scores.a === 1, 'mostlikely 633: three people tied on one still share the point');
+}
+
+{
+  // صدق ولا كذب: a sheet sent after the host started the turns goes on the end (596).
+  const r = newRoom(['a', 'b', 'c']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'twotruths' });
+  applyRoomAction(r, 'a', 'start', {});
+  const sheet = (id) => ({ statements: [id + '1', id + '2', id + '3'], lie: 0 });
+  applyRoomAction(r, 'a', 'submit', sheet('a'));
+  applyRoomAction(r, 'b', 'submit', sheet('b'));
+  applyRoomAction(r, 'a', 'closeWriting', {});
+  check(r.shared.phase === 'voting' && r.shared.order.length === 2, 'twotruths 596: the turns start with two sheets');
+  applyRoomAction(r, 'c', 'submit', sheet('c'));
+  check(r.shared.order.length === 3 && r.shared.order[2] === 'c' && r.shared.phase === 'voting', 'twotruths 596: the late sheet goes on the end, the vote carries on');
+  check(threw(() => applyRoomAction(r, 'c', 'submit', sheet('c'))), 'twotruths 596: a late sheet is sent once');
+  const tellers = [];
+  for (let g = 0; g < 6 && r.shared.phase !== 'gameover'; g++) {
+    if (r.shared.phase === 'voting') { tellers.push(r.shared.subjectId); applyRoomAction(r, 'a', 'closeVote', {}); }
+    if (r.shared.phase === 'result') applyRoomAction(r, 'a', 'next', { turn: r.shared.turn });
+  }
+  check(tellers.join(',').split(',').length === 3 && tellers[2] === 'c' && r.shared.phase === 'gameover', 'twotruths 596: the late writer has their turn, last');
+  check(threw(() => applyRoomAction(r, 'b', 'submit', sheet('b'))), 'twotruths 596: no sheet once the game is over');
+}
+
+{
+  // كمّل المثل: a close answer gets one more try (611); three choices after 12 s (612).
+  const r = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'proverbs' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar', count: 5 });
+  const s = () => r.shared;
+  const word = r._card.a;
+  check(s().choicesAt && !s().choices && roomDeadline(r) === s().choicesAt, 'proverbs 612: the choices wait 12 s on the server');
+  clock += 100;
+  applyRoomAction(r, 'b', 'guess', { text: word + 'كك', qIndex: 0 });
+  check(!r._answers.b && r.secrets.b.quiz.near && s().tried.indexOf('b') === -1, 'proverbs 611: a close answer is not spent; its phone is told');
+  clock += 100;
+  applyRoomAction(r, 'b', 'guess', { text: word, qIndex: 0 });
+  check(r._answers.b && r._answers.b.half, 'proverbs 611: the second try counts, at half');
+  clock += 100;
+  applyRoomAction(r, 'c', 'guess', { text: word, qIndex: 0 });
+  clock = s().choicesAt;
+  roomTimeout(r, clock);
+  check(Array.isArray(s().choices) && s().choices.length === 3 && s().choices.indexOf(word) !== -1 && s().phase === 'answering', 'proverbs 612: three choices with the word, at 12 s');
+  const rightI = s().choices.indexOf(word);
+  applyRoomAction(r, 'd', 'pick', { i: (rightI + 1) % 3, qIndex: 0 });
+  check(s().tried.indexOf('d') !== -1, 'proverbs 612: a wrong pick spends the answer');
+  applyRoomAction(r, 'a', 'pick', { i: rightI, qIndex: 0 });
+  check(s().phase === 'results', 'proverbs: everyone answered, the card closes');
+  // b first (second try, half of 15 = 8), c second (14, typed), a third (half of 13 = 7), d nothing.
+  check(s().gained.b === 8 && s().gained.c === 14 && s().gained.a === 7 && !s().gained.d, 'proverbs 611/612: typed full, second try and a right pick half (rounded up)');
+  check(!r.secrets.b || !r.secrets.b.quiz || r.secrets.b.quiz.q === 0, 'proverbs: the note is of its card');
+  applyRoomAction(r, 'a', 'nextQuestion', {});
+  check(!(r.secrets.b && r.secrets.b.quiz), 'proverbs: the next card forgets the close tries');
+  // فوازير إيموجي: a close guess's text is on its guesser's phone only (603).
+  const e = newRoom(['a', 'b', 'c']);
+  applyRoomAction(e, 'a', 'chooseGame', { game: 'emoji' });
+  applyRoomAction(e, 'a', 'start', { lang: 'ar', count: 5 });
+  const ew = e._card.a;
+  applyRoomAction(e, 'b', 'guess', { text: ew + 'كك', qIndex: 0 });
+  const f = e.shared.feed[e.shared.feed.length - 1];
+  check(f && f.close && !('text' in f) && e.secrets.b.quiz.close[f.n] === ew + 'كك', 'emoji 603: «🔥 B قرّب» for the table, the text on B\'s phone only');
+  applyRoomAction(e, 'b', 'guess', { text: 'غلط تماما', qIndex: 0 });
+  check(e.shared.feed[e.shared.feed.length - 1].text === 'غلط تماما', 'emoji: a wrong guess is still shown to the table');
+  check(!e.shared.choicesAt, 'emoji: no choices');
+}
+
+{
   // 🌙 ليلتنا: placement points, not each game's own score.
   const night = (board) => { const r = { night: {} }; bankNightPoints(r, board); return r.night; };
   check(JSON.stringify(night([{ id: 'a', score: 30 }, { id: 'b', score: 20 }, { id: 'c', score: 10 }, { id: 'd', score: 5 }]))

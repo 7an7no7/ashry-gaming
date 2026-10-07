@@ -42,11 +42,42 @@ function quizCardHtml(game, card, big) {
   return `<div class="prov-card ${big ? 'prov-card--big' : ''}">${escapeHTML(parts[0] || '')}<span class="prov-blank">......</span>${escapeHTML(parts[1] || '')}</div>`;
 }
 
-function quizFeedHtml(s, t) {
+/** This phone's own note of the card on the table (RoomQuiz.js quizSlice): its close guesses, its second try. */
+function quizMine(state) {
+  const q = state && state.you && state.you.quiz;
+  return q && q.q === (state.shared || {}).qIndex ? q : null;
+}
+
+function quizFeedHtml(s, t, mine) {
   const rows = (s.feed || []).slice(-8).reverse();
   if (!rows.length) return '';
-  // A near miss (the server's `close`) gets the same nudge as in Draw & Guess.
-  return rows.map(f => `<div class="quiz-feed__row ${f.right ? 'is-right' : ''}">${f.right ? '✅ ' : f.close ? '🔥 ' : '❌ '}<b>${escapeHTML(f.name)}</b>${f.right ? '' : ': ' + escapeHTML(f.text || '')}${!f.right && f.close ? ` <span class="tx-warning">${escapeHTML(t.draw_close || '')}</span>` : ''}</div>`).join('');
+  // A near miss (the server's `close`) gets the same nudge as in Draw & Guess. Its text
+  // is only on the guesser's phone (603): everyone else reads «🔥 عمر قرّب».
+  const own = (mine && mine.close) || {};
+  return rows.map(f => {
+    if (f.close && !f.text && !own[f.n]) {
+      return `<div class="quiz-feed__row">🔥 <span class="tx-warning">${escapeHTML(t.quiz_close_other || '{name}').replace('{name}', `<b>${escapeHTML(f.name)}</b>`)}</span></div>`;
+    }
+    const text = f.text || own[f.n] || '';
+    return `<div class="quiz-feed__row ${f.right ? 'is-right' : ''}">${f.right ? '✅ ' : f.close ? '🔥 ' : '❌ '}<b>${escapeHTML(f.name)}</b>${f.right ? '' : ': ' + escapeHTML(text)}${!f.right && f.close ? ` <span class="tx-warning">${escapeHTML(t.draw_close || '')}</span>` : ''}</div>`;
+  }).join('');
+}
+
+/**
+ * كمّل المثل's extras, drawn in place under the box (a rebuild would take what is typed):
+ * «قرّبت!» after a close answer (611), and the three choices once the server sends them (612).
+ */
+function quizExtrasHtml(state, t, canType) {
+  const s = state.shared;
+  if (!canType) return '';
+  const mine = quizMine(state);
+  const near = mine && mine.near ? `<div class="waiting-note"><span class="tx-warning">🔥 ${escapeHTML(t.quiz_near || '')}</span></div>` : '';
+  const choices = Array.isArray(s.choices) && s.choices.length ? `
+    <div class="card card--tight">
+      <p class="field__hint" style="text-align:center">${escapeHTML(t.quiz_choices_hint || '')}</p>
+      <div class="btn-stack">${s.choices.map((c, i) => `<button type="button" class="btn btn--secondary" onclick="roomAct('pick', { i: ${i}, qIndex: ${Number(s.qIndex) || 0} })">${escapeHTML(c)}</button>`).join('')}</div>
+    </div>` : '';
+  return near + choices;
 }
 
 function armQuizClock(endsAt) {
@@ -140,11 +171,23 @@ function quizGame(game) {
               <button class="btn btn--primary" onclick="quizSend()">${escapeHTML(t.send || '')}</button>
             </div>`
             : `<div class="waiting-note">${escapeHTML(done ? (t.quiz_you_got_it || '') : used ? (t.quiz_one_try_used || '') : (t.vote_spectating || ''))}</div>`}
+          <div id="quiz-extras"></div>
           <div id="quiz-feed" class="quiz-feed"></div>
           ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" style="margin-top: var(--sp-3)" onclick="roomAct('closeQuestion')">${escapeHTML(t.quiz_close || '')}</button>` : ''}
           ${renderRoomPlayerStrip(state)}`, 'quiz|' + s.qIndex);
         const feed = document.getElementById('quiz-feed');
-        if (feed) feed.innerHTML = quizFeedHtml(s, t);
+        if (feed) feed.innerHTML = quizFeedHtml(s, t, quizMine(state));
+        const extras = document.getElementById('quiz-extras');
+        if (extras) {
+          const html = quizExtrasHtml(state, t, canType);
+          // Drawn once per change: the choices pop in when they come down.
+          if (extras.dataset.html !== html) {
+            const fresh = html.indexOf('btn-stack') !== -1 && (extras.dataset.html || '').indexOf('btn-stack') === -1;
+            extras.innerHTML = html;
+            extras.dataset.html = html;
+            if (fresh && !motionOff()) extras.classList.add('animate-pop');
+          }
+        }
         armQuizClock(s.endsAt);
         refreshRoomPlayerStrip(el, state);
         return;
@@ -220,7 +263,7 @@ ROOM_GAMES.proverbs = quizGame('proverbs');
 /* --- the TV ------------------------------------------------------------------ */
 function quizTv(game) {
   return {
-    sig: (state) => [state.shared.phase, state.shared.qIndex, (state.shared.feed || []).length, (state.shared.solved || []).length, (state.shared.tried || []).length, JSON.stringify(state.shared.scores || {})].join('|'),
+    sig: (state) => [state.shared.phase, state.shared.qIndex, (state.shared.feed || []).length, (state.shared.solved || []).length, (state.shared.tried || []).length, !!state.shared.choices, JSON.stringify(state.shared.scores || {})].join('|'),
     frame(state, t) {
       const s = state.shared;
       const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
@@ -232,7 +275,10 @@ function quizTv(game) {
             <div class="tv-center">${quizCardHtml(game, s.card, true)}</div>
             <div class="tv-note">${escapeHTML(t.quiz_tv_type || '')}</div>
             <div class="tv-strip-inline">${(s.solved || []).map((id, i) => `<span class="tv-chip is-done">${['🥇', '🥈', '🥉'][i] || '✅'} ${escapeHTML(names(id))}</span>`).join('')}</div>
-            <div class="tv-clues">${(s.feed || []).filter(f => !f.right).slice(-6).map(f => `<span class="tv-clue">${escapeHTML(f.name)}: ${escapeHTML(f.text || '')}</span>`).join('')}</div>
+            <div class="tv-clues">${(s.feed || []).filter(f => !f.right).slice(-6).map(f => f.close && !f.text
+              ? `<span class="tv-clue">🔥 ${escapeHTML(t.quiz_close_other || '{name}').replace('{name}', escapeHTML(f.name))}</span>`
+              : `<span class="tv-clue">${escapeHTML(f.name)}: ${escapeHTML(f.text || '')}</span>`).join('')}</div>
+            ${Array.isArray(s.choices) ? `<div class="tv-strip-inline">${s.choices.map(c => `<span class="tv-chip">${escapeHTML(c)}</span>`).join('')}</div>` : ''}
             ${host(tvBtn(t.quiz_close, "roomAct('closeQuestion')", 'ghost'))}
           </div>`;
       }

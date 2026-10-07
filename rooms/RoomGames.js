@@ -1398,7 +1398,10 @@ const nextPrompts = (room, pool, poolKey, count, accept) => {
   // it is in this very deal, the rest of the list fills the deal.
   const ok = accept ? pool.map(item => !!accept(item)) : null;
   for (let n = 0; n < want; n++) {
-    if (used.length >= pool.length) used = [];
+    // Starting the list over keeps the latest deals out a while longer (up to half the list, never
+    // so many that this deal can't be filled): the memory is every room's, and starting from empty
+    // let the next room's board repeat words the room before had just been dealt (7 Oct 2026).
+    if (used.length >= pool.length) used = used.slice(used.length - Math.max(0, Math.min(Math.floor(pool.length / 2), pool.length - want)));
     let taken = {};
     used.forEach(i => { taken[i] = true; });
     picks.forEach(i => { taken[i] = true; });

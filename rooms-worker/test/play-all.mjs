@@ -2046,8 +2046,10 @@ async function snakesRobots() {
     people.forEach((p) => { const st = p.state; if (st && typeof st.serverNow === 'number' && typeof st.receivedAt === 'number') gap = Math.min(gap, st.receivedAt - st.serverNow); });
     return (s.readyAt || 0) + (isFinite(gap) ? gap : 0);
   };
+  // Played until it has seen what it checks (three people's rolls, the clock's, the computer player's),
+  // up to 150 s: a fixed 60 s ran out under load on the live server (7 Oct 2026).
   const t0 = Date.now();
-  while (Date.now() - t0 < 60000) {
+  while (Date.now() - t0 < 150000) {
     const s = sS(H);
     if (s.phase !== 'play') break;
     const up = s.turn.pid;

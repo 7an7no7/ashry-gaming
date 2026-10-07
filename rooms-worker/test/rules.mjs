@@ -159,6 +159,23 @@ check(solo.shared.fastest === null, 'trivia: one player alone takes no title');
   check(second.every((q) => q.c === 'x'), 'trivia/category: next time the short category starts over rather than leaving it');
   const plain = nextPrompts(r, pool, 'cat-test', 4);
   check(plain.length === 4 && new Set(plain.map((q) => q.id)).size === 4, 'trivia/category: the same memory still deals the whole list');
+
+  // The list starting over keeps the last deals out: no deal shares a word with the one before,
+  // across many wraps (7 Oct 2026: a new room's board used to repeat the last room's words).
+  const words = Array.from({ length: 100 }, (_, i) => 'w' + i);
+  const wr = { players: [] };
+  let prev = [], clash = 0, dup = 0, every = new Set();
+  for (let n = 0; n < 200; n++) {
+    const deal = nextPrompts(wr, words, 'wrap-test', 25);
+    if (deal.some((w) => prev.indexOf(w) !== -1)) clash++;
+    if (new Set(deal).size !== deal.length) dup++;
+    deal.forEach((w) => every.add(w));
+    prev = deal;
+  }
+  check(clash === 0 && dup === 0, `prompt memory: a deal never repeats the one before, even when the list starts over (${clash} clashes, ${dup} doubles)`);
+  check(every.size === 100, 'prompt memory: and every word still comes round');
+  const whole = nextPrompts({ players: [] }, words.slice(0, 5), 'wrap-whole', 5);
+  check(new Set(whole).size === 5, 'prompt memory: a deal of the whole list is the whole list');
 }
 
 /* --- صدق ولا كذب: who fooled the most ------------------------------------- */

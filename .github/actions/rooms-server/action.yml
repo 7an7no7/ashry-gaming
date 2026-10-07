@@ -1,0 +1,32 @@
+# The rooms server on the runner, as `npm run dev` runs it on the PC (7 Oct 2026, the owner:
+# the robots and the screen test on every push). `wrangler dev` runs the Worker and its
+# Durable Objects locally in workerd: no Cloudflare login, no account, nothing deployed. The
+# wrangler version is the one pinned in rooms-worker/package.json's `dev` script, which this
+# calls. Leaves the server running for the job's later steps; the runner ends it with the job.
+name: Rooms server
+description: Starts the rooms server locally (wrangler dev, no login) on 127.0.0.1:8787 and waits for /health.
+inputs:
+  log:
+    description: The file the server's output goes to (uploaded with the test's output).
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Start the rooms server
+      shell: bash
+      working-directory: rooms-worker
+      env:
+        WRANGLER_SEND_METRICS: 'false'
+        SERVER_LOG: ${{ inputs.log }}
+      run: |
+        mkdir -p "$(dirname "$SERVER_LOG")"
+        node build.mjs
+        # --ip: the tests ask 127.0.0.1, and `localhost` may be ::1 alone on Linux.
+        nohup npm run dev -- --ip 127.0.0.1 --persist-to "$RUNNER_TEMP/wrangler-state" < /dev/null > "$SERVER_LOG" 2>&1 &
+        for i in $(seq 1 90); do
+          if curl -sf http://127.0.0.1:8787/health > /dev/null; then echo "the rooms server answered after about $((i * 2)) s"; exit 0; fi
+          sleep 2
+        done
+        echo "::error::the rooms server did not answer /health in 3 minutes"
+        cat "$SERVER_LOG"
+        exit 1

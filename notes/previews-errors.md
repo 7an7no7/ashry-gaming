@@ -97,7 +97,10 @@ Two things, both free on the Cloudflare plan and with nothing to look after.
 - **Reading them**: `GET /errors` with `Authorization: Bearer <ADMIN_KEY>` (404 without),
   `DELETE /errors` empties it. `cd tools && ASHRY_ADMIN_KEY=... npm run errors` prints
   them by build, newest first, then by count, with the screen, the message, the frame, the
-  devices and first/last seen; `-- --build=<id>` one build; `-- --clear` empties the log.
+  devices and first/last seen; `-- --build=<id>` one build; `-- --clear` empties the log;
+  `-- --json` the rows as JSON. Every Monday the weekly check on GitHub reads them that way
+  and puts the errors first seen that week in the `weekly-check` issue (7 Oct 2026,
+  `notes/tests-docs.md`; with the repository secret `ASHRY_ADMIN_KEY`).
 - **Tested**: `play-all.mjs` has `errRobots` (in the full run and alone with
   `--only=err`; reads the list when `ASHRY_ADMIN_KEY` is set): 204, one row counted twice,
   the build and view, the frame, a quoted Arabic sentence, a URL and a room code blanked,

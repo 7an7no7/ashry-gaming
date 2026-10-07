@@ -361,12 +361,29 @@ npm run check        # content + i18n
   (free, nothing to look after), `npm ci` in `tools/` and `rooms-worker/`,
   `npm run check`, `npm run test:rules` (the rules and the leak check: no
   server, no network, no Cloudflare login) and `node build-site.mjs` into a
-  temporary folder (`SITE_OUT`), which fails over the size budget. A red ✗
-  on a commit on GitHub means one of them failed: open the run, fix it, and
-  push again. It doesn't replace the PC's steps: the robots (`npm test`),
-  the screen test and the look in the browser still run here. A check that
-  can fail by chance (a random deal that never brings up what it checks)
-  makes the ✗ mean nothing, so such a test is made to wait for its case.
+  temporary folder (`SITE_OUT`), which fails over the size budget. Since 7
+  Oct 2026 (the owner: on every push) the same workflow also runs **the
+  robots** (`npm test`, job `robots`) and **the screen test** (`npm run
+  test:ui`, two jobs: `screens,fixes,site` and `rooms,program,mission`), each
+  on a runner of its own against a rooms server started there
+  (`.github/actions/rooms-server`: `npm run dev`, local workerd, no login),
+  Chrome from the runner (`CHROME`, `CHROME_ARGS=--no-sandbox`), Noto Arabic
+  and emoji fonts installed; their output, the server's log and a screenshot
+  at every failed screen check (`UI_SHOTS`) are the run's artifacts. About 10
+  minutes for the lot, side by side (expected; measure on the first runs). A red ✗ on a commit on GitHub means one
+  of them failed: open the run, fix it, and push again. GitHub runs after the
+  push, so the PC's steps before a release stay as they are (CLAUDE.md, step
+  5); GitHub catches what slipped. A check that can fail by chance (a random
+  deal that never brings up what it checks) makes the ✗ mean nothing, so such
+  a test is made to wait for its case.
+- **The weekly check and the monthly plays** (7 Oct 2026, `notes/tests-docs.md`):
+  `.github/workflows/weekly-check.yml` (Mondays) runs `test:live`, `check:live`,
+  `check:songs -- --play` and reads the week's new errors from phones, and
+  opens, updates or closes the issue labelled `weekly-check`;
+  `monthly-plays.yml` (the 1st) opens «What was played in YYYY-MM»
+  (`plays.mjs --markdown`), labelled `monthly-plays`. Both read the repository
+  secret `ASHRY_ADMIN_KEY` when it is set, and write issues with the
+  workflow's own token (`tools/ci-issue.mjs`, `DRY_RUN=1` to try it).
 - Everything else is exercised in the local preview.
 
 Client-side logs are in the browser console; the rooms server's are

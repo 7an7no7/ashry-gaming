@@ -1,8 +1,19 @@
-# The checks that need no server, no Cloudflare login and no network beyond npm:
-# the content and translations, the room rules and the leak check, and a build of
-# the site (into a temporary folder) under its size budget. A red cross on a commit
-# means one of them failed: fix it before releasing. The screen test and the robot
-# players still run on the PC (CLAUDE.md, step 5).
+# Every push to master and every pull request into it. A red cross on a commit means one of
+# the jobs failed: open the run, fix it, push again.
+#
+#   checks   no server, no Cloudflare login, no network beyond npm: the content and
+#            translations, the room rules and the leak check, and a build of the site (into
+#            a temporary folder) under its size budget. About 2 minutes.
+#   robots   the robot players (cd rooms-worker && npm test) against a rooms server started on
+#            the runner (wrangler dev, local: no login). About 8 minutes.
+#   screens  the screen test (cd tools && npm run test:ui) in headless Chrome against its own
+#            local rooms server, in two jobs on two runners: the screens, fixes and offline copy;
+#            the room games, the program and the mission. About 8 minutes each.
+#
+# The robots and the screen test came here on 7 Oct 2026 (the owner: on every push). They
+# run on separate runners, never in one job: their clocks get flaky on a busy machine
+# (GEMINI.md, Testing). Each uploads its output, the rooms server's log and, for the
+# screen test, a picture of the screen at every failed check, as the run's artifacts.
 name: checks
 
 on:
@@ -52,3 +63,97 @@ jobs:
       - name: The site builds under its size budget
         working-directory: tools
         run: SITE_OUT="$RUNNER_TEMP/site" node build-site.mjs
+
+  robots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: ./.github/actions/rooms-server
+        with:
+          log: ${{ runner.temp }}/out/rooms-server.log
+
+      - name: The robot players, every room game (4 segments at a time)
+        working-directory: rooms-worker
+        env:
+          JOBS: 4
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "$RUNNER_TEMP/out/robots.log"
+
+      - name: Keep the output
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: robots
+          path: ${{ runner.temp }}/out/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  screens:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: screens
+            parts: screens,fixes,site
+          - name: rooms
+            parts: rooms,program,mission
+    name: screens (${{ matrix.name }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/package-lock.json
+
+      - name: Install the tools
+        working-directory: tools
+        run: npm ci --no-audit --no-fund
+
+      # The page asks for its own fonts (Google Fonts), but an Arabic and an emoji font of the
+      # machine's own stand in until they arrive, as they do on a phone: without them Arabic
+      # is drawn in boxes of another width, and "text cut off" can come and go with the timing.
+      - name: Arabic and emoji fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends fonts-noto-core fonts-noto-color-emoji > /dev/null
+          fc-cache -f > /dev/null
+
+      - uses: ./.github/actions/rooms-server
+        with:
+          log: ${{ runner.temp }}/out/rooms-server.log
+
+      - name: The screen test (${{ matrix.parts }})
+        working-directory: tools
+        env:
+          ONLY: ${{ matrix.parts }}
+          JOBS: 3
+          # The runner's Chrome can't make its sandbox (restricted user namespaces), and its
+          # /dev/shm is small for several browsers at once.
+          CHROME_ARGS: --no-sandbox --disable-dev-shm-usage
+        run: |
+          set -o pipefail
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium)"
+          export CHROME
+          export UI_SHOTS="$RUNNER_TEMP/out/shots"
+          echo "Chrome: $CHROME ($("$CHROME" --version))"
+          npm run test:ui 2>&1 | tee "$RUNNER_TEMP/out/screens.log"
+
+      - name: Keep the output
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: screens-${{ matrix.name }}
+          path: ${{ runner.temp }}/out/
+          retention-days: 14
+          if-no-files-found: ignore

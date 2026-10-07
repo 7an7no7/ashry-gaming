@@ -5,6 +5,8 @@
  *   node test-ui.mjs http://127.0.0.1:8797          another rooms server
  *   ONLY=screens,rooms,fixes,program,mission,site node test-ui.mjs  some parts only
  *   CHROME=/path/to/chrome                          where Chrome is, if not in the usual place
+ *   CHROME_ARGS="--no-sandbox"                      more flags for Chrome (GitHub's Linux runner)
+ *   UI_SHOTS=folder                                 a screenshot of the screen at every ✗, there
  *
  * It builds its own copy of the app (the preview, and the published site for the offline copy)
  * into a temporary folder - .preview/ and docs/ are left alone - serves it, and checks:
@@ -50,9 +52,23 @@ const ROOMS_SHARD = (process.env.UI_ROOMS_SHARD || '0/1').split('/').map(Number)
 const ONLY_GAMES = process.env.UI_GAMES ? process.env.UI_GAMES.split(',') : null;
 
 let failed = 0, passed = 0;
+// UI_SHOTS (the screen test on GitHub, 7 Oct 2026): at a ✗, a picture of the phone (or TV) the
+// test last spoke to, so a failure on a runner nobody can look at still shows what was on screen.
+// Asked for as the check fails, saved before the process ends; at most 30 a process.
+const SHOTS = process.env.UI_SHOTS || '';
+const SHOT_TAG = (process.env.UI_SIZES || process.env.UI_ROOMS_SHARD || process.env.ONLY || 'all').replace(/[^\w]+/g, '-');
+const shots = [];
+let lastPhone = null;
 const check = (ok, label, detail) => {
   if (ok) passed++; else failed++;
   console.log((ok ? '  ✓ ' : '  ✗ ') + label + (!ok && detail ? '\n      ' + String(detail).slice(0, 600) : ''));
+  if (!ok && SHOTS && lastPhone && shots.length < 30) {
+    const name = `${SHOT_TAG}-${String(shots.length + 1).padStart(2, '0')}-${lastPhone.name}-${label.replace(/[^\p{L}\p{N}]+/gu, '-').slice(0, 60)}.png`;
+    // A tab that isn't in front, or is closed meanwhile, may never answer: 10 s at most.
+    shots.push(Promise.race([send('Page.captureScreenshot', { format: 'png' }, lastPhone.sessionId), wait(10000).then(() => null)])
+      .then((r) => { if (!r) return; fs.mkdirSync(SHOTS, { recursive: true }); fs.writeFileSync(path.join(SHOTS, name), Buffer.from(r.data, 'base64')); })
+      .catch(() => {}));
+  }
 };
 
 /* --- the rooms server has to be there ---------------------------------------------- */
@@ -110,8 +126,11 @@ const chromePath = process.env.CHROME || [
 ].find((p) => fs.existsSync(p));
 if (!chromePath) { console.error('Chrome not found: set CHROME=/path/to/chrome'); process.exit(1); }
 const profile = path.join(TMP, 'chrome');
+// CHROME_ARGS: GitHub's Ubuntu runner can't always give Chrome its sandbox (unprivileged user
+// namespaces are restricted there), so the workflow adds --no-sandbox; on a PC nothing is added.
+const chromeArgs = (process.env.CHROME_ARGS || '').split(/\s+/).filter(Boolean);
 const chrome = spawn(chromePath, ['--headless=new', '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check',
-  '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--user-data-dir=' + profile, 'about:blank'], { stdio: 'ignore' });
+  '--use-angle=swiftshader', '--enable-unsafe-swiftshader', ...chromeArgs, '--user-data-dir=' + profile, 'about:blank'], { stdio: 'ignore' });
 let wsUrl = null;
 for (let i = 0; i < 100 && !wsUrl; i++) {
   await wait(100);
@@ -175,6 +194,7 @@ async function resize(phone, w, h) {
 }
 /** Runs `expr` in the page (awaited); a page that navigates meanwhile gives undefined. */
 async function ev(phone, expr, retried) {
+  lastPhone = phone;
   try {
     const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }, phone.sessionId);
     if (r.exceptionDetails) throw new Error((r.exceptionDetails.exception && r.exceptionDetails.exception.description) || r.exceptionDetails.text);
@@ -989,6 +1009,8 @@ if (ONLY.includes('site')) {
   await closePhone(phone);
 }
 
+await Promise.all(shots);
+if (shots.length) console.log(`  (${shots.length} screenshot${shots.length > 1 ? 's' : ''} of the failures in ${SHOTS})`);
 console.log(`\n${passed} passed, ${failed} failed`);
 if (process.env.UI_CHILD) console.log('@@RESULT ' + JSON.stringify({ passed, failed }));
 try { ws.close(); } catch (e) {}

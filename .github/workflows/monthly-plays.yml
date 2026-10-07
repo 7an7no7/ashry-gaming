@@ -1,0 +1,70 @@
+# Once a month, a look at what is played (7 Oct 2026, the owner): on the 1st, the month that
+# just ended as a GitHub issue labelled "monthly-plays" - every game's starts (one phone, a
+# room, a room with a TV), the ten least started and the games never started - so the owner
+# can decide what to put forward on the home and what to fold away. One issue a month;
+# GitHub emails it. The numbers are the rooms server's /plays (tools/plays.mjs --markdown),
+# read with the repository secret ASHRY_ADMIN_KEY: without it the run only warns.
+# Run it by hand for any month: Actions → monthly plays → Run workflow.
+name: monthly plays
+
+on:
+  schedule:
+    - cron: '23 6 1 * *'   # the 1st of every month, 06:23 UTC
+  workflow_dispatch:
+    inputs:
+      month:
+        description: The month, as 2026-09 (empty for last month)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  plays:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/package-lock.json
+
+      - name: Install the tools
+        working-directory: tools
+        run: npm ci --no-audit --no-fund
+
+      - name: The month
+        env:
+          ASKED: ${{ inputs.month }}
+        run: |
+          m="$ASKED"
+          if [ -z "$m" ]; then m="$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)"; fi
+          if ! printf '%s' "$m" | grep -Eq '^[0-9]{4}-(0[1-9]|1[0-2])$'; then echo "::error::not a month: $m (2026-09)"; exit 1; fi
+          echo "MONTH=$m" >> "$GITHUB_ENV"
+
+      - name: The report
+        id: report
+        working-directory: tools
+        env:
+          ASHRY_ADMIN_KEY: ${{ secrets.ASHRY_ADMIN_KEY }}
+        run: |
+          if [ -z "$ASHRY_ADMIN_KEY" ]; then
+            echo "::warning::the repository secret ASHRY_ADMIN_KEY is not set: no plays to read (Settings → Secrets and variables → Actions)"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          node plays.mjs --month="$MONTH" --markdown > "$RUNNER_TEMP/plays.md"
+          cat "$RUNNER_TEMP/plays.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: The monthly-plays issue
+        if: ${{ steps.report.outputs.ready == 'true' }}
+        working-directory: tools
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node ci-issue.mjs --mode=once --label=monthly-plays --title="What was played in $MONTH" --body-file="$RUNNER_TEMP/plays.md"

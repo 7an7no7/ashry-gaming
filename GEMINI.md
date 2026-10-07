@@ -259,9 +259,22 @@ files. The budget is the shell's (730 KB gzipped; raised from 710 to 720 by the 
 - Shell code that calls a game's functions goes through a door (`lzRun(chunk,
   fn)`), and a test that calls a game's code loads its chunk first
   (`lzEnsure(lzChunksOfView('…'))`).
-- CSS all stays in the shell (later sections restyle earlier ones, so a late
-  stylesheet would change which rule wins); moving it section by section is the
-  next saving. Details, the chunk map and the measurements: `notes/lazy-load.md`.
+- **A game's screens and styles come with its chunk too** (the owner, 7 Oct
+  2026): the build moves each game's `<div id="view-…">` (and the popups in
+  `POPUP_CHUNKS`) out of the page into its chunk, leaving a comment
+  (`<!--[lz:view-…]-->`) whose place the markup takes when the chunk runs
+  (`lzMarkup`, before its code; `adoptMarkup` in JS_Core does to it what the
+  start-up did to the page's markup). The sources don't change: markup is still
+  written in `Controller.html`. The build fails on a screen in no place or two,
+  and on code outside a game's chunks naming an id of its markup
+  (`MARKUP_USES_OK`). Shell code that touches a game's elements goes through a
+  door. Of the stylesheet, `tools/css-split.mjs` moves only rules it proves are
+  one game's (they match only that game's elements, and nothing they tie with
+  comes later: later sections restyle earlier ones); the rest stays.
+  `tools/compare-styles.mjs` compares every screen and room game of two builds,
+  element by element: run it after changing either. 680 KB on 7 Oct 2026 (726
+  before; the home had 5,191 elements, now 2,817). Details, the chunk map and
+  the measurements: `notes/lazy-load.md`.
 
 ### Testing
 
@@ -714,6 +727,14 @@ is not this game's places: such a game registers its own result in `ROOM_RESULT_
 must paint at once when `document.readyState` isn't 'loading', and a registry a
 shell file reads once (`SOLO_LATE`) has to take late entries. A chunk is
 several scripts joined, so one that throws at load stops the rest of its chunk.
+
+**A game's screen isn't in the page until its chunk has run** (7 Oct 2026).
+`document.querySelectorAll('[id^="view-"]')` lists 32 screens, not 208: a test
+or a tool that wants every screen walks the `<!--[lz:view-…]-->` comments too
+(`ALL_VIEWS` in test-ui.mjs), and code that asks `getElementById('view-' + x)`
+to tell whether a screen exists asks `lzChunksOfView(x)` as well. Code that
+runs over the page's markup once at start-up has to run over a chunk's markup
+as it comes: add it to `adoptMarkup` (JS_Core.html).
 
 **An outside service can answer your PC and refuse Cloudflare.** دندنها's songs
 streamed on `wrangler dev` and in every local test, and gave 0 bytes on the

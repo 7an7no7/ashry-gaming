@@ -43,7 +43,8 @@ const STUB = `<script>window.ROOMS_URL = ${JSON.stringify(ROOMS_URL)};</script>`
 const whole = process.env.LAZY === '0';
 // A chunk's name carries its hash, so a static server's cache never hands back an old one.
 const hashOf = (code) => createHash('sha1').update(code).digest('hex').slice(0, 10);
-const built = await assemble({ root, readFile, path, whole, banner: true, name: (c, code) => `${c.id}.${hashOf(code)}.js` });
+// CSS_SPLIT=0 keeps every rule of the stylesheet in the page (tools/css-split.mjs).
+const built = await assemble({ root, readFile, path, whole, banner: true, splitCss: process.env.CSS_SPLIT !== '0', name: (c, code) => `${c.id}.${hashOf(code)}.js` });
 let html = built.html;
 
 // `--room CODE` opens the preview on the join screen with that code filled in,

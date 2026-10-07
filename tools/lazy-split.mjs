@@ -18,6 +18,7 @@ import * as acorn from 'acorn';
 import * as walk from 'acorn-walk';
 import srcMod from './sources.cjs';
 import gameText from './game-text.cjs';
+import { splitStyles } from './css-split.mjs';
 
 const { srcPath } = srcMod;
 
@@ -178,6 +179,44 @@ export const SHELL_VIEWS = ['menu', 'together', 'tools', 'room-tv', 'room-join',
   'setup-daily', 'setup-daily-archive', 'setup-stats',
   // Rooms drawn by the shell's own room files (JS_RoomImposter, JS_RoomGames, JS_RoomVoting).
   'room-imposter', 'room-justone', 'room-wouldyou', 'room-mostlikely', 'room-fibbage'];
+
+/* Each game's screens travel with its code (the owner, 7 Oct 2026). A screen's
+   markup in Controller.html - its whole <div id="view-…"> - goes into the chunk
+   its screen maps to (views, above), and the page keeps a comment where it was,
+   <!--[lz:view-…]-->, that the markup takes the place of when the chunk runs
+   (lzMarkup in JS_Lazy.html, before any of the chunk's code): the same place in
+   the page, so every rule of the stylesheet sees the page it always did. The
+   shell keeps the screens it draws itself (SHELL_VIEWS), a screen of two chunks
+   (the race's boards: either chunk may run first), and these: */
+export const SHELL_MARKUP = [
+  'room-whoami'   // drawn by JS_RoomGames (the shell) from WHOAMI_DB
+];
+/* A game's own popups go with it too, each named here with its chunk: only popups
+   that nothing outside that chunk (and the chunks it loads) names. Their comment is
+   <!--[lz-pop:…]-->, moved under <body> with the other popups at start-up
+   (hoistModals), so a popup comes into the page in its old place among them. */
+export const POPUP_CHUNKS = {
+  'imp1-accuse-modal': 'spy', 'imp1-guess-modal': 'spy', 'password-modal': 'spy',
+  'domino-input-modal': 'domino',
+  'skill-modal': 'newgames',
+  'stop-result-modal': 'stop',
+  'memory-result-modal': 'memory',
+  'chameleon-accuse-modal': 'chameleon', 'chameleon-result-modal': 'chameleon',
+  'spyfall-accuse-modal': 'spyfall', 'spyfall-spy-guess-modal': 'spyfall', 'spyfall-result-modal': 'spyfall',
+  'timesup-result-modal': 'timesup',
+  'mission-modal': 'mission', 'mission-ask': 'mission',
+  'prog-modal': 'program'
+};
+/* An id inside a game's markup that a file outside its chunk (and the chunks
+   that load it) names, checked by hand on 7 Oct 2026: not a lookup of the element,
+   or one made only once the chunk has run. "File > ids". A new one fails the build. */
+export const MARKUP_USES_OK = {
+  JS_RoomReaction: 'view-play-reaction',   // a selector in RX_CSS
+  JS_RoomSolve: 'wordle-grid',             // a class of its own board, not the id
+  JS_Core: 'jo-phase-result',              // restoreView after a reload: lzBootWrite brought the chunk
+  JS_Solo: 'queens-stage',                 // a comment
+  JS_Utils: 'teams-player-list whoami-result-ui'   // a name compared; PLAY_EXIT_OVER of the screen on show
+};
 
 /* --------------------------------------------------------------------------- */
 
@@ -496,7 +535,10 @@ export function plan({ sources, order, controller, roomGameIds }) {
     if (set.size) games[id[1]] = [...set];
   }
 
+  const markup = splitMarkup({ controller, views, sources, fileChunk, shellSet, closure });
+
   return {
+    markup,
     shell: order.filter((f) => shellSet.has(f)),
     chunks: sorted.map((id) => ({
       id, files: [...CHUNKS[id]].sort((a, b) => pos.get(a) - pos.get(b)),
@@ -507,12 +549,99 @@ export function plan({ sources, order, controller, roomGameIds }) {
   };
 }
 
+/* --- the screens' markup, by chunk (SHELL_MARKUP and POPUP_CHUNKS above) ------- */
+
+/** The element that starts at `start` (a <div>), whole: its start and end. */
+function elementAt(html, start) {
+  const re = /<!--[\s\S]*?-->|<div\b|<\/div>/g;
+  re.lastIndex = start;
+  let depth = 0, m;
+  while ((m = re.exec(html))) {
+    if (m[0][1] === '!') continue;
+    if (m[0][1] === '/') { if (--depth === 0) return m.index + m[0].length; } else depth++;
+  }
+  throw new Error(`lazy-split: an element in Controller.html never closes (at ${html.slice(start, start + 60)}…)`);
+}
+
+/**
+ * Which chunk brings each screen's and popup's markup, and the page without them.
+ * Returns { html: Controller.html with a comment in each one's place,
+ * byChunk: { chunk: [[element id, markup], …] in the page's order }, views: n }.
+ * Fails the build on a screen in no place or in two, and on an id of a game's
+ * markup that code outside its chunks names (MARKUP_USES_OK lists the ones checked).
+ */
+export function splitMarkup({ controller, views, sources, fileChunk, shellSet, closure }) {
+  const blocks = [];
+  for (const m of controller.matchAll(/<div\b[^>]*\bid="view-([a-z0-9-]+)"[^>]*>/g)) {
+    const v = m[1];
+    const to = views[v] && views[v].length === 1 && !SHELL_MARKUP.includes(v) ? views[v][0] : null;
+    blocks.push({ id: 'view-' + v, view: v, start: m.index, end: elementAt(controller, m.index), chunk: to, mark: `<!--[lz:view-${v}]-->` });
+  }
+  const popupsSeen = new Set();
+  for (const m of controller.matchAll(/<div\b[^>]*\bclass="modal-overlay\b[^"]*"[^>]*>/g)) {
+    const id = (/\bid="([^"]+)"/.exec(m[0]) || [])[1];
+    if (!id || !POPUP_CHUNKS[id]) continue;
+    popupsSeen.add(id);
+    blocks.push({ id, start: m.index, end: elementAt(controller, m.index), chunk: POPUP_CHUNKS[id], mark: `<!--[lz-pop:${id}]-->` });
+  }
+  for (const id of Object.keys(POPUP_CHUNKS)) if (!popupsSeen.has(id)) throw new Error(`lazy-split: POPUP_CHUNKS names ${id}, which isn't a popup in Controller.html`);
+  blocks.sort((a, b) => a.start - b.start);
+  for (let i = 1; i < blocks.length; i++) {
+    if (blocks[i].start < blocks[i - 1].end && blocks[i].chunk && blocks[i - 1].chunk) {
+      throw new Error(`lazy-split: ${blocks[i].id} is inside ${blocks[i - 1].id}; a game's markup moves whole, so keep it out of another's`);
+    }
+  }
+  const moving = blocks.filter((b) => b.chunk);
+  let html = '', at = 0;
+  const byChunk = {};
+  for (const b of moving) {
+    html += controller.slice(at, b.start) + b.mark;
+    at = b.end;
+    (byChunk[b.chunk] ||= []).push([b.id, controller.slice(b.start, b.end)]);
+  }
+  html += controller.slice(at);
+
+  // Every screen in exactly one place: the page, or one chunk's markup.
+  const count = new Map();
+  const tally = (s) => { for (const m of s.matchAll(/\bid="view-([a-z0-9-]+)"/g)) count.set(m[1], (count.get(m[1]) || 0) + 1); };
+  tally(html);
+  Object.values(byChunk).forEach((list) => list.forEach(([, h]) => tally(h)));
+  const all = [...controller.matchAll(/\bid="view-([a-z0-9-]+)"/g)].map((m) => m[1]);
+  const wrong = all.filter((v) => count.get(v) !== 1);
+  if (wrong.length) throw new Error(`lazy-split: screens in no place or in two after the markup split: ${[...new Set(wrong)].join(', ')}`);
+
+  // An id inside a game's markup may only be named by code that runs with that markup in
+  // the page: its own chunk, or a chunk that loads it first. The shell and other chunks
+  // run without it (the screen's chunk not yet loaded), so each of those is listed and checked.
+  const ok = new Set(Object.entries(MARKUP_USES_OK).flatMap(([f, ids]) => ids.split(' ').map((id) => `${f}>${id}`)));
+  const problems = [];
+  for (const b of moving) {
+    const ids = [...controller.slice(b.start, b.end).matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
+    for (const [f, src] of sources) {
+      if (/^Style(_|$)/.test(f) || f === 'Tailwind' || f === 'Logo') continue;
+      const fc = fileChunk.get(f);
+      if (fc && closure([fc]).has(b.chunk)) continue;
+      if (!fc && !shellSet.has(f)) continue;
+      for (const id of ids) {
+        if (!src.includes(id)) continue;
+        if (!new RegExp(`['"\`#]${id.replace(/[-$]/g, '\\$&')}(?![\\w-])`).test(src)) continue;
+        if (!ok.has(`${f}>${id}`)) problems.push(`${f} (${fc ? 'chunk ' + fc : 'the shell'}) names #${id}, whose markup comes with chunk ${b.chunk}`);
+      }
+    }
+  }
+  if (problems.length) throw new Error(`lazy-split: code that can run before a game's markup is in the page names an element of it (put the code behind a door, or check it and add it to MARKUP_USES_OK):\n  ${problems.join('\n  ')}`);
+  return { html, byChunk, views: moving.filter((b) => b.view).length, popups: moving.filter((b) => !b.view).length };
+}
+
 /** The code of a chunk: its files' scripts, one after another, in the page's order. */
-export function chunkCode(chunk, sources, banner) {
+export function chunkCode(chunk, sources, banner, markup = null, css = '') {
   // First a name of the chunk's own: a second copy of the file (a retry after a timeout,
   // JS_Lazy.html lzLoadOne, racing the first) declares it again, and the browser refuses
   // the whole script before running any of it - so a chunk never runs twice.
-  return `const __lzOnce_${chunk.id.replace(/[^\w$]/g, '_')} = 1;\n` + chunk.files.map((f) => {
+  // Then its styles (lzStyle) and its screens and popups (lzMarkup), into the page before any of its code runs.
+  return `const __lzOnce_${chunk.id.replace(/[^\w$]/g, '_')} = 1;\n` +
+    (css ? `lzStyle(${JSON.stringify(chunk.id)}, ${JSON.stringify(css)});\n` : '') +
+    (markup && markup.length ? `lzMarkup(${JSON.stringify(markup)});\n` : '') + chunk.files.map((f) => {
     const src = sources.get(f);
     const parts = /\.js$/.test(f) ? [src] : [...src.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
     return parts.map((p) => (banner ? `/* ==== ${f} ==== */\n` : '') + p.replace(/\s+$/, '') + '\n;').join('\n');
@@ -718,14 +847,16 @@ export function roomGameIdsOf(gamesJs) {
    JS_Lazy.html, and the boot line (lzBootWrite) at the end of the body. With
    `whole`, the page as it was: everything inlined, no map, no chunk files.
 
-   name(chunk, code) gives a chunk's file name (the site's carries its hash).
+   name(chunk, code) gives a chunk's file name (the site's carries its hash);
+   prepareMarkup(html) treats a game's screens as the page's markup is treated
+   (the site's minifying), so the markup a chunk brings is what the page had.
    Returns { html, chunks: [{ id, deps, file, code }], manifest, plan }; the
    template values (<?!= … ?>) are left for the caller. */
 const LISTS_MARK = /<!-- tools\/build-site\.mjs and build-preview\.mjs inline the word lists[^\n]*-->/;
 const MAP_MARK = /<!-- tools\/build-site\.mjs and build-preview\.mjs write the map of the chunks here[^\n]*-->/;
 const BOOT_MARK = /<!-- tools\/build-site\.mjs and build-preview\.mjs write the boot line here[^\n]*-->/;
 
-export async function assemble({ root, readFile, path, whole = false, name = (c) => `${c.id}.js`, banner = false, base = 'g/', prepare = async (code) => code }) {
+export async function assemble({ root, readFile, path, whole = false, name = (c) => `${c.id}.js`, banner = false, base = 'g/', prepare = async (code) => code, prepareMarkup = (h) => h, prepareCss = async (css) => css, splitCss = true }) {
   const page = await readPage(root, readFile, path);
   let html = page.controller;
   for (const m of [LISTS_MARK, MAP_MARK, BOOT_MARK]) {
@@ -743,13 +874,20 @@ export async function assemble({ root, readFile, path, whole = false, name = (c)
 
   const p = plan(page);
   const shell = new Set(p.shell);
-  for (const [tag, n] of tags) html = html.replace(tag, () => (shell.has(n) ? page.sources.get(n) : ''));
+  // The page without the games' screens and popups (a comment in each one's place).
+  html = p.markup.html;
+  // And without the rules that are one game's alone (css-split.mjs; CSS_SPLIT=0 keeps them all).
+  const styles = splitCss ? chunkStyles(page, p) : null;
+  const part = (n) => (styles && styles.parts.has(n) ? styles.parts.get(n) : page.sources.get(n));
+  for (const [tag, n] of tags) html = html.replace(tag, () => (shell.has(n) ? part(n) : ''));
   html = html.replace(LISTS_MARK, () => SHARED_LISTS.filter((n) => shell.has(n)).map((n) => script(page.sources.get(n))).join('\n    '));
 
   const chunks = [];
   for (const c of p.chunks) {
-    const code = await prepare(chunkCode(c, page.sources, banner), c);
-    chunks.push({ id: c.id, deps: c.deps, code, file: name(c, code) });
+    const markup = (p.markup.byChunk[c.id] || []).map(([id, h]) => [id, prepareMarkup(h)]);
+    const css = styles && styles.byChunk[c.id] ? await prepareCss(styles.byChunk[c.id]) : '';
+    const code = await prepare(chunkCode(c, page.sources, banner, markup, css), c);
+    chunks.push({ id: c.id, deps: c.deps, code, file: name(c, code), css: css.length });
   }
   const manifest = {
     base,
@@ -759,5 +897,32 @@ export async function assemble({ root, readFile, path, whole = false, name = (c)
   };
   html = html.replace(MAP_MARK, () => script(`window.LZ_MANIFEST = ${JSON.stringify(manifest).replace(/</g, '\\u003c')};`));
   html = html.replace(BOOT_MARK, () => script('if (window.lzBootWrite) lzBootWrite();'));
-  return { html, chunks, manifest, plan: p };
+  return { html, chunks, manifest, plan: p, styles: styles && styles.stats };
+}
+
+/** The rules of the stylesheet that are one chunk's alone (css-split.mjs), out of the shell's parts. */
+export function chunkStyles(page, p) {
+  const fileChunk = new Map();
+  for (const [id, files] of Object.entries(CHUNKS)) for (const f of files) fileChunk.set(f, id);
+  // Who writes what: every page script and list, the page's markup, and each chunk's screens.
+  const owners = [];
+  for (const [f, src] of page.sources) {
+    if (/^Style(_|$)/.test(f) || f === 'Tailwind' || f === 'Logo') continue;
+    owners.push([fileChunk.get(f) || 'shell', /\.js$/.test(f) ? 'js' : 'html', src]);
+  }
+  owners.push(['shell', 'html', p.markup.html]);
+  for (const [c, list] of Object.entries(p.markup.byChunk)) owners.push([c, 'html', list.map(([, h]) => h).join('\n')]);
+  const deps = Object.fromEntries(p.chunks.map((c) => [c.id, c.deps]));
+  const closures = new Map();
+  const closure = (id) => {
+    if (!closures.has(id)) {
+      const seen = new Set(), stack = [id];
+      while (stack.length) { const x = stack.pop(); if (seen.has(x)) continue; seen.add(x); (deps[x] || []).forEach((d) => stack.push(d)); }
+      closures.set(id, seen);
+    }
+    return closures.get(id);
+  };
+  const related = (c) => { const r = new Set(closure(c)); for (const x of Object.keys(deps)) if (closure(x).has(c)) r.add(x); return [...r]; };
+  const styleParts = p.shell.filter((n) => /^Style(_|$)/.test(n)).map((n) => [n, page.sources.get(n)]);
+  return splitStyles({ styleParts, owners, related, closure });
 }

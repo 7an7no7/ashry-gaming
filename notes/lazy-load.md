@@ -123,7 +123,7 @@ first visit so every game still works offline.
   neither this build's nor the build before's.
 - The cache name `ashry-<build>` stays first in sw.js (check-live reads it).
 
-## Styles: kept in the shell (measured and decided)
+## Styles: kept in the shell (measured and decided) - superseded 7 Oct 2026, see the end of this file
 
 Style.html is about 160 KB of the shell's 619 (JS_Core 268, the markup 38). The game
 sections could move to chunks, but not safely: later sections restyle earlier
@@ -322,3 +322,133 @@ On 2 Oct 2026 (ارسم اللي بتسمعه's and الشاهد's extras) the s
 **The budget raised to 730 KB (the owner, 6 Oct 2026).** The shell was 719.8 KB and the next game (الليزر) needed room for its words and Help; asked, the owner said to raise it.
 On 2 Oct 2026 «إكس أو الكبير» took it to 711 again; X-O's own lines that only its chunk reads went the same way (`XO_TR` in JS_XO.html, read through `xoTr()`, which puts them over `TRANSLATIONS` so the code still reads `t.xo_*`), and its help was kept short: 710.4.
 **A chunk can bring styles that are only its own (2 Oct 2026).** «كورة التصادم» took the shell to 712 KB; its CSS (every class new, nothing in Style.html restyles it) went into its chunk as `BMP_BALL_CSS`, put into the page once as the chunk runs, before anything of it is drawn (JS_RoomBumper.html). A rule that competes with a shell rule of the same weight has to outweigh it (`.bmp-tv.bmp-tv--ball`), since the order is not guaranteed. Back to 710.
+
+## Each game's screens and styles travel with its code (7 Oct 2026, the owner's B1 and B2)
+
+### B1: the screens (and a game's own popups)
+
+The page used to carry all 208 screens (`[id^=view-]`), 5,191 elements behind the home.
+Now the build moves a screen's whole `<div id="view-…">` out of the page into the chunk
+its screen maps to (the `views` map above), and the page keeps a comment in its place,
+`<!--[lz:view-…]-->`. Sources are unchanged: the markup stays in `app/Controller.html`
+(so Tailwind's scan, `check:i18n`'s `data-i18n` check and the screen-button checks of
+`plan()` read it as before, and no game folder changed); `splitMarkup` in
+`tools/lazy-split.mjs` does the moving.
+
+- **What stays in the page**: `SHELL_VIEWS` (the home, the tabs, the room engine's join,
+  lobby and TV, the tools JS_Core draws), a screen of two chunks (the race's boards:
+  either chunk may run first), and `SHELL_MARKUP` (`room-whoami`, drawn by the shell's
+  JS_RoomGames). 176 screens move; 32 stay.
+- **Popups**: the 16 in `POPUP_CHUNKS` (each named by one chunk only: the spy's, the
+  chameleon's, the spyfall's, ثلاث جولات's, stop's and memory's results, the team maker's
+  skills, the domino's manual entry, the mission's and the program's sheets) move with
+  their chunk; their comment is `<!--[lz-pop:…]-->`. `hoistModals` moves those comments
+  under `<body>` with the popups at start-up, so a popup arrives in its old place among the
+  others (a later one is drawn over an earlier one of the same layer).
+- **The chunk puts them in first**: `chunkCode` starts a chunk with
+  `lzStyle(id, css)` and `lzMarkup([[id, html], …])` (JS_Lazy.html), then its code. Each
+  element takes the place of its comment, so the page is the same page once it is in.
+- **What the start-up did to the page's markup is done to them** (`adoptMarkup`,
+  JS_Core.html): the translations (`translateIn(root)`, the loops `applyTranslations` ran
+  over the document, now per root), the setup's sticky Start bar (`stickySetupStarts`),
+  the drawn icons (`[data-art-icon]`), the shared «خروج» row (`playExitRows`), the saved
+  groups' selects (`renderSavedGroups`), and a popup's adoption (`adoptModal`: the tint
+  observer, `role=dialog`, its title; once each, a WeakSet). Markup that comes before the
+  start-up (a chunk written in by `lzBootWrite` on a reload) is left to the start-up
+  (`markupStarted`, set first thing at DOMContentLoaded).
+- **The build fails** on a screen in no place or in two (page + every chunk's markup
+  counted), a `POPUP_CHUNKS` entry that isn't a popup, a moved block inside another, and an
+  id of a game's markup named (as a string or `#id`) by the shell or by a chunk that doesn't
+  load that markup's chunk - `MARKUP_USES_OK` lists the five checked by hand (a selector in
+  `RX_CSS`, a class of the same name, a restore after `lzBootWrite`, a comment, a name
+  compared).
+- **One door changed**: the phone's back landing on a screen checked
+  `document.getElementById('view-' + landed)` to tell a real screen; a game's screen not yet
+  loaded is real too (`lzChunksOfView(landed).length`), and `setView` brings it.
+- **The site build** minifies a chunk's markup exactly as the page's (`minifyMarkup`, comments
+  starting with `[` kept), so the nodes are the same.
+- **The screen test** listed the screens from the page (`[id^="view-"]`), which would now
+  have been 32: it walks the page for elements and `[lz:view-…]` comments (`ALL_VIEWS` in
+  test-ui.mjs), in the page's order.
+
+### B2: the styles that are provably one game's
+
+`tools/css-split.mjs` (called by `assemble`; `CSS_SPLIT=0` keeps every rule in the page)
+parses the `Style*.html` parts with postcss and moves a rule into a chunk's `lzStyle` only
+when both hold:
+
+1. **It matches only that game's elements**: every selector of its list requires, outside
+   `:not` / `:has` / `:is` / `:where`, a class or id that only that chunk writes (or several
+   chunks that all load it: a class chess and chessrooms both write is chess's). "Writes" is
+   read from the strings of the code (acorn's tokens: string and template literals, never
+   names or comments) and the markup's tags (screens moved by B1 count as their chunk's),
+   with a prefix for names built in code (`'ludo-av--' + c`).
+2. **Nothing it ties with comes after it**: a rule moved to the end of the page wins every
+   tie it used to lose, so for each declaration, no rule that stays after it (or moves to
+   another chunk) sets a property of the same family (a shorthand and its longhands are
+   one) with the same importance and a selector of the same specificity and pseudo-element
+   whose subject could be the same element. "Could be": a subject with no class could be
+   anything; a class of an unrelated chunk's never is; otherwise an element's classes are
+   taken to be written together by one writer (markup, a template, `className =`), or added
+   later by `classList` from code that runs with the game - the shell's additions included,
+   but for the three checked by hand in `SHELL_PUTS_CHECKED` (the popup's fade-out copy, the
+   lobby row's ghost). Run to a fixed point.
+
+A `@keyframes` moves when its name is defined once and only that game's moved rules (and its
+files) name it; `@media`, `@supports` and `@container` wrap what they wrapped; `@property`
+stays. The motion setting reads every sheet, so `lzStyle` calls `applyMotionPref` again when
+the setting isn't «تلقائي». **What is left in the page**: 6,596 of the 8,130 rules that are
+one game's - each ties with something later (the arcade look's generic restyles - `.btn--go`,
+`.card`, `:where(.has-art) > :not(.tv-art)`, `[data-rv]` - or a class the game also writes).
+`node -e` with `chunkStyles(page, p).explain('chess')` (lazy-split.mjs) lists, per rule,
+the later rule it ties with. Moving more means making those ties impossible (a class
+before a generic restyle's subject, a rule written later in its part) - one game at a time,
+with tools/compare-styles.mjs.
+
+The assumption to know: an element's classes come from one writer, or `classList`. A shell
+helper that builds `class="shell-x ${cls}"` from a class a game passes in would put a
+shell class beside a game's own that the analysis doesn't see; tools/compare-styles.mjs is
+the check that would catch it on any screen it opens.
+
+### The proof: tools/compare-styles.mjs
+
+Builds master's preview (git archive) and the working tree's, opens both in headless Chrome
+(Math.random seeded the same), and compares 70 computed properties of every element of the
+screen on show, the header, the bar and any open popup (and `::before` / `::after`), keyed by
+path: every screen at 375x812 and 1280x720 in Arabic light and English dark, every screen with
+the motion setting «شغّالة» and «مقفولة», and every room game's lobby and first moments on two
+phones and a TV - played in one room, each "after" phone the twin of a "before" one (the same
+saved session, a second socket), so both draw the same state. It also lists ids looked up and
+not found only in the after build (with where from), to be read by hand.
+
+### Measurements (7 Oct 2026, gzip 9, minified)
+
+| | before | B1 (screens) | B1 + B2 (styles) |
+| --- | ---: | ---: | ---: |
+| the page, what the first open downloads | 726 KB | 703 KB | **680 KB** |
+| the 73 chunks together | 1,483 KB | 1,535 KB | 1,577 KB |
+| everything | 2,209 KB | 2,238 KB | 2,257 KB |
+| elements on the home | 5,191 | 2,817 | 2,817 |
+| screens in the page at the start | 208 | 32 | 32 |
+| CSS rules in the page at the start | 10,669 | 10,669 | 9,384 |
+
+The whole grows a little (markup and rules compress better together than in 73 pieces); the
+first open is 46 KB lighter and the page has 2,374 fewer elements to style and lay out on every
+change.
+
+### Checks run (7 Oct 2026)
+
+- `tools/compare-styles.mjs`, master against B1 + B2: 262/262 screens the same at 375x812
+  and at 1280x720 (Arabic light, English dark); 131/131 with the motion setting «شغّالة» and
+  «مقفولة»; 50/54 games the same once started from their setup at each size, and 72/73 room
+  games (lobby and first moments, two phones and a TV). The rest - the snakes' board, the
+  dice of لودو and بنك الحظ, the trivia board's team names, كمّل المثل's saying, a chess
+  clock's ring - differ just as much comparing master with itself (the control run), so they
+  are the games' own randomness and motion, not this change. B1 alone: the same, and every
+  lookup by id that finds nothing only after the change is lzMarkup's own check or
+  playExitRows' (both handle it).
+- `npm run check`: passes. `cd rooms-worker && npm run test:rules`: 3,550 checks, 0 failed
+  (the server is untouched). `npm run test:ui` (JOBS=2, rooms on :8811): 186 passed, 0
+  failed - 131 screens at each of the three sizes in both looks (the list now walks the
+  comments too), 54 games started, every room game on five phones and a TV, the fixes, the
+  program, the mission, the offline copy and its updates.

@@ -75,15 +75,30 @@ const minifyJs = async (code, es5First = true) => {
    game that didn't change keeps its name (and the copy on the phone) build after
    build. LAZY=0 builds the whole page in one file, as before. */
 const whole = process.env.LAZY === '0';
+// Markup as the page's is minified below: HTML comments go (none is read by the page; a
+// game's screen keeps its place with a comment that starts with "[", which stays) and
+// indentation. A game's screens in its chunk (lazy-split.mjs) get the same, so they are
+// the same nodes the page had.
+const minifyMarkup = (s) => s.replace(/<!--(?!\[)[\s\S]*?-->/g, '').replace(/\n[ \t]+/g, '\n').replace(/\n{2,}/g, '\n');
+const minifyCss = async (code) => (await transform(code, { loader: 'css', minify: true, charset: 'utf8', target: ['chrome88', 'safari14', 'firefox78'] })).code.trim();
 const hashOf = (code) => createHash('sha1').update(code).digest('hex').slice(0, 10);
 const built = await assemble({
   root, readFile, path, whole,
   prepare: (code) => (MINIFY ? minifyJs(code, false) : code),
+  prepareMarkup: (h) => (MINIFY ? minifyMarkup(h) : h),
+  // A game's own rules (css-split.mjs) minified as the page's styles are below.
+  prepareCss: async (css) => (MINIFY ? minifyCss(css) : css),
+  splitCss: process.env.CSS_SPLIT !== '0',
   name: (c, code) => `${c.id}.${hashOf(code)}.js`
 });
 let html = built.html;
+if (built.plan) {
+  const st = built.styles;
+  console.log(`markup: ${built.plan.markup.views} screens and ${built.plan.markup.popups} popups come with their chunks` +
+    (st ? `; styles: ${st.rules} rules and ${st.keyframes} keyframes of ${st.owned} that are one game's (css-split.mjs) come with theirs` : ''));
+}
 
-const HEAD = `<title>عشرى جيمينج</title>
+const HEAD =`<title>عشرى جيمينج</title>
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" href="icon-180.png${V}">
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png${V}">
@@ -158,7 +173,7 @@ if (MINIFY) {
     const part = parts[i];
     if (i % 2 === 0) {
       // Markup: HTML comments go (none of them is read by the page), and indentation.
-      parts[i] = part.replace(/<!--(?!\[)[\s\S]*?-->/g, '').replace(/\n[ \t]+/g, '\n').replace(/\n{2,}/g, '\n');
+      parts[i] = minifyMarkup(part);
       continue;
     }
     const m = /^(<(script|style)\b[^>]*>)([\s\S]*?)(<\/\2>)$/i.exec(part);
@@ -168,8 +183,7 @@ if (MINIFY) {
       if (/\bsrc=/.test(open) || (/\btype=/.test(open) && !/javascript|module/.test(open))) continue;
       parts[i] = open + (await minifyJs(code)) + close;
     } else {
-      const res = await transform(code, { loader: 'css', minify: true, charset: 'utf8', target: ['chrome88', 'safari14', 'firefox78'] });
-      parts[i] = open + res.code.trim() + close;
+      parts[i] = open + (await minifyCss(code)) + close;
     }
   }
   html = parts.join('');

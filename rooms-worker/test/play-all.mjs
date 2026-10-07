@@ -1230,7 +1230,14 @@ async function humRobots() {
   const s1 = H.state.shared;
   const M = byPid(s1.hummerId);
   const G = people.filter((b) => b !== M);
+  // «الظرف التلاتة» (7 Oct 2026): three sealed envelopes on the hummer's phone, nobody else's.
+  await M.waitFor((s) => s.shared.envelope === true && s.you && (s.you.envelopes || []).length === 3 && !s.you.token, 'hum: three envelopes reach the hummer, no sound yet');
+  const envTitles = M.state.you.envelopes.map((e) => e.t);
+  check(G.concat([TV, late]).every((b) => envTitles.every((t) => JSON.stringify(b.state).indexOf(t) === -1)), 'hum: no guesser, the TV or a watcher sees the envelopes');
+  check((await G[0].act('envelope', { deal: s1.deal, i: 0 })).ok && H.state.shared.envelope === true, 'hum: only the hummer opens an envelope');
+  await M.must('envelope', { deal: s1.deal, i: 2 });
   await M.waitFor((s) => s.you && s.you.song && s.you.song.t && typeof s.you.token === 'string', 'hum: the song and its token reach the hummer');
+  check(M.state.you.song.t === envTitles[2] && H.state.shared.envelope === false, 'hum: the song is the envelope the hummer picked');
   const title = M.state.you.song.t;
   const token = M.state.you.token;
   check(G.concat([TV, late]).every((b) => !b.state.you && JSON.stringify(b.state).indexOf(title) === -1 && JSON.stringify(b.state).indexOf(token) === -1),
@@ -1271,6 +1278,9 @@ async function humRobots() {
   const M2 = byPid(H.state.shared.hummerId);
   check(M2 !== M, 'hum: the next hummer in turn');
   const deal2 = H.state.shared.deal;
+  await M2.waitFor((s) => s.shared.envelope === true && (s.you && s.you.envelopes || []).length === 3, 'hum: three new envelopes for the next hummer');
+  await M2.must('envelope', { deal: deal2, i: 0 });
+  await M2.waitFor((s) => s.you && typeof s.you.token === 'string', 'hum: the second hummer has their song');
   await M2.must('broken', { deal: deal2 });
   await H.waitFor((s) => s.shared.deal === deal2 + 1 && s.shared.round === 2 && s.shared.hummerId === M2.pid, 'hum: a preview that won\'t load: another song, the same hummer');
   await H.must('skipSong', { deal: deal2 + 1 });
@@ -2161,6 +2171,18 @@ async function crewRobots() {
   }
   check(!leaked(), 'crew: still no crew key in any room state');
 
+  // «تاج البطل» (the owner's pick of 7 Oct 2026): a new room for the crew crowns this month's leader
+  // (كريم: the night won) - by name at once, and still once their phone says which member it is.
+  const H2 = await Bot.host('هالة', 'buzzer');
+  const K2 = await Bot.join(H2.code, 'كريم');
+  await H2.must('setCrew', { code, key: made.key });
+  await all([H2, K2], (st) => st.crew && Array.isArray(st.crew.crown) && st.crew.crown.join() === K2.pid,
+    "crew: the month's champion wears the crown in a new room for the crew");
+  await K2.must('crewMe', { code, key: kk.key });
+  await sleep(300);
+  check(H2.state.crew.crown.join() === K2.pid && !JSON.stringify(H2.state).includes(kk.memberId), 'crew: the crown names a player in the room, never a member id');
+  [H2, K2].forEach((b) => b.close());
+
   // The manager's moves, and a member who isn't the manager refused.
   check((await crew('act', { code, key: kk.key, action: 'renameMember', payload: { id: made.memberId, name: 'x' } })).ok === false, "crew: a member who isn't the manager can't rename someone");
   check((await crew('act', { code, key: kk.key, action: 'removeMember', payload: { id: made.memberId } })).ok === false, 'crew: nor take someone out');
@@ -2739,12 +2761,19 @@ async function coreSeg() {
   check(r[C.pid].name.pts === 10 && r[C.pid].name.word === 'known', 'a unique answer the dictionary knows scores 10');
   check(r[A.pid].food.pts === 0 && r[B.pid].food.pts === 0 && r[D.pid].name.pts === 0, 'a blank or a wrong initial scores 0');
   check(r[C.pid].animal.pts === 0 && r[C.pid].animal.word === 'unknown', 'a word the dictionary does not know scores 0, marked for the host');
-  check(A.state.shared.roundTotals[A.pid] === 10 && A.state.shared.roundTotals[C.pid] === 15, 'round totals add up');
+  // C stopped with a word at 0 on the sheet (the unknown animal): وقف غلط, 15 - 10.
+  check(A.state.shared.roundTotals[A.pid] === 10 && A.state.shared.roundTotals[C.pid] === 5 && A.state.shared.badStop === true, 'round totals add up, and a stopper with a 0 loses 10 (وقف غلط)');
   check((await B.act('adjust', { playerId: A.pid, cat: 'food', pts: 10 })).ok === false, 'only the host corrects a cell');
   await A.must('adjust', { playerId: A.pid, cat: 'food', pts: 10 });
   await all(bots, (s) => s.shared.results[A.pid].food.pts === 10 && s.shared.roundTotals[A.pid] === 20, 'the host can correct a cell');
+  await A.must('adjust', { playerId: C.pid, cat: 'animal', pts: 10 });
+  await all(bots, (s) => s.shared.badStop === false && s.shared.roundTotals[C.pid] === 25, 'the host accepting the stopper\'s word takes the -10 away');
+  await A.must('adjust', { playerId: D.pid, cat: 'food', pts: 0 });
+  await A.must('adjust', { playerId: C.pid, cat: 'food', pts: 0 });
+  await all(bots, (s) => s.shared.results[A.pid].food.pts === 20 && s.shared.results[A.pid].food.solo === true && s.shared.roundTotals[A.pid] === 30 &&
+    s.shared.badStop === true && s.shared.roundTotals[C.pid] === 10, 'the only valid answer in a category scores 20; the stopper\'s new 0 is وقف غلط again');
   await A.must('nextRound');
-  await all(bots, (s) => s.shared.phase === 'writing' && s.shared.round === 2 && s.shared.totals[A.pid] === 20 && s.shared.letter !== L, 'next round banks the points and deals a new letter');
+  await all(bots, (s) => s.shared.phase === 'writing' && s.shared.round === 2 && s.shared.totals[A.pid] === 30 && s.shared.letter !== L, 'next round banks the points and deals a new letter');
   await B.must('submit', { answers: { name: name1, animal: animal1, food: food1 }, round: 1 });
   check(B.state.shared.submitted.length === 0, "a sheet from last round, arriving late, is not filed under this one");
   await A.must('backToHub');
@@ -7118,7 +7147,11 @@ async function programRobots() {
   await all(everyone, (s) => s.program.paused === true && typeof s.program.left === 'number', 'program: ⏸ stops the count on every screen');
   await sleep(1200);
   check(H.state.program.phase === 'between', 'program: paused, nothing is dealt');
-  await H.must('programPause', { seq: seq, on: false });
+  // ⚙️ «عدّل البرنامج» (7 Oct 2026): the host saves the coming games (here as they were); the count goes on.
+  check((await J.act('programEdit', { seq, games: [{ keep: 1 }, { keep: 2 }] })).ok === false, 'program: only the host edits what is coming');
+  await H.must('programEdit', { seq, games: [{ keep: 1 }, { keep: 2 }] });
+  await all(everyone, (s) => s.program.paused === false && s.program.seq > seq && s.program.games.map((g) => g.id).join() === 'trivia,buzzer,mind',
+    'program: the edit is saved on every screen, and the count starts again');
   await all(everyone, (s) => s.game === 'buzzer' && s.phase !== 'lobby' && s.program.phase === 'playing', 'program: after ⏸ the next game comes by itself', 16000);
   for (let q = 0; q < 10; q++) {
     const round = H.state.shared.round;

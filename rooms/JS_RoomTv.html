@@ -374,6 +374,8 @@ function tvLobbySig(state) {
     JSON.stringify(state.shared || {}),
     // The night's table changes as games are banked, and it is drawn in the lobby.
     JSON.stringify(state.night || {}),
+    // «تاج البطل»: who wears the crew's crown (JS_CrewCore.html).
+    JSON.stringify((state.crew && state.crew.crown) || []),
     // The chess group of the game list, open or not.
     typeof roomHubGroup !== 'undefined' ? roomHubGroup : '',
     // 🕵️ المهمة السرية's cork board and the host's strip (JS_RoomMission.html, once its chunk is here).
@@ -465,7 +467,7 @@ function tvLobby(state, t) {
       return `
         <div class="tv-lobby__player${fresh ? ' is-new' : ''}${p.online === false ? ' is-away' : ''}" data-accent="${tvFaceAccent(p.id)}">
           <span class="tv-lobby__avatar" aria-hidden="true">${p.bot ? '🤖' : escapeHTML(Array.from(String(p.name || '?').trim())[0] || '?')}</span>
-          <span class="tv-lobby__name"><bdi>${escapeHTML(p.name)}</bdi></span>
+          <span class="tv-lobby__name"><bdi>${escapeHTML(p.name)}</bdi>${typeof crewCrownHtml === 'function' ? crewCrownHtml(state, p.id) : ''}</span>
         </div>`;
     };
     // A game whose lobby splits people up (السلم والتعبان's teams) draws them its own way here.

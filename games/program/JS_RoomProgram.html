@@ -20,7 +20,9 @@ const PROG_DRAFT_KEY = 'ashryProgramDraft_v1';
 const PROG_MIN = 3;
 const PROG_MAX = 8;
 const PROG_AV = ['violet', 'teal', 'amber', 'rose', 'blue', 'green', 'indigo', 'orange'];
-const prog = { draft: null, pane: 'list', pickGroup: '', pickSearch: '', optsAt: -1, timer: null, seen: '', busy: false, drag: null };
+// edit: «عدّل البرنامج وانت ماشي» (7 Oct 2026) - the builder on the coming games of the running program
+// ({ seq, played, list, paused, saved }); the draft on this phone is left alone meanwhile.
+const prog = { draft: null, pane: 'list', pickGroup: '', pickSearch: '', optsAt: -1, timer: null, seen: '', busy: false, drag: null, edit: null };
 
 const progT = () => TRANSLATIONS[appState.lang] || {};
 const progEntry = (id) => ROOM_HUB_GAMES.find(g => g.id === id) || { id: id, icon: '🎮', key: '', accent: 'violet', min: 1 };
@@ -48,6 +50,7 @@ function progLeft(p) {
 /* --- the draft (the builder's list, kept on the host's phone) ------------- */
 
 function progDraftLoad() {
+  if (prog.edit) return prog.edit.list;
   if (prog.draft) return prog.draft;
   let list = [];
   try { list = JSON.parse(localStorage.getItem(PROG_DRAFT_KEY) || '[]') || []; } catch (e) { list = []; }
@@ -58,7 +61,8 @@ function progDraftLoad() {
   return prog.draft;
 }
 function progDraftSave() {
-  try { localStorage.setItem(PROG_DRAFT_KEY, JSON.stringify(prog.draft || [])); } catch (e) {}
+  if (prog.edit) return;   // the running program's games are the server's, not this phone's draft
+  try { localStorage.setItem(PROG_DRAFT_KEY, JSON.stringifyprogDraftLoad()); } catch (e) {}
 }
 
 /** A game's options as the host's phone would start it now: its lobby options drawn out of
@@ -103,8 +107,8 @@ function progReadOpts(id, root) {
 }
 /** The options of the i-th game as this phone remembers them (its chunk loaded first). */
 function progCapture(i) {
-  const item = (prog.draft || [])[i];
-  if (!item) return Promise.resolve();
+  const item = progDraftLoad()[i];
+  if (!item || item.keep !== undefined) return Promise.resolve();   // a coming game kept as it is: its options are on the server
   const id = item.id;
   const ready = typeof lzEnsure === 'function' ? lzEnsure(lzChunksOfRoom(id)) : Promise.resolve();
   return ready.then(() => {
@@ -113,7 +117,7 @@ function progCapture(i) {
     try { holder.innerHTML = (game && game.lobbyOptions) ? (game.lobbyOptions(progFakeState(id)) || '') : ''; } catch (e) { holder.innerHTML = ''; }
     const got = progReadOpts(id, holder);
     holder.innerHTML = '';
-    const now = (prog.draft || [])[i];
+    const now = progDraftLoad()[i];
     if (now && now.id === id && !now.opts) { now.opts = got.opts; now.sum = got.sum; progDraftSave(); }
   }).catch(() => {});
 }
@@ -123,6 +127,7 @@ function progCapture(i) {
 function progOpenBuilder() {
   const st = Room.state;
   if (!st || !st.youAreHost) return;
+  prog.edit = null;
   progDraftLoad();
   prog.pane = 'list';
   prog.pickGroup = '';
@@ -136,6 +141,7 @@ function progCloseBuilder() {
   const body = document.getElementById('prog-modal-body');
   // Options open in the sheet: kept as they are now.
   if (prog.pane === 'opts') progOptsDone(true);
+  progEditEnd();
   closeModal('prog-modal');
   if (body) setTimeout(() => { if (document.getElementById('prog-modal').classList.contains('hidden')) body.innerHTML = ''; }, 300);
 }
@@ -153,11 +159,11 @@ function progRenderBuilder() {
       <li class="prog-row" data-i="${i}" data-accent="${e.accent}">
         <button type="button" class="prog-row__grip" aria-label="${escapeHTML(t.prog_drag || '')}" title="${escapeHTML(t.prog_drag || '')}"
                 onpointerdown="progDragStart(event, ${i})" onkeydown="progGripKey(event, ${i})">⋮⋮</button>
-        <span class="prog-row__num metric">${i + 1}</span>
+        <span class="prog-row__num metric">${i + 1 + (prog.edit ? prog.edit.played : 0)}</span>
         <span class="prog-row__icon" aria-hidden="true">${iconHtml(e.icon)}</span>
         <span class="prog-row__text">
           <span class="prog-row__name">${escapeHTML(progGameName(x.id, t))}</span>
-          <span class="prog-row__sum">${escapeHTML(x.sum || (x.opts ? (t.prog_opts_default || '') : '…'))}</span>
+          <span class="prog-row__sum">${escapeHTML(x.sum || (x.opts ? (t.prog_opts_default || '') : x.keep !== undefined ? (t.prog_edit_kept || '') : '…'))}</span>
         </span>
         <button type="button" class="iconbtn prog-row__btn" onclick="progOpenOpts(${i})" aria-label="${escapeHTML(t.prog_opts || '')}" title="${escapeHTML(t.prog_opts || '')}">⚙️</button>
         <button type="button" class="iconbtn prog-row__btn" onclick="progRemove(${i})" aria-label="${escapeHTML(t.prog_remove || '')}" title="${escapeHTML(t.prog_remove || '')}">✕</button>
@@ -166,16 +172,21 @@ function progRenderBuilder() {
   const n = list.length;
   const people = ((Room.state && Room.state.players) || []).filter(p => !p.bot).length;
   const short = list.filter(x => progEntry(x.id).min > people).map(x => progGameName(x.id, t));
+  const min = progMinNow();
+  const edit = prog.edit;
+  const main = edit
+    ? `<button type="button" class="btn btn--primary btn--lg" ${n < min ? 'disabled aria-disabled="true"' : ''} onclick="progEditSave()">✓ ${escapeHTML(n < min ? progFill(t.prog_need_games || '', { n: min - n }) : (t.prog_edit_save || ''))}</button>`
+    : `<button type="button" class="btn btn--primary btn--lg" ${n < PROG_MIN ? 'disabled aria-disabled="true"' : ''} onclick="progStart()">▶ ${escapeHTML(n < PROG_MIN ? progFill(t.prog_need_games || '', { n: PROG_MIN - n }) : progFill(t.prog_start || '', { n: n }))}</button>`;
   body.innerHTML = `
     <div class="modal-icon" aria-hidden="true">🌙</div>
-    <div class="sheet__title">${escapeHTML(t.prog_title || '')}</div>
-    <p class="sheet__subtitle">${escapeHTML(t.prog_builder_hint || '')}</p>
-    ${n ? `<ol class="prog-list" id="prog-list">${rows}</ol>` : `<div class="empty prog-empty">${escapeHTML(t.prog_empty || '')}</div>`}
-    ${n < PROG_MAX ? `<button type="button" class="btn btn--secondary" onclick="progPane('pick')"><span aria-hidden="true">＋</span> ${escapeHTML(t.prog_add || '')}</button>` : ''}
+    <div class="sheet__title">${escapeHTML(edit ? (t.prog_edit_title || '') : (t.prog_title || ''))}</div>
+    <p class="sheet__subtitle">${escapeHTML(edit ? progFill(t.prog_edit_hint || '', { n: edit.played }) : (t.prog_builder_hint || ''))}</p>
+    ${n ? `<ol class="prog-list" id="prog-list">${rows}</ol>` : `<div class="empty prog-empty">${escapeHTML(edit ? (t.prog_edit_empty || '') : (t.prog_empty || ''))}</div>`}
+    ${n < progMaxNow() ? `<button type="button" class="btn btn--secondary" onclick="progPane('pick')"><span aria-hidden="true">＋</span> ${escapeHTML(t.prog_add || '')}</button>` : ''}
     ${short.length ? `<p class="field__hint prog-warn">${escapeHTML(progFill(t.prog_need_people || '', { games: short.join('، ') }))}</p>` : ''}
-    <p class="field__hint">${escapeHTML(t.prog_scoring_hint || '')}</p>
+    ${edit ? '' : `<p class="field__hint">${escapeHTML(t.prog_scoring_hint || '')}</p>`}
     <div class="modal-actions">
-      <button type="button" class="btn btn--primary btn--lg" ${n < PROG_MIN ? 'disabled aria-disabled="true"' : ''} onclick="progStart()">▶ ${escapeHTML(n < PROG_MIN ? progFill(t.prog_need_games || '', { n: PROG_MIN - n }) : progFill(t.prog_start || '', { n: n }))}</button>
+      ${main}
       <button type="button" class="btn btn--ghost" onclick="progCloseBuilder()">${escapeHTML(t.cancel || '')}</button>
     </div>`;
 }
@@ -193,7 +204,7 @@ function progPane(pane) {
 function progPickHtml(t) {
   return `
     <div class="sheet__title">${escapeHTML(t.prog_pick_title || '')}</div>
-    <p class="sheet__subtitle" id="prog-pick-sub">${escapeHTML(progFill(t.prog_pick_hint || '', { n: (prog.draft || []).length, max: PROG_MAX }))}</p>
+    <p class="sheet__subtitle" id="prog-pick-sub">${escapeHTML(progFill(t.prog_pick_hint || '', { n: progDraftLoad().length, max: progMaxNow() }))}</p>
     ${prog.pickGroup ? `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="progPickGroup('')">↩ ${escapeHTML(t.room_hub_all || '')}</button>`
       : roomGameSearchHtml('prog-pick-search', prog.pickSearch, 'progPickSearch', t)}
     <div id="prog-pick-results" class="prog-pick-results">${progPickResultsHtml(t)}</div>
@@ -204,7 +215,7 @@ function progPickHtml(t) {
 function progPickResultsHtml(t) {
   const byId = (id) => ROOM_HUB_GAMES.find(g => g.id === id);
   const off = (id) => typeof roomGameIsOff === 'function' && roomGameIsOff(id);
-  const inList = (prog.draft || []).map(x => x.id);
+  const inList = progDraftLoad().map(x => x.id);
   const tile = (x) => {
     const g = x.g;
     const dis = !x.open && off(g.id);
@@ -242,14 +253,14 @@ function progPickRefresh() {
   if (!box) { progRenderBuilder(); return; }
   box.innerHTML = progPickResultsHtml(t);
   const sub = document.getElementById('prog-pick-sub');
-  if (sub) sub.textContent = progFill(t.prog_pick_hint || '', { n: (prog.draft || []).length, max: PROG_MAX });
+  if (sub) sub.textContent = progFill(t.prog_pick_hint || '', { n: progDraftLoad().length, max: progMaxNow() });
 }
 function progPickSearch(value) { prog.pickSearch = String(value || ''); progPickRefresh(); }
 function progPickGroup(k) { prog.pickGroup = k || ''; progRenderBuilder(); }
 
 function progAdd(id) {
   const list = progDraftLoad();
-  if (list.length >= PROG_MAX) { showToast(progFill(progT().prog_full || '', { n: PROG_MAX }), 'error'); return; }
+  if (list.length >= progMaxNow()) { showToast(progFill(progT().prog_full || '', { n: PROG_MAX }), 'error'); return; }
   list.push({ id, opts: null, sum: '' });
   progDraftSave();
   haptic('light');
@@ -335,7 +346,7 @@ function progDragStart(e, i) {
 
 /** A game's options in the sheet: its own lobby options, as the lobby shows them. */
 function progOpenOpts(i) {
-  const item = (prog.draft || [])[i];
+  const item = progDraftLoad()[i];
   if (!item) return;
   prog.pane = 'opts';
   prog.optsAt = i;
@@ -365,12 +376,13 @@ function progOpenOpts(i) {
 }
 function progOptsDone(quiet) {
   const i = prog.optsAt;
-  const item = (prog.draft || [])[i];
+  const item = progDraftLoad()[i];
   const root = document.getElementById('prog-opts-body');
   if (item && root) {
     const got = progReadOpts(item.id, root);
     item.opts = got.opts;
     item.sum = got.sum;
+    delete item.keep;   // a coming game whose options the host opened goes with what the sheet says now
     progDraftSave();
   }
   prog.optsAt = -1;
@@ -388,6 +400,60 @@ async function progStart() {
     for (let i = 0; i < list.length; i++) if (!list[i].opts) await progCapture(i);
     await Room.act('programStart', { games: list.map(x => ({ id: x.id, opts: x.opts || {} })) });
     progCloseBuilder();
+  } catch (err) {
+    showToast((err && err.message) || t.room_err_generic || '', 'error');
+  } finally { prog.busy = false; }
+}
+
+/* --- «عدّل البرنامج وانت ماشي» (the owner's pick of 7 Oct 2026) ---------------------
+   Between two games the host's ⚙️ opens the same builder on what is still to come: add,
+   remove, reorder, a game's options. The program stands still while the sheet is open
+   (programPause, taken back on «إلغاء»); «احفظ» sends programEdit, which starts the
+   countdown again with the new next game. A coming game left as it was is { keep: i }:
+   its options stay on the server. */
+const progMaxNow = () => PROG_MAX - (prog.edit ? prog.edit.played : 0);
+const progMinNow = () => Math.max(0, PROG_MIN - (prog.edit ? prog.edit.played : 0));
+
+function progEditOpen() {
+  const st = Room.state;
+  const p = st && st.program;
+  if (!st || !st.youAreHost || !p || p.phase !== 'between') return;
+  const played = p.at + 1;
+  prog.edit = {
+    seq: p.seq, played, saved: false, paused: !p.paused,
+    list: (p.games || []).slice(played).map((g, k) => ({ id: g.id, opts: null, sum: '', keep: played + k }))
+  };
+  if (!p.paused) roomAct('programPause', { seq: p.seq, on: true });
+  prog.pane = 'list';
+  prog.pickGroup = '';
+  prog.pickSearch = '';
+  progRenderBuilder();
+  const m = document.getElementById('prog-modal');
+  if (m) m.classList.remove('hidden');
+  haptic('light');
+}
+
+/** The sheet closing: an edit not saved lets the countdown go on again (if the editor stopped it). */
+function progEditEnd() {
+  const e = prog.edit;
+  if (!e) return;
+  prog.edit = null;
+  const p = Room.state && Room.state.program;
+  if (!e.saved && e.paused && p && p.phase === 'between' && p.paused && p.seq === e.seq) roomAct('programPause', { seq: p.seq, on: false });
+}
+
+async function progEditSave() {
+  const e = prog.edit;
+  const t = progT();
+  if (!e || prog.busy || e.list.length < progMinNow()) return;
+  prog.busy = true;
+  try {
+    for (let i = 0; i < e.list.length; i++) if (e.list[i].keep === undefined && !e.list[i].opts) await progCapture(i);
+    const games = e.list.map(x => (x.keep !== undefined ? { keep: x.keep } : { id: x.id, opts: x.opts || {} }));
+    await Room.act('programEdit', { seq: e.seq, games });
+    e.saved = true;
+    progCloseBuilder();
+    showToast(t.prog_edit_done || '', 'success');
   } catch (err) {
     showToast((err && err.message) || t.room_err_generic || '', 'error');
   } finally { prog.busy = false; }
@@ -453,6 +519,7 @@ function progHostHtml(state, t, tv) {
   return `<div class="prog-actions ${tv ? 'tv-actions' : ''}">
       ${b('⏭ ' + (p.at < 0 ? (t.prog_go_first || '') : (t.prog_go_now || '')), 'progSkip()')}
       ${b(p.paused ? '▶ ' + (t.prog_resume || '') : '⏸ ' + (t.prog_pause || ''), `progPause(${p.paused ? 'false' : 'true'})`, 'secondary')}
+      ${state.youAreHost && p.phase === 'between' ? b('⚙️ ' + (t.prog_edit || ''), 'progEditOpen()', 'secondary') : ''}
       ${state.youAreHost ? b('⏹ ' + (t.prog_end || ''), 'progEnd()', 'ghost') : ''}
     </div>`;
 }

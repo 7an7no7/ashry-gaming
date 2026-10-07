@@ -345,10 +345,13 @@ export class Room extends DurableObject {
     const code = payload.code ? crewCleanCode(payload.code) : '';
     if (payload.code && !code) return { ok: false, error: 'كود الشلة مش صحيح' };
     let verified = null;
+    let crown = null;
     if (code) {
       const stub = this.crewStub(code);
       try { verified = stub ? await stub.verify(String(payload.key || '')) : null; } catch (e) { verified = null; }
       if (!verified || !verified.ok) return { ok: false, error: 'إنت مش في الشلة دي على الموبايل ده' };
+      // «تاج البطل»: the crew's reigning champion, crowned in this room (never a reason to refuse).
+      try { crown = stub && stub.crown ? await stub.crown() : null; } catch (e) { crown = null; }
     }
     // The call let other messages in: look at the room as it is now.
     await this.load();
@@ -362,11 +365,14 @@ export class Room extends DurableObject {
     if (!code) {
       room.crew = null;
       room.crewNight = null;
+      room._crewChamp = null;
     } else {
       if (!old || old.code !== code) room.crewNight = room.code + '-' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
       room.crew = { code, name: String(verified.name || '').slice(0, 30) };
       room.crewLinks = room.crewLinks || {};
       room.crewLinks[pid] = verified.memberId;
+      room._crewChamp = crown && crown.ok ? { ids: (crown.ids || []).slice(0, 6), names: (crown.names || []).slice(0, 6) } : null;
+      this.crewCrownSync();
     }
     this.touch();
     await this.save();
@@ -387,6 +393,29 @@ export class Room extends DurableObject {
     return hostIsScreen && room.players.some((p) => p.id === pid && !p.bot);
   }
 
+  /**
+   * «تاج البطل» (7 Oct 2026): which players in the room are the crew's reigning champion -
+   * the phone that proved it is that member (crewLinks), else an unlinked player of the same
+   * name. Only player ids go out (room.crew.crown); the member ids stay in room._crewChamp.
+   * Returns true when it changed.
+   */
+  crewCrownSync() {
+    const room = this.room;
+    if (!room || !room.crew) return false;
+    const ch = room._crewChamp || { ids: [], names: [] };
+    const links = room.crewLinks || {};
+    const people = room.players.filter((p) => !p.bot);
+    const pids = [];
+    ch.ids.forEach((m, i) => {
+      let p = people.find((x) => links[x.id] === m);
+      if (!p && ch.names[i]) p = people.find((x) => !links[x.id] && sameRoomName(x.name, ch.names[i]));
+      if (p && pids.indexOf(p.id) === -1) pids.push(p.id);
+    });
+    const before = JSON.stringify(room.crew.crown || []);
+    room.crew.crown = pids;
+    return before !== JSON.stringify(pids);
+  }
+
   /** A phone in the room says which member of the room's crew it is (its crew key, checked). */
   async crewMe(pid, payload, ws) {
     const crew = this.room.crew;
@@ -401,7 +430,10 @@ export class Room extends DurableObject {
     this.room.crewLinks = this.room.crewLinks || {};
     if (this.room.crewLinks[pid] !== verified.memberId) {
       this.room.crewLinks[pid] = verified.memberId;
+      // The champion's own phone proving who it is puts the crown on its chip, on every screen.
+      const crowned = this.crewCrownSync();
       await this.save();
+      if (crowned) this.broadcast({ skip: ws });
       this.recordCrew().catch(() => {});
     }
     if (!ws) this.polled.set(pid, Date.now());

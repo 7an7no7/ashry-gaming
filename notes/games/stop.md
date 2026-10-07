@@ -114,6 +114,34 @@ In rooms, what a phone has typed this round is also kept in the tab's `sessionSt
 (`ashryStopDraft`, keyed on the deal and round), so a reload mid-round brings the boxes
 back filled and a round closing sends them (the audit of 6 Oct 2026).
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **751 «لوحدك في الخانة = ٢٠»** (one phone and rooms). The owner: 20 when yours is the only
+  valid answer in that category (everyone else blank or marked wrong), only with 3+ players;
+  otherwise 10 / 5 / 0 as before. Rooms (`RoomStop.js`): each cell keeps the host's 10 / 5 / 0 in
+  `base`; `stopRecount(s)` (after `scoreStopRound` and every `adjust`) works out `pts` (20 when the
+  cell is the only one above 0 in its category and the round has 3+ rows; `solo: true`),
+  `roundTotals` and `badStop` from the bases, so a host tap can make or end a 20 anywhere in the
+  column. `adjust` cycles the base (a phone sends the base it shows, `adjustStopRoom`); an older
+  phone sending the 20 it was shown means 10. The review table marks a solo cell ⭐ (green, 20) and
+  the legend gets «⭐ 20 لوحدك في الخانة». One phone (`JS_Stop.html`): `stopCellPts(p, cat)` gives the
+  20 from the table's own choices; the category card shows «⭐ 20» beside the name as it applies
+  (`stop1-solo-<i>`), the table and its totals repaint whole after a tap (`stopSyncTable`). An
+  unknown word left at 0 is not valid; in «متسامح» it scores 10 and counts.
+- **752 «وقف غلط»** (one phone and rooms). The owner: -10 on the round for the stopper if any word on
+  their sheet ends at 0 (wrong, or unknown left unconfirmed); shown «وقف غلط». Rooms: `stopRecount`
+  sets `shared.badStop` when the stopper (`stopperId`, only a round closed by وقف - never the clock)
+  has a cell at 0, and takes 10 off their `roundTotals` (a total can go below 0); the host accepting
+  the word lifts it. Shown above the table on every phone and the TV (it is inside
+  `stopReviewTable`): «🛞 وقف غلط · name −10», and 🛞 beside the stopper's name. One phone: the
+  phone can't know who shouted, so the table asks «مين قال وقف؟» (chips, `stop1SetStopper`,
+  `s.stopper`; not asked when the clock ended the round, `s.stopBy = 'clock'`); a stopper with a
+  0 cell loses 10 in `stopRoundTotal` and the line says «وقف غلط». Chosen: the bus itself is left
+  as it was (no puncture drawing); the 🛞 marks it.
+- Help (`GAME_RULES.stop`, both languages) has both rules. Tests: `rules.mjs` (solo 20, 2 players
+  never, bad stop, the host's tap lifting both, an older phone's 20, banking), `play-all.mjs`
+  (`core`: the stopper with an unknown word -10, accepted, a solo 20 made by two taps, banked).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

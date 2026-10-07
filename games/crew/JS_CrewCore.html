@@ -425,6 +425,55 @@ function crewGuestOfferHtml(state, t) {
     </div>`;
 }
 
+/* «تاج البطل» (the owner's pick of 7 Oct 2026): the crew's reigning champion (this month's leader,
+   or last month's champion before anyone has won a night this month) wears a 👑 on their chip in
+   every room opened for the crew - the lobby, the strip, the TV. The server says which players
+   (state.crew.crown, room.js crewCrownSync). If someone beats them tonight - alone on top of the
+   night's board while the champion has played - the crown goes to them, and the TV says
+   «التاج اتنقل!» once. */
+function crewCrownState(state) {
+  const crew = state && state.crew;
+  const champs = crew && Array.isArray(crew.crown) ? crew.crown : [];
+  const here = ((state && state.players) || []).filter(p => !p.bot).map(p => p.id);
+  const kings = champs.filter(id => here.indexOf(id) !== -1);
+  if (!kings.length) return { holders: [], moved: false, from: [] };
+  const night = state.night || {};
+  const ids = here.filter(id => (night[id] || 0) > 0);
+  const best = ids.reduce((m, id) => Math.max(m, night[id]), 0);
+  const top = ids.filter(id => night[id] === best);
+  const played = kings.some(id => Object.prototype.hasOwnProperty.call(night, id));
+  if (best > 0 && top.length === 1 && kings.indexOf(top[0]) === -1 && played) return { holders: [top[0]], moved: true, from: kings };
+  return { holders: kings, moved: false, from: kings };
+}
+
+/** The 👑 after a name, for the crown's holder (empty for everyone else). */
+function crewCrownHtml(state, pid) {
+  if (!state || !state.crew || !Array.isArray(state.crew.crown) || !state.crew.crown.length) return '';
+  if (crewCrownState(state).holders.indexOf(pid) === -1) return '';
+  const t = TRANSLATIONS[appState.lang] || {};
+  return ` <span class="crew-crown" role="img" aria-label="${escapeHTML(t.crew_crown_title || '')}" title="${escapeHTML(t.crew_crown_title || '')}">👑</span>`;
+}
+
+// The TV says «التاج اتنقل!» when the crown changes heads tonight - once, and never for what was
+// already so when this screen first saw the room (a reload, a TV coming on).
+const crewCrownSeen = { room: '', key: '' };
+if (typeof Room !== 'undefined') Room.onChange((state) => {
+  if (!state || !state.crew || !state.youAreScreen) return;
+  const c = crewCrownState(state);
+  const key = c.moved ? state.crew.code + '|' + c.holders.join(',') : '';
+  if (crewCrownSeen.room !== state.code) { crewCrownSeen.room = state.code; crewCrownSeen.key = key; return; }
+  if (key === crewCrownSeen.key) return;
+  crewCrownSeen.key = key;
+  if (!key) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const name = (id) => ((state.players || []).find(p => p.id === id) || {}).name || '';
+  const line = (t.crew_crown_to || '').replace('{name}', name(c.holders[0])).replace('{from}', c.from.map(name).join('، '));
+  const word = t.crew_crown_moved || '';
+  const slam = typeof slamBanner === 'function' ? slamBanner(word, line) : null;
+  if (!slam) showToast(word + ' ' + line, 'success');
+  if (typeof playSound === 'function') playSound('success');
+});
+
 // Every member phone in a room for its crew says which member it is, once per room.
 const crewMeSent = {};
 if (typeof Room !== 'undefined') Room.onChange((state) => {

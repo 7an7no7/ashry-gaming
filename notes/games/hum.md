@@ -201,6 +201,25 @@ catalog, the help); the rules are named `hum` / `HUM_`, the page's code
   pin is gone playing from its second), the choices on the server's clock, a redeal, a skip,
   «سمّع» with every ▶).
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **759 «الظرف التلاتة»** (no extra rule asked). In «دندنة» the hummer is first handed three sealed
+  envelopes (three songs, the titles only in their slice) and picks the one they know; the other two
+  go back to the deck. `humDeal` draws three (`humDraw`, never one already in hand) into
+  `room._hum.offer`, with no song and no token yet; `shared.envelope` is true and `shared.envEndsAt`
+  is the clock (`HUM_ENVELOPE_MS`, 20 s - chosen; then the first envelope is taken by `humTimeout`).
+  The hummer's slice is `{ deal, envelopes: [{ t, s, en, se }×3] }`. The move `envelope { deal, i }`
+  (the hummer only, stale deals dropped) → `humTakeEnvelope`: `h.cur` and a fresh token, the slice
+  `{ song, token }` as before, `listenEndsAt` from now, the other two pushed back on the end of the
+  deck. `heard` and `broken` wait for the pick; `skipSong` before it shows the first envelope; a
+  hummer leaving (or a redeal) puts unopened envelopes back. The deck deals `rounds × 3 + 8`.
+  The page: the stage «٣ ظروف: اختار الأغنية اللي تعرفها» with ✉️✉️✉️, the three as signs in the
+  hummer's hand (`.dnd-envs`, one column; `dndEnvelope(i)`), «{h} بيختار ظرف من التلاتة ✉️» for
+  everyone else and the TV (its signature carries `envelope`), the bulbs' clock counts the 20 s.
+  Tests: `rules.mjs` (three different, sealed, nothing before a pick, only the hummer, the two back
+  in the deck, the clock takes the first, a skip before a pick), `leaks.mjs` (each envelope's title
+  on the hummer's phone alone; the driver picks), `play-all.mjs` (`hum`).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

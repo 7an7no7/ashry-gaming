@@ -14,6 +14,14 @@
    too, which a made-up word almost never is. The host can correct any cell
    before the points are banked.
 
+   Two rules of the paper game on top (the owner, 7 Oct 2026): with 3 players
+   or more, an answer that is the only valid one in its category (everyone
+   else blank or marked 0) scores 20 («لوحدك في الخانة»); and whoever pressed
+   وقف loses 10 on the round when any word on their sheet ends at 0 - wrong,
+   or unknown and never confirmed - «وقف غلط». Both follow the host's taps:
+   a cell keeps the host's 10 / 5 / 0 in `base`, and stopRecount works out
+   `pts`, `solo`, `roundTotals` and `badStop` from it after every change.
+
    Answers stay in room._answers (never projected) until the round closes,
    so a phone that finished early cannot show its list to the table.
    ========================================================================== */
@@ -25,6 +33,9 @@ const STOP_LETTERS_BY_LANG = {
 const STOP_TIMERS = [60, 90, 120, 0];
 const STOP_ROUNDS = [3, 5, 7, 10];
 const STOP_POINT_STEPS = [10, 5, 0];
+const STOP_SOLO_PTS = 20;         // the only valid answer in its category, 3 players or more
+const STOP_SOLO_MIN = 3;
+const STOP_BAD_STOP_PTS = 10;     // وقف غلط: the stopper's sheet had a word at 0
 const STOP_COLLECT_MS = 4000;     // after وقف, the other phones send what they typed
 const STOP_GRACE_MS = 1500;       // the clock ran out: how late a submit still counts
 
@@ -114,19 +125,21 @@ const stopAction = (room, playerId, action, payload) => {
     if (s.phase !== 'review') return;
     const pid = String((payload && payload.playerId) || '');
     const cat = String((payload && payload.cat) || '');
-    const pts = Number(payload && payload.pts);
+    // An older phone may send the 20 it was shown for a solo cell: that is its 10.
+    const sent = Number(payload && payload.pts);
+    const pts = sent === STOP_SOLO_PTS ? 10 : sent;
     // Only a player and a category of this round: a name like '__proto__' must
     // never reach an object's prototype (it is shared by every room in the isolate).
     const own = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
     const row = own(s.results, pid) ? s.results[pid] : null;
     if (!row || (s.cats || []).indexOf(cat) === -1 || !own(row, cat) || !row[cat] ||
         STOP_POINT_STEPS.indexOf(pts) === -1) return;
-    const prevPts = row[cat].pts;
+    const prevPts = stopCellBase(row[cat]);
     const cellWord = row[cat].word;
     const cellText = row[cat].text;
-    row[cat].pts = pts;
+    row[cat].base = pts;
     row[cat].manual = true;
-    s.roundTotals[pid] = s.cats.reduce((sum, c) => sum + (row[c] ? row[c].pts : 0), 0);
+    stopRecount(s);
     // Logged once a cell: a host cycling it through 0 and back is one table's
     // one decision, not several.
     if ((cellWord === 'unknown' || cellWord === 'shared') && prevPts === 0 && pts > 0 && !row[cat].logged) {
@@ -165,6 +178,7 @@ const dealStopLetter = (room) => {
     submitted: [],
     stopperId: null,
     stopperName: '',
+    badStop: false,
     results: null,
     roundTotals: {},
     totals: Object.assign({}, room._stopTotals),
@@ -201,15 +215,50 @@ const scoreStopRound = (room) => {
       const word = !a.ok ? '' : a.known ? 'known' : shared ? 'shared' : 'unknown';
       const pts = !a.ok ? 0 : word === 'unknown' ? (s.lenient ? 10 : 0) : (shared ? 5 : 10);
       results[pid] = results[pid] || {};
-      results[pid][cat] = { text: a.raw, pts: pts, ok: a.ok, word: word, manual: false };
+      results[pid][cat] = { text: a.raw, pts: pts, base: pts, ok: a.ok, word: word, manual: false };
     });
-  });
-  roster.forEach(pid => {
-    roundTotals[pid] = s.cats.reduce((sum, c) => sum + results[pid][c].pts, 0);
   });
   s.results = results;
   s.roundTotals = roundTotals;
+  stopRecount(s);
   s.phase = 'review';
+};
+
+/** A cell's own points as scored or tapped (10 / 5 / 0); a cell from before `base` has only pts. */
+const stopCellBase = (cell) => {
+  if (!cell) return 0;
+  if (typeof cell.base === 'number') return cell.base;
+  return cell.pts === STOP_SOLO_PTS ? 10 : (cell.pts || 0);
+};
+
+/**
+ * From every cell's base: the solo 20s (3 players or more, the only valid
+ * answer in its category), each row's total, and وقف غلط (the stopper loses
+ * 10 when any word on their sheet ends at 0). Run after scoring and every tap.
+ */
+const stopRecount = (s) => {
+  const results = s.results || {};
+  const rows = Object.keys(results);
+  const soloOn = rows.length >= STOP_SOLO_MIN;
+  (s.cats || []).forEach(cat => {
+    const valid = rows.filter(pid => results[pid][cat] && stopCellBase(results[pid][cat]) > 0);
+    rows.forEach(pid => {
+      const cell = results[pid][cat];
+      if (!cell) return;
+      const base = stopCellBase(cell);
+      cell.base = base;
+      cell.solo = soloOn && valid.length === 1 && valid[0] === pid;
+      cell.pts = cell.solo ? STOP_SOLO_PTS : base;
+    });
+  });
+  const totals = {};
+  rows.forEach(pid => {
+    totals[pid] = (s.cats || []).reduce((sum, c) => sum + (results[pid][c] ? results[pid][c].pts : 0), 0);
+  });
+  const stopper = s.stopperId && results[s.stopperId] ? s.stopperId : null;
+  s.badStop = !!stopper && (s.cats || []).some(c => !results[stopper][c] || results[stopper][c].pts === 0);
+  if (s.badStop) totals[stopper] -= STOP_BAD_STOP_PTS;
+  s.roundTotals = totals;
 };
 
 const bankStopRound = (room) => {

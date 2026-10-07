@@ -31,6 +31,13 @@ gameText({
       prog_resume: "كمّل",
       prog_pause: "استنى",
       prog_end: "إنهاء البرنامج",
+      prog_edit: "عدّل البرنامج",
+      prog_edit_title: "عدّل اللي جاي",
+      prog_edit_hint: "اللي اتلعب ({n}) فاضل زي ما هو. ضيف، شيل أو رتّب اللعب الجاية، والبرنامج مستنيك.",
+      prog_edit_empty: "مفيش ألعاب جاية: البرنامج هيخلص على كده.",
+      prog_edit_kept: "زي ما هي",
+      prog_edit_save: "احفظ وكمّل",
+      prog_edit_done: "البرنامج اتعدّل",
       prog_skipped: "{game} اتفوّتت",
       prog_last_coop: "{game}: كله لعب مع بعض، وخدوا زي بعض",
       prog_last: "بعد {game}",
@@ -86,6 +93,13 @@ gameText({
       prog_resume: "Go on",
       prog_pause: "Wait",
       prog_end: "End the program",
+      prog_edit: "Edit the program",
+      prog_edit_title: "Edit what's coming",
+      prog_edit_hint: "What was played ({n}) stays. Add, remove or reorder the coming games; the program waits for you.",
+      prog_edit_empty: "No games to come: the program ends here.",
+      prog_edit_kept: "As it was",
+      prog_edit_save: "Save and go on",
+      prog_edit_done: "The program was changed",
       prog_skipped: "{game} was skipped",
       prog_last_coop: "{game}: everyone played together and gets the same",
       prog_last: "After {game}",
@@ -127,6 +141,7 @@ gameText({
             <p class="help-sub">👑 المضيف</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>بين لعبتين: ⏭ ابدأ دلوقتي، أو ⏸ استنى. ولو المضيف مش موجود أي حد يقدر يدوسهم.</li>
+                <li>وبين لعبتين المضيف يدوس <b>⚙️ عدّل البرنامج</b>: يضيف أو يشيل أو يرتّب اللعب الجاية (وإعدادات كل واحدة) من غير ما البرنامج يقف. اللي اتلعب يفضل زي ما هو، والعداد يستنى لحد ما يحفظ.</li>
                 <li>وسط لعبة: زرار المضيف «لعبة أخرى» (أو سهم الرجوع) يخلّص اللعبة دي، وتتحسب بالترتيب اللي وصلتوله. «إنهاء البرنامج» بين لعبتين يطلّع بطل الليلة على طول.</li>
                 <li>لعبة محتاجة ترتيب قبل ما تبدأ (فرق، كراسي، ناس أكتر): البرنامج يستنى المضيف يدوس «ابدأ»، أو «فوّتها».</li>
                 <li>الألعاب اللي ملهاش آخر (لو خيروك، مين أكثر واحد، فيبج، كلمة واحدة، الجرس، القنبلة…) بتخلص في البرنامج بعد عدد جولات.</li>
@@ -144,6 +159,7 @@ gameText({
             <p class="help-sub">👑 The host</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Between two games: ⏭ Start now, or ⏸ Wait. With the host away, anyone can press them.</li>
+                <li>Between two games the host can also press <b>⚙️ Edit the program</b>: add, remove or reorder the coming games (and each one's options) without ending it. What was played stays, and the countdown waits until it is saved.</li>
                 <li>During a game: the host's «Another game» (or the back arrow) ends this one, counted by the places reached. «End the program», between two games, goes straight to the champion.</li>
                 <li>A game that needs setting up first (sides, seats, more people): the program waits for the host to press Start, or «Skip it».</li>
                 <li>Games with no end of their own (Would You Rather, Most Likely To, Fibbage, Just One, the Buzzer, the Bomb…) end after a number of rounds in a program.</li>

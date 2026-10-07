@@ -29,6 +29,9 @@ gameText({
       dnd_hum_now: "دندن بصوت عالي! 🎶 من غير كلام",
       dnd_hummer_wait: "🎶 الجمهور بيسمعك… لما حد يعرفها هيرفع لافتة",
       dnd_g_listen: "{h} بيسمع الأغنية في ودنه 🎧",
+      dnd_g_env: "{h} بيختار ظرف من التلاتة ✉️",
+      dnd_env3_title: "٣ ظروف: اختار الأغنية اللي تعرفها",
+      dnd_env3_hint: "العناوين ليك إنت بس. الاتنين التانيين يرجعوا للكوتشينة.",
       dnd_g_type: "اكتب اسمها أول ما تعرفها!",
       dnd_g_wait: "اسمع كويس… اللافتة هتفتح أول ما يبدأ يدندن",
       dnd_on_stage: "{h} على المسرح",
@@ -108,6 +111,9 @@ gameText({
       dnd_hum_now: "Hum it out loud! 🎶 No words",
       dnd_hummer_wait: "🎶 The crowd is listening… whoever knows it raises a sign",
       dnd_g_listen: "{h} is hearing the song 🎧",
+      dnd_g_env: "{h} is picking one of three envelopes ✉️",
+      dnd_env3_title: "3 envelopes: pick the song you know",
+      dnd_env3_hint: "Only you see the titles. The other two go back to the deck.",
       dnd_g_type: "Type its name as soon as you know it!",
       dnd_g_wait: "Listen… your sign opens when the humming starts",
       dnd_on_stage: "{h} on stage",
@@ -167,7 +173,7 @@ gameText({
       hum: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>كل واحد على موبايله، من 2 لـ12. أغاني <b>مصري بس</b>: من أم كلثوم وعبد الحليم وفريد لعمرو دياب ومنير وأنغام والمهرجانات.</li>
-                <li><b>🎤 دندنة</b>: كل أغنية واحد بالدور يدوس المايك ويسمعها <b>في ودنه</b> (السماعة، أو الموبايل على ودنه، مش السبيكر)، واسمها في ظرف الدي جي ليه بس. يدوس «خلاص، هدندن» ويدندنها بصوت عالي من غير كلام.</li>
+                <li><b>🎤 دندنة</b>: كل أغنية واحد بالدور ياخد <b>٣ ظروف</b> فيهم ٣ أغاني (العناوين ليه بس) ويختار اللي يعرفها، والاتنين التانيين يرجعوا. بعدين يدوس المايك ويسمعها <b>في ودنه</b> (السماعة، أو الموبايل على ودنه، مش السبيكر)، واسمها في ظرف الدي جي ليه بس. يدوس «خلاص، هدندن» ويدندنها بصوت عالي من غير كلام.</li>
                 <li><b>🎧 سمّع</b>: مفيش حد بيدندن. كل الموبايلات بتشغّل نفس الحتة في نفس اللحظة. المضيف يختار: أول ١٠ ثواني مرة واحدة، أو الـ٣٠ ثانية وتعيد براحتك، أو «بتطول» (٢ث ثم ٥ث ثم ١٠ث).</li>
                 <li>الباقي <b>يكتبوا اسم الأغنية</b> على اللافتة ويرفعوها، ولو بغلطة صغيرة (الألف واللام والهمزة مش فارقين). اسم المطرب لوحده مش إجابة.</li>
                 <li>الكلوبات اللي فوق المسرح هي الوقت: <b>١٥ ثانية</b>. لو خلصت ولسه في حد ماعرفهاش، تنزل <b>٤ لافتات</b> يختار منهم (وده للي كتب غلط كمان).</li>
@@ -195,7 +201,7 @@ gameText({
       hum: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Everyone on their own phone, 2 to 12. <b>Egyptian songs only</b>: from Umm Kulthum, Abdel Halim and Farid to Amr Diab, Mounir, Angham and mahraganat.</li>
-                <li><b>🎤 Hum</b>: each song, one player in turn taps the mic and hears it <b>in their ear</b> (earphones, or the phone to the ear, not the speaker); its name is in the DJ's envelope, theirs alone. They tap "Done, I'll hum it" and hum it out loud, no words.</li>
+                <li><b>🎤 Hum</b>: each song, one player in turn gets <b>3 sealed envelopes</b>, three songs whose titles only they see, and picks the one they know; the other two go back. Then they tap the mic and hear it <b>in their ear</b> (earphones, or the phone to the ear, not the speaker); its name is in the DJ's envelope, theirs alone. They tap "Done, I'll hum it" and hum it out loud, no words.</li>
                 <li><b>🎧 Listen</b>: nobody hums. Every phone plays the same clip at the same moment. The host picks: the first 10 s once, all 30 s replayed freely, or "Growing" (2 s, then 5 s, then 10 s).</li>
                 <li>The rest <b>type the song's name</b> on their sign and raise it; a small typo is fine (the article and hamzas don't matter). The singer's name alone is not an answer.</li>
                 <li>The bulbs over the stage are the clock: <b>15 seconds</b>. When they are out and someone still hasn't got it, <b>4 signs</b> come down to pick from (a wrong typer may pick too).</li>

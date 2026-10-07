@@ -270,18 +270,24 @@ function stopReviewTable(state, t, canAdjust) {
   const nameOf = (id) => { const p = state.players.find(x => x.id === id); return p ? p.name : '…'; };
   const cell = (pid, c) => {
     const r = s.results[pid][c];
-    const cls = r.pts === 10 ? 'is-10' : r.pts === 5 ? 'is-5' : '';
+    // A solo answer (the only valid one in its category, 3 players or more) is 20, starred.
+    const cls = r.pts >= 10 ? 'is-10' : r.pts === 5 ? 'is-5' : '';
     // ✓ the dictionary knew it (or two players wrote it); ❓ it didn't, and the host hasn't decided.
     const check = r.ok && r.word === 'unknown' && !r.manual;
-    const mark = check ? '❓' : (r.ok && (r.word === 'known' || r.word === 'shared') ? '✓' : '');
+    const mark = r.solo ? '⭐' : check ? '❓' : (r.ok && (r.word === 'known' || r.word === 'shared') ? '✓' : '');
+    // The host cycles the cell's own points (10 → 5 → 0); the 20 follows from them.
+    const base = typeof r.base === 'number' ? r.base : (r.pts === 20 ? 10 : r.pts);
     const inner = `<span class="stop-ans ${r.ok ? '' : 'is-bad'}">${escapeHTML(r.text || '—')}</span>`
       + `<span class="stop-cell-foot">${mark ? `<span class="stop-mark ${check ? 'is-check' : 'is-ok'}" aria-hidden="true">${mark}</span>` : ''}<span class="stop-pts ${cls}">${r.pts}</span></span>`;
     const state2 = (r.manual ? ' is-manual' : '') + (check ? ' is-check' : '');
     return canAdjust
-      ? `<button type="button" class="stop-rcell${state2}" onclick="adjustStopRoom('${jsStringAttr(pid)}', '${c}', ${r.pts})">${inner}</button>`
+      ? `<button type="button" class="stop-rcell${state2}" onclick="adjustStopRoom('${jsStringAttr(pid)}', '${c}', ${base})">${inner}</button>`
       : `<div class="stop-rcell${state2}">${inner}</div>`;
   };
-  return `
+  const anySolo = roster.some(pid => s.cats.some(c => s.results[pid][c] && s.results[pid][c].solo));
+  // وقف غلط: whoever stopped had a word at 0 on their sheet, and pays 10 for the round (the TV shows this too).
+  const badStop = s.badStop && s.stopperId ? `<p class="field__hint tx-danger stop-bad-stop" style="text-align:center">🛞 <b>${escapeHTML(t.stop_bad_stop || '')}</b> · ${escapeHTML(nameOf(s.stopperId))} <span class="metric">−10</span></p>` : '';
+  return badStop + `
     <div class="stop-table-wrap">
       <table class="stop-table">
         <thead><tr>
@@ -292,7 +298,7 @@ function stopReviewTable(state, t, canAdjust) {
         <tbody>
           ${roster.map(pid => `
             <tr class="${pid === Room.me ? 'is-me' : ''}">
-              <td class="stop-td stop-td--name">${escapeHTML(nameOf(pid))}</td>
+              <td class="stop-td stop-td--name">${escapeHTML(nameOf(pid))}${s.badStop && pid === s.stopperId ? ` <span aria-hidden="true">🛞</span>` : ''}</td>
               ${s.cats.map(c => `<td class="stop-td">${cell(pid, c)}</td>`).join('')}
               <td class="stop-td stop-td--total"><b class="metric">${s.roundTotals[pid] || 0}</b></td>
             </tr>`).join('')}
@@ -303,6 +309,7 @@ function stopReviewTable(state, t, canAdjust) {
       <span><span class="stop-dot is-10"></span> 10 ${escapeHTML(t.stop_pts_unique || '')}</span>
       <span><span class="stop-dot is-5"></span> 5 ${escapeHTML(t.stop_pts_shared || '')}</span>
       <span><span class="stop-dot"></span> 0 ${escapeHTML(t.stop_pts_none || '')}</span>
+      ${anySolo ? `<span><span class="stop-mark is-ok">⭐</span> 20 ${escapeHTML(t.stop_pts_solo || '')}</span>` : ''}
       <span><span class="stop-mark is-check">❓</span> ${escapeHTML(t.stop_pts_check || '')}</span>
     </div>`;
 }

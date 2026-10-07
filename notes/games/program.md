@@ -268,6 +268,24 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
   with motion on and off; no console errors.
 - The site builds: the shell 636 KB compressed (budget 710), the program's chunk its own.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **776 «عدّل البرنامج وانت ماشي»** (no extra rule asked). Between two games (and on the line-up)
+  the host's «⚙️ عدّل البرنامج» (`progHostHtml`, the host only, `between` only; the TV host too)
+  opens the same builder on the games still to come (`progEditOpen`: `prog.edit = { seq, played,
+  list }`, the phone's own draft left alone - `progDraftLoad` / `progDraftSave` follow `prog.edit`):
+  add, remove, reorder, a game's ⚙️ options; «احفظ وكمّل». The program stands still while the sheet
+  is open (the editor sends `programPause` and takes it back on «إلغاء», `progEditEnd`). The server's
+  `programEdit { seq, games }` (host, `between` only, stale `seq` refused with a message): each coming
+  game is `{ keep: i }` - one of the program's own still to come, its saved options kept (they never
+  leave the server) - or `{ id, opts }` (new, or one whose options were opened); the games played
+  stay; 3 to 8 in all; then `programBump` starts the countdown again with the new next game.
+  Chosen: removing every coming game is allowed when 3 or more were already played (the next step
+  is the finale). Help (`GAME_RULES.program`) says so. Tests: `rules.mjs` (refusals: a player, a
+  stale seq, under 3, over 8, an unknown game, a kept game already played; the reorder with an add
+  keeping the kept options, the new first game dealt with them, not while a game is played, one
+  removed after a game), `play-all.mjs` (`program`: an edit while paused, the count going on).
+
 ## Not done
 
 - The program's awards as crew titles (the crew reads and shows them; they don't count

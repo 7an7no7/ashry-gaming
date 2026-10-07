@@ -351,6 +351,39 @@ check(stopWordKnown('ar', 'name', 'مححمود') && !stopWordKnown('ar', 'anima
   check(rLog._stopTaps.length === 1, 'stop log: shared cell 5 -> 0 does not log');
   applyRoomAction(rLog, 'a', 'adjust', { playerId: 'a', cat: 'animal', pts: 5 });
   check(rLog._stopTaps.length === 2 && rLog._stopTaps[1].word === 'بزززظ', 'stop log: shared cell 0 -> 5 logs');
+
+  // The owner's picks of 7 Oct 2026: لوحدك في الخانة = 20 (3 players or more), وقف غلط = -10.
+  const rSolo = newRoom(['a', 'b', 'c']);
+  applyRoomAction(rSolo, 'a', 'chooseGame', { game: 'stop' });
+  applyRoomAction(rSolo, 'a', 'start', { lang: 'ar', cats: ['name', 'animal'], timer: 0, rounds: 2 });
+  rSolo.shared.letter = 'ب';
+  applyRoomAction(rSolo, 'a', 'submit', { answers: { name: 'باسم', animal: 'بزززظ' }, stop: true });
+  applyRoomAction(rSolo, 'b', 'submit', { answers: { name: 'بسمة', animal: '' } });
+  applyRoomAction(rSolo, 'c', 'submit', { answers: { name: '', animal: 'بطة' } });
+  const rs = rSolo.shared.results;
+  check(rs.c.animal.pts === 20 && rs.c.animal.solo === true && rs.a.animal.pts === 0,
+        'stop solo: the only valid answer in its category (the other an unknown word at 0) scores 20');
+  check(rs.a.name.pts === 10 && !rs.a.name.solo, 'stop solo: two valid answers are 10 each');
+  check(rSolo.shared.badStop === true && rSolo.shared.roundTotals.a === 0 && rSolo.shared.roundTotals.c === 20,
+        'stop bad stop: the stopper with an unknown word at 0 loses 10 on the round');
+  applyRoomAction(rSolo, 'a', 'adjust', { playerId: 'a', cat: 'animal', pts: 10 });
+  check(rSolo.shared.badStop === false && rSolo.shared.results.c.animal.pts === 10 && rSolo.shared.roundTotals.a === 20,
+        'stop: the host accepting the word ends the solo 20 and the -10 together');
+  applyRoomAction(rSolo, 'a', 'adjust', { playerId: 'a', cat: 'animal', pts: 20 });
+  check(rSolo.shared.results.a.animal.base === 10, 'stop: an older phone sending 20 means 10');
+  applyRoomAction(rSolo, 'a', 'adjust', { playerId: 'b', cat: 'name', pts: 0 });
+  check(rSolo.shared.results.a.name.pts === 20 && rSolo.shared.results.a.name.solo === true, 'stop: tapping the other answer to 0 makes a solo 20');
+  applyRoomAction(rSolo, 'a', 'nextRound', {});
+  check(rSolo.shared.totals.a === 30 && rSolo.shared.badStop === false, 'stop: the corrected round is banked, the next starts clean');
+
+  const rTwo = newRoom(['a', 'b']);
+  applyRoomAction(rTwo, 'a', 'chooseGame', { game: 'stop' });
+  applyRoomAction(rTwo, 'a', 'start', { lang: 'ar', cats: ['name', 'animal'], timer: 0, rounds: 1 });
+  rTwo.shared.letter = 'ب';
+  applyRoomAction(rTwo, 'a', 'submit', { answers: { name: 'باسم', animal: 'بطة' } });
+  applyRoomAction(rTwo, 'b', 'submit', { answers: { name: '', animal: '' } });
+  check(rTwo.shared.results.a.name.pts === 10 && !rTwo.shared.results.a.name.solo && rTwo.shared.badStop === false,
+        'stop solo: two players never get the 20; a round the clock or the sheets closed has no stopper to fine');
 }
 
 /* One typed word against another, everywhere but Stop: spelling is folded away. */
@@ -14920,6 +14953,37 @@ Date.now = duelTestClock;
   applyRoomAction(r0, 'a', 'programClose', {});
   check(r0.program === null && !r0._progLog, 'program: closed, the room is back to its hub');
 
+  // «عدّل البرنامج وانت ماشي» (the owner's pick of 7 Oct 2026): between two games the host
+  // re-sets what is coming; a kept game keeps its options (they never leave the server).
+  {
+    const re = P(['a', 'b', 'c']);
+    play3(re, [{ id: 'mind', opts: {} }, { id: 'buzzer', opts: {} }, { id: 'trivia', opts: { count: 5, lang: 'ar' } }]);
+    const sq = re.program.seq;
+    const plan = [{ keep: 2 }, { id: 'mind', opts: {} }, { keep: 1 }, { keep: 0 }];
+    check(threwP(() => applyRoomAction(re, 'b', 'programEdit', { seq: sq, games: plan })), 'program edit: only the host edits');
+    check(threwP(() => applyRoomAction(re, 'a', 'programEdit', { seq: sq - 1, games: plan })), 'program edit: an edit of a moment already gone is refused');
+    check(threwP(() => applyRoomAction(re, 'a', 'programEdit', { seq: sq, games: [{ keep: 1 }, { keep: 2 }] })), 'program edit: never under 3 games in all');
+    check(threwP(() => applyRoomAction(re, 'a', 'programEdit', { seq: sq, games: [{ keep: 0 }, { keep: 1 }, { id: 'nope' }] })), 'program edit: an unknown game is refused');
+    check(threwP(() => applyRoomAction(re, 'a', 'programEdit', { seq: sq, games: [{ keep: 0 }, { keep: 7 }, { keep: 1 }] })), 'program edit: a kept game must be one still to come');
+    check(threwP(() => applyRoomAction(re, 'a', 'programEdit', { seq: sq, games: new Array(9).fill({ id: 'mind' }) })), 'program edit: never over 8');
+    applyRoomAction(re, 'a', 'programPause', { seq: sq, on: true });
+    applyRoomAction(re, 'a', 'programEdit', { seq: sq, games: plan });
+    check(re.program.games.map((g) => g.id).join() === 'trivia,mind,buzzer,mind' && re._progOpts[0].count === 5 && re.program.seq > sq &&
+      !re.program.paused && re.program.phase === 'between' && roomDeadline(re) === clock + 8000,
+      'program edit: reordered and added, the kept game keeps its options, the countdown starts again');
+    tickTo(re, 8000);
+    check(re.game === 'trivia' && re._deck.length === 5 && re.program.phase === 'playing', 'program edit: the new first game is dealt with its own options');
+    check(threwP(() => applyRoomAction(re, 'a', 'programEdit', { seq: re.program.seq, games: [{ keep: 1 }, { keep: 2 }, { keep: 3 }] })), 'program edit: not while a game is played');
+    applyRoomAction(re, 'a', 'programSkip', { seq: re.program.seq });
+    check(re.program.phase === 'between' && re.program.at === 0, 'program edit: between the first and the second game');
+    check(threwP(() => applyRoomAction(re, 'a', 'programEdit', { seq: re.program.seq, games: [{ keep: 0 }, { keep: 1 }, { keep: 2 }] })), 'program edit: a game already played is not kept again');
+    applyRoomAction(re, 'a', 'programEdit', { seq: re.program.seq, games: [{ keep: 3 }, { keep: 2 }] });
+    check(re.program.games.map((g) => g.id).join() === 'trivia,mind,buzzer' && re.program.done.length === 1 && re.program.table.a,
+      'program edit: one removed, two swapped; the game played and the table stay');
+    tickTo(re, 10000);
+    check(re.game === 'mind' && re.program.phase === 'playing', 'program edit: the next game is the edited one');
+  }
+
   // The host ends it early mid-game: the game on then doesn't count.
   const r1 = P(['a', 'b', 'c']);
   play3(r1, [{ id: 'trivia', opts: { count: 5 } }, { id: 'trivia', opts: { count: 5 } }, { id: 'trivia', opts: { count: 5 } }]);
@@ -16313,6 +16377,8 @@ console.log('• the secret mission');
   const tick = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); return roomTimeout(r, clock); };
   const humRoom = (ids) => { const r = newRoom(ids); applyRoomAction(r, ids[0], 'chooseGame', { game: 'hum' }); return r; };
   const songOf = (r) => HS[r._hum.cur];
+  // «الظرف التلاتة»: the hummer picks one of three sealed envelopes before the song is dealt.
+  const takeEnv = (r, i) => { if (r.shared.envelope) applyRoomAction(r, r.shared.hummerId, 'envelope', { deal: r.shared.deal, i: i || 0 }); };
   const gone = (r, id) => { r.players = r.players.filter((p) => p.id !== id); roomPlayerLeft(r, id, id.toUpperCase()); };
 
   // The list: enough songs in every era, nothing twice, every song pinned to Apple or Deezer.
@@ -16336,6 +16402,20 @@ console.log('• the secret mission');
     const guessers = s.roster.filter((id) => id !== H);
     check(r.phase === 'play' && s.phase === 'listen' && s.round === 1 && s.rounds === 5 && r._hum.deck.length >= 5,
       'hum: the game starts on the first hummer listening, five songs dealt');
+    // The owner's pick of 7 Oct 2026: three sealed envelopes, the titles on the hummer's phone only.
+    const offer = r._hum.offer.slice();
+    check(s.envelope === true && r.secrets[H].envelopes.length === 3 && new Set(r.secrets[H].envelopes.map((e) => e.t)).size === 3 &&
+      r._hum.cur === null && !r._hum.token && !r.secrets[H].token && Object.keys(r.secrets).length === 1 && roomDeadline(r) === s.envEndsAt,
+      'hum envelopes: the hummer gets three different songs, sealed from everyone else, no sound yet, on a clock');
+    applyRoomAction(r, H, 'heard', { deal: s.deal });
+    applyRoomAction(r, guessers[0], 'envelope', { deal: s.deal, i: 1 });
+    applyRoomAction(r, H, 'envelope', { deal: s.deal + 3, i: 1 });
+    check(r.shared.envelope === true && r.shared.phase === 'listen', 'hum envelopes: nothing starts before a pick; only the hummer picks, and only for this song');
+    const deckEnd = r._hum.deck.length;
+    applyRoomAction(r, H, 'envelope', { deal: s.deal, i: 1 });
+    check(r.shared.envelope === false && r._hum.cur === offer[1] && r.secrets[H].song.t === HS[offer[1]].t && !r.secrets[H].envelopes &&
+      r._hum.deck.slice(deckEnd).join() === [offer[0], offer[2]].join() && r.shared.listenEndsAt - clock === 30000,
+      'hum envelopes: the picked song is dealt with its sound; the other two go back to the deck');
     check(r.secrets[H] && r.secrets[H].song.t === songOf(r).t && r.secrets[H].token === r._hum.token && Object.keys(r.secrets).length === 1 && !s.token,
       'hum: the song and its token are the hummer\'s alone');
     applyRoomAction(r, guessers[0], 'heard', { deal: s.deal });
@@ -16381,11 +16461,13 @@ console.log('• the secret mission');
     s = r.shared;
     check(s.phase === 'listen' && s.round === 2 && s.hummerId === s.order[(s.order.indexOf(H) + 1) % 5] && !s.right.length && !s.choices,
       'hum: song 2: the next hummer in turn, nothing of the last song left');
+    takeEnv(r);
     // A preview that won't load: another song, same round, same hummer.
     const deal = s.deal, H2 = s.hummerId, was = r._hum.cur;
     applyRoomAction(r, s.roster.find((id) => id !== H2), 'broken', { deal });
     check(r.shared.deal === deal, 'hum: only the hummer says the song won\'t play');
     applyRoomAction(r, H2, 'broken', { deal });
+    takeEnv(r, 2);
     check(r.shared.deal === deal + 1 && r.shared.round === 2 && r.shared.hummerId === H2 && r._hum.cur !== was && r.secrets[H2].song.t === songOf(r).t,
       'hum: a song that won\'t play is dealt again by itself, nobody loses anything');
     // Nobody has it: no points; the hummer gets nothing either.
@@ -16396,6 +16478,7 @@ console.log('• the secret mission');
     check(s.phase === 'reveal' && !Object.keys(s.gained).length, 'hum: nobody right, no points, none for the hummer');
     // The host skips a song nobody knows.
     applyRoomAction(r, 'a', 'nextRound', { round: 2 });
+    takeEnv(r);
     applyRoomAction(r, r.shared.hummerId, 'heard', { deal: r.shared.deal });
     check(threw(() => applyRoomAction(r, 'b' === r.hostId ? 'c' : 'b', 'skipSong', { deal: r.shared.deal })), 'hum: only the host (or a stand-in) skips a song');
     applyRoomAction(r, 'a', 'skipSong', { deal: r.shared.deal });
@@ -16405,7 +16488,11 @@ console.log('• the secret mission');
     const quiet = r.shared.hummerId;
     if (quiet !== 'a') {
       gone(r, quiet);
-      check(r.shared.phase === 'listen' && r.shared.hummerId !== quiet && r.secrets[r.shared.hummerId], 'hum: a hummer who leaves while listening hands the song on');
+      check(r.shared.phase === 'listen' && r.shared.hummerId !== quiet && r.secrets[r.shared.hummerId] && r.shared.envelope === true,
+        'hum: a hummer who leaves while listening hands the song on (three new envelopes)');
+      const late = r._hum.offer[0];
+      tick(r);
+      check(r.shared.envelope === false && r._hum.cur === late && r.shared.phase === 'listen', 'hum envelopes: no pick in time: the first envelope is taken');
     } else check(true, 'hum: a hummer who leaves while listening hands the song on');
     while (r.shared.phase !== 'gameover') { if (r.shared.phase === 'reveal') applyRoomAction(r, 'a', 'nextRound', { round: r.shared.round }); else tick(r); }
     check(r.shared.round === 5 && r.shared.board.length >= 3 && roomDeadline(r) === null, 'hum: five songs, then the board');
@@ -16468,7 +16555,13 @@ console.log('• the secret mission');
     const r2 = humRoom(['a', 'b', 'c', 'd']);
     applyRoomAction(r2, 'a', 'start', { mode: 'hum', count: 5 });
     let H = r2.shared.hummerId;
-    if (H === 'a') { applyRoomAction(r2, 'a', 'skipSong', { deal: r2.shared.deal }); applyRoomAction(r2, 'a', 'nextRound', { round: 1 }); H = r2.shared.hummerId; }
+    if (H === 'a') {
+      const first = r2._hum.offer[0];
+      applyRoomAction(r2, 'a', 'skipSong', { deal: r2.shared.deal });
+      check(r2.shared.phase === 'reveal' && r2.shared.song.t === HS[first].t, 'hum envelopes: a skip before a pick shows the first envelope');
+      applyRoomAction(r2, 'a', 'nextRound', { round: 1 }); H = r2.shared.hummerId;
+    }
+    takeEnv(r2);
     applyRoomAction(r2, H, 'heard', { deal: r2.shared.deal });
     const g = r2.shared.roster.filter((id) => id !== H);
     applyRoomAction(r2, g[0], 'guess', { deal: r2.shared.deal, text: songOf(r2).t });

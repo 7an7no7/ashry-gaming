@@ -292,6 +292,28 @@ export class Crew extends DurableObject {
 
   /* --- a Room's calls (server to server; a phone never reaches these) ---------- */
 
+  /**
+   * «تاج البطل» (the owner's pick of 7 Oct 2026): the reigning champion(s) a room opened for
+   * the crew crowns - this month's leader once a night of it is won, else the last month's
+   * champion - as member ids and names (members still in the crew only).
+   */
+  async crown() {
+    await this.loadNights();
+    if (!this.meta) return { ok: false };
+    const v = crewView(this.meta, [...this.nights.values()], Date.now(), null);
+    const members = new Set((v.members || []).map((m) => m.id));
+    const t = v.table || [];
+    let ids = [], names = [];
+    if (t.length && t[0].won) {
+      const top = t.filter((r) => r.won === t[0].won && r.points === t[0].points);
+      ids = top.map((r) => r.id); names = top.map((r) => r.name);
+    } else if ((v.champions || []).length) {
+      ids = v.champions[0].ids || []; names = v.champions[0].names || [];
+    }
+    const keep = ids.map((id, i) => [id, names[i] || '']).filter((x) => members.has(x[0]));
+    return { ok: true, ids: keep.map((x) => x[0]), names: keep.map((x) => x[1]) };
+  }
+
   /** A phone's key -> the member it proves, and the crew's name, or null. */
   async verify(key) {
     await this.loadMeta();

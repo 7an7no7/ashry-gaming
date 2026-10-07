@@ -11511,6 +11511,39 @@ Date.now = duelTestClock;
   applyRoomAction(r2, 'solo', 'start', { mode: 'balloons' });
   check(r2.shared.roster.length === 3 && Object.values(r2.shared.bots).sort().join() === 'easy,hard', 'bumper: computer players drive (the TV drives them), with their levels');
 
+  // «اختار عربيتك» (858 A, 7 Oct 2026): each person picks a body; the round deals them; same physics.
+  {
+    const c = newRoom(['a', 'b', 'c']);
+    c.screens = [{ id: 'tvx' }];
+    applyRoomAction(c, 'a', 'chooseGame', { game: 'bumper' });
+    applyRoomAction(c, 'b', 'car', { body: 'tuktuk' });
+    applyRoomAction(c, 'c', 'car', { body: 'taxi' });
+    applyRoomAction(c, 'c', 'car', { body: 'cart' });
+    check(c.shared.cars.b === 'tuktuk' && c.shared.cars.c === 'cart', 'bumper/cars: each person picks a body in the lobby, the last pick standing');
+    check(threw(() => applyRoomAction(c, 'b', 'car', { body: 'tank' })) && c.shared.cars.b === 'tuktuk', 'bumper/cars: a body not on the list is refused');
+    check(threw(() => applyRoomAction(c, 'b', 'car', { body: { x: 1 } })) && c.shared.cars.b === 'tuktuk', 'bumper/cars: a body that is not a name is refused');
+    applyRoomAction(c, 'tvx', 'car', { body: 'micro' });
+    check(!c.shared.cars.tvx, 'bumper/cars: a screen has no car to pick');
+    applyRoomAction(c, 'a', 'addBot', { level: 'easy', name: 'بندق' });
+    applyRoomAction(c, 'a', 'start', { mode: 'points', secs: 60 });
+    const sc = c.shared;
+    const bot = c.players.find(p => p.bot).id;
+    check(sc.bodies.a === 'bumper' && sc.bodies.b === 'tuktuk' && sc.bodies.c === 'cart' && sc.bodies[bot] && sc.bodies[bot] !== 'bumper',
+      'bumper/cars: the round deals the picks, the plain car to whoever didn\'t pick, a body to a computer player');
+    applyRoomAction(c, 'b', 'car', { body: 'micro' });
+    check(sc.cars.b === 'tuktuk' && sc.bodies.b === 'tuktuk', 'bumper/cars: no change of body mid-round');
+    clock = sc.endsAt;
+    applyRoomAction(c, 'tvx', 'finish', { round: 1, scores: {} });
+    applyRoomAction(c, 'b', 'car', { body: 'micro' });
+    applyRoomAction(c, 'a', 'playAgain', { mode: 'points', secs: 60 });
+    check(c.shared.bodies.b === 'micro' && c.shared.bodies.c === 'cart' && c.shared.cars.c === 'cart', 'bumper/cars: the picks stay for the next round, and can change between rounds');
+    applyRoomAction(c, 'a', 'endNow', {});
+    clock = c.shared.endsAt;
+    applyRoomAction(c, 'tvx', 'finish', { round: c.shared.round, scores: {} });
+    applyRoomAction(c, 'a', 'playAgain', { mode: 'ball', ballSecs: 120 });
+    check(c.shared.settings.mode === 'ball' && c.shared.bodies.c === 'cart', 'bumper/cars: the ball deals the bodies too');
+  }
+
   // The audit of 28 Sep 2026: a driver the TV didn't report goes last, and the TV's places still stand.
   const r3 = newRoom(['a', 'b', 'c']);
   r3.screens = [{ id: 'tvx' }];

@@ -30,7 +30,13 @@
                score is the server's: the clock (settings.ballSecs) ends it, a draw
                goes to a golden goal (one more minute at most), then a draw.
 
-   shared: phase ('play' | 'over'), round, roster, colors ({ pid: index }),
+   «اختار عربيتك» (858 A, 7 Oct 2026): each person picks a body on their phone (`car { body }`,
+   one of BUMPER_BODIES, in the lobby or between rounds) into `cars` ({ pid: body }, kept
+   across rounds); a round deals `bodies` ({ pid: body }: the pick, or the plain bumper car;
+   a computer player a body by its seat). The bodies only change how a car looks: the same
+   physics for all.
+
+   shared: phase ('play' | 'over'), round, roster, colors ({ pid: index }), cars, bodies,
    names, bots ({ pid: level }), settings { mode, ringWin, secs, ballSecs }, startAt /
    endsAt (the server's time), results, wins, board.
    The ball adds: picks ({ pid: 'red' | 'blue' }, what people chose - in the lobby
@@ -48,6 +54,8 @@ const BUMPER_GOLDEN_MS = 60000;                // a draw: the next goal wins, a 
 const BUMPER_BALL_GRACE_MS = 1500;             // a goal scored on the whistle may still be on its way
 const BUMPER_SIDES = ['red', 'blue'];
 const BUMPER_RING_WINS = ['clock', 'last'];
+// «اختار عربيتك»: the plain bumper car, the black-and-white taxi, the tuk-tuk, the microbus, the ice-cream cart.
+const BUMPER_BODIES = ['bumper', 'taxi', 'tuktuk', 'micro', 'cart'];
 const BUMPER_LONGEST_MS = 180000;       // Balloons and «آخر واحد» end by themselves; this is their cap
 const BUMPER_COUNTDOWN_MS = 3500;       // "3, 2, 1" before the cars can move
 const BUMPER_REPORT_MS = 8000;          // how long the server waits for the TV's result
@@ -63,6 +71,21 @@ const bumperSettings = (payload, prev) => {
     secs: pick(Number(p.secs), BUMPER_SECS, was.secs, 120),
     ballSecs: pick(Number(p.ballSecs), BUMPER_BALL_SECS, was.ballSecs, 180)
   };
+};
+/** The picks kept (only known bodies), and the round's bodies for its drivers: the pick, else the plain car (a computer player one by its seat). */
+const bumperCars = (prev) => {
+  const out = {};
+  const was = prev && prev.cars && typeof prev.cars === 'object' ? prev.cars : {};
+  Object.keys(was).forEach(id => { if (BUMPER_BODIES.indexOf(was[id]) !== -1) out[id] = was[id]; });
+  return out;
+};
+const bumperBodies = (room, roster, cars) => {
+  const out = {};
+  roster.forEach((id, k) => {
+    const bot = room.players.some(p => p.id === id && p.bot);
+    out[id] = cars[id] || (bot ? BUMPER_BODIES[1 + (k % (BUMPER_BODIES.length - 1))] : 'bumper');
+  });
+  return out;
 };
 /** Whether this way to play ends when one car is left (the clock is only its cap). */
 const bumperLastStanding = (settings) => settings.mode === 'balloons' || (settings.mode === 'ring' && settings.ringWin === 'last');
@@ -177,9 +200,12 @@ const bumperBallStart = (room, prev, payload) => {
   const deal = bumperBallDeal(room, prev);
   const now = Date.now();
   room.secrets = {};
+  const cars = bumperCars(prev);
   room.shared = Object.assign(deal, {
     phase: 'play',
     round: (prev.round || 0) + 1,
+    cars,
+    bodies: bumperBodies(room, deal.roster, cars),
     settings,
     startAt: now + BUMPER_COUNTDOWN_MS,
     endsAt: now + BUMPER_COUNTDOWN_MS + settings.ballSecs * 1000,
@@ -215,6 +241,16 @@ const bumperAction = (room, playerId, action, payload) => {
     if (BUMPER_MODES.indexOf(mode) !== -1) s.lobbyMode = mode;
     return;
   }
+  // «اختار عربيتك»: each person's body, on their own phone, in the lobby or between rounds.
+  if (action === 'car') {
+    const body = payload && payload.body;
+    if (BUMPER_BODIES.indexOf(body) === -1) throw new Error('عربية غير معروفة');
+    if (!room.players.some(p => p.id === playerId && !p.bot)) return;          // a screen has no car
+    const s = room.shared = room.shared || {};
+    if (room.phase !== 'lobby' && s.phase !== 'over') return;                  // not mid-round
+    s.cars = Object.assign(bumperCars(s), { [playerId]: body });
+    return;
+  }
   if (action === 'start' || action === 'playAgain') {
     requireHost(room, playerId);
     const prev = room.shared || {};
@@ -230,12 +266,15 @@ const bumperAction = (room, playerId, action, payload) => {
     drivers.forEach(p => { if (p.bot) bots[p.id] = p.bot; });
     const now = Date.now();
     const len = bumperLastStanding(settings) ? BUMPER_LONGEST_MS : settings.secs * 1000;
+    const cars = bumperCars(prev);
     room.secrets = {};
     room.shared = {
       phase: 'play',
       round: (prev.round || 0) + 1,
       roster,
       colors,
+      cars,
+      bodies: bumperBodies(room, roster, cars),
       bots,
       names: roster.reduce((m, id) => { m[id] = roomPlayerName(room, id); return m; }, {}),
       settings,

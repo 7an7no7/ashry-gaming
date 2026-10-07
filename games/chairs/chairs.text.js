@@ -37,6 +37,11 @@ gameText({
       mch_next_in: "الجولة الجاية بعد {n}…",
       mch_play_again: "العب تاني",
       mch_in_ring: "مين في الحلبة",
+      mch_final: "النهائي",
+      mch_zaffa: "الزفة! النهائي",
+      mch_replay: "إعادة بالبطيء",
+      mch_gap: "الفرق",
+      mch_secs: "ثانية",
     },
     en: {
       mch_chair1: "1 chair",
@@ -72,6 +77,11 @@ gameText({
       mch_next_in: "Next round in {n}…",
       mch_play_again: "Play again",
       mch_in_ring: "In the ring",
+      mch_final: "The final",
+      mch_zaffa: "The zaffa! The final",
+      mch_replay: "Slow-motion replay",
+      mch_gap: "The gap",
+      mch_secs: "s",
     }
   },
   rules: {
@@ -83,6 +93,7 @@ gameText({
                 <li>اللي يضغط <b>قبل</b> ما الموسيقى تقف بيخرج على طول. ومع «وقفات خداعية» الموسيقى ممكن تقف لحظة وترجع… خليك صاحي.</li>
                 <li>كل جولة كرسي أقل، لحد ما يفضل واحد وهو الكسبان. الترتيب بيتحسب بلحظة الضغط على موبايلك مش بسرعة النت، فمحدش بيخسر كرسي عشان شبكته بطيئة.</li>
                 <li>🎧 <b>دي جي من اللي خرج</b>: من الجولة التانية آخر واحد خرج يوقّف الموسيقى من موبايله (بعد أول 4 ثواني، وإلا تقف لوحدها عند 25)، ومعاه «وقفة خداعية» لو الوقفات شغّالة. مالوش نقط، واللي وقّع أكتر ياخد <b>«أحلى دي جي»</b>.</li>
+                <li>🥁 <b>النهائي</b>: لما يفضل اتنين وكرسي واحد، اللعب بيبقى على مسرح بالزفة. وبعد الوقفة إعادة بالبطيء للاتنين وهما بيجروا على الكرسي، والفرق بينهم بالثواني.</li>
             </ol>
             <p class="help-sub">📺 التلفزيون</p>
             <p class="text-xs">الحلبة كبيرة والموسيقى منه، وبيظهر مين قعد الأول وبكام مللي ثانية.</p>`,
@@ -95,6 +106,7 @@ gameText({
                 <li>Tap <b>before</b> the music stops and you're out at once. With «Fake stops» on, the music may pause for a moment and go on. Stay sharp.</li>
                 <li>One chair fewer each round, until one is left: the winner. Taps are ranked by the moment you tapped on your phone, not by your connection, so a slow network costs nobody a chair.</li>
                 <li>🎧 <b>The one out is the DJ</b>: from round 2 the latest one out stops the music from their phone (after the first 4 seconds; at 25 it stops by itself), with a «Fake stop» when fake stops are on. The DJ scores nothing; whoever caught the most is <b>«Best DJ»</b>.</li>
+                <li>🥁 <b>The final</b>: when two are left with one chair, it's played on a stage to the zaffa. After the stop, a slow-motion replay shows both racing for the chair, and the gap between them in seconds.</li>
             </ol>
             <p class="help-sub">📺 The TV</p>
             <p class="text-xs">The ring is big, the music plays from it, and it shows who sat first and in how many milliseconds.</p>`,

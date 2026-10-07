@@ -53,6 +53,21 @@ gameText({
       bmp_look_tv: "بص على التلفزيون 👀",
       bmp_flip: "↔ اعكس الاتجاه",
       bmp_center: "🎯 سنتر",
+      bmp_car_title: "عربيتك",
+      bmp_car_hint: "اسحب يمين وشمال · كل العربيات بتمشي زي بعض",
+      bmp_car_prev: "العربية اللي قبلها",
+      bmp_car_next: "العربية اللي بعدها",
+      bmp_car_tv: "كل واحد بيختار عربيته",
+      bmp_body_bumper: "عربية التصادم",
+      bmp_body_taxi: "التاكسي الأبيض والأسود",
+      bmp_body_tuktuk: "التوك توك",
+      bmp_body_micro: "الميكروباص",
+      bmp_body_cart: "عربية الآيس كريم",
+      bmp_body_bumper_s: "عربية تصادم",
+      bmp_body_taxi_s: "تاكسي",
+      bmp_body_tuktuk_s: "توك توك",
+      bmp_body_micro_s: "ميكروباص",
+      bmp_body_cart_s: "آيس كريم",
     },
     en: {
       bmp_mode: "Way to play",
@@ -104,6 +119,21 @@ gameText({
       bmp_look_tv: "Look at the TV 👀",
       bmp_flip: "↔ Flip steering",
       bmp_center: "🎯 Centre",
+      bmp_car_title: "Your car",
+      bmp_car_hint: "Swipe left or right · every car drives the same",
+      bmp_car_prev: "Previous car",
+      bmp_car_next: "Next car",
+      bmp_car_tv: "Everyone picks a car",
+      bmp_body_bumper: "The bumper car",
+      bmp_body_taxi: "The black-and-white taxi",
+      bmp_body_tuktuk: "The tuk-tuk",
+      bmp_body_micro: "The microbus",
+      bmp_body_cart: "The ice-cream cart",
+      bmp_body_bumper_s: "Bumper car",
+      bmp_body_taxi_s: "Taxi",
+      bmp_body_tuktuk_s: "Tuk-tuk",
+      bmp_body_micro_s: "Microbus",
+      bmp_body_cart_s: "Ice cream",
     }
   },
   rules: {
@@ -117,6 +147,7 @@ gameText({
                 <li>⭕ <b>الحلبة</b>: من غير سور، زُق العربيات برّه. المضيف يختار: أكتر زقّة في الوقت (اللي يقع يرجع بعد 3 ثواني)، أو آخر واحد فوق.</li>
                 <li>⚽ <b>كورة</b>: الأحمر ضد الأزرق، كل واحد يختار فريقه، والكمبيوتر يكمّل الناحية الفاضية. الجون لما الكورة كلها تعدّي الخط، والخبطة مبتحسبش. الساعة بتنهي الماتش، و<b>التعادل جون ذهبي</b> (دقيقة بالكتير، وبعدها تعادل).</li>
                 <li>🕹️ <b>العصاية</b>: حرّك صباعك والعربية تمشي ناحيته. 🎮 <b>ميّل</b>: امسك الموبايل بالعرض زي الدركسيون ولفّه، واضغط «دوس» أو شغّل «⚡ دوس تلقائي». 🚀 <b>تيربو</b> كل 4 ثواني، و📯 <b>كلاكس</b> بصوت عربيتك على التلفزيون.</li>
+                <li>🚕 <b>اختار عربيتك</b> من موبايلك قبل الجولة: عربية التصادم، التاكسي، التوك توك، الميكروباص أو عربية الآيس كريم. كلهم بيمشوا زي بعض بالظبط، وموبايلك بيفتكر اختيارك للمرة الجاية.</li>
             </ol>`,
     },
     en: {
@@ -129,6 +160,7 @@ gameText({
                 <li>⭕ <b>The ring</b>: no rail, push the others off. The host picks: most push-offs in time (the fallen are back in 3 seconds), or the last one on.</li>
                 <li>⚽ <b>Ball</b>: Red against Blue; everyone picks a side, and a computer car fills an empty one. A goal is the whole ball over the line; bumps score nothing. The clock ends the match, and <b>a draw goes to a golden goal</b> (a minute at most, then a draw).</li>
                 <li>🕹️ <b>Stick</b>: move your finger and the car drives that way. 🎮 <b>Tilt</b>: hold the phone sideways like a wheel and turn it, and hold Gas or switch on «⚡ Auto gas». 🚀 <b>Turbo</b> every 4 seconds, and 📯 a <b>horn</b> with your car's own sound on the TV.</li>
+                <li>🚕 <b>Pick your car</b> on your phone before the round: the bumper car, the taxi, the tuk-tuk, the microbus or the ice-cream cart. They all drive exactly the same, and your phone remembers your pick for next time.</li>
             </ol>`,
     }
   }

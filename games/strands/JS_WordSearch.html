@@ -413,7 +413,9 @@ function paintStrands() {
             const hinted = s.hints.indexOf(wi) !== -1;
             const tag = w.span ? `<span class="strands-word__tag">🧵 ${escapeHTML(strandsT().span || '')}</span>`
               : (w.ours ? `<span class="strands-word__tag">${escapeHTML(strandsT().ours || '')}</span>` : '');
-            return `<span class="strands-word${found ? ' is-found' : ''}${w.span ? ' strands-word--span' : ''}${w.ours ? ' strands-word--ours' : ''}" data-w="${wi}">${tag}${found ? escapeHTML(w.label || w.w) : `${hinted ? escapeHTML(w.w[0]) : ''}${'<i></i>'.repeat(strandsLen(w) - (hinted ? 1 : 0))}`}</span>`;
+            // A slot is a box a letter (1170); a hint fills the first box.
+            const boxes = `<span class="strands-word__boxes" dir="${s.lang === 'en' ? 'ltr' : 'rtl'}">${hinted ? `<i class="is-hint">${escapeHTML(w.w[0])}</i>` : ''}${'<i></i>'.repeat(strandsLen(w) - (hinted ? 1 : 0))}</span>`;
+            return `<span class="strands-word${found ? ' is-found' : ''}${w.span ? ' strands-word--span' : ''}${w.ours ? ' strands-word--ours' : ''}" data-w="${wi}">${tag}${found ? escapeHTML(w.label || w.w) : boxes}</span>`;
           }).join('')}
         </div>
         ${s.race ? '' : `<div class="sdk-tools">
@@ -459,9 +461,60 @@ function strandsBind() {
 }
 
 function strandsPaintDrag() {
-  const on = new Set(strandsDrag ? strandsDrag.cells : []);
+  const cells = strandsDrag ? strandsDrag.cells : [];
+  const on = new Set(cells);
   document.querySelectorAll('#strands-grid .strands-cell').forEach(c => c.classList.toggle('is-tracing', on.has(Number(c.dataset.i))));
+  strandsPaintBand(cells);
 }
+
+/**
+ * The line under the finger (1169): a thick rounded band in the accent from the first
+ * cell to the last, under the letters, and the word so far in a bubble above the grid -
+ * on a 9×9 at 375px the finger hides the letters it is on.
+ */
+function strandsPaintBand(cells) {
+  const grid = document.getElementById('strands-grid');
+  let bubble = document.getElementById('strands-bubble');
+  let band = grid && grid.querySelector('.strands-band');
+  const a = grid && cells.length ? grid.querySelector(`[data-i="${cells[0]}"]`) : null;
+  const b = grid && cells.length ? grid.querySelector(`[data-i="${cells[cells.length - 1]}"]`) : null;
+  if (!a || !b) {
+    if (grid) grid.classList.remove('has-band');
+    if (bubble) bubble.classList.add('hidden');
+    return;
+  }
+  if (!band) {
+    band = document.createElement('div');
+    band.className = 'strands-band';
+    band.setAttribute('aria-hidden', 'true');
+    grid.appendChild(band);
+  }
+  const ax = a.offsetLeft + a.offsetWidth / 2, ay = a.offsetTop + a.offsetHeight / 2;
+  const bx = b.offsetLeft + b.offsetWidth / 2, by = b.offsetTop + b.offsetHeight / 2;
+  const h = a.offsetWidth * 0.86;
+  band.style.width = (Math.hypot(bx - ax, by - ay) + h) + 'px';
+  band.style.height = h + 'px';
+  band.style.transformOrigin = (h / 2) + 'px 50%';
+  band.style.transform = `translate(${ax - h / 2}px, ${ay - h / 2}px) rotate(${Math.atan2(by - ay, bx - ax)}rad)`;
+  grid.classList.add('has-band');
+  if (!bubble) {
+    bubble = document.createElement('div');
+    bubble.id = 'strands-bubble';
+    bubble.className = 'strands-bubble hidden';
+    bubble.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(bubble);
+  }
+  const s = strandsState();
+  bubble.dir = s.lang === 'en' ? 'ltr' : 'rtl';
+  bubble.textContent = cells.map(i => s.grid[i] || '').join('');
+  bubble.classList.remove('hidden');
+  const r = grid.getBoundingClientRect();
+  bubble.style.left = (r.left + r.width / 2) + 'px';
+  bubble.style.top = Math.max(r.top - 8, bubble.offsetHeight + 8) + 'px';
+}
+
+// The bubble lives under <body>: it never outlasts its screen.
+if (typeof onLeaveScreen === 'function') onLeaveScreen(() => { const b = document.getElementById('strands-bubble'); if (b) b.classList.add('hidden'); });
 
 /** A wrong line: the grid shakes. */
 function strandsMiss() {

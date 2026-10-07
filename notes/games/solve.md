@@ -203,6 +203,21 @@ emoji room (`room-emoji`), whose third way is the quiz.
 
 - **(1193) «أصعب لغز الليلة».** At game over (one sets, everyone solves) the secret that took the most tries is crowned with its setter's name and shown again, under the podium on every phone and on the TV (`svHardestHtml`, `.sv-hardest`). Weighed after each round is scored (`svHardestNote`): the average tries of its solvers, a board that never got it counting the game's most tries and one more; a tie goes to fewer solved, then the earlier secret. Kept in `room._svHardest` while the game is played (so no past secret sits in `shared` mid-game - a setter may set the same word twice) and put on the table as `shared.hardest = { round, setter, setterName, reveal, avg, solved, of }` at game over (`svCrownHardest`, also when too few are left). Play again starts it over; a race (no setter) crowns nothing. Its line is in the room rules of خمن الكلمة, خمّن الرقم, خمّن الدولة and فوازير إيموجي. Tests: rules.mjs «solve/hardest».
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built - part one
+
+- **(1102) خمن الكلمة's soft dictionary in rooms.** The owner picked it over the decision
+  above (a written word is not checked against a dictionary): it only warns. The setter's word
+  (`svWordleSet`) and every solver's guess (`svWordleKey`, the setter's game and the race) are
+  asked `svWordleKnown(word, alpha)`: one not in the one-phone game's dictionary shows «مش في
+  قاموسنا — دوس تاني لو متأكد» (the form's error line for the setter, a toast and a shake of the
+  row for a solver), and the same word sent again goes (`svRoom.unsure`). The server still takes
+  anything. The check is the one-phone game's (`wordleKnownIn(word, lang, target)`, split out of
+  `wordleKnownWord` in JS_Wordle.html: plurals and «ال» count); its banks are in the Wordle and
+  word-wheel chunks, fetched in the background when a خمن الكلمة room is drawn
+  (`lzEnsure(['wordle', 'wordwheel'])`, `LAZY_EDGES` 'JS_RoomSolve>JS_Wordle'); until they arrive
+  every word goes. A guess equal to the setter's own unknown word is nudged once too (the phone
+  doesn't know the secret). Its line is in the room rules.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

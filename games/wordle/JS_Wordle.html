@@ -228,14 +228,21 @@ function wordleWarmDictionary() {
 
 /** Whether a guess is a word we know (or one we can't check yet): plurals and "ال" count. */
 function wordleKnownWord(guess) {
-    const lang = wordleLang();
+    // A friend's word may be a name or dialect our lists lack: their guesses aren't
+    // held to the lists either (1099).
+    if (appState.wordle.friend) return true;
+    return wordleKnownIn(guess, wordleLang(), appState.wordle.targetWord);
+}
+
+/**
+ * The same check for any word in `lang` ('ar' / 'en'): a room's set word and its
+ * solvers' guesses ask it too (svWordleKnown, 1102). `target` (may be '') always counts.
+ */
+function wordleKnownIn(guess, lang, target) {
     const dict = wordleDictionary(lang);
     if (!dict) return true;
-    // A friend's word may be a name or dialect our lists lack: their guesses aren't
-    // held to the lists either, as in the room (1099).
-    if (appState.wordle.friend) return true;
     const k = wordleDictKey(guess);
-    if (k === wordleDictKey(appState.wordle.targetWord) || dict.has(k)) return true;
+    if ((target && k === wordleDictKey(target)) || dict.has(k)) return true;
     if (lang === 'en') return (/S$/.test(k) && dict.has(k.slice(0, -1))) || (/ES$/.test(k) && dict.has(k.slice(0, -2)));
     const stems = [];
     if (k.indexOf('ال') === 0) stems.push(k.slice(2));

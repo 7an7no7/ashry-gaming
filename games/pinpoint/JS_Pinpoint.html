@@ -5,7 +5,8 @@
    Five rounds. Each is a category of the Chameleon lists (CHAMELEON_DB, 92 of
    them in each language) shown as up to five of its words, one at a time, and
    six categories to choose from. Right after one word is 5 points, after five
-   words 1; a wrong choice is crossed out and shows the next word.
+   words 1; a wrong choice falls out of the six (pinDropChoice) and shows the
+   next word, and five dots in the bar say what the round is worth now.
 
    The round maker is Pinpoint.js (shared with the rooms server, which deals a
    race's rounds and judges every pick): the choices are made to be close.
@@ -80,18 +81,35 @@ function continuePinpoint() {
 
 const pinScore = (s) => s.rounds.reduce((sum, r) => sum + (r.points || 0), 0);
 
-function paintPinpoint(freshClue) {
+/**
+ * What the round is worth, as five dots (1163): full ones are the points a right pick
+ * scores now, and the one a new word just cost empties (`.is-just`). Over: what it scored.
+ */
+function pinWorthHtml(t, r, freshClue) {
+  const over = r.points !== null;
+  const worth = over ? (r.points || 0) : Math.max(1, PIN_CLUES + 1 - r.shown);
+  const just = freshClue && !over && r.shown > 1 ? worth : -1;
+  const dots = Array.from({ length: PIN_CLUES }, (_, i) =>
+    `<i class="pin-pip${i < worth ? ' is-on' : ''}${i === just ? ' is-just' : ''}"></i>`).join('');
+  const label = (t.pin_worth_now || '{n}').replace('{n}', worth);
+  return `<span class="pin-pips${over ? ' is-over' : ''}" role="img" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">${dots}</span>`;
+}
+
+function paintPinpoint(freshClue, keepChoices) {
   const s = pinState();
   const t = TRANSLATIONS[appState.lang];
   const el = soloStage('pinpoint-stage');
   const r = s.rounds[s.round];
   if (!el || !r) return;
   const over = r.points !== null;
+  // A wrong pick falling out (pinDropChoice): the choices' own box is kept, so their
+  // flipGrid slide goes on through the redraw.
+  const keep = keepChoices && !over ? document.getElementById('solo-choices') : null;
   // The daily marks the round's label, so the round's worth keeps its place.
   const bar = soloBarHtml([
     { label: `${s.daily ? '📅 ' : ''}${t.pin_round || ''}`, value: `${s.round + 1}/${s.rounds.length}` },
     { label: t.pin_points || '', value: pinScore(s), id: 'pin-score' },
-    { label: t.pin_worth || '', value: over ? '–' : Math.max(1, PIN_CLUES + 1 - r.shown), id: 'pin-worth' }
+    { label: t.pin_worth || '', value: pinWorthHtml(t, r, freshClue), id: 'pin-worth' }
   ]);
   const clues = r.clues || [];
   el.innerHTML = `
@@ -111,8 +129,10 @@ function paintPinpoint(freshClue) {
         <p class="pin-ask">${escapeHTML(over ? (r.points ? (t.pin_right || '') : (t.pin_missed || '')) : (t.pin_ask || ''))}</p>
         <div class="solo-choices" id="solo-choices">
           ${r.options.map((o, i) => {
-            const cls = over && i === r.answer ? ' is-right' : (r.wrong.indexOf(i) !== -1 ? ' is-wrong' : '');
-            return `<button type="button" class="solo-choice${cls}" data-i="${i}" onclick="guessPinpoint(${i})" ${over || r.wrong.indexOf(i) !== -1 ? 'disabled' : ''}>
+            // A wrong pick has fallen out of the choices (1162): the board tightens as clues come.
+            if (r.wrong.indexOf(i) !== -1) return '';
+            const cls = over && i === r.answer ? ' is-right' : '';
+            return `<button type="button" class="solo-choice${cls}" data-i="${i}" onclick="guessPinpoint(${i})" ${over ? 'disabled' : ''}>
               <span class="solo-choice__icon" aria-hidden="true">${o.icon}</span><span>${escapeHTML(o.name)}</span></button>`;
           }).join('')}
         </div>
@@ -122,12 +142,39 @@ function paintPinpoint(freshClue) {
     ${s.race ? '' : `<div class="view-actions play-foot">
       <button class="btn btn--ghost btn--sm btn--auto play-exit" onclick="${s.phase === 'play' ? 'playExit(setupPinpoint)' : 'setupPinpoint()'}">${escapeHTML(t.exit || '')}</button>
     </div>`}`;
+  const fresh = keep && document.getElementById('solo-choices');
+  if (fresh && fresh !== keep) fresh.replaceWith(keep);
 }
 
-/** A wrong pick: the option shakes. */
-function pinShakeOption(i) {
-  const btn = document.querySelector(`#solo-choices [data-i="${i}"]`);
-  if (btn && btn.animate && !motionOff()) btn.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 260 });
+/**
+ * A wrong pick tumbles out of the choices (1162): a copy of it falls and turns while the
+ * ones left close the gap (flipGrid), then the screen is drawn again around the same box.
+ * With motion off, or when the round is over, it is just drawn again.
+ */
+function pinDropChoice(i, repaint) {
+  const box = document.getElementById('solo-choices');
+  const btn = box && box.querySelector(`[data-i="${i}"]`);
+  if (!btn || motionOff() || !btn.animate) { repaint(false); return; }
+  const r = btn.getBoundingClientRect();
+  const ghost = btn.cloneNode(true);
+  ghost.removeAttribute('onclick');
+  ghost.removeAttribute('data-i');
+  ghost.disabled = true;
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.classList.add('is-wrong', 'pin-fall');
+  Object.assign(ghost.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
+  document.body.appendChild(ghost);
+  const tilt = (r.left + r.width / 2 < window.innerWidth / 2 ? -1 : 1) * 18;
+  const a = ghost.animate([
+    { transform: 'none', opacity: 1 },
+    { transform: 'translateY(-0.4rem) rotate(' + (tilt / 3) + 'deg)', opacity: 1, offset: 0.2 },
+    { transform: 'translateY(9rem) rotate(' + tilt + 'deg) scale(0.85)', opacity: 0 }
+  ], { duration: 640, easing: 'cubic-bezier(0.45, 0, 0.85, 0.5)', fill: 'forwards' });
+  const done = () => { if (ghost.isConnected) ghost.remove(); };
+  a.onfinish = done;
+  setTimeout(done, 1200);
+  flipGrid(box, () => btn.classList.add('hidden'), { items: '.solo-choice' });
+  repaint(true);
 }
 
 // A race's pick on its way to the server: a second tap before the answer would be judged
@@ -164,8 +211,8 @@ function guessPinpoint(i) {
   else r.points = 0;
   saveToLocal();
   playSound(r.points === 0 ? 'miss' : 'click');
-  paintPinpoint(r.shown > wasShown);
-  pinShakeOption(i);
+  const opened = r.shown > wasShown;
+  pinDropChoice(i, (keep) => paintPinpoint(opened, keep));
 }
 
 /** The points rise out of the right answer and land on the score. */
@@ -284,8 +331,7 @@ RACE_UI.pinpoint = {
     } else if (wrong >= 0) {
       haptic('medium');
       playSound(s.rounds[s.round].points === 0 ? 'miss' : 'click');
-      paintPinpoint(nextClue);
-      pinShakeOption(wrong);
+      pinDropChoice(wrong, (keep) => paintPinpoint(nextClue, keep));
     } else paintPinpoint(false);
   },
   paint: () => paintPinpoint(false),

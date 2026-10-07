@@ -9,6 +9,7 @@ gameText({
       pin_round: "الجولة",
       pin_points: "النقاط",
       pin_worth: "تستاهل",
+      pin_worth_now: "دلوقتي بـ {n} نقط",
       pin_ask: "إيه اللي يجمعهم؟",
       pin_right: "صح! 🎯",
       pin_missed: "المرة دي فاتتك",
@@ -22,6 +23,7 @@ gameText({
       pin_round: "Round",
       pin_points: "Points",
       pin_worth: "Worth",
+      pin_worth_now: "Worth {n} points now",
       pin_ask: "What links them?",
       pin_right: "Right! 🎯",
       pin_missed: "Missed this one",
@@ -35,7 +37,7 @@ gameText({
       pinpoint: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>كل جولة فيها <b>فئة مستخبية</b> وأول كلمة منها، و6 فئات تختار منهم.</li>
-                <li>عرفتها من أول كلمة؟ <b>5 نقاط</b>. كل اختيار غلط بيتشطب ويفتح الكلمة اللي بعدها، والنقاط بتقل لحد نقطة واحدة.</li>
+                <li>عرفتها من أول كلمة؟ <b>5 نقاط</b>. كل اختيار غلط بيقع من الاختيارات ويفتح الكلمة اللي بعدها، والنقاط بتقل لحد نقطة واحدة: الخمس نقط اللي فوق بيقولوا الجولة دلوقتي بكام.</li>
                 <li>الاختيارات قريبة من بعض، والكلمات الأولى ممكن تنفع لأكتر من فئة. استنى لو مش متأكد.</li>
                 <li>5 جولات، والنتيجة من 25.</li>
             </ol>
@@ -52,7 +54,7 @@ gameText({
       pinpoint: `
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Each round has a <b>hidden category</b>, its first word, and six categories to choose from.</li>
-                <li>Got it from the first word? <b>5 points</b>. Each wrong pick is crossed out and opens the next word, and the points drop, down to 1.</li>
+                <li>Got it from the first word? <b>5 points</b>. Each wrong pick falls out of the choices and opens the next word, and the points drop, down to 1: the five dots at the top say what the round is worth now.</li>
                 <li>The choices are close, and the first words can fit more than one category. Wait if you're not sure.</li>
                 <li>Five rounds, scored out of 25.</li>
             </ol>

@@ -142,6 +142,8 @@ export const LAZY_EDGES = [
   'JS_Cards>JS_RoomDoubt', 'JS_Cards>JS_RoomOldMaid',
   // Wordle's soft dictionary reads the word wheel's banks once lzEnsure has fetched them (typeof-guarded).
   'JS_Wordle>WordWheel.js',
+  // ...and so does a room's خمن الكلمة, once lzEnsure has fetched Wordle's chunk (1102, typeof-guarded).
+  'JS_RoomSolve>JS_Wordle',
   // «جرّبها كلغز» from a chess review goes through lzRun.
   'JS_ChessReview>JS_ChessPuzzles',
   // The race's own screen: the connections board only in its race.

@@ -184,10 +184,35 @@ function toggleConnectTile(word) {
 }
 
 /** The four chosen were one away, or wrong: the shake, and the toast that says which. */
+/**
+ * The tries left as four dots beside «تأكيد» (1111): the cost sits where the finger is.
+ * A lost dot is an empty ring; its filled self (`i`) is only shown while it falls.
+ */
+function connectDotsHtml(t, left, lost) {
+  const dots = '<i class="connect-dot"></i>'.repeat(Math.max(0, left))
+    + '<i class="connect-dot is-lost"><i></i></i>'.repeat(Math.max(0, lost));
+  const label = `${t.conn_mistakes || ''}: ${Math.max(0, left)}`;
+  return `<span class="connect-dots" role="img" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">${dots}</span>`;
+}
+
+/** The dot a miss just cost falls out of its ring (transform and opacity; nothing with motion off). */
+function connectDropDot() {
+  if (typeof motionOff !== 'function' || motionOff()) return;
+  const lost = document.querySelectorAll('#connect-meta .connect-dot.is-lost > i');
+  const fall = lost[0];
+  if (!fall || !fall.animate) return;
+  fall.animate([
+    { opacity: 1, transform: 'none' },
+    { opacity: 1, transform: 'translateY(-0.2rem) scale(1.15)', offset: 0.2 },
+    { opacity: 0, transform: 'translateY(1.6rem) rotate(25deg) scale(0.7)' }
+  ], { duration: 620, easing: 'cubic-bezier(0.5, 0, 0.9, 0.6)' });
+}
+
 function connectMiss(oneAway, chosen) {
   const t = TRANSLATIONS[appState.lang] || {};
   playSound('miss');
   haptic('heavy');
+  connectDropDot();
   showToast(oneAway ? (t.conn_one_away || 'قريب! ثلاثة من نفس المجموعة') : (t.conn_wrong || 'مش صح'), oneAway ? 'info' : 'error');
   // One away shakes the four you chose; any other wrong guess shakes the whole grid.
   const grid = document.getElementById('connect-grid');
@@ -435,10 +460,11 @@ function renderConnections(finished) {
   const left = CONNECT_MAX_MISTAKES - c.mistakes;
   const metaHtml = over
     ? (c.race ? '' : `<button onclick="startConnections(false)" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>`)
-    : `<div class="connect-lives">${t.conn_mistakes || 'محاولات متبقية'}:
-         ${'●'.repeat(Math.max(0, left))}${'○'.repeat(c.mistakes)}</div>
-       <button onclick="submitConnectGuess()" class="btn btn--primary"
+    : `<div class="connect-submit">
+         <button onclick="submitConnectGuess()" class="btn btn--primary"
                ${c.selected.length === 4 ? '' : 'disabled'}>${t.conn_submit || 'تأكيد'}</button>
+         ${connectDotsHtml(t, left, c.mistakes)}
+       </div>
        <button onclick="shuffleConnections()" class="btn btn--ghost btn--sm">${t.conn_shuffle || 'خلط'}</button>`;
 
   if (c.race) {

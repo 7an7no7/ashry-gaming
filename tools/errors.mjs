@@ -1,6 +1,6 @@
 // Errors on players' phones (the page's reporter in JS_Core.html, POST /err on the
 // rooms server, the "errors" log).
-//   ASHRY_ADMIN_KEY=... npm run errors [-- <rooms address>] [--build=20260930123310] [--clear]
+//   ASHRY_ADMIN_KEY=... npm run errors [-- <rooms address>] [--build=20260930123310] [--clear] [--json]
 // Prints them by build, newest build first, and in each build by how often they
 // happened: the count, the screen, the message and where in the page, the devices,
 // and when it was first and last seen. --clear empties the log (after fixing).
@@ -27,6 +27,13 @@ if (args.includes('--clear')) {
 const res = await fetch(`${address}/errors`, { headers: auth });
 if (!res.ok) { console.error(`Request failed: ${res.status}`); process.exit(1); }
 const list = await res.json();
+// --json: the rows as the server keeps them ({ lang: build, cat: screen, word, n, first, last,
+// tags }), for the weekly check on GitHub (tools/weekly-report.mjs, 7 Oct 2026).
+if (args.includes('--json')) {
+  const rows = Array.isArray(list) ? list.filter((e) => !onlyBuild || e.lang === onlyBuild) : [];
+  console.log(JSON.stringify(rows, null, 1));
+  process.exit(0);
+}
 if (!Array.isArray(list) || !list.length) { console.log('No errors reported.'); process.exit(0); }
 
 // A build id is the build's time (20260930123310), so the newest sorts last as text.

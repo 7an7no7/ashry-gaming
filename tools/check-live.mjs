@@ -76,17 +76,26 @@ if (ahead === null) fail('could not compare with origin/master (git fetch or rev
 else if (ahead !== '0') fail(`${ahead} commit(s) not pushed yet: git push origin master`);
 else ok('everything is pushed');
 
-const built = (await stat(path.join(root, 'docs', 'index.html'))).mtimeMs;
+// A file's time: when it was last saved here, or - on GitHub (the weekly check, 7 Oct 2026),
+// where a fresh checkout gives every file the moment it was written out - when the last commit
+// that touched it was made (the workflow checks out the whole history for this).
+const ON_GITHUB = process.env.GITHUB_ACTIONS === 'true';
+const timeOf = async (file) => {
+  if (!ON_GITHUB) return (await stat(file)).mtimeMs;
+  const t = git(`log -1 --format=%ct -- "${path.relative(root, file).replace(/\\/g, '/')}"`);
+  return t ? Number(t) * 1000 : 0;
+};
+const built = await timeOf(path.join(root, 'docs', 'index.html'));
 const sources = srcFiles();
 const newer = [];
-for (const f of sources) if ((await stat(srcPath(f))).mtimeMs > built + 1000) newer.push(f);
+for (const f of sources) if ((await timeOf(srcPath(f))) > built + 1000) newer.push(f);
 // The build tools shape docs/ too (the worker, the chunks, the games' text, the pictures, the chess
 // engine): an edit there with no build:site would pass every check below with the old build live.
 const toolFiles = ['tools/build-site.mjs', 'tools/lazy-split.mjs', 'tools/game-text.cjs', 'tools/sources.cjs', 'tools/make-og.mjs', 'tools/site.config.json'];
 let vendor = [];
 try { vendor = (await readdir(path.join(root, 'vendor', 'stockfish'))).filter((f) => /\.(js|wasm)$/.test(f)).map((f) => 'vendor/stockfish/' + f); } catch (e) {}
 for (const f of [...toolFiles, ...vendor]) {
-  try { if ((await stat(path.join(root, f))).mtimeMs > built + 1000) newer.push(f); } catch (e) {}
+  try { if ((await timeOf(path.join(root, f))) > built + 1000) newer.push(f); } catch (e) {}
 }
 if (newer.length) fail(`changed after the last build:site (cd tools && npm run build:site, then commit and push): ${newer.join(', ')}`);
 else ok('docs/ was built after the last source edit');

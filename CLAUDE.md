@@ -101,8 +101,10 @@ each game's full spec and how it is built is in `notes/games/<id>.md`, the log i
    `notes/games/<id>.md`, a line in `notes/log.md`, GEMINI.md for anything
    app-wide). Commit everything, `docs/`
    included, and push to `master`. GitHub Actions checks every push (`npm run
-   check`, `test:rules`, the site's build and budget): a red ✗ on the commit
-   means fix it and push again.
+   check`, `test:rules`, the site's build and budget, and since 7 Oct 2026 the
+   robots and the screen test, about 10 minutes): a red ✗ on the commit means
+   fix it and push again. A weekly check of what is live opens an issue
+   labelled `weekly-check` when something broke (GEMINI.md, *Testing*).
 9. `cd tools && npm run check:live` — waits for GitHub Pages, then confirms the
    link serves this build and the rooms server is up. Done when it says "Live."
 

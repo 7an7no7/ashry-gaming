@@ -23,7 +23,10 @@ an old one pushed out (the audit of 28 Sep 2026: any id was taken, and a full
 log evicted its lowest counts, reading and sorting all 5,000 rows each time).
 Opening the app still touches no server. `GET /plays` (the admin key, as
 `/stop-words`) and `cd tools && ASHRY_ADMIN_KEY=… npm run plays [-- --month=2026-09]`
-print every game by how often it was started, split phone / room / TV. What
+print every game by how often it was started, split phone / room / TV
+(`-- --markdown` the month's report: the ten least started, the games never
+started; on the 1st of every month GitHub opens it as an issue labelled
+`monthly-plays`, 7 Oct 2026, `notes/tests-docs.md`). What
 it is for: the owner's rule that rarely played games go behind «كل الألعاب»
 (still there and searchable), never removed.
 

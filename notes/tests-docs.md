@@ -104,3 +104,129 @@ The "before" times were measured on 906fcfb (master before the four picks, which
 the `autonext` and `err` rounds, about 40 s serial). The longest segment (`duels`,
 about 2 minutes) is the floor for the robots however many jobs run.
 `.github/workflows/checks.yml` is unchanged: it already caches npm.
+
+## On GitHub: every push, every week, every month (7 Oct 2026)
+
+The owner picked three (E2, E1, D2): the robots and the screen test on every push, a weekly
+robot that says when something broke, and a monthly look at what is played. All on GitHub
+Actions with the workflow's own token: free (the repository is public, so the minutes are
+too), no other service, nothing to look after.
+
+### Every push to master and every pull request (`.github/workflows/checks.yml`)
+
+| job | runs | expected |
+| --- | --- | --- |
+| `checks` | `npm run check`, `test:rules` and the leak check, the site's build under its budget (as before) | 2 min |
+| `robots` | `cd rooms-worker && npm test`, `JOBS=4` | 8 min |
+| `screens (screens)` | `npm run test:ui` with `ONLY=screens,fixes,site`, `JOBS=3` | 8 min |
+| `screens (rooms)` | `npm run test:ui` with `ONLY=rooms,program,mission`, `JOBS=3` | 8 min |
+
+The four run side by side on four runners (ubuntu-latest, 4 cores each), so the robots and
+the screen test never share a machine (*Don't run `npm test` and `test:ui` at the same
+time*). The times are expected, not measured: the first runs on GitHub will say.
+
+- **The rooms server on the runner**: `.github/actions/rooms-server` (a composite step) runs
+  `node build.mjs`, then `npm run dev -- --ip 127.0.0.1 --persist-to $RUNNER_TEMP/…` in the
+  background - the wrangler version pinned in `rooms-worker/package.json` - and waits up to
+  3 minutes for `/health`. `wrangler dev` is local by default (the Worker and its Durable
+  Objects in workerd on the runner): no Cloudflare login, account or token. Checked on the
+  PC by starting it with no reachable Cloudflare config (`USERPROFILE`, `APPDATA`,
+  `XDG_CONFIG_HOME` pointed at an empty folder, `CLOUDFLARE_API_TOKEN` unset): it answered
+  `/health`. `--ip 127.0.0.1` because the tests ask `127.0.0.1` and `localhost` may be
+  `::1` alone on Linux; stdin is `/dev/null`, so it never waits on a prompt. No admin key
+  there: the `err` robots skip reading the list, as on the PC.
+- **Chrome on Linux** (`test-ui.mjs`): the runner's own Google Chrome
+  (`CHROME=$(command -v google-chrome)`; the test also looks in `/usr/bin` by itself).
+  `CHROME_ARGS` (new) adds flags: the workflow passes `--no-sandbox --disable-dev-shm-usage`
+  (Ubuntu 24.04 restricts the user namespaces Chrome's sandbox needs, and `/dev/shm` is
+  small for several browsers). On the PC nothing is added.
+- **Fonts**: `fonts-noto-core` (Noto Sans / Kufi / Naskh Arabic) and
+  `fonts-noto-color-emoji` are installed before the screen test. The page loads its own
+  fonts from Google Fonts, but until they arrive the machine's stand in, and without an
+  Arabic one the "text cut off" checks would measure boxes of another width.
+- **Screenshots of failures** (`UI_SHOTS=folder`, new): at every ✗ the screen test takes a
+  picture of the phone or TV it last spoke to (`lastPhone`, set by `ev`), at most 30 a
+  shard, named after the shard and the check. The workflow keeps them, the test's output
+  and the rooms server's log as the run's artifacts (14 days): the run's page → Artifacts.
+- **A second run for what failed** (the coordinator's follow-up, same day): the jobs pass
+  `--retry`. `play-all.mjs --retry` plays each segment that failed once more, alone, after
+  the others; `test-ui-parallel.mjs --retry` runs each failed shard once more, alone. Only a
+  second failure fails the job, and the ones that needed it are printed («needed a second
+  run (failed once, then passed alone): …», with their first failures) and written on the
+  job's page (`GITHUB_STEP_SUMMARY`), so a flaky one stays in sight. `play-all.mjs
+  --failed-out=file` writes `{ failed, flaky, failures, firstFailures }` as JSON (the weekly
+  check reads it). Without the flags the output is as before. Checked with throwaway copies
+  of the two runners: a segment and a shard made to fail once passed the second time and
+  were named; a segment made to fail always failed the run.
+- Nothing else in the scripts assumed Windows: paths go through `path` and `os.tmpdir()`,
+  and the Windows-only traps (`taskkill`, a `wrangler dev` left on its port, long storage
+  paths) don't arise on a runner that is thrown away after the job.
+
+### Once a week (`.github/workflows/weekly-check.yml`, Mondays 05:17 UTC, and by hand)
+
+Looks only at what is live, about 10 minutes:
+
+1. `npm run test:live -- --retry --failed-out=robots.json` in `rooms-worker/` (the robots
+   against the live rooms server; a segment that passes only the second time is a note in
+   the report, not a failure);
+2. `npm run check:live` in `tools/` (both addresses serve the build in master, the rooms
+   server runs its rules) - on GitHub its "docs/ built after the last source edit" compares
+   the last commit times of docs/ and the sources (`GITHUB_ACTIONS`: a fresh checkout's
+   file times mean nothing), so the workflow checks out the whole history;
+3. `npm run check:songs -- --play` (دندنها: a pin that no longer resolves, a preview that
+   doesn't load, an Apple address saved in `Songs.js` that is no longer Apple's current one;
+   when Apple's lookup doesn't answer GitHub, the report says "not checked", not broken);
+4. `node errors.mjs --json` (new: the rows as JSON) when the secret `ASHRY_ADMIN_KEY` is set.
+
+Each step goes on when one fails (`continue-on-error`); `tools/weekly-report.mjs` reads
+their logs and outcomes and writes the report: what failed, in plain words, with what to
+do, and the errors **first seen** on a phone in the last seven days (older ones seen again
+are listed under them; the robots' own report to `/err`, build `20260930120000`, is left
+out). Something to look at → `tools/ci-issue.mjs --mode=upsert`: the open issue labelled
+`weekly-check` gets the report as a comment, or a new one is opened (GitHub emails the
+owner either way). Nothing → `--mode=close`: that issue gets the report and is closed.
+Without the secret the report says the errors were not read. The logs are the run's
+artifacts (30 days), without the errors' list.
+
+### Once a month (`.github/workflows/monthly-plays.yml`, the 1st, 06:23 UTC, and by hand)
+
+`node plays.mjs --month=<last month> --markdown` (new: `--json` and `--markdown`, and
+`--input=file` to try the report on a saved list without the key), then
+`ci-issue.mjs --mode=once`: one issue a month, «What was played in 2026-10», labelled
+`monthly-plays` - the month's starts (one phone, a room, a room with a TV), the ten least
+started games, the games never started that month (and which were never started at all),
+every game, and the tools, folded. A room counts a game by its room id, so the report maps
+it back to its card (`shatranj` is `chess` in a room; `chess` on one phone is the chess
+clock). Run by hand, it takes any month. Without the secret it only warns.
+
+### Trying them on the PC
+
+```bash
+cd tools
+DRY_RUN=1 node ci-issue.mjs --mode=upsert --label=weekly-check --title="…" --body-file=report.md   # prints, calls nothing
+WEEKLY_DIR=folder ROBOTS_OUTCOME=success LIVE_OUTCOME=failure SONGS_OUTCOME=success HAS_KEY=false node weekly-report.mjs
+node plays.mjs --input=plays.json --month=2026-09 --markdown
+```
+
+`actionlint` (built from its source: `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7`)
+passes on the three workflows.
+
+### What the owner does once
+
+1. **The admin key as a secret**: on GitHub, the repository → Settings → Secrets and
+   variables → Actions → New repository secret, name `ASHRY_ADMIN_KEY`, the value the same
+   key the rooms server has (its `ADMIN_KEY` secret; the one used with `npm run errors` and
+   `npm run plays`). Until then the weekly check says the errors were not read and the
+   monthly report only warns.
+2. **Be told**: GitHub emails a new issue and its comments to whoever watches the
+   repository: the repository's page → Watch → "All Activity" (or Custom → Issues), and on
+   github.com → Settings → Notifications, "Email" ticked for watching. Issues are already on
+   for the repository.
+3. **Actions**: the repository → Settings → Actions → General keeps "Allow all actions" (the
+   workflows use GitHub's own `actions/checkout`, `setup-node` and `upload-artifact`);
+   "Workflow permissions" needs no change, each workflow asks for `issues: write` itself.
+   GitHub turns scheduled workflows off after 60 days with no commit to the repository; a
+   commit, or Actions → the workflow → "Enable workflow", turns them on again.
+4. The repository is public, so the issues are too: the weekly one shows the errors'
+   messages (the server already blanks typed text, addresses and room codes) and the
+   monthly one the play counts.

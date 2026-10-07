@@ -9,12 +9,13 @@
  *   node test/play-all.mjs --only=uno,domino       # some segments (the names: SEGMENTS, at the end)
  *   node test/play-all.mjs --jobs=6                # 6 segments at once (default 4, JOBS=… too)
  *   node test/play-all.mjs --jobs=1                # one after another, in this process
+ *   node test/play-all.mjs --retry --failed-out=f.json   # a failed segment once more, alone; the result as JSON
  *
  * Needs Node 22+ (built-in fetch and WebSocket). The games are segments that each
  * play in rooms of their own, run side by side in processes of their own: about
  * 4-5 minutes at 4, 3 at 6, 17 one after another (most of it the games' real clocks).
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { stopDictionary, stopAnswerFits, stopWordKnown, foldStopAnswer } from '../generated/rules.js';
 // دندنها's sound, the Worker's own code: a real preview from each source.
 import { songStream } from '../src/songs.js';
@@ -7243,6 +7244,17 @@ const EXCLUSIVE = new Set([]);
 
 const JOBS = Math.max(1, Number((ARGS.find((a) => a.startsWith('--jobs=')) || '').slice(7) || process.env.JOBS || 4));
 const CHILD = ARGS.includes('--child');
+// For GitHub (7 Oct 2026): --retry plays a failed segment once more, alone (several at once
+// only); --failed-out=file writes { failed, flaky, failures, firstFailures } as JSON - the
+// segments still failing, the ones that passed only the second time, and their checks - for
+// the weekly report and the job's summary. The printed output is the same without them.
+const RETRY = ARGS.includes('--retry');
+const FAILED_OUT = (ARGS.find((a) => a.startsWith('--failed-out=')) || '').slice(13);
+const failedHere = [];
+function writeFailedOut(data) {
+  if (!FAILED_OUT || CHILD) return;
+  try { writeFileSync(FAILED_OUT, JSON.stringify(data, null, 1)); } catch (e) { console.log(`(could not write ${FAILED_OUT}: ${e.message})`); }
+}
 
 function wantedSegments() {
   if (!ONLY) return SEGMENTS;
@@ -7260,18 +7272,20 @@ async function runHere(list) {
   const times = {};
   for (const seg of list) {
     const t = Date.now();
+    const before = failures.length;
     try { await seg.run(); }
     catch (err) {
       failures.push(`${seg.name}: crashed: ${(err && err.message) || err}`);
       console.log(`  ✗ ${seg.name} crashed: ${(err && err.stack) || err}`);
     }
     times[seg.name] = (Date.now() - t) / 1000;
+    if (failures.length > before) failedHere.push(seg.name);
   }
   return times;
 }
 
 /** Runs each segment in a process of its own, JOBS at a time; prints each one's output when it ends. */
-async function runSharded(list) {
+async function runSharded(list, jobs = JOBS, tag = '') {
   const { spawn } = await import('node:child_process');
   const { fileURLToPath } = await import('node:url');
   const file = fileURLToPath(import.meta.url);
@@ -7290,14 +7304,14 @@ async function runSharded(list) {
       const r = m ? JSON.parse(m[1]) : { passed: 0, failures: [`${seg.name}: the process ended without a result (exit ${code})`] };
       const body = text.replace(/^@@RESULT .*$/m, '').replace(/^rooms server: .*\n/m, '').replace(/\n+$/, '');
       const secs = (Date.now() - t) / 1000;
-      console.log(`\n── ${seg.name} (${secs.toFixed(1)}s, ${r.passed} passed, ${r.failures.length} failed) ──\n${body}`);
+      console.log(`\n── ${seg.name}${tag} (${secs.toFixed(1)}s, ${r.passed} passed, ${r.failures.length} failed) ──\n${body}`);
       results.push({ name: seg.name, secs, passed: r.passed, failures: r.failures });
       resolve();
     });
   });
   const worker = async () => { while (queue.length) await runOne(queue.shift()); };
-  console.log(`${list.length} segments in ${Math.min(JOBS, queue.length)} processes${after.length ? `, then ${after.map((s) => s.name).join(', ')} alone` : ''}`);
-  await Promise.all(Array.from({ length: Math.min(JOBS, queue.length) }, worker));
+  console.log(`${list.length} segments in ${Math.min(jobs, queue.length)} processes${after.length ? `, then ${after.map((s) => s.name).join(', ')} alone` : ''}`);
+  await Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, worker));
   for (const seg of after) await runOne(seg);
   return results;
 }
@@ -7307,12 +7321,31 @@ async function main() {
   const list = wantedSegments();
   if (!CHILD && JOBS > 1 && list.length > 1) {
     console.log('rooms server:', BASE);
-    const results = await runSharded(list);
+    let results = await runSharded(list);
+    // --retry (GitHub, 7 Oct 2026): a segment that failed plays once more, alone, and only a
+    // second failure counts. The ones that needed it are named, so a flaky one stays in sight.
+    let flaky = [];
+    const firstFailed = results.filter((r) => r.failures.length).map((r) => r.name);
+    if (RETRY && firstFailed.length) {
+      console.log(`\n${firstFailed.length} segment${firstFailed.length > 1 ? 's' : ''} failed, played once more, one at a time: ${firstFailed.join(', ')}`);
+      const again = await runSharded(list.filter((s) => firstFailed.includes(s.name)), 1, ' (second run)');
+      flaky = again.filter((r) => !r.failures.length).map((r) => ({ name: r.name, first: results.find((x) => x.name === r.name).failures }));
+      results = results.filter((r) => !firstFailed.includes(r.name)).concat(again);
+    }
     const total = results.reduce((n, r) => n + r.passed, 0);
     const failed = results.flatMap((r) => r.failures.map((f) => (f.startsWith(r.name + ':') ? f : `[${r.name}] ${f}`)));
     console.log('\nsegments by time: ' + results.slice().sort((a, b) => b.secs - a.secs).map((r) => `${r.name} ${Math.round(r.secs)}s`).join(', '));
     console.log(`\n${total} passed, ${failed.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s (${JOBS} at a time)`);
+    if (flaky.length) console.log(`needed a second run (failed once, then passed alone): ${flaky.map((f) => f.name).join(', ')}\n - ` + flaky.flatMap((f) => f.first.map((x) => `[${f.name}] ${x}`)).join('\n - '));
     if (failed.length) console.log('failed:\n - ' + failed.join('\n - '));
+    writeFailedOut({ failed: results.filter((r) => r.failures.length).map((r) => r.name), flaky: flaky.map((f) => f.name), failures: failed, firstFailures: flaky.flatMap((f) => f.first.map((x) => `[${f.name}] ${x}`)) });
+    // The job's page on GitHub: what failed, and what passed only the second time.
+    if (process.env.GITHUB_STEP_SUMMARY) {
+      const md = [`### The robots (${BASE}): ${total} passed, ${failed.length} failed`];
+      if (flaky.length) md.push(`Needed a second run (failed once, then passed alone): **${flaky.map((f) => f.name).join(', ')}**`, ...flaky.flatMap((f) => f.first.map((x) => `- [${f.name}] ${x}`)));
+      if (failed.length) md.push('Failed:', ...failed.map((x) => `- ${x}`));
+      try { (await import('node:fs')).appendFileSync(process.env.GITHUB_STEP_SUMMARY, md.join('\n') + '\n\n'); } catch (e) {}
+    }
     process.exit(failed.length ? 1 : 0);
   }
   console.log('rooms server:', BASE);
@@ -7324,6 +7357,7 @@ async function main() {
   }
   console.log(`\n${passed} passed, ${failures.length} failed, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   if (failures.length) console.log('failed:\n - ' + failures.join('\n - '));
+  writeFailedOut({ failed: failedHere, flaky: [], failures, firstFailures: [] });
   process.exit(failures.length ? 1 : 0);
 }
 

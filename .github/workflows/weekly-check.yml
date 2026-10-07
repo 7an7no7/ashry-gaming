@@ -1,0 +1,128 @@
+# Once a week, a robot that says when something broke (7 Oct 2026, the owner). Nothing in the
+# app changes here; it only looks at what is live:
+#
+#   - the robot players against the live rooms server (cd rooms-worker && npm run test:live)
+#   - both addresses serve the build in master, and the rooms server runs its rules
+#     (cd tools && npm run check:live)
+#   - دندنها's songs all still play, and Apple's saved preview addresses are current
+#     (cd tools && npm run check:songs -- --play)
+#   - the errors phones reported, first seen this week (tools/errors.mjs; only when the
+#     repository secret ASHRY_ADMIN_KEY is set - the report says so when it isn't)
+#
+# tools/weekly-report.mjs writes the report. When something needs a look it opens the issue
+# labelled "weekly-check", or adds the week's report to it as a comment if it is still open;
+# GitHub emails the owner either way. When everything works it closes that issue with a
+# comment. Only the workflow's own token (issues: write), no other service. About 10 minutes.
+# Run it by hand: Actions → weekly check → Run workflow.
+name: weekly check
+
+on:
+  schedule:
+    - cron: '17 5 * * 1'   # Mondays, 05:17 UTC (08:17 in Cairo)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: weekly-check
+  cancel-in-progress: false
+
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HAS_KEY: ${{ secrets.ASHRY_ADMIN_KEY != '' }}
+    steps:
+      # The whole history: check:live compares when docs/ and the sources were last committed.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/package-lock.json
+
+      - name: Install the tools
+        working-directory: tools
+        run: |
+          npm ci --no-audit --no-fund
+          mkdir -p "$RUNNER_TEMP/weekly"
+          echo "WEEKLY_DIR=$RUNNER_TEMP/weekly" >> "$GITHUB_ENV"
+
+      - name: The robot players on the live rooms server
+        id: robots
+        continue-on-error: true
+        working-directory: rooms-worker
+        env:
+          ASHRY_ADMIN_KEY: ${{ secrets.ASHRY_ADMIN_KEY }}
+        run: |
+          set -o pipefail
+          node build.mjs
+          npm run test:live -- --retry --failed-out="$WEEKLY_DIR/robots.json" 2>&1 | tee "$WEEKLY_DIR/robots.log"
+
+      - name: Both addresses and the rooms server serve master
+        id: live
+        continue-on-error: true
+        working-directory: tools
+        run: |
+          set -o pipefail
+          npm run check:live 2>&1 | tee "$WEEKLY_DIR/live.log"
+
+      - name: دندنها's songs
+        id: songs
+        continue-on-error: true
+        working-directory: tools
+        run: |
+          set -o pipefail
+          npm run check:songs -- --play 2>&1 | tee "$WEEKLY_DIR/songs.log"
+
+      - name: Errors from phones
+        id: errors
+        if: ${{ env.HAS_KEY == 'true' }}
+        continue-on-error: true
+        working-directory: tools
+        env:
+          ASHRY_ADMIN_KEY: ${{ secrets.ASHRY_ADMIN_KEY }}
+        run: node errors.mjs --json > "$WEEKLY_DIR/errors.json" 2> "$WEEKLY_DIR/errors.err"
+
+      - name: The report
+        id: report
+        working-directory: tools
+        env:
+          ROBOTS_OUTCOME: ${{ steps.robots.outcome }}
+          LIVE_OUTCOME: ${{ steps.live.outcome }}
+          SONGS_OUTCOME: ${{ steps.songs.outcome }}
+          ERRORS_OUTCOME: ${{ steps.errors.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node weekly-report.mjs
+
+      - name: Open or update the weekly-check issue
+        if: ${{ steps.report.outputs.problem == 'true' }}
+        working-directory: tools
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node ci-issue.mjs --mode=upsert --label=weekly-check --title="The weekly check found something to look at" --body-file="$WEEKLY_DIR/report.md"
+
+      - name: Close the weekly-check issue (everything works)
+        if: ${{ steps.report.outputs.problem == 'false' }}
+        working-directory: tools
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node ci-issue.mjs --mode=close --label=weekly-check --body-file="$WEEKLY_DIR/report.md"
+
+      - name: Keep the logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-check
+          # The errors' list stays out (it is in the issue, as far as it needs to be).
+          path: |
+            ${{ runner.temp }}/weekly/
+            !${{ runner.temp }}/weekly/errors.*
+          retention-days: 30
+          if-no-files-found: ignore

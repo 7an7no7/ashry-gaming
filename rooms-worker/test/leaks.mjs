@@ -2525,7 +2525,10 @@ const DRIVERS = {
       if (!path) return false;
       for (let i = 1; i < path.length && S(T).phase === 'play'; i++) {
         at(path[i][1]);
-        const d = dirTo(m, path[i - 1][0], path[i][0]);
+        let d = dirTo(m, path[i - 1][0], path[i][0]);
+        // «دايخ!» (7 Oct 2026): while the mover is dizzy the server swaps left and right, so the walker
+        // presses the other one, as a guide would tell them to.
+        if ((T.room._dark || {}).dizzyUntil > clock && (d === 'L' || d === 'R')) d = d === 'L' ? 'R' : 'L';
         if (d) must(T, S(T).moverId, 'step', { d, run: S(T).run });
       }
       return true;

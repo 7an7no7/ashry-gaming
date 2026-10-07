@@ -896,6 +896,7 @@
     if (existing) return existing;
     allPlayers.push(name);
     savePlayerLibrary();
+    keepDataAsk();
     return name;
   }
 
@@ -3490,6 +3491,31 @@
       paintAppVersion();
       const el = document.getElementById('settings-modal');
       if (el) el.classList.remove('hidden');
+  }
+
+  /* «انقل لموبايل تاني» (the owner, 7 Oct 2026): the door to the chunk 'move'
+     (JS_Move.html, app/MoveData.js), opened over the home or wherever Settings was. */
+  function openMoveData() {
+      closeModal('settings-modal');
+      lzRun('move', () => moveOpen());
+  }
+
+  /* Ask the browser to keep this phone's data (the owner, 7 Oct 2026): a browser may
+     clear a site's storage when the phone runs short, and with it every name, crew,
+     streak and quiz. Asked once, the first time something worth keeping is saved (a
+     name, a crew, a daily, a pack, a move); never a prompt of ours - Chrome and Safari
+     answer by themselves, Firefox asks in its own bar. Remembered whatever the answer. */
+  const PERSIST_ASKED_KEY = 'ashryPersistAsked';
+  function keepDataAsk() {
+      try {
+          if (localStorage.getItem(PERSIST_ASKED_KEY)) return;
+          if (!navigator.storage || typeof navigator.storage.persist !== 'function') return;
+          localStorage.setItem(PERSIST_ASKED_KEY, String(Date.now()));
+      } catch (e) { return; }
+      Promise.resolve()
+          .then(() => (typeof navigator.storage.persisted === 'function' ? navigator.storage.persisted() : false))
+          .then((already) => already || navigator.storage.persist())
+          .catch(() => {});
   }
 
   function updateSettingsLabels() {

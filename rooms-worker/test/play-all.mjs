@@ -7143,8 +7143,52 @@ async function laserRobots() {
   [H, J, K, TV].forEach((x) => x.close());
 }
 
+/* --- «انقل بياناتي»: one phone's data to another by a 24-hour code (7 Oct 2026) ------------------ */
+async function moveRobots() {
+  console.log('• انقل لموبايل تاني (put, get twice, a wrong code, stop, the size cap, the shape)');
+  const keys = {
+    ashryName: 'أحمد',
+    ashryPlayers_v1: JSON.stringify(['أحمد', 'منى', 'Sara']),
+    ashryCrews_v1: JSON.stringify({ list: [{ code: 'ABCDEF', name: 'شلة الخميس', memberId: 'm1', key: 'k1', at: 1 }] }),
+    ashrySeen_v1: JSON.stringify({ 'charades:ar': Array.from({ length: 3000 }, (_, i) => 'كلمة ' + i) })
+  };
+  const put = await api('/move/put', { data: { v: 1, at: Date.now(), keys } });
+  check(put.ok && /^[A-HJ-NP-Z2-9]{6}$/.test(put.code) && typeof put.key === 'string' && put.key.length >= 20, 'move: a send gets a 6-letter code (the packs\' letters) and a stop key');
+  check(put.ok && Math.abs(put.until - (Date.now() + 24 * 3600 * 1000)) < 60000, 'move: the code lasts 24 hours');
+  // Two phones (a phone and a tablet) read the same code; the payload comes back as it went (in pieces past 60K).
+  const a = await api('/move/get', { code: put.code });
+  const b = await api('/move/get', { code: put.code.toLowerCase() });
+  check(a.ok && b.ok && JSON.stringify(a.data.keys) === JSON.stringify(keys) && JSON.stringify(b.data.keys) === JSON.stringify(keys), 'move: read twice, the same data both times, whole');
+  check(!a.data.keys.ashryRoom_v1 && a.until === put.until, 'move: what comes back is only what was sent');
+  // A wrong code and a code of the wrong shape say so.
+  let wrong = put.code.split('').reverse().join('');
+  if (wrong === put.code) wrong = 'ZZZZZZ';
+  check((await api('/move/get', { code: wrong })).error === 'not_found', 'move: a wrong code: not_found');
+  check((await api('/move/get', { code: 'AB1' })).error === 'not_found', 'move: a code of the wrong shape: not_found');
+  // Only what moves, as text.
+  check((await api('/move/put', { data: { v: 1, keys: { ashryRoom_v1: '{"key":"x"}' } } })).error === 'bad', 'move: a key that doesn\'t move is refused (a room\'s seat)');
+  check((await api('/move/put', { data: { v: 1, keys: { ashryName: 5 } } })).error === 'bad', 'move: a value that isn\'t text is refused');
+  // The size cap: over it, before it is kept.
+  const res = await fetch(BASE + '/move/put', { method: 'POST', headers: { 'content-type': 'text/plain;charset=UTF-8' },
+    body: JSON.stringify({ data: { v: 1, keys: { ashrySeen_v1: 'س'.repeat(600 * 1024) } } }) });
+  const big = await res.json();
+  check(!big.ok && big.error === 'too_big', 'move: past the size cap in bytes (Arabic letters are two): too_big');
+  const res2 = await fetch(BASE + '/move/put', { method: 'POST', headers: { 'content-type': 'text/plain;charset=UTF-8' },
+    body: JSON.stringify({ data: { v: 1, keys: { ashrySeen_v1: 'x'.repeat(1100 * 1024) } } }) });
+  check(res2.status === 413 && (await res2.json()).error === 'too_big', 'move: far past it, refused before it is read');
+  // Just under it: kept, and read back whole (in pieces).
+  const near = 'ن'.repeat(400 * 1024);
+  const kept = await api('/move/put', { data: { v: 1, keys: { ashrySeen_v1: near } } });
+  check(kept.ok && (await api('/move/get', { code: kept.code })).data.keys.ashrySeen_v1 === near, 'move: 800 KB of Arabic kept and read back whole');
+  // «وقّف الكود»: only with the stop key; after it, the code is gone.
+  check((await api('/move/drop', { code: put.code, key: 'not-the-key' })).error === 'denied', 'move: stopping a code needs the key the send gave');
+  check((await api('/move/drop', { code: put.code, key: put.key })).ok, 'move: the sender stops the code');
+  check((await api('/move/get', { code: put.code })).error === 'not_found', 'move: a stopped code is gone');
+}
+
 const SEGMENTS = [
   { name: 'err', run: errRobots, secs: 5 },
+  { name: 'move', run: moveRobots, secs: 2 },
   { name: 'core', run: coreSeg, secs: 47 },
   { name: 'connect4', run: connect4Seg, secs: 1 },
   { name: 'c4teams', run: c4TeamsSeg, secs: 30 },

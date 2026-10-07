@@ -1,0 +1,293 @@
+<script>
+/* ============================================================================
+   «انقل لموبايل تاني» (the owner, 7 Oct 2026): Settings → a centred dialog with
+   two ways. «ابعت من الموبايل ده» sends everything this phone keeps to the rooms
+   server (POST /move/put, rooms-worker/src/move.js) and shows the 6-letter code
+   it is kept under for 24 hours, readable more than once (a phone and a tablet);
+   «عندي كود» takes the code in six boxes (the room join's look), fetches it
+   (/move/get), MERGES it into this phone's own (moveMerge, app/MoveData.js - the
+   rules are written there) and says what came over, then redraws what shows it.
+
+   A chunk of its own ('move', with MoveData.js): the shell has only the row in
+   Settings, the empty popup (#move-modal) and the door, openMoveData() in
+   JS_Core.html. Nothing personal leaves the phone except into that one entry.
+   ========================================================================= */
+const MOVE_STATE = { code: '', key: '', until: 0, busy: false };
+
+function mvT() { return TRANSLATIONS[appState.lang] || {}; }
+
+/** One call to /move/*: { ok, ... } or { ok: false, error } (offline, server). */
+async function moveApi(path, body) {
+  const base = String(window.ROOMS_URL || '').replace(/\/+$/, '');
+  let res;
+  try {
+    res = await fetch(base + path, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(body || {}) });
+  } catch (e) { return { ok: false, error: 'offline' }; }
+  try { return await res.json(); } catch (e) { return { ok: false, error: 'server' }; }
+}
+
+function moveErrorText(error) {
+  const t = mvT();
+  return t['mv_err_' + error] || t.mv_err_server || '';
+}
+
+/** A count in words: "اسمين", "5 أسامي", "11 اسم" (the key holds one|two|few|many). */
+function moveCount(key, n) {
+  const forms = String(mvT()[key] || '').split('|');
+  const i = n === 1 ? 0 : n === 2 ? 1 : (n % 100 >= 3 && n % 100 <= 10) ? 2 : 3;
+  return String(forms[i] || forms[forms.length - 1] || '').replace('{n}', String(n));
+}
+
+/** Six boxes: a letter each, the code shown big (filled) or typed (the real field lies over them). */
+function moveBoxes(code, input) {
+  const boxes = Array.from({ length: PACK_CODE_LEN }, (_, i) =>
+    `<span class="code-boxes__box${code[i] ? ' is-filled' : ''}" aria-hidden="true">${escapeHTML(code[i] || '')}</span>`).join('');
+  if (!input) return `<div class="code-boxes code-boxes--six move-code" dir="ltr" role="img" aria-label="${escapeHTML(code.split('').join(' '))}">${boxes}</div>`;
+  return `<div class="code-boxes code-boxes--six" dir="ltr">
+      <input type="text" id="move-code-input" class="room-code-input code-boxes__input" maxlength="40"
+             inputmode="text" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go"
+             aria-label="${escapeHTML(mvT().mv_code_label || '')}"
+             oninput="moveCodeInput(this)" onfocus="movePaintBoxes()" onblur="movePaintBoxes()"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();moveReceive();}">${boxes}</div>`;
+}
+
+function moveDraw(html) {
+  const box = document.getElementById('move-content');
+  if (box) box.innerHTML = html;
+}
+
+/** The door's other side (openMoveData, JS_Core.html): the two ways. */
+function moveOpen() {
+  const t = mvT();
+  MOVE_STATE.busy = false;
+  moveDraw(`
+    <div class="modal-icon" aria-hidden="true">📲</div>
+    <div class="sheet__title">${escapeHTML(t.mv_title || '')}</div>
+    <p class="sheet__subtitle">${escapeHTML(t.mv_what || '')}</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--primary btn--lg" id="move-send-btn" onclick="moveSend()">${escapeHTML(t.mv_send || '')}</button>
+      <button type="button" class="btn btn--secondary" onclick="moveGetOpen()">${escapeHTML(t.mv_have_code || '')}</button>
+      <button type="button" class="btn btn--ghost" onclick="closeModal('move-modal')">${escapeHTML(t.cancel || '')}</button>
+    </div>`);
+  const el = document.getElementById('move-modal');
+  if (el) el.classList.remove('hidden');
+}
+
+/** «ابعت من الموبايل ده»: everything worth moving, under a new code. */
+async function moveSend() {
+  if (MOVE_STATE.busy) return;
+  const t = mvT();
+  const btn = document.getElementById('move-send-btn');
+  const read = (k) => localStorage.getItem(k);
+  // The live settings, not the last save: a theme changed a moment ago counts.
+  try { saveToLocal(); } catch (e) {}
+  const fit = moveFit(moveCollect(read, { defaults: { isDarkMode: moveDeviceDark() } }).keys);
+  if (fit.error) { showToast(moveErrorText(fit.error), 'error'); return; }
+  MOVE_STATE.busy = true;
+  if (btn) { btn.disabled = true; btn.textContent = t.mv_sending || ''; }
+  const res = await moveApi('/move/put', { data: { v: MOVE_FORMAT, at: Date.now(), keys: fit.keys } });
+  MOVE_STATE.busy = false;
+  if (!res.ok) {
+    if (btn) { btn.disabled = false; btn.textContent = t.mv_send || ''; }
+    showToast(moveErrorText(res.error), 'error');
+    return;
+  }
+  Object.assign(MOVE_STATE, { code: res.code, key: res.key, until: res.until });
+  moveShowCode(fit.trimmed);
+  haptic('success');
+}
+
+function moveUntilText(until) {
+  try {
+    return new Date(until).toLocaleString(appState.lang === 'ar' ? 'ar-EG-u-nu-latn' : 'en-GB',
+      { weekday: 'long', hour: 'numeric', minute: '2-digit', hour12: appState.lang === 'ar' });
+  } catch (e) { return ''; }
+}
+
+function moveShowCode(trimmed) {
+  const t = mvT();
+  const left = (trimmed || []).map(k => t['mv_trim_' + k]).filter(Boolean);
+  moveDraw(`
+    <div class="sheet__title">${escapeHTML(t.mv_code_title || '')}</div>
+    <p class="sheet__subtitle">${escapeHTML(t.mv_code_how || '')}</p>
+    ${moveBoxes(MOVE_STATE.code, false)}
+    <p class="move-until">${escapeHTML(String(t.mv_until || '').replace('{when}', moveUntilText(MOVE_STATE.until)))}</p>
+    ${left.length ? `<p class="move-note">${escapeHTML(String(t.mv_trimmed || '').replace('{what}', left.join(appState.lang === 'ar' ? ' و' : ' and ')))}</p>` : ''}
+    <p class="move-note move-note--warn">${escapeHTML(t.mv_private || '')}</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--primary btn--lg" onclick="moveShare()">${escapeHTML(navigator.share ? (t.mv_share || '') : (t.mv_copy || ''))}</button>
+      <button type="button" class="btn btn--ghost" onclick="closeModal('move-modal')">${escapeHTML(t.mv_done || '')}</button>
+      <button type="button" class="btn btn--danger-soft btn--sm" onclick="moveStop()">${escapeHTML(t.mv_stop || '')}</button>
+    </div>`);
+  if (!motionOff()) {
+    document.querySelectorAll('#move-content .move-code .code-boxes__box').forEach((b, i) => {
+      b.style.animationDelay = (i * 45) + 'ms';
+      b.classList.add('is-pop');
+    });
+  }
+}
+
+/** The code by the phone's share sheet (WhatsApp to yourself), or copied. */
+async function moveShare() {
+  const t = mvT();
+  const text = String(t.mv_share_text || '').replace('{code}', MOVE_STATE.code);
+  if (navigator.share) {
+    try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  let copied = false;
+  try { await navigator.clipboard.writeText(MOVE_STATE.code); copied = true; } catch (e) {}
+  showToast(copied ? (t.mv_copied || '') : MOVE_STATE.code, copied ? 'success' : 'info');
+}
+
+/** «وقّف الكود»: the entry is deleted at once (the key the send gave). */
+async function moveStop() {
+  if (!MOVE_STATE.code) return;
+  const res = await moveApi('/move/drop', { code: MOVE_STATE.code, key: MOVE_STATE.key });
+  if (!res.ok && res.error !== 'not_found') { showToast(moveErrorText(res.error), 'error'); return; }
+  Object.assign(MOVE_STATE, { code: '', key: '', until: 0 });
+  closeModal('move-modal');
+  showToast(mvT().mv_stopped || '', 'success');
+}
+
+/** «عندي كود»: six boxes, like joining a room. */
+function moveGetOpen() {
+  const t = mvT();
+  moveDraw(`
+    <div class="sheet__title">${escapeHTML(t.mv_get_title || '')}</div>
+    <p class="sheet__subtitle">${escapeHTML(t.mv_get_how || '')}</p>
+    ${moveBoxes('', true)}
+    <p class="move-note">${escapeHTML(t.mv_merge_note || '')}</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--primary btn--lg" id="move-get-btn" onclick="moveReceive()" disabled>${escapeHTML(t.mv_get || '')}</button>
+      <button type="button" class="btn btn--ghost" onclick="moveOpen()">${escapeHTML(t.back || '')}</button>
+    </div>`);
+  movePaintBoxes();
+  const input = document.getElementById('move-code-input');
+  // Not on a phone on its side: the keyboard would cover the whole dialog before anything is typed.
+  if (input && !(window.innerHeight < 500 && window.innerWidth > window.innerHeight)) setTimeout(() => { try { input.focus(); } catch (e) {} }, 60);
+}
+
+/** What was typed, down to a code: the packs' letters, an Arabic keyboard's digits read as 2-9. */
+function moveCodeOf(text) {
+  return packCode(String(text || '').replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6F0)))
+    .replace(/[^A-HJ-NP-Z2-9]/g, '').slice(0, PACK_CODE_LEN);
+}
+
+function movePaintBoxes() {
+  const el = document.getElementById('move-code-input');
+  if (!el) return;
+  const code = moveCodeOf(el.value);
+  const focused = document.activeElement === el;
+  el.parentElement.querySelectorAll('.code-boxes__box').forEach((box, i) => {
+    const ch = code[i] || '';
+    if (box.textContent !== ch) {
+      box.textContent = ch;
+      if (ch && !motionOff()) { box.classList.remove('is-pop'); void box.offsetWidth; box.classList.add('is-pop'); }
+    }
+    box.classList.toggle('is-filled', !!ch);
+    box.classList.toggle('is-on', focused && i === Math.min(code.length, PACK_CODE_LEN - 1) && code.length < PACK_CODE_LEN);
+    box.classList.toggle('is-full', code.length === PACK_CODE_LEN);
+  });
+  const btn = document.getElementById('move-get-btn');
+  if (btn && !MOVE_STATE.busy) btn.disabled = code.length !== PACK_CODE_LEN;
+}
+
+function moveCodeInput(el) {
+  const code = moveCodeOf(el.value);
+  if (el.value !== code) el.value = code;
+  el.removeAttribute('aria-invalid');
+  movePaintBoxes();
+  // The sixth letter fetches by itself, once per code (the room join's way).
+  if (code.length === PACK_CODE_LEN && el.dataset.went !== code) {
+    el.dataset.went = code;
+    setTimeout(() => { if (moveCodeOf(el.value) === code) moveReceive(); }, motionOff() ? 0 : 260);
+  } else if (code.length !== PACK_CODE_LEN) delete el.dataset.went;
+}
+
+/** The theme this device starts in (loadFromLocal's first visit): its default. */
+function moveDeviceDark() { return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); }
+
+/** This phone's own data, as moveMerge reads it: the app's settings from the live appState. */
+function moveHere() {
+  const here = {};
+  Object.keys(MOVE_KEYS).forEach((k) => { try { here[k] = localStorage.getItem(k); } catch (e) { here[k] = null; } });
+  here.gameTrackerState_v1 = JSON.stringify({ lang: appState.lang, gameLang: appState.gameLang || 'auto', isDarkMode: !!appState.isDarkMode });
+  return here;
+}
+
+async function moveReceive() {
+  const el = document.getElementById('move-code-input');
+  const code = moveCodeOf(el && el.value);
+  if (code.length !== PACK_CODE_LEN || MOVE_STATE.busy) return;
+  const t = mvT();
+  const btn = document.getElementById('move-get-btn');
+  MOVE_STATE.busy = true;
+  if (btn) { btn.disabled = true; btn.textContent = t.mv_getting || ''; }
+  const res = await moveApi('/move/get', { code });
+  MOVE_STATE.busy = false;
+  if (!res.ok || !res.data || !res.data.keys) {
+    if (btn) btn.textContent = t.mv_get || '';
+    movePaintBoxes();
+    if (el) { el.setAttribute('aria-invalid', 'true'); delete el.dataset.went; }
+    showToast(moveErrorText(res.ok ? 'not_found' : res.error), 'error');
+    return;
+  }
+  const merged = moveMerge(moveHere(), res.data.keys, { defaults: { isDarkMode: moveDeviceDark() } });
+  moveApply(merged.write);
+  moveShowDone(merged.got);
+  haptic('success');
+}
+
+/** Writes what changed and redraws what shows it. */
+function moveApply(write) {
+  const app = write.gameTrackerState_v1 ? JSON.parse(write.gameTrackerState_v1) : null;
+  Object.keys(write).forEach((k) => {
+    if (k === 'gameTrackerState_v1') return;
+    try { localStorage.setItem(k, write[k]); } catch (e) {}
+  });
+  // What the page keeps in memory is read again.
+  loadPlayerLibrary();
+  seenLists = null;
+  if ('ashryMotion' in write) applyMotionPref();
+  if (app) {
+    if (app.gameLang && app.gameLang !== appState.gameLang) { appState.gameLang = app.gameLang; runLanguageHooks(); }
+    if (typeof app.isDarkMode === 'boolean' && app.isDarkMode !== !!appState.isDarkMode) toggleDarkMode();
+    if (app.lang && app.lang !== appState.lang) toggleLanguage();
+    saveToLocal();
+  }
+  if (Object.keys(write).length) keepDataAsk();
+  try { renderSavedGroups(); } catch (e) {}
+  try { renderCatalogViews(); } catch (e) {}
+  try { updateSettingsLabels(); } catch (e) {}
+  try { runLanguageHooks(); } catch (e) {}
+}
+
+function moveShowDone(got) {
+  const t = mvT();
+  const parts = [];
+  if (got.names) parts.push(moveCount('mv_n_names', got.names));
+  if (got.groups) parts.push(moveCount('mv_n_groups', got.groups));
+  if (got.crews) parts.push(moveCount('mv_n_crews', got.crews));
+  if (got.quizzes) parts.push(moveCount('mv_n_quizzes', got.quizzes));
+  if (got.words) parts.push(t.mv_words || '');
+  if (got.days) {
+    const streak = typeof soloStreak === 'function' ? soloStreak() : 0;
+    parts.push(streak > 1 ? String(t.mv_streak || '').replace('{d}', moveCount('mv_n_days', streak)) : moveCount('mv_n_daily', got.days));
+  }
+  if (got.bests) parts.push(moveCount('mv_n_bests', got.bests));
+  if (got.chess) parts.push(moveCount('mv_n_chess', got.chess));
+  if (got.nights) parts.push(moveCount('mv_n_nights', got.nights));
+  if (got.settings) parts.push(moveCount('mv_n_settings', got.settings));
+  const line = parts.filter(Boolean).join(appState.lang === 'ar' ? '، ' : ', ');
+  moveDraw(`
+    <div class="modal-icon" aria-hidden="true">${parts.length ? '✅' : '👌'}</div>
+    <div class="sheet__title">${escapeHTML(parts.length ? (t.mv_came_title || '') : (t.mv_nothing_title || ''))}</div>
+    <p class="sheet__subtitle">${escapeHTML(parts.length ? String(t.mv_came || '').replace('{what}', line) : (t.mv_nothing || ''))}</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn--primary btn--lg" onclick="closeModal('move-modal')">${escapeHTML(t.mv_ok || '')}</button>
+    </div>`);
+  if (parts.length && typeof afterReveal === 'function' && !motionOff()) {
+    afterReveal(document.getElementById('move-content'), () => { try { confetti({ particleCount: 60, spread: 70, origin: { y: 0.4 } }); } catch (e) {} });
+  }
+}
+</script>

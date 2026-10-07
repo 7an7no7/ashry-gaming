@@ -102,6 +102,7 @@ file and a new line.
 - Room links with a WhatsApp preview (`/r/CODE`, the site worker's one script, `docs/og/` pictures) and errors from players' phones (`POST /err`, `npm run errors`) - `notes/previews-errors.md`.
 - The parallel tests and `npm run test:changed` (the segments, the file → test mapping) - `notes/tests-docs.md`.
 - Player names, the picker, «مين بيلعب؟» - `notes/players.md`.
+- «انقل لموبايل تاني» (everything a phone keeps, to another by a 6-letter code kept 24 hours, merged not wiped: `/move/*`, `MoveStore`, `app/MoveData.js`'s `MOVE_KEYS` and merge rules, `JS_Move.html`) and asking the browser to keep the data (`keepDataAsk`) - `notes/move-data.md`. **A new key in localStorage that a person would miss on a new phone goes into `MOVE_KEYS` with its rule.**
 - The catalog and the home screen (`GAME_CATALOG`, the first visit, «الليلة دي؟», descriptions, setup options remembered) - `notes/home.md`. Read before adding a game.
 - The soundboard and sound on iPhones (`wakeAudio`, a stuck audio context) - `notes/sound.md`.
 - The first-play card and the Help sheet (`GAME_RULES`, `HELP_ENTRIES`, `HELP_FOR_VIEW`) - `notes/help.md`.
@@ -227,7 +228,7 @@ Two browser tabs on the preview behave like two phones in one room.
   `SpyWords.js`, `CodenamesWords.js`, `PartyContent.js`, `ChameleonWords.js`,
   `SpyfallPlaces.js`, `BombPrompts.js`, `EmojiRiddles.js`, `Proverbs.js`,
   `MonkeyWords.js`, `StopWords.js`, `TriviaQuestions.js`, `SkrewCards.js`, `TimelineEvents.js`,
-  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `Snakes.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Skull.js`, `Battleship.js`, `Witness.js`, `Dark.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, `Wire.js`, `Vault.js`, `Hear.js`, `Missions.js`, `Songs.js`, and the game files bundled after
+  `UnoCards.js`, `DominoTiles.js`, `Connect4.js`, `DotsBoxes.js`, `Ludo.js`, `Snakes.js`, `BankAlhaz.js`, `GuessWho.js`, `Hangman.js`, `PlayingCards.js`, `Skull.js`, `Battleship.js`, `Witness.js`, `Dark.js`, `Chess.js`, `Chess4.js`, `TicTacToe.js`, `Bowling.js`, `MiniGolf.js`, `WordleWords.js`, `Countries.js`, `SolveGames.js`, `Estimation.js`, `Wire.js`, `Vault.js`, `Hear.js`, `Missions.js`, `Songs.js`, `MoveData.js`, and the game files bundled after
   `RoomGames.js`, `RoomUno.js`, `RoomDomino.js`, `RoomDuels.js`, `RoomLudo.js`, `RoomSnakes.js`, `RoomBank.js`, `RoomGuessWho.js`, `RoomHangman.js`, `RoomDoubt.js`, `RoomOldMaid.js`, `RoomSkull.js`, `RoomEstimation.js`, `RoomBattleship.js`, `RoomChess.js`, `RoomChess4.js`, `RoomVoteChess.js`, `RoomHandBrain.js`, `RoomBughouse.js`, `RoomBowling.js`, `RoomMiniGolf.js`, `RoomSolve.js`, `RoomTournament.js`, `RoomChairs.js`, `RoomReaction.js`, `RoomBumper.js`, `RoomWire.js`, `RoomVault.js`, `RoomWitness.js`, `RoomExact.js`, `RoomDark.js`, `RoomBox.js`, `RoomHear.js`, `RoomMission.js`, `RoomHum.js`, `rooms-worker/src/`, `docs/` first: the
   deploy also uploads it as the copy of the app the Worker serves. A deploy
   restarts every open room, so wait about a minute before `npm run test:live`.

@@ -130,7 +130,7 @@ function duelPillsAfter(root, key, o) {
  * JS_Sounds.html), short and quiet: a disc landing, a line drawn, a box, and
  * how a game against the phone ends. A win brings the fanfare with the confetti.
  */
-function duelSound(kind) {
+function duelSound(kind, power) {
   try {
     if (typeof fxCtx !== 'function' || typeof fxTone !== 'function' || typeof fxNoise !== 'function') {
       if (kind === 'win') playSound('success');
@@ -152,8 +152,102 @@ function duelSound(kind) {
     } else if (kind === 'draw') {
       fxTone('sine', [[0, 440], [0.14, 440]], [[0, 0], [0.01, 0.09], [0.16, 0.001]], at);
       fxTone('sine', [[0, 440], [0.14, 440]], [[0, 0], [0.01, 0.09], [0.16, 0.001]], at + 0.2);
+    } else if (kind === 'block') {
+      // «صدّة!»: a glove's thud, low and short.
+      fxTone('sine', [[0, 150], [0.12, 55]], [[0, 0], [0.005, 0.42], [0.2, 0.001]], at);
+      fxNoise('lowpass', 700, 0.7, [[0, 0], [0.004, 0.2], [0.09, 0.001]], at);
+    } else if (kind === 'combo') {
+      // A box in a run (نقط ومربعات, 7 Oct 2026): the pop, a step higher for each box of the run.
+      const step = Math.pow(2, Math.min(12, Math.max(0, power || 0)) / 12);
+      fxTone('triangle', [[0, 620 * step], [0.09, 930 * step]], [[0, 0], [0.01, 0.12], [0.17, 0.001]], at);
     }
   } catch (e) {}
+}
+
+/**
+ * A word that pops over a spot on the screen and goes (7 Oct 2026: كونكت ٤'s
+ * «صدّة!», نقط ومربعات' «سلسلة ٥!»): fixed over `rect`'s middle, so a board
+ * redrawn under it doesn't take it away. Transform and opacity only; with the
+ * motion off it is simply there for a moment. Returns the element.
+ */
+function duelPop(rect, html, cls, o) {
+  const opt = o || {};
+  if (!rect || !document.body) return null;
+  const el = document.createElement('div');
+  el.className = 'duel-pop ' + (cls || '');
+  el.setAttribute('aria-hidden', 'true');
+  el.style.left = Math.round(rect.left + rect.width / 2) + 'px';
+  el.style.top = Math.round(rect.top + rect.height / 2) + 'px';
+  el.innerHTML = `<span class="duel-pop__in">${html}</span>`;
+  document.body.appendChild(el);
+  const inner = el.firstChild;
+  const hold = opt.hold || 900;
+  const still = typeof motionOff === 'function' ? motionOff() : true;
+  if (!still && inner.animate) {
+    inner.animate([
+      { transform: 'scale(0.3) rotate(-8deg)', opacity: 0 },
+      { transform: 'scale(1.15) rotate(3deg)', opacity: 1, offset: 0.16 },
+      { transform: 'scale(1) rotate(0deg)', opacity: 1, offset: 0.26 },
+      { transform: 'scale(1) rotate(0deg)', opacity: 1, offset: 0.8 },
+      { transform: 'scale(0.9) translateY(-0.6em)', opacity: 0 }
+    ], { duration: hold + 500, easing: 'ease-out', fill: 'both' });
+  }
+  setTimeout(() => el.remove(), hold + 560);
+  return el;
+}
+
+/**
+ * «صدّة!» (كونكت ٤, the owner's pick of 7 Oct 2026): the disc just dropped
+ * took the square the other side would have won on. Once it has landed, a
+ * gloved 🧤 flies from the blocker's pill to it with the word and a thud.
+ * Once per `key` (the drop's), wherever it is drawn from. o: { delay (the
+ * fall), seat (the pill the glove comes from), sound }.
+ */
+function c4BlockFx(root, key, o) {
+  const opt = o || {};
+  if (!key || !root || !duelOnce('blk|' + key)) return;
+  // The view, not the board: a room's board is drawn again under the glove (the early drop, then the server's).
+  const view = (root.closest && root.closest('[id^="view-"]')) || document;
+  setTimeout(() => {
+    const disc = view.querySelector('.c4-disc.is-last');
+    const target = disc && disc.isConnected ? disc : null;
+    if (!target) return;
+    const r = target.getBoundingClientRect();
+    if (!r.width) return;
+    const t = TRANSLATIONS[appState.lang] || {};
+    const pop = duelPop(r, `<span class="c4-block__glove">🧤</span><b>${escapeHTML(t.c4_block || '')}</b>`, 'c4-block', { hold: 1100 });
+    const glove = pop && pop.querySelector('.c4-block__glove');
+    const from = view.querySelector(`[data-duel-pill="${opt.seat === 1 ? 1 : 0}"] .duel-pill__mark`);
+    const fr = from && from.getBoundingClientRect();
+    if (glove && fr && fr.width && typeof flyEmoji === 'function') flyEmoji('🧤', fr, fr.height || 20, glove, { duration: 420, arc: 26 });
+    if (opt.sound !== false) duelSound('block');
+    haptic('light');
+  }, Math.max(0, Number(opt.delay) || 0));
+}
+
+/**
+ * The room's best blocker so far (shared.blocks, counted by the server):
+ * { id, name, n } of the most blocks, the first in the room's order on a tie;
+ * null before anyone has blocked.
+ */
+function c4BestBlocker(state) {
+  const blocks = ((state && state.shared) || {}).blocks || {};
+  let best = null;
+  (state.players || []).forEach(p => {
+    const n = Number(blocks[p.id]) || 0;
+    if (n > 0 && (!best || n > best.n)) best = { id: p.id, name: p.name, n: n };
+  });
+  return best;
+}
+
+/** «🧤 أحسن صدّاد · منى 3» on a room's result card, once someone has blocked. */
+function c4BestBlockerHtml(state, tv) {
+  if (state.game !== 'connect4' || typeof renderAward !== 'function') return '';
+  const best = c4BestBlocker(state);
+  if (!best) return '';
+  const t = TRANSLATIONS[appState.lang] || {};
+  const html = renderAward('🧤', t.c4_best_blocker || '', best, 500);
+  return tv ? `<div class="tv-scale">${html}</div>` : html;
 }
 
 /* --- the Connect 4 board, one phone or a room ------------------------------ */
@@ -439,10 +533,13 @@ function c4HumanDrop(col) {
 function c4Place(col) {
   const s = c4State();
   const p = s.turn;
+  // «صدّة!» (7 Oct 2026): read before the disc is played.
+  const block = c4DropRow(s.board, col) >= 0 && c4BlocksAt(s.board, col, p);
   const res = c4Play(s.board, col, p);
   if (!res) return;
   s.moves++;
   s.last = { col: res.col, row: res.row, p: p };
+  if (block) s.last.block = true;
   c4Local.busyUntil = Date.now() + 260;
   if (res.win || res.draw) {
     s.phase = 'done';
@@ -531,6 +628,7 @@ function paintConnect4(opts) {
     endKey: key + '|end',
     still: o.still
   });
+  if (s.last && s.last.block && !o.still) c4BlockFx(el, key + '|' + s.moves, { delay: fx.dropMs, seat: s.last.p - 1 });
   duelPillsAfter(el, 'c4-local', { turn: s.phase === 'play' ? s.turn - 1 : -1, scores: [s.scores[1] || 0, s.scores[2] || 0] });
   if (s.phase === 'done' && duelOnce(key + '|cheer') && !o.still) {
     const cheer = s.winner && (s.vs === 'friend' || s.winner === 1);

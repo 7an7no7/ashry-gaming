@@ -149,6 +149,10 @@ the host's phone per game (`recallOptions('tourMode')`).
 - «إكس أو الكبير»'s small live boards on the TV have a bigger box of their own (`tour-mini__board--big`,
   2 Oct 2026; notes/games/duels.md).
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **(1048) Out of the tournament: one clear card.** A phone knocked out sees on top of the bracket one card - «🙌 خرجت في نص النهائي · اتفرج على:» - with the matches being played as big buttons (`.btn--secondary .btn--lg`, the round and the two names; a live dot while playing): one tap watches (`tourWatchCardHtml`, `tourOutRound`: «الدور الأول» for a first round that has no other name). The small «بيتلعب دلوقتي» chips go from that screen (`tourOnlyWatching`). With no match on: «مفيش ماتش شغال دلوقتي: الماتش الجاي هيظهر هنا.» **Decided here:** the same card (without its frame) is in the lost match's own result card, where the loser lands first, other matches only (the strip's small chips go there too); a latecomer watching (not in the draw) gets the same card with its own line. Words `tour_out_in`, `tour_round_first`, `tour_watch_on`, `tour_watch_none` (tournament.text.js); CSS `.tour-watch*` in section 30 of `Style_Chess.html`. Nothing on the server changed; the podium is untouched.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -104,9 +104,10 @@ function xoRoomEarly(state, cell) {
     next = Object.assign({}, s, { cells: cells, order: order, last: { seat: seat, cell: cell, gone: placed.gone }, win: [] });
   }
   const key = ['xo', roomDealKey(state), s.round].join('|') + '|' + (s.moves + 1);
-  duelRoomDrawEarly('xo', key, xoRoomBoardHtml(next, { popKey: key }), () => {
+  duelRoomDrawEarly('xo', key, xoRoomBoardHtml(next, { popKey: key }), (box) => {
     // With a TV in the room it is the room's one voice (كونكت ٤'s early drop asks the same).
     if (duelOnce('snd|' + key) && duelRoomLoud(state)) duelSound('drop');
+    if (next.big && next.send >= 0) xoBigSendArrow(box, cell, next.send, key);
   });
 }
 
@@ -124,11 +125,11 @@ function setXORoomSize(big) {
 }
 
 /** The line under the status on the big board: a board just taken, and where the side to move was sent. */
-function xoRoomWhereHtml(s) {
+function xoRoomWhereHtml(s, teachKey) {
   if (!s.big || s.phase !== 'play') return '';
   const last = s.last || null;
   const took = last && last.took ? { board: Math.floor(last.cell / 9), mark: last.took } : null;
-  return xoBigWhereHtml(s.send, took, (m) => xoRoomChip(m === 'X' ? 0 : 1));
+  return xoBigWhereHtml(s.send, took, (m) => xoRoomChip(m === 'X' ? 0 : 1)) + (teachKey ? xoBigTeachHtml(teachKey) : '');
 }
 
 /** The mark sounds once per move; a win lights the line one square after another. */
@@ -136,6 +137,8 @@ function xoRoomAfter(root, state, key, loud) {
   const s = state.shared || {};
   const moveKey = s.last ? key + '|' + s.moves : '';
   if (moveKey && duelOnce('snd|' + moveKey) && loud) duelSound('drop');
+  // «إكس أو الكبير»: the arrow to the board the move sends to (7 Oct 2026).
+  if (moveKey && s.big && s.phase === 'play' && s.send >= 0) xoBigSendArrow(root, s.last.cell, s.send, moveKey);
   if (s.phase === 'over' && s.win && s.win.length) {
     const board = root.querySelector('.xo-board, .xob');
     if (board && typeof motionFirst === 'function' && motionFirst(key + '|light')) {
@@ -183,7 +186,7 @@ ROOM_GAMES.xo = {
                  state.youAreHost, appState.lang, duelRoomAwayAt(state)].join('|');
     // A reload or a late join shows the board as it is (never over this phone's own mark drawn early).
     if (!(moveKey && duelRoomLocal.early && duelRoomLocal.early.key === moveKey)) {
-      duelRoomFirstSight(state, key, { motion: [moveKey, key + '|light'], once: [moveKey && 'snd|' + moveKey] });
+      duelRoomFirstSight(state, key, { motion: [moveKey, key + '|light', moveKey && 'xobarrow|' + moveKey], once: [moveKey && 'snd|' + moveKey] });
     }
     // The move this phone already drew as the finger lifted: the room's board is the same, and doesn't pop again.
     duelRoomEarlyFor(moveKey);
@@ -196,7 +199,7 @@ ROOM_GAMES.xo = {
           <div class="duel-layout__side">
             <div class="duel-head">
               ${xoRoomPills(state, t)}
-              <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(duelRoomStatus(state, t))}</p>${xoRoomWhereHtml(s)}${duelRoomAwayHtml(state, t)}
+              <p class="duel-status ${s.phase === 'over' ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(duelRoomStatus(state, t))}</p>${xoRoomWhereHtml(s, state.youAreScreen ? '' : key)}${duelRoomAwayHtml(state, t)}
               ${myTurn && leaving >= 0 ? `<p class="xo-rule xo-rule--room">${escapeHTML(t.xo_three_play || '')}</p>` : ''}
             </div>
             ${s.phase === 'over' ? duelRoomOverHtml(state, t) : duelRoomWatchNote(state, t)}
@@ -235,7 +238,7 @@ TV_GAMES.xo = {
     const key = ['xo', roomDealKey(state), s.round].join('|');
     const moveKey = s.last ? key + '|' + s.moves : '';
     // A TV coming on shows the board as it is: nothing already played pops or sounds again.
-    duelRoomFirstSight(state, key, { motion: [moveKey, key + '|light'], once: [moveKey && 'snd|' + moveKey] });
+    duelRoomFirstSight(state, key, { motion: [moveKey, key + '|light', moveKey && 'xobarrow|' + moveKey], once: [moveKey && 'snd|' + moveKey] });
     // The big board (look أ's TV): the pills on one side, the boards in the middle, what is happening on the other.
     if (s.big) {
       const tx = xoBigText();

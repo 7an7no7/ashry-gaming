@@ -6773,6 +6773,26 @@ async function minigolfSeg() {
               s.shared.card[G1.pid].every((v) => typeof v === 'number') && s.shared.board[0].score <= s.shared.board[2].score,
               'minigolf: after the ninth hole the game is over, lowest total first');
     await G1.must('backToHub');
+
+    // «ماتش بلاي» (7 Oct 2026): a point a hole for the fewest strokes, half each on a tie.
+    await G1.must('chooseGame', { game: 'minigolf' });
+    await G1.must('start', { holes: 3, scoring: 'match', level: 'easy' });
+    await all(golfers.concat([TV]), (s) => s.shared.phase === 'play' && s.shared.settings.scoring === 'match', 'match play: the host\'s choice on every phone and the TV');
+    // Everyone putts gently until the ball is in or picked up; the fewest strokes take the hole.
+    for (const b of golfers) {
+      for (let k = 0; k < 9 && G1.state.shared.phase === 'play' && !b.state.shared.balls[b.pid].done; k++) {
+        const seqM = G1.state.shared.shotSeq;
+        await putt(b, { dx: 0, dy: 1000, power: 20 });
+        await b.waitFor((s) => s.shared.shotSeq > seqM, 'match play: the putt is in');
+      }
+    }
+    await all(golfers.concat([TV]), (s) => s.shared.phase === 'between' && Array.isArray(s.shared.won) && Array.isArray(s.shared.won[0]),
+      'match play: the hole ends with who took it');
+    const won0 = G1.state.shared.won[0];
+    const share = won0.length === 1 ? 1 : 0.5;
+    check(won0.every((id) => G1.state.shared.scores[id] === share) && golfers.every((b) => won0.indexOf(b.pid) !== -1 || G1.state.shared.scores[b.pid] === 0) &&
+      G1.state.shared.board[0].score === share, 'match play: the fewest strokes take the point (half each on a tie), most points first (' + won0.length + ' took it)');
+    await G1.must('backToHub');
     golfers.concat([TV]).forEach((b) => b.close());
   }
 
@@ -6838,6 +6858,26 @@ async function bowlingSeg() {
     await H.waitFor((s) => s.shared.phase === 'play' && s.shared.throwSeq === 0 && s.shared.settings.frames === 5, 'bowling: play again keeps the choices');
     await H.must('backToHub');
     await H.waitFor((s) => s.phase === 'lobby', 'bowling: back in the hub');
+    // «جولة سريعة» (7 Oct 2026): three balls each on a full rack, the turn passing every ball.
+    await H.must('chooseGame', { game: 'bowling' });
+    await H.must('start', { quick: true });
+    await all([H, J, S], (s) => s.shared.phase === 'play' && s.shared.settings.quick === true && Object.values(s.shared.cards).every((c) => c.quick && c.total === 3),
+      'bowling quick: three balls a card on every phone and the TV');
+    let quickTurns = '';
+    for (let guard = 0; guard < 12 && H.state.shared.phase === 'play'; guard++) {
+      const up = byId([H, J], H.state.shared.turn.pid);
+      if (!up) break;
+      quickTurns += up === H ? 'H' : 'J';
+      const seqQ = H.state.shared.throwSeq;
+      await up.must('throw', { x: 0, aim: 0, speed: 760, spin: 20, seq: H.state.shared.turnSeq });
+      await H.waitFor((s) => s.shared.throwSeq > seqQ, 'bowling quick: the ball is on every phone');
+    }
+    await all([H, J, S], (s) => s.shared.phase === 'gameover' && s.shared.board.length === 2, 'bowling quick: over after three balls each');
+    check(quickTurns === 'HJHJHJ' || quickTurns === 'JHJHJH', 'bowling quick: the turn passes after every ball (' + quickTurns + ')');
+    check(H.state.shared.board.every((r) => r.score === H.state.shared.cards[r.id].frames.reduce((n, f) => n + (f[0] || 0), 0)),
+      'bowling quick: the pins add up');
+    await H.must('backToHub');
+    await H.waitFor((s) => s.phase === 'lobby', 'bowling quick: back in the hub');
     [H, J, S].forEach((x) => x.close());
   }
 

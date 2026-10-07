@@ -6,10 +6,18 @@ gameText({
     ar: {
       dots_line_hint: "اضغط بين نقطتين جنب بعض عشان ترسم خط",
       dots_board_label: "لوحة نقط ومربعات: {a} مقابل {b}",
+      dots_chain: "سلسلة {n}!",
+      dots_tip_title: "🔑 سر اللعبة",
+      dots_tip_after: "الموبايل الصعب كسب بالسر ده:",
+      dots_tip_ok: "فهمت",
     },
     en: {
       dots_line_hint: "Tap between two dots side by side to draw a line",
       dots_board_label: "Dots and Boxes board: {a} to {b}",
+      dots_chain: "A chain of {n}!",
+      dots_tip_title: "🔑 The secret of the game",
+      dots_tip_after: "The hard phone won with this:",
+      dots_tip_ok: "Got it",
     }
   },
   rules: {
@@ -32,9 +40,12 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>اللوحة كبيرة، والخط بيترسم والمربع بيتلوّن قدام الكل.</li>
             </ul>
+            <p class="help-sub">🔑 سر اللعبة</p>
+            <div class="dots-tip"><p class="dots-tip__lead"><b>اللي يفتح السلسلة الطويلة الأول بيخسر.</b> آخر اللعبة كل خط باقي بيدّي مربعات، فاحسبها عشان صاحبك هو اللي يضطر يفتح الطويلة.</p><div class="dots-tip__frames"><figure class="dots-tip__f"><span class="dots-tip__n">1</span><svg viewBox="-0.3 -0.3 5.6 1.6" aria-hidden="true"><path class="dt-l" d="M0 0H1M0 1H1M2 0H5M2 1H5"/><path class="dt-d" d="M0 0h0M1 0h0M0 1h0M1 1h0M2 0h0M3 0h0M4 0h0M5 0h0M2 1h0M3 1h0M4 1h0M5 1h0"/></svg><figcaption>فاضل سلسلتين: قصيرة وطويلة، والدور عليك</figcaption></figure><figure class="dots-tip__f"><span class="dots-tip__n">2</span><svg viewBox="-0.3 -0.3 5.6 1.6" aria-hidden="true"><path class="dt-l" d="M0 0H1M0 1H1M2 0H5M2 1H5"/><path class="dt-1" d="M0 0V1"/><path class="dt-d" d="M0 0h0M1 0h0M0 1h0M1 1h0M2 0h0M3 0h0M4 0h0M5 0h0M2 1h0M3 1h0M4 1h0M5 1h0"/></svg><figcaption>افتح القصيرة وضحّي بمربع</figcaption></figure><figure class="dots-tip__f"><span class="dots-tip__n">3</span><svg viewBox="-0.3 -0.3 5.6 1.6" aria-hidden="true"><path class="dt-l" d="M0 0H1M0 1H1M2 0H5M2 1H5"/><rect class="dt-b2" x=".12" y=".12" width=".76" height=".76"/><path class="dt-1" d="M0 0V1"/><path class="dt-2" d="M1 0V1M2 0V1"/><path class="dt-d" d="M0 0h0M1 0h0M0 1h0M1 1h0M2 0h0M3 0h0M4 0h0M5 0h0M2 1h0M3 1h0M4 1h0M5 1h0"/></svg><figcaption>صاحبك ياخده، ولازم يرسم تاني: يفتح الطويلة</figcaption></figure><figure class="dots-tip__f"><span class="dots-tip__n">4</span><svg viewBox="-0.3 -0.3 5.6 1.6" aria-hidden="true"><path class="dt-l" d="M0 0H1M0 1H1M2 0H5M2 1H5"/><rect class="dt-b2" x=".12" y=".12" width=".76" height=".76"/><path class="dt-b1" d="M2.12 .12h2.76v.76H2.12z"/><path class="dt-1" d="M0 0V1M3 0V1M4 0V1M5 0V1"/><path class="dt-2" d="M1 0V1M2 0V1"/><path class="dt-d" d="M0 0h0M1 0h0M0 1h0M1 1h0M2 0h0M3 0h0M4 0h0M5 0h0M2 1h0M3 1h0M4 1h0M5 1h0"/></svg><figcaption>وإنت تاخد التلاتة!</figcaption></figure></div></div>
             <p class="help-sub">💡 نصايح</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>ما ترسمش الضلع التالت لمربع طول ما فيه خط تاني آمن.</li>
+                <li>لما تاخد مربعات ورا بعض بيظهر عدّاد على اللوحة (×2، ×3…)، والسلسلة من 3 مربعات أو أكتر بتتختم «سلسلة 5!».</li>
                 <li>آخر اللعبة المربعات بتبقى سلاسل. أحياناً تسيب آخر مربعين لصاحبك عشان يضطر هو يفتح السلسلة الكبيرة.</li>
             </ul>
             ${TOUR_RULES_HELP.ar}`,
@@ -58,9 +69,12 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The board big, each line drawing itself and each box filling in front of everyone.</li>
             </ul>
+            <p class="help-sub">🔑 The secret of the game</p>
+            <div class="dots-tip"><p class="dots-tip__lead"><b>Whoever opens the long chain first loses.</b> Late in the game every line left gives boxes away, so count them, and make your rival the one who has to open the long chain.</p><div class="dots-tip__frames"><figure class="dots-tip__f"><span class="dots-tip__n">1</span><svg viewBox="-0.3 -0.3 5.6 1.6" aria-hidden="true"><path class="dt-l" d="M0 0H1M0 1H1M2 0H5M2 1H5"/><path class="dt-d" d="M0 0h0M1 0h0M0 1h0M1 1h0M2 0h0M3 0h0M4 0h0M5 0h0M2 1h0M3 1h0M4 1h0M5 1h0"/></svg><figcaption>Two chains left, short and long, and it is your move</figcaption></figure><figure class="dots-tip__f"><span class="dots-tip__n">2</span><svg viewBox="-0.3 -0.3 5.6 1.6" aria-hidden="true"><path class="dt-l" d="M0 0H1M0 1H1M2 0H5M2 1H5"/><path class="dt-1" d="M0 0V1"/><path class="dt-d" d="M0 0h0M1 0h0M0 1h0M1 1h0M2 0h0M3 0h0M4 0h0M5 0h0M2 1h0M3 1h0M4 1h0M5 1h0"/></svg><figcaption>Open the short one: give one box away</figcaption></figure><figure class="dots-tip__f"><span class="dots-tip__n">3</span><svg viewBox="-0.3 -0.3 5.6 1.6" aria-hidden="true"><path class="dt-l" d="M0 0H1M0 1H1M2 0H5M2 1H5"/><rect class="dt-b2" x=".12" y=".12" width=".76" height=".76"/><path class="dt-1" d="M0 0V1"/><path class="dt-2" d="M1 0V1M2 0V1"/><path class="dt-d" d="M0 0h0M1 0h0M0 1h0M1 1h0M2 0h0M3 0h0M4 0h0M5 0h0M2 1h0M3 1h0M4 1h0M5 1h0"/></svg><figcaption>Your rival takes it, must draw again, and opens the long one</figcaption></figure><figure class="dots-tip__f"><span class="dots-tip__n">4</span><svg viewBox="-0.3 -0.3 5.6 1.6" aria-hidden="true"><path class="dt-l" d="M0 0H1M0 1H1M2 0H5M2 1H5"/><rect class="dt-b2" x=".12" y=".12" width=".76" height=".76"/><path class="dt-b1" d="M2.12 .12h2.76v.76H2.12z"/><path class="dt-1" d="M0 0V1M3 0V1M4 0V1M5 0V1"/><path class="dt-2" d="M1 0V1M2 0V1"/><path class="dt-d" d="M0 0h0M1 0h0M0 1h0M1 1h0M2 0h0M3 0h0M4 0h0M5 0h0M2 1h0M3 1h0M4 1h0M5 1h0"/></svg><figcaption>And you take all three!</figcaption></figure></div></div>
             <p class="help-sub">💡 Tips</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Never draw the third side of a box while a safe line is left.</li>
+                <li>Boxes taken one after another raise a counter on the board (×2, ×3…), and a run of three or more ends with a stamp: «A chain of 5!».</li>
                 <li>Late in the game the boxes form chains. Sometimes leave the last two for your rival, so they have to open the long chain.</li>
             </ul>
             ${TOUR_RULES_HELP.en}`,

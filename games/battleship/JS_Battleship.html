@@ -80,6 +80,8 @@ const BS_TEXT = {
     bs_radar_use: "استخدم الرادار",
     bs_radar_back: "ارجع للضرب",
     bs_radar_hint: "اختار مكان: الرادار بيمسح 3×3 حوالين المربع",
+    bs_pick: "🎯 اختار مربع",
+    bs_radar_pick_btn: "📡 اختار مكان الرادار",
     bs_radar_pick: "الرادار: اختار المنطقة",
     bs_radar_aim: "الرادار حوالين {coord}: دوس تاني أو امسح",
     bs_radar_go: "امسح حوالين {coord}",
@@ -138,6 +140,8 @@ const BS_TEXT = {
     bs_radar_use: "Use the radar",
     bs_radar_back: "Back to firing",
     bs_radar_hint: "Pick a spot: the radar sweeps the 3×3 around it",
+    bs_pick: "🎯 Pick a square",
+    bs_radar_pick_btn: "📡 Pick the radar's spot",
     bs_radar_pick: "Radar: pick the area",
     bs_radar_aim: "Radar around {coord}: tap again or sweep",
     bs_radar_go: "Sweep around {coord}",
@@ -2160,17 +2164,22 @@ function bsRadarToast(n) {
 /**
  * The bar on your turn: aim and fire, or - with the radar still yours - its
  * button; in radar mode, the area's sweep and a way back to firing.
+ * The fire button has one place (the owner's pick of 7 Oct 2026): it is there
+ * all through your turn, big, «🎯 اختار مربع» and greyed until a square is
+ * aimed at (o.wait: a shell of yours still flying), so the thumb learns where it is.
  */
 function bsRadarBarHtml(o) {
+  const idle = (label) => `<button type="button" class="btn btn--primary btn--lg bs-fire" disabled>${escapeHTML(bsT(label))}</button>`;
+  if (o.wait) return idle('bs_pick');
   if (o.mode) {
     const go = o.aim >= 0
       ? `<button type="button" class="btn btn--primary btn--lg bs-fire bs-sweep" onclick="${o.sweep}">📡 ${escapeHTML(bsT('bs_radar_go', { coord: bsCoordIso(o.aim) }))}</button>`
-      : `<p class="bs-bar__say">${escapeHTML(bsT('bs_radar_hint'))}</p>`;
+      : idle('bs_radar_pick_btn');
     return `${go}<button type="button" class="btn btn--ghost btn--sm" onclick="${o.off}">${escapeHTML(bsT('bs_radar_back'))}</button>`;
   }
   const fire = o.aim >= 0
     ? `<button type="button" class="btn btn--primary btn--lg bs-fire" onclick="${o.fire}">${escapeHTML(bsT('bs_fire', { coord: bsCoordIso(o.aim) }))}</button>`
-    : `<p class="bs-bar__say">${escapeHTML(bsT('bs_tap_hint'))}</p>`;
+    : idle('bs_pick');
   return fire + (o.radar ? `<button type="button" class="btn btn--secondary btn--sm bs-radar-btn" onclick="${o.on}">📡 ${escapeHTML(bsT('bs_radar_use'))}</button>` : '');
 }
 
@@ -2546,7 +2555,8 @@ function bsPhoneBarHtml(s, flying) {
     if (flying) return '';
     return `<button type="button" class="btn btn--primary btn--lg" onclick="bsPhoneNewGame()">${escapeHTML(bsT('duel_next_game'))}</button>`;
   }
-  if (s.turn !== 0 || flying || bsPhoneLocal.sweeping) return '';
+  if (s.turn !== 0) return '';
+  if (flying || bsPhoneLocal.sweeping) return bsRadarBarHtml({ wait: true });
   return bsRadarBarHtml({
     radar: bsRadarReady(s.radarOn, s.scans, 0), mode: !!s.radarMode, aim: s.aim,
     fire: 'bsPhoneFire()', sweep: 'bsPhoneSweepMine()', on: 'bsPhoneRadarMode(true)', off: 'bsPhoneRadarMode(false)'
@@ -3000,7 +3010,8 @@ function bsRoomBarHtml(state, flying) {
         <button type="button" class="btn btn--primary btn--lg" onclick="bsRoomReady()">${escapeHTML(bsT('bs_ready'))}</button>
       </div>`;
   }
-  if (s.phase !== 'play' || s.turn !== seat || flying || bsRoomLocal.sent || bsRoomLocal.sweeping) return '';
+  if (s.phase !== 'play' || s.turn !== seat) return '';
+  if (flying || bsRoomLocal.sent || bsRoomLocal.sweeping) return bsRadarBarHtml({ wait: true });
   const aim = bsRoomAimOf(state);
   return bsRadarBarHtml({
     radar: bsRoomRadarReady(state, seat), mode: !!bsRoomLocal.radar, aim: aim,

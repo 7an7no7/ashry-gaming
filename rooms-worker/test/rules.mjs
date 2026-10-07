@@ -17435,6 +17435,108 @@ console.log('• the secret mission');
   check(MOVE_MAX_BYTES >= 256 * 1024 && Object.keys(MOVE_KEYS).every((k) => /^(ashry|gameTrackerState_v1$)/.test(k)), 'move: the cap and the list of keys');
 }
 
+/* --- the ideas of 7 Oct 2026, second batch: «صدّة!», the run of boxes, «جولة سريعة», «ماتش بلاي» --- */
+{
+  const src = (name) => readFileSync(srcPath(name), 'utf8');
+  const C4 = new Function(src('Connect4.js') + '\nreturn { c4NewBoard, c4Play, c4BlocksAt };')();
+  const DB = new Function(src('DotsBoxes.js') + '\nreturn { dotsGeom, dotsChainStep };')();
+  const MGP = new Function(src('MiniGolf.js') + '\nreturn { golfMatchPoints };')();
+  const game = (name, ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: name });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+
+  // كونكت ٤ «صدّة!»: a disc on the square the other side would have won on.
+  const b = C4.c4NewBoard(4);
+  [[1, 2], [1, 2], [1, 2]].forEach(([c, p]) => C4.c4Play(b, c, p));
+  check(C4.c4BlocksAt(b, 1, 1) && !C4.c4BlocksAt(b, 0, 1) && !C4.c4BlocksAt(b, 1, 2),
+    'c4 block: a disc on top of three of the other colour blocks; elsewhere, or the same colour, it does not');
+  const r = game('connect4', ['a', 'b'], { mode: 4 });
+  const drop = (col) => applyRoomAction(r, r.shared.seats[r.shared.turn], 'move', { col, move: r.shared.moves });
+  const s0 = r.shared.seats[0];
+  [0, 1, 0, 1, 6, 1].forEach(drop);
+  check(!r.shared.last.block && !(r.shared.blocks || {})[s0], 'c4 block: an ordinary disc is no block');
+  drop(1);
+  check(r.shared.last.block === true && r.shared.blocks[s0] === 1 && r.shared.phase === 'play',
+    'c4 block: the disc that stops three in a column is a block, counted for whoever dropped it');
+  drop(2); drop(2);
+  check(r.shared.blocks[s0] === 1, 'c4 block: and only that one');
+  while (r.shared.phase === 'play') drop(r.shared.grid.findIndex((v, i) => i < 7 && !v));
+  const blocksBefore = JSON.stringify(r.shared.blocks);
+  applyRoomAction(r, 'a', 'nextRound', { round: r.shared.round });
+  check(JSON.stringify(r.shared.blocks) === blocksBefore && !r.shared.last, 'c4 block: the count carries into the next game of the room');
+
+  // نقط ومربعات: a run of boxes, counted and closed.
+  let st = DB.dotsChainStep(null, 0, 1, false);
+  check(st.n === 1 && st.chain.n === 1 && !st.ended, 'dots run: a box starts a run');
+  st = DB.dotsChainStep(st.chain, 0, 2, false);
+  check(st.n === 3 && st.chain.n === 3 && !st.ended, 'dots run: the next boxes add to it');
+  st = DB.dotsChainStep(st.chain, 0, 0, false);
+  check(st.n === 0 && !st.chain && st.ended === 3, 'dots run: a line that takes nothing ends it, with its count');
+  check(DB.dotsChainStep(null, 1, 0, false).ended === 0 && DB.dotsChainStep({ seat: 0, n: 4 }, 1, 0, false).ended === 0,
+    'dots run: no run, or the other side\'s, ends nothing');
+  check(DB.dotsChainStep({ seat: 0, n: 2 }, 0, 1, true).ended === 3, 'dots run: the last box of the game ends the run too');
+  const dr = game('dots', ['a', 'b'], { size: 4 });
+  const g = DB.dotsGeom(4);
+  const ds = dr.shared;
+  const open = [g.boxEdges[13][3], g.boxEdges[14][3], g.boxEdges[15][3]];
+  ds.lines = ds.lines.map((_, e) => (open.indexOf(e) === -1 ? 1 : 0));
+  ds.boxes = ds.boxes.map((_, i) => (i >= 13 ? 0 : (i % 2) + 1));
+  ds.turn = 0;
+  const mover = ds.seats[0];
+  open.forEach((e, k) => {
+    applyRoomAction(dr, mover, 'move', { edge: e, move: dr.shared.moves });
+    if (k === 0) check(dr.shared.last.run === 1 && !dr.shared.last.runEnd && dr.shared.turn === 0, 'dots run (room): a box taken is a run of one, and the turn stays');
+  });
+  check(dr.shared.phase === 'over' && dr.shared.last.run === 3 && dr.shared.last.runEnd === 3 && !dr.shared.chain,
+    'dots run (room): three boxes in a row end the game as a run of three, said on every screen');
+
+  // بولينج «جولة سريعة»: three balls each, every ball on a full rack, the pins add up.
+  const bwr = game('bowling', ['a', 'b'], { quick: true });
+  const bs = bwr.shared;
+  check(bs.settings.quick === true && bs.cards.a.quick === true && bs.cards.a.total === 3 && bs.turn.pid === 'a',
+    'bowling quick: the host\'s switch, three balls a card');
+  const gentle = { x: 0, aim: 0, speed: 700, spin: 0 };
+  let downs = { a: 0, b: 0 }, fresh = true, turns = '';
+  for (let k = 0; k < 6 && bwr.shared.phase === 'play'; k++) {
+    const pid = bwr.shared.turn.pid;
+    turns += pid;
+    applyRoomAction(bwr, pid, 'throw', Object.assign({ seq: bwr.shared.turnSeq }, gentle));
+    downs[pid] += bwr.shared.last.down;
+    if (bwr.shared.cards[pid] && !bwr.shared.cards[pid].over && bwr.shared.cards[pid].standing.some((v) => !v)) fresh = false;
+  }
+  check(turns === 'ababab', 'bowling quick: the turn passes after every ball (' + turns + ')');
+  check(fresh && bwr.shared.cards.a.frames.every((f) => f.length === 1), 'bowling quick: every ball is on ten fresh pins, one ball a box');
+  check(bwr.shared.phase === 'gameover' && bwr.shared.scores.a === downs.a && bwr.shared.scores.b === downs.b && bwr.shared.board.length === 2,
+    'bowling quick: after three balls each the game is over and the pins add up');
+  check(game('bowling', ['a'], {}).shared.settings.quick === false, 'bowling quick: off unless the host asks');
+
+  // ميني جولف «ماتش بلاي»: a point a hole, half each on a tie.
+  const mp = MGP.golfMatchPoints({ a: [2, 4, 3], b: [3, 4, null], c: [3, 2, 1] }, ['a', 'b', 'c'], 3);
+  check(mp.pts.a === 1 && mp.pts.b === 0 && mp.pts.c === 1 && JSON.stringify(mp.won) === JSON.stringify([['a'], ['c'], null]),
+    'match play: a hole is a point for the fewest strokes, and one not finished by everyone counts nothing yet');
+  const mp2 = MGP.golfMatchPoints({ a: [2, 4, 3], b: [3, 4, 3] }, ['a', 'b'], 3);
+  check(mp2.pts.a === 2 && mp2.pts.b === 1 && JSON.stringify(mp2.won) === JSON.stringify([['a'], ['a', 'b'], ['a', 'b']]),
+    'match play: the fewest strokes takes the hole, a tie is half a point each');
+  const mp3 = MGP.golfMatchPoints({ a: [2, null], b: [3, 5] }, ['a', 'b'], 2);
+  check(mp3.pts.a === 1 && mp3.pts.b === 0 && mp3.won[1] === null, 'match play: a hole counts once everyone has finished it');
+  const mr = game('minigolf', ['a', 'b'], { scoring: 'match', holes: 3, level: 'easy' });
+  check(mr.shared.settings.scoring === 'match' && game('minigolf', ['a'], {}).shared.settings.scoring === 'stroke', 'match play: the host\'s choice, total strokes by default');
+  for (let k = 0; k < 20 && mr.shared.phase === 'play' && mr.shared.hole === 0; k++) {
+    ['a', 'b'].forEach((pid) => {
+      const ball = mr.shared.balls[pid];
+      if (mr.shared.phase !== 'play' || !ball || ball.done) return;
+      applyRoomAction(mr, pid, 'putt', { dx: 0, dy: 1000, power: 20, t0: Date.now() - mr.shared.startedAt, hole: mr.shared.hole, n: ball.n });
+    });
+  }
+  const ca = mr.shared.card.a[0], cb = mr.shared.card.b[0];
+  const want = ca < cb ? { a: 1, b: 0 } : cb < ca ? { a: 0, b: 1 } : { a: 0.5, b: 0.5 };
+  check(mr.shared.phase === 'between' && mr.shared.scores.a === want.a && mr.shared.scores.b === want.b &&
+    mr.shared.board[0].score >= mr.shared.board[1].score && Array.isArray(mr.shared.won) && mr.shared.won[0].length === (ca === cb ? 2 : 1),
+    'match play (room): the hole played is a point, most points first on the board (' + ca + ' / ' + cb + ')');
+}
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

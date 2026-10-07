@@ -425,13 +425,42 @@ function bowlBallKind(fr, last, gutter) {
 
 // A whole game for one player, as the room and the phone both keep it:
 // frames [[..]], standing (the pins up now), and where it is.
-function bowlNewCard(total) {
-  return { frames: [[]], standing: [true, true, true, true, true, true, true, true, true, true], total: total, over: false };
+function bowlNewCard(total, quick) {
+  const card = { frames: [[]], standing: [true, true, true, true, true, true, true, true, true, true], total: total, over: false };
+  // «جولة سريعة» (the owner's pick of 7 Oct 2026): BOWL_QUICK_BALLS balls, each on a full rack; the pins add up.
+  if (quick) { card.quick = true; card.total = BOWL_QUICK_BALLS; }
+  return card;
+}
+
+/** «جولة سريعة»: how many balls each player throws. */
+const BOWL_QUICK_BALLS = 3;
+
+/** A quick round's running total after each ball (null for a ball not thrown yet), like bowlScore's. */
+function bowlQuickScore(frames, total) {
+  const out = [];
+  let run = 0;
+  for (let f = 0; f < total; f++) {
+    const fr = frames[f];
+    if (!fr || !fr.length) { out.push(null); continue; }
+    run += fr[0];
+    out.push(run);
+  }
+  return out;
 }
 
 // One ball onto a card: its pins, then the rack for the next ball. Returns
 // what happened: { down, kind, frameDone, over, fresh }.
 function bowlApply(card, after, down, gutter) {
+  if (card.quick) {
+    // «جولة سريعة»: one ball a box, the rack set full again, the turn passes on.
+    const fr = card.frames[card.frames.length - 1];
+    fr.push(down);
+    const kind = down === 10 ? 'strike' : down === 0 ? (gutter ? 'gutter' : 'miss') : 'count';
+    if (card.frames.length >= card.total) card.over = true;
+    else card.frames.push([]);
+    card.standing = [true, true, true, true, true, true, true, true, true, true];
+    return { down, kind, frameDone: true, over: card.over, fresh: !card.over };
+  }
   const f = card.frames.length - 1;
   const fr = card.frames[f];
   const last = f === card.total - 1;
@@ -450,7 +479,7 @@ function bowlApply(card, after, down, gutter) {
 
 // The card's total so far (the last scored frame).
 function bowlTotal(card) {
-  const sc = bowlScore(card.frames, card.total);
+  const sc = card.quick ? bowlQuickScore(card.frames, card.total) : bowlScore(card.frames, card.total);
   let t = 0;
   sc.forEach(v => { if (v !== null) t = v; });
   return t;

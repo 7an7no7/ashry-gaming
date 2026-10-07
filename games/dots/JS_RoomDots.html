@@ -36,7 +36,8 @@ function dotsRoomDrawEarly(state, e) {
   const res = dotsPlay(board, e, seat + 1);
   if (!res) return;
   const key = ['dots', roomDealKey(state), s.round].join('|') + '|' + (s.moves + 1);
-  const html = dotsBoardHtml(board, { last: { edge: e, boxes: res.boxes }, playable: false, next: seat + 1, initials: dotsInitials(duelRoomNames(state)) });
+  const step = dotsChainStep(s.chain, seat, res.boxes.length, res.over);
+  const html = dotsBoardHtml(board, { last: { seat: seat, edge: e, boxes: res.boxes, run: step.n, runEnd: step.ended }, playable: false, next: seat + 1, initials: dotsInitials(duelRoomNames(state)) });
   duelRoomDrawEarly('dots', key, html, (box) => dotsAfterPaint(box, board, { lineKey: key, sound: duelRoomLoud(state) }));
 }
 
@@ -105,7 +106,7 @@ ROOM_GAMES.dots = {
     // A reload or a late join shows the board as it is: the last line, its sound and the cheer
     // are marked seen (never over this phone's own line drawn early, which is still drawing).
     if (!(lineKey && duelRoomLocal.early && duelRoomLocal.early.key === lineKey)) {
-      duelRoomFirstSight(state, key, { motion: [lineKey], once: [lineKey && 'snd|' + lineKey] });
+      duelRoomFirstSight(state, key, { motion: [lineKey], once: [lineKey && 'snd|' + lineKey, lineKey && 'run|' + lineKey] });
     }
     if (rebuilt) {
       dotsAfterPaint(el, board, {
@@ -156,7 +157,7 @@ TV_GAMES.dots = {
     const key = ['dots', roomDealKey(state), s.round].join('|');
     const again = dotsRoomAgain(s);
     const lineKey = s.last ? key + '|' + s.moves : '';
-    duelRoomFirstSight(state, key, { motion: [lineKey], once: [lineKey && 'snd|' + lineKey] });
+    duelRoomFirstSight(state, key, { motion: [lineKey], once: [lineKey && 'snd|' + lineKey, lineKey && 'run|' + lineKey] });
     dotsAfterPaint(el, dotsRoomBoard(s), {
       lineKey: lineKey,
       ending: s.phase === 'over',

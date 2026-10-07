@@ -199,6 +199,29 @@ brass padlock).
 
 - **806 the watcher's line**: `vt_watching` said «تلعب في الجولة الجاية» / «you play next round», but a latecomer is dealt in only by play again: «بتتفرج · تلعب في اللعبة الجاية» / «Watching · you play next game».
 
+## The looks of 7 Oct 2026, second sheet (the owner's picks): built
+
+- **805 أ «الرفوف»** (an endless game's end; sheet8, look أ). Wooden shelves on the
+  attic wall, eight places a shelf (`VT_SHELF`); every safe opened drops onto its place
+  in order with its level on a tag, the count rising as each lands; the room's best is
+  its place waiting empty with a red ribbon (the ribbon goes on the last chest, «رقم
+  جديد!», when this run set it; on it, «أحسن رقم», when it only equalled it); empty
+  places are drawn up to the best and two more; more shelves as the run grows (two at
+  least on the TV). The line on top: «الإنذار ضرب في الخزنة 12 · فاضل 7 على أحسن رقم
+  للأوضة» (or «الشمعة خلصت…», «رقم جديد للأوضة!», «زي أحسن رقم للأوضة بالظبط»;
+  `vt_shelf_*`). The TV (`vtShelvesTvHtml`, replacing the endless end card there): the
+  shelves on the wall, and beside them the count card, «ليه كده؟» (801) and the host's
+  buttons. The phone (`vtShelvesPhoneHtml`): the shelves in a small attic over the
+  end card, whose big number now rises with the chests (no countUp). Built from
+  `vtShelfFacts` / `vtShelvesHtml`; played by `vtShelvesRun` (timers, a chest's drop a
+  Web Animation of transform and opacity, a wooden thud `vtSound('shelf')` on the
+  voice, then `vtShelvesSettle`; the run takes about three seconds however long it
+  was, `vtShelfStep`); once a deal on the end card's own `motionFirst` key, all on its
+  shelf with motion off, on a redraw or when the screen is left mid-run (`vtStopAll`).
+  The confetti of a new best waits for the shelves (`data-reveal-ms`). Its styles are
+  in the chunk (`VT_SHELF_CSS`, injected by `vtShelfStyleOn`). Both signatures carry
+  the best, `newBest` and `why` at the end. A set's end is unchanged.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

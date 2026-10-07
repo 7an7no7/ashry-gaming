@@ -280,6 +280,37 @@ waits for it, but not for your own move: `domOwnMoveWaiting` (a `play`,
 `draw` or `pass` of this phone's not yet drawn) lets it through at once, as in
 أونو, كدّاب and الشايب; the TV still waits.
 
+## The looks of 7 Oct 2026, second sheet (the owner's picks): built
+
+- **900 أ «سبورة على الترابيزة»** (sheet8, look أ). The points as a café keeps them: a
+  small framed chalk slate, one column per side (the two teams, or every player in seat
+  order, the first on the reading side), tally strokes in fives (four and a slash), the
+  big number under each column and the points just added beside it (+18). Points added
+  are chalked in stroke by stroke (each a `scaleX` Web Animation from its start, the
+  number counting with them, a scratch `FX.domChalk` on the voice of the room: the TV,
+  or each phone when there is none), new strokes in a warmer chalk until the next
+  redraw; a whole run takes about 1.5 s. When: in أمريكاني as a play scores (after its
+  flight), and at a round's end as the totals count up (`domRunReveal`'s time).
+  Where (the table keeps its size everywhere):
+  - **TV, and a laptop's phone view** (`.dom-slate--felt`): lying on a corner of the
+    felt, during play and on the round's table; `domSlatePlace` (after every layout and
+    resize) takes the first corner no tile, the pile, the ends' sum, the latest line or
+    the TV's join corner is under - bottom corner away from the join corner first, then
+    the other bottom, then the tops, at full size and then 80% and 62%; with none free,
+    the least covered, faded (hidden on the TV's round-end table, where the totals say it).
+  - **A phone** (upright or on its side): the strip's score line (`.dom-slate--strip`,
+    after the badges; the score chips are gone, the target stays a chip); on the
+    round's end, above the totals.
+  - **One phone («على الطاولة», `JS_Domino.html`)**: over the rows (`.dom-slate--table`);
+    +10 or a typed number chalks in (`renderDominoBoard(chalk)`), an undo just redraws.
+  Built by `domSlateHtml(id, cols, kind, anim)` (an SVG; `domSlateFit` sizes the
+  strokes to fill the column, at most 300 drawn), `domSlateCols(state)`, `domSlateRun`,
+  `domSlateSettle`. What a slate has shown is kept per page and slate
+  (`domSlate.seen`, `data-scores`), so a reload, a late joiner, the lock screen or
+  motion off draw it whole. Its styles are in the chunk (`DOM_SLATE_CSS`,
+  `domSlateStyleOn`); the slate's colours are its own (wood, a dark green board,
+  chalk), the same in both themes, like the ivory tiles. `domScoreChips` was removed.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

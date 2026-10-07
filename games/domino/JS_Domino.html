@@ -100,12 +100,22 @@
       return short ? team : `${team} (${p.members.join(' & ')})`;
   }
 
-  function renderDominoBoard() {
+  /** `chalk`: points were just added, so the slate chalks them in (900); otherwise it is drawn whole. */
+  function renderDominoBoard(chalk) {
       const container = document.getElementById('domino-board');
       if (!container) return;
       const d = appState.domino;
       const t = TRANSLATIONS[appState.lang] || {};
       const teams = d.mode === 'teams';
+      // «سبورة على الترابيزة» (900): the café's slate over the rows, a column a row.
+      const slateCols = (d.players || []).map((p, idx) => ({
+          key: String(idx),
+          name: p.members ? p.members.join(appState.lang === 'en' ? ' & ' : ' و') : (p.name || ''),
+          score: p.score,
+          team: teams ? idx : -1,
+          me: false
+      }));
+      const slate = typeof domSlateHtml === 'function' && slateCols.length ? domSlateHtml('table', slateCols, 'table', !!chalk && domCanMove()) : '';
       const moreLabel = escapeHTML(t.domino_more || '');
       const rows = d.players.map((p, idx) => {
           // Accents come from the design system, so the row follows the theme;
@@ -124,7 +134,8 @@
                 </div>
             </div>`;
       }).join('');
-      container.innerHTML = rows + dominoHistoryHtml(d, t);
+      container.innerHTML = slate + rows + dominoHistoryHtml(d, t);
+      if (slate) domSlateRun(container, 0, chalk ? { sound: () => playFx('domChalk') } : { quiet: true });
   }
 
   /** Every entry so far, one row each under the player it went to, with the take-back. */
@@ -164,7 +175,7 @@
           d.history.push({ i: idx, pts: moved });
       }
       playSound(pts > 0 ? 'success' : 'click');
-      renderDominoBoard();
+      renderDominoBoard(moved > 0);
       const scoreEl = document.querySelector(`[data-domino-score="${idx}"]`);
       if (scoreEl && moved !== 0 && typeof countUp === 'function' && !motionOff()) countUp(scoreEl, before, p.score);
       checkDominoWin();

@@ -339,7 +339,8 @@ function vtOverHtml(state, tv) {
       ${host}</div>`;
   }
   const why = s.why === 'alarm' ? t.vt_lost_alarm : s.why === 'left' ? t.vt_over_left : t.vt_lost_time;
-  return `<div class="card vt-over ${rise ? 'vt-over--rise' : ''}" data-reveal-ms="${rise ? 900 : 0}">
+  // «الرفوف» (805): on the phone the shelves stand over the card, the count rising with them.
+  return `${tv ? '' : vtShelvesPhoneHtml(state, rise)}<div class="card vt-over ${rise ? 'vt-over--rise' : ''}" data-reveal-ms="${rise ? 900 : 0}">
       <div class="vt-over__why">${escapeHTML(why)}</div>
       <div class="vt-over__big"><span class="metric" data-vt-won data-to="${s.levelsWon || 0}">${rise ? 0 : (s.levelsWon || 0)}</span></div>
       <div class="vt-over__line">${escapeHTML(t.vt_levels_cleared)}</div>
@@ -392,7 +393,7 @@ ROOM_GAMES.vault = {
     const mine = vtMine(state);
     const h = mine ? mine.h : { locks: [], pages: [] };
     const sig = ['vt', s.safeNo, s.phase === 'gameover', mine ? mine.key : '-', h.locks.join(','), h.pages.join(','), state.youAreHost, appState.lang, vtL(),
-      s.phase === 'gameover' ? JSON.stringify(s.board || []) + s.levelsWon : ''].join('|');
+      s.phase === 'gameover' ? JSON.stringify(s.board || []) + s.levelsWon + ':' + s.best + ':' + !!s.newBest + ':' + (s.why || '') : ''].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => vtPhoneHtml(state));
     if (rebuilt) vtWire(el);
     refreshRoomPlayerStrip(el, state);
@@ -778,6 +779,12 @@ function vtStopAll() {
   clearTimeout(vt.momentTimer);
   clearTimeout(vt.toastTimer);
   clearTimeout(vt.autoTimer);
+  // The shelves (805) left mid-run: everything goes to where it ends.
+  if (vt.shelfTimers && vt.shelfTimers.length) {
+    vt.shelfTimers.forEach((x) => clearTimeout(x));
+    vt.shelfTimers = [];
+    document.querySelectorAll('[data-vt-shv].is-run').forEach(vtShelvesSettle);
+  }
 }
 onLeaveScreen((from) => { if (from === 'room-vault' || (from === 'room-tv' && vt.tv)) vtStopAll(); });
 onRoomClocksReset(() => { if (vt.el) vtStopAll(); });
@@ -872,13 +879,192 @@ function vtConfetti(el, state) {
 }
 
 function vtOverMotion(state, el) {
-  const n = el.querySelector('[data-vt-won]');
-  const card = el.querySelector('.vt-over');
-  if (n && card && card.classList.contains('vt-over--rise')) countUp(n, 0, Number(n.dataset.to) || 0);
-  animateScoreboards(state);
   const s = state.shared || {};
-  const good = s.settings && s.settings.win === 'set' ? (s.board || []).some((r) => r.score > 0) : s.newBest && (s.levelsWon || 0) > 0;
-  if (card && good && card.classList.contains('vt-over--rise')) afterReveal(card, () => { if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } }); });
+  const set = s.settings && s.settings.win === 'set';
+  const n = el.querySelector('[data-vt-won]');
+  const card = el.querySelector('.vt-over, [data-vt-shv]');
+  const rise = !!card && (card.classList.contains('vt-over--rise') || card.classList.contains('is-run'));
+  // An endless game's end: the count rises with the chests landing on the shelves (805), not by itself.
+  if (!set) vtShelvesRun(state, el);
+  else if (n && rise) countUp(n, 0, Number(n.dataset.to) || 0);
+  animateScoreboards(state);
+  const good = set ? (s.board || []).some((r) => r.score > 0) : s.newBest && (s.levelsWon || 0) > 0;
+  if (card && good && rise) afterReveal(set ? card : el, () => { if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } }); });
+}
+
+/* --- «الرفوف» (the looks of 7 Oct 2026, second sheet: 805 أ): an endless game's end ---------
+   Wooden shelves on the attic wall, eight places a shelf; every safe opened drops onto its
+   place in order with its level on it, the count rising as each lands; the room's best is a
+   place waiting empty with a red ribbon (the ribbon on the last chest when this run is the
+   best); more shelves as the run grows. The TV and the phone's end card. Played once a deal
+   (the end card's motionFirst key); with motion off, or on a second look, all is on its shelf. */
+const VT_SHELF = 8;
+const VT_SHELF_CSS = `
+.vt-shv { --wood-1: #a3703f; --wood-2: #7a4f2a; --rib: #e11d48; --rib-2: #9f1239; --ink: #221f36; position: relative; color: var(--ink); font-family: var(--font-display); }
+.vt-shv--ph { max-width: 36rem; margin: 0 auto var(--sp-3); border-radius: var(--r-xl); overflow: hidden; border: 3px solid var(--ink); background: #6b4a32; container-type: inline-size; }
+.vt-shv--ph > .vt-scn { position: absolute; inset: 0; width: 100%; height: 100%; }
+.vt-shv--ph .vt-shv__wall { position: relative; z-index: 1; padding: 1cqw 3cqw 11cqw; }
+.vt-shv__pill { z-index: 3; max-width: 100%; padding: 0.5em 1.1em; border-radius: 999px; background: #fffdf4; color: var(--ink); font-weight: 900; text-align: center; box-shadow: 0 0.4em 1em rgba(0, 0, 0, 0.35); transition: opacity 0.4s; }
+.vt-shv--ph .vt-shv__pill { position: relative; width: fit-content; max-width: 94%; margin: 2.5cqw auto 0; font-size: max(0.66rem, 2.9cqw); padding: 0.35em 0.9em; }
+.vt-shv__shelves { position: relative; display: grid; }
+.vt-shelf { --cw: calc(100cqw / ${VT_SHELF} * 0.78); position: relative; display: grid; grid-template-columns: repeat(${VT_SHELF}, minmax(0, 1fr)); align-items: end; justify-items: center; padding: calc(var(--cw) * 0.42) 2% calc(var(--cw) * 0.2); }
+.vt-shelf::after { content: ""; position: absolute; inset-inline: 0; bottom: 0; height: calc(var(--cw) * 0.2); border-radius: 0.3em; background: linear-gradient(var(--wood-1), var(--wood-2)); border: max(2px, calc(var(--cw) * 0.035)) solid var(--ink); box-shadow: 0 calc(var(--cw) * 0.11) 0 rgba(0, 0, 0, 0.18); }
+.vt-shv__place { position: relative; z-index: 1; width: var(--cw); aspect-ratio: 200 / 140; display: grid; place-items: end center; }
+.vt-shv__chest { position: relative; width: 100%; filter: drop-shadow(0 calc(var(--cw) * 0.05) calc(var(--cw) * 0.04) rgba(0, 0, 0, 0.35)); }
+.vt-shv__chest svg { display: block; width: 100%; height: auto; }
+.vt-shv__chest.is-wait { opacity: 0; }
+.vt-shv__tag { position: absolute; left: 50%; bottom: calc(var(--cw) * -0.13); translate: -50% 0; min-width: calc(var(--cw) * 0.34); padding: 0 calc(var(--cw) * 0.07); border-radius: 999px; background: #fff4c4; color: #3b2414; border: max(1.5px, calc(var(--cw) * 0.022)) solid var(--ink); font-size: calc(var(--cw) * 0.19); font-weight: 900; line-height: 1.25; text-align: center; font-variant-numeric: tabular-nums; }
+.vt-shv__slot { width: 100%; height: 76%; border: max(1.5px, calc(var(--cw) * 0.03)) dashed rgba(255, 244, 196, 0.16); border-radius: calc(var(--cw) * 0.1); }
+.vt-shv__slot.is-best { border-color: rgba(255, 244, 196, 0.8); }
+.vt-shv__rib { position: absolute; z-index: 2; left: 50%; bottom: 30%; translate: -50% 0; width: calc(var(--cw) * 0.62); pointer-events: none; }
+.vt-shv__rib.is-on-chest { bottom: 62%; left: 88%; }
+.vt-shv__rib.is-on-chest .vt-shv__ribtxt { top: calc(100% + var(--cw) * 0.62); left: -15%; }
+.vt-shv__ros { position: relative; z-index: 1; display: grid; place-items: center; width: 100%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(var(--rib) 52%, var(--rib-2) 53% 62%, var(--rib) 63%); border: max(2px, calc(var(--cw) * 0.03)) solid #fff; box-shadow: 0 0.3em 0.6em rgba(0, 0, 0, 0.4); color: #fff; font-size: calc(var(--cw) * 0.23); font-weight: 900; font-variant-numeric: tabular-nums; }
+.vt-shv__tails { position: absolute; left: 20%; top: 72%; width: 60%; height: 72%; background: linear-gradient(100deg, #be123c 48%, transparent 48% 52%, #be123c 52%); clip-path: polygon(0 0, 100% 0, 100% 100%, 75% 80%, 50% 100%, 25% 80%, 0 100%); }
+.vt-shv__ribtxt { position: absolute; z-index: 2; top: calc(100% + var(--cw) * 0.5); left: 50%; translate: -50% 0; white-space: nowrap; padding: 0.05em 0.6em; border-radius: 999px; background: #fff; color: #be123c; font-weight: 900; font-size: max(0.6rem, calc(var(--cw) * 0.17)); transition: opacity 0.4s; }
+.vt-shv.is-run .vt-shv__pill, .vt-shv.is-run .vt-shv__ribtxt { opacity: 0; }
+/* The TV: the shelves on the wall; the count, «ليه كده؟» and the host's buttons beside them. */
+.vt-tv--shelves { display: block; overflow: hidden; }
+.vt-tv--shelves .vt-shv { position: absolute; inset: 0; z-index: 2; }
+.vt-tv--shelves .vt-shv__pill { position: absolute; top: 3cqh; left: 50%; translate: -50% 0; max-width: 90cqw; font-size: 3.2cqh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vt-tv--shelves .vt-shv__shelves { position: absolute; inset-inline-start: 4cqw; width: 64cqw; top: 14cqh; height: 66cqh; container-type: size; align-content: center; grid-auto-rows: min(calc(66cqh / var(--rows)), 22.4cqh); }
+.vt-tv--shelves .vt-shelf { --rowh: min(calc(100cqh / var(--rows)), 34cqh); --cw: min(calc(100cqw / ${VT_SHELF} * 0.8), calc(var(--rowh) * 0.62 * 1.43)); padding-top: 0; }
+.vt-shv__side { position: absolute; inset-inline-end: 3cqw; top: 13cqh; bottom: 3cqh; width: 26cqw; display: flex; flex-direction: column; align-items: stretch; justify-content: safe center; gap: 2cqh; }
+.vt-shv__count { display: grid; justify-items: center; padding: 1.4cqh 2cqw 1.8cqh; border-radius: 3cqh; background: #fff8e6; color: #3b2414; border: 0.6cqh solid var(--ink); box-shadow: 0 1.4cqh 2.6cqh rgba(0, 0, 0, 0.35); text-align: center; }
+.vt-shv__count b { font-size: 12cqh; line-height: 1; color: #7c3aed; font-variant-numeric: tabular-nums; }
+.vt-shv__count small { font-weight: 800; font-size: 2.6cqh; }
+.vt-shv__count em { font-style: normal; font-weight: 800; font-size: 2.2cqh; color: #8a5a33; }
+.vt-shv__side .vt-why { font-size: 1.9cqh; padding: 1cqh 1.2cqw; border-width: 0.3cqh; background: repeating-linear-gradient(#fffdf4 0 3.4cqh, #bcd3f2 3.4cqh 3.6cqh); }
+.vt-shv__side .vt-why__t { font-size: 2.3cqh; }
+.vt-shv__side .vt-why__k { font-size: 2cqh; }
+.vt-shv__side .vt-why__syms svg { width: 3.4cqh; height: 3.4cqh; }
+.vt-shv__side .vt-why__shape svg { width: 3cqh; height: 3cqh; }
+.vt-shv__side .tv-actions { margin: 0; justify-content: center; flex-wrap: wrap; }
+.vt-shv__side .tv-actions .btn--ghost { background: #fffdf4; color: var(--ink); border: 0.4cqh solid var(--ink); }
+`;
+function vtShelfStyleOn() {
+  if (document.getElementById('vt-shelf-style')) return;
+  const st = document.createElement('style');
+  st.id = 'vt-shelf-style';
+  st.textContent = VT_SHELF_CSS;
+  document.body.appendChild(st);
+  if (typeof applyMotionPref === 'function') applyMotionPref();
+}
+vtShelfStyleOn();
+
+/** Where the run stands: the safes opened, the room's best (the ribbon's place), the line on top. */
+function vtShelfFacts(state) {
+  const t = vtT();
+  const s = state.shared || {};
+  const won = Math.max(0, Number(s.levelsWon) || 0);
+  const best = Math.max(won, Number(s.best) || 0);
+  const at = Number(s.safeNo) || won + 1;
+  const bits = [];
+  if (s.why === 'alarm') bits.push('🚨 ' + vtFill(t.vt_shelf_alarm_at, { n: at }));
+  else if (s.why === 'time') bits.push('🕯️ ' + vtFill(t.vt_shelf_time_at, { n: at }));
+  else if (s.why === 'left') bits.push(t.vt_over_left);
+  if (s.newBest && won > 0) bits.push('🏆 ' + t.vt_new_best);
+  else if (best > won) bits.push(vtFill(t.vt_shelf_short, { n: best - won }));
+  else if (won > 0) bits.push(t.vt_shelf_tie);
+  return { won, best, newBest: !!(s.newBest && won > 0), line: bits.join(' · ') };
+}
+
+/** The shelves: a place for every safe up to the best (and two more), eight a shelf. */
+function vtShelvesHtml(state, rise, tv) {
+  const t = vtT();
+  const f = vtShelfFacts(state);
+  const last = Math.max(f.won, f.best);
+  const rows = Math.max(1, Math.ceil(last / VT_SHELF), tv ? 2 : 1);
+  const upTo = Math.min(rows * VT_SHELF, Math.max(last + 2, VT_SHELF));
+  const ribbon = (i) => `<div class="vt-shv__rib${i <= f.won ? ' is-on-chest' : ''}"><span class="vt-shv__ros">${i}</span><span class="vt-shv__tails"></span><span class="vt-shv__ribtxt">${escapeHTML(f.newBest && i === f.won ? t.vt_shelf_new : t.vt_shelf_best)}</span></div>`;
+  let shelves = '';
+  for (let r = 0; r < rows; r++) {
+    let places = '';
+    for (let c = 1; c <= VT_SHELF; c++) {
+      const i = r * VT_SHELF + c;
+      let inner = '';
+      if (i <= f.won) inner = `<div class="vt-shv__chest${rise ? ' is-wait' : ''}">${VT_CHEST_OPEN}<span class="vt-shv__tag">${i}</span></div>`;
+      else if (i <= upTo) inner = `<div class="vt-shv__slot${i === f.best ? ' is-best' : ''}"></div>`;
+      if (f.best && i === f.best) inner += ribbon(i);
+      places += `<div class="vt-shv__place">${inner}</div>`;
+    }
+    shelves += `<div class="vt-shelf">${places}</div>`;
+  }
+  const label = f.won + ' ' + t.vt_levels_cleared + (f.best ? ' · ' + vtFill(t.vt_room_best, { n: f.best }) : '');
+  return `<div class="vt-shv__shelves" style="--rows:${rows}" role="img" aria-label="${escapeHTML(label)}">${shelves}</div>`;
+}
+
+/** The phone: the shelves in the attic, over the end card. */
+function vtShelvesPhoneHtml(state, rise) {
+  const f = vtShelfFacts(state);
+  return `<div class="vt-shv vt-shv--ph ${rise ? 'is-run' : 'is-done'}" data-vt-shv data-reveal-ms="${rise ? vtShelfMs(f.won) : 0}">${vtAtticSvg()}
+    <div class="vt-shv__pill">${escapeHTML(f.line)}</div>
+    <div class="vt-shv__wall">${vtShelvesHtml(state, rise, false)}</div></div>`;
+}
+
+/** The TV: the attic wall with the shelves; beside them the count, «ليه كده؟» and the host's buttons. */
+function vtShelvesTvHtml(state) {
+  const t = vtT();
+  const s = state.shared || {};
+  const f = vtShelfFacts(state);
+  const rise = motionFirst(['vt-over', roomDealKey(state), 'tv'].join('|'));
+  const host = state.youAreHost ? `<div class="tv-actions">${tvBtn('▶ ' + t.vt_again, "roomAct('playAgain', {})")}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : '';
+  const why = s.why === 'alarm' || s.why === 'time' ? vtExplainHtml(state, null, true) : '';
+  return `<div class="vt-tv vt-tv--over vt-tv--shelves" data-vt-tv>${vtAtticSvg()}
+    <div class="vt-shv ${rise ? 'is-run' : 'is-done'}" data-vt-shv data-reveal-ms="${rise ? vtShelfMs(f.won) : 0}">
+      <div class="vt-shv__pill">${escapeHTML(f.line)}</div>
+      ${vtShelvesHtml(state, rise, true)}
+      <div class="vt-shv__side">
+        <div class="vt-shv__count"><b class="metric" data-vt-won data-to="${f.won}">${rise ? 0 : f.won}</b><small>${escapeHTML(t.vt_levels_cleared)}</small>${f.best ? `<em>${escapeHTML(vtFill(t.vt_room_best, { n: f.best }))}</em>` : ''}</div>
+        ${why}${host}
+      </div>
+    </div></div>`;
+}
+
+/** How long the chests take to come down: a beat each, a long run in about three seconds. */
+const vtShelfStep = (n) => Math.max(110, Math.min(420, Math.round(2800 / Math.max(1, n))));
+const vtShelfMs = (n) => (n ? 500 + n * vtShelfStep(n) + 450 : 400);
+
+/** Everything where it ends: every chest on its place, the count, the ribbon's words and the line. */
+function vtShelvesSettle(box) {
+  if (!box) return;
+  box.querySelectorAll('.vt-shv__chest.is-wait').forEach((c) => c.classList.remove('is-wait'));
+  const root = box.closest('#view-room-vault, #view-room-tv') || box;
+  root.querySelectorAll('[data-vt-won]').forEach((n) => { n.textContent = n.dataset.to || '0'; });
+  box.classList.remove('is-run');
+  box.classList.add('is-done');
+}
+
+/** The run comes down: chest by chest in order, each landing raising the count. True while it plays. */
+function vtShelvesRun(state, el) {
+  (vt.shelfTimers || []).forEach((x) => clearTimeout(x));
+  vt.shelfTimers = [];
+  const box = el && el.querySelector('[data-vt-shv]');
+  if (!box || !box.classList.contains('is-run')) return false;
+  const chests = Array.from(box.querySelectorAll('.vt-shv__chest.is-wait'));
+  if (!chests.length || motionOff() || !document.body.animate) { vtShelvesSettle(box); return false; }
+  const counts = Array.from(el.querySelectorAll('[data-vt-won]'));
+  const step = vtShelfStep(chests.length);
+  const voice = vtIsVoice(state);
+  const later = (ms, fn) => vt.shelfTimers.push(setTimeout(() => { try { fn(); } catch (e) { console.warn('vault shelves', e); } }, ms));
+  chests.forEach((c, k) => {
+    const at = 500 + k * step;
+    later(at, () => {
+      c.classList.remove('is-wait');
+      c.animate([
+        { transform: 'translateY(-160%) rotate(-10deg)', opacity: 0 },
+        { opacity: 1, offset: 0.25 },
+        { transform: 'translateY(8%) rotate(1.5deg)', offset: 0.78 },
+        { transform: 'none', opacity: 1 }
+      ], { duration: 460, easing: 'cubic-bezier(0.3, 0.7, 0.4, 1)' });
+    });
+    later(at + 360, () => {
+      counts.forEach((n) => { n.textContent = String(k + 1); });
+      if (voice) vtSound('shelf');
+    });
+  });
+  later(vtShelfMs(chests.length), () => vtShelvesSettle(box));
+  return true;
 }
 
 /* --- the sounds: an opener's own clicks, and the voice's moments ------------------ */
@@ -911,6 +1097,10 @@ function vtSound(kind) {
     } else if (kind === 'key') {
       // A brass key jingling onto the line.
       for (let k = 0; k < 3; k++) fxTone('triangle', [[0, 1320 + k * 220]], [[0, 0.12], [0.18, 0.001]], at + k * 0.09);
+    } else if (kind === 'shelf') {
+      // A chest set down on a wooden shelf (805).
+      fxNoise('lowpass', 520, 1, [[0, 0.28], [0.07, 0.001]], at);
+      fxTone('sine', [[0, 150], [0.08, 90]], [[0, 0.16], [0.12, 0.001]], at);
     } else if (kind === 'won') playFx('tada');
   } catch (e) {}
 }
@@ -972,6 +1162,7 @@ function vtLineHtml(state) {
 
 function vtTvHtml(state, t) {
   const s = state.shared || {};
+  if (s.phase === 'gameover' && !(s.settings && s.settings.win === 'set')) return vtShelvesTvHtml(state);
   if (s.phase === 'gameover') return `<div class="vt-tv vt-tv--over" data-vt-tv>${vtAtticSvg()}<div class="vt-tv__over${s.settings && s.settings.win === 'set' ? ' vt-tv__over--board' : ''}">${vtOverHtml(state, true)}</div></div>`;
   const teams = s.way === 'teams';
   const mode = s.settings.mistakes === 'time' ? t.vt_mis_time : t.vt_mis_strikes;
@@ -1001,7 +1192,7 @@ TV_GAMES.vault = {
     const s = state.shared || {};
     const holders = Object.keys(s.sides || {}).map((k) => k + ':' + (s.sides[k].opener || '') + ':' + JSON.stringify(s.sides[k].holders)).join('|');
     return ['vault', roomDealKey(state), s.safeNo, s.phase === 'gameover', s.tvOpens, holders, (s.locks || []).map((l) => l.k).join(','), s.serial, JSON.stringify(s.keys || {}),
-      state.youAreHost, appState.lang, vtL(), s.phase === 'gameover' ? JSON.stringify(s.board || []) + s.levelsWon + s.best : ''].join('|');
+      state.youAreHost, appState.lang, vtL(), s.phase === 'gameover' ? JSON.stringify(s.board || []) + s.levelsWon + ':' + s.best + ':' + !!s.newBest + ':' + (s.why || '') : ''].join('|');
   },
   frame(state, t) { return vtTvHtml(state, t); },
   after(state, rebuilt) {

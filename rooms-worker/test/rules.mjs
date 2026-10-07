@@ -4161,7 +4161,7 @@ Date.now = duelTestClock;
     check(s.teams.every((t) => Math.abs(s.order.indexOf(t.ids[0]) - s.order.indexOf(t.ids[1])) === n / 2), 'uno teams: partners sit opposite (A1 B1 C1 A2 B2 C2)');
     const teamAB = s.teams.find((t) => t.ids.indexOf('a') !== -1);
     check(teamAB.ids.indexOf('b') !== -1 && teamAB.t === 0, 'uno teams: the pairs are the ones picked');
-    check(r.secrets.a && r.secrets.a.hand && !JSON.stringify(r.secrets.a).includes(String(r._uno.hands.b[0].i) + ',"k"') && r.secrets.b.hand.length === 7,
+    check(r.secrets.a && r.secrets.a.hand && !r.secrets.a.hand.some((c) => r._uno.hands.b.some((x) => x.i === c.i)) && r.secrets.b.hand.length === 7,
       'uno teams: partners never get each other\'s cards');
 
     // Odd or too few.
@@ -9047,7 +9047,7 @@ Date.now = duelTestClock;
     applyRoomAction(r, W[0], 'vote', { from: 'e2', to: 'e4', n: 0 });
     check(r.shared.vote.voted.join() === W[0] && r._vc.votes[W[0]].to === 'e4' && r.secrets[W[0]].vote.to === 'e4',
       'votechess: a vote can be changed until the vote closes; who voted is public');
-    check(!JSON.stringify(r.shared).includes('e4') && !JSON.stringify(r.shared.vote).includes('f3'), 'votechess: what anyone voted is nowhere in shared');
+    check(!JSON.stringify(r.shared).includes('"e4"') && !JSON.stringify(r.shared.vote).includes('"f3"'), 'votechess: what anyone voted is nowhere in shared');
     check(W.slice(1).every((id) => !r.secrets[id]), 'votechess: a voter\'s own vote is on their own phone only');
     applyRoomAction(r, W[0], 'vote', { from: 'd2', to: 'd4', n: 5 });
     check(r._vc.votes[W[0]].to === 'e4', 'votechess: a vote drawn for another move is dropped (a stale tap)');

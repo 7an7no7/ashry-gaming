@@ -2999,6 +2999,11 @@
   function navTo(target) {
     // A tab is not "back": a setup opened from «الليلة دي؟» doesn't reopen it (tonightForget, 1217).
     if (typeof tonightForget === 'function') tonightForget();
+    // The lit tab tapped again: to the top, and the home's search cleared (1214).
+    if (target === appState.currentView && ['menu', 'tools', 'together'].indexOf(target) !== -1 && typeof homeTabAgain === 'function') {
+      homeTabAgain(target);
+      return;
+    }
     if (typeof openExitSheet === 'function' && openExitSheet(target)) return;
     navGo(target);
   }
@@ -3719,6 +3724,42 @@
       const el = document.getElementById('settings-modal');
       if (el) el.classList.remove('hidden');
   }
+
+  /* A crowded header on a narrow phone (the owner's pick 1216): under 400px with
+     📁 and 💬 both showing, 🔊 and ⚙️ fold into «⋯» (the CSS decides when, section
+     72 of Style_Talk.html), which opens this small centred menu of the two. */
+  function openHeaderMore() {
+      const el = document.getElementById('hdr-more-modal');
+      if (el) el.classList.remove('hidden');
+  }
+
+  /* The general timer's pill under the header (the owner's pick 1232): while the
+     timer runs and another screen is showing, «⏱ 3:42» in rose; a tap goes back
+     to it. Painted on every tick (updateGenDisplay) and every screen change. */
+  function timerPillSync() {
+      const pill = document.getElementById('timer-pill');
+      if (!pill) return;
+      const tm = appState.timers && appState.timers.general;
+      const show = !!(tm && tm.running && tm.time > 0) && appState.currentView !== 'timers';
+      if (pill.hidden === show) {
+          pill.hidden = !show;
+          if (show && !motionOff() && pill.animate) {
+              pill.animate([{ opacity: 0, transform: 'translateY(-6px) scale(0.92)' }, { opacity: 1, transform: 'none' }],
+                  { duration: 260, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' });
+          }
+      }
+      if (!show) return;
+      const text = Math.floor(tm.time / 60) + ':' + String(tm.time % 60).padStart(2, '0');
+      const box = document.getElementById('timer-pill-time');
+      if (box && box.textContent !== text) box.textContent = text;
+      const low = tm.time <= 10;
+      if (pill.classList.contains('is-low') !== low) pill.classList.toggle('is-low', low);
+  }
+  function timerPillGo() {
+      haptic('light');
+      if (typeof navTo === 'function') navTo('timers'); else setView('timers');
+  }
+  onLeaveScreen(() => timerPillSync());
 
   /* «انقل لموبايل تاني» (the owner, 7 Oct 2026): the door to the chunk 'move'
      (JS_Move.html, app/MoveData.js), opened over the home or wherever Settings was. */

@@ -892,10 +892,10 @@ function homeContRefresh() {
   if (html && view.firstElementChild) view.insertAdjacentHTML('afterbegin', html);
 }
 
-/** The game to offer: still going, not switched off, not hidden, played last. */
-function homeContPick() {
+/** Every board still going, not switched off, not hidden: the one played last first. */
+function homeContAll() {
   const stamps = homeContStamps();
-  let best = null;
+  const all = [];
   HOME_CONT.forEach(c => {
     if (homeContHidden[c.key] || !CATALOG_BY_ID[c.game] || catalogOff(c.game)) return;
     const need = homeContNeed(c);
@@ -904,20 +904,41 @@ function homeContPick() {
       return;
     }
     if (!homeContSafe(c.live)) return;
-    const at = Number(stamps[c.key]) || 0;
-    if (!best || at > best.at) best = { c, at };
+    all.push({ c, at: Number(stamps[c.key]) || 0 });
   });
-  return best ? best.c : null;
+  return all.sort((a, b) => b.at - a.at).map(x => x.c);
 }
+/** The game to offer: the board left last. */
+function homeContPick() { return homeContAll()[0] || null; }
 
+/* «كمّل» with more than one board (the owner's pick 1209, 7 Oct 2026): the card
+   offers the board left last, and a «+2» pill beside it unfolds the others under
+   it (icon, name, its line), newest first, so yesterday's لودو isn't lost behind
+   today's سودوكو. ✕ hides the one on the card; the next takes its place. */
+let homeContListOpen = false;
 function homeContHtml(t) {
-  const c = homeContPick();
+  const all = homeContAll();
+  const c = all[0];
   if (!c) return '';
   const g = CATALOG_BY_ID[c.game];
   const line = c.line ? homeContSafe(() => c.line(t)) : '';
   const name = catalogTitle(g, t);
+  const rest = all.slice(1);
+  if (!rest.length) homeContListOpen = false;
+  const rows = rest.map(o => {
+    const og = CATALOG_BY_ID[o.game];
+    const ol = o.line ? homeContSafe(() => o.line(t)) : '';
+    return `<button type="button" class="home-cont__row" data-accent="${og.accent}" onclick="homeContGo('${o.key}')">
+          <span class="home-cont__icon home-cont__icon--sm" aria-hidden="true">${iconHtml(og.icon)}</span>
+          <span class="home-cont__text">
+            <span class="home-cont__name">${escapeHTML(catalogTitle(og, t))}</span>
+            ${ol ? `<span class="home-cont__line">${escapeHTML(ol)}</span>` : ''}
+          </span>
+          <span class="home-cont__chev" aria-hidden="true">▶</span>
+        </button>`;
+  }).join('');
   return `
-    <div class="home-cont" id="home-cont" data-accent="${g.accent}">
+    <div class="home-cont${rest.length ? ' has-more' : ''}" id="home-cont" data-accent="${g.accent}">
       <button type="button" class="home-cont__go" onclick="homeContGo('${c.key}')">
         <span class="home-cont__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
         <span class="home-cont__text">
@@ -926,9 +947,29 @@ function homeContHtml(t) {
         </span>
         <span class="home-cont__play" aria-hidden="true">▶</span>
       </button>
+      ${rest.length ? `<button type="button" class="home-cont__more metric" aria-expanded="${homeContListOpen}" aria-controls="home-cont-list"
+              onclick="homeContToggle(this)" aria-label="${escapeHTML((t.home_cont_others || '') + ': ' + rest.length)}"
+              title="${escapeHTML(t.home_cont_others || '')}"><bdi dir="ltr">+${rest.length}</bdi></button>` : ''}
       <button type="button" class="home-cont__x" onclick="homeContHide('${c.key}')"
               aria-label="${escapeHTML(t.home_cont_hide || '')}" title="${escapeHTML(t.home_cont_hide || '')}">✕</button>
+      ${rest.length ? `<div class="home-cont__list" id="home-cont-list" ${homeContListOpen ? '' : 'hidden'}>${rows}</div>` : ''}
     </div>`;
+}
+
+/** The «+2» pill: the other boards fold out under the card, the home sliding down for them. */
+function homeContToggle(btn) {
+  const list = document.getElementById('home-cont-list');
+  if (!list) return;
+  const view = document.getElementById('view-menu');
+  const flip = () => {
+    homeContListOpen = !homeContListOpen;
+    list.hidden = !homeContListOpen;
+    btn.setAttribute('aria-expanded', String(homeContListOpen));
+  };
+  if (view && typeof flipGrid === 'function') {
+    flipGrid(view, flip, { items: '.home-cont__row, .gcard, .recent-tile, .daily-strip, .section__head, .home-tools, .together' });
+  } else flip();
+  haptic('light');
 }
 
 function homeContGo(key) {
@@ -945,9 +986,11 @@ function homeContHide(key) {
   homeContHidden[key] = true;
   const el = document.getElementById('home-cont');
   if (!el) return;
-  if (motionOff()) { el.remove(); return; }
+  // Another board still going takes the card's place (1209).
+  const next = el.classList.contains('has-more');
+  if (motionOff()) { if (next) homeContRefresh(); else el.remove(); return; }
   const a = el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(0.96)' }], { duration: 180, easing: 'ease-in' });
-  const done = () => { if (el.isConnected) el.remove(); };
+  const done = () => { if (!el.isConnected) return; if (next) homeContRefresh(); else el.remove(); };
   a.onfinish = done;
   setTimeout(done, 260);
 }
@@ -1006,7 +1049,7 @@ function renderHome() {
           ${HOME_FILTERS.map(f => `
             <button type="button" class="filter-chip ${f.id === homeFilter ? 'is-active' : ''}"
                     data-filter="${f.id}" aria-pressed="${f.id === homeFilter}" onclick="setHomeFilter('${f.id}')">
-              <span aria-hidden="true">${f.icon}</span>${escapeHTML(t[f.label] || f.id)}
+              <span aria-hidden="true">${f.icon}</span>${escapeHTML(t[f.label] || f.id)}<span class="filter-chip__n metric"></span>
             </button>`).join('')}
         </div>
         <button type="button" class="filter-chip filter-chip--more ${homeMoreOn() ? 'is-active' : ''}"
@@ -1103,7 +1146,12 @@ function renderHome() {
       </section>`;
   }).join('');
 
-  const empty = `<div class="empty hidden" id="home-empty"><span class="empty__icon" aria-hidden="true">🔍</span>${escapeHTML(t.home_empty || '')}</div>`;
+  // Nothing matches: two ways on instead of a bare line (the owner's pick 1207).
+  const empty = `<div class="empty hidden" id="home-empty"><span class="empty__icon" aria-hidden="true">🔍</span>${escapeHTML(t.home_empty || '')}
+    <div class="home-empty__ways">
+      <button type="button" class="btn btn--secondary btn--sm btn--auto" onclick="tonightOpen()"><span aria-hidden="true">🎲</span> ${escapeHTML(t.home_pick_btn || '')}</button>
+      <button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="homeEmptyRules()"><span aria-hidden="true">📘</span> ${escapeHTML(t.home_empty_rules || '')}</button>
+    </div></div>`;
   if (compact) {
     // The game left in the middle, then the ones played lately, then the rest
     // (ideas batch: shell: the recent row as a slim row at the top).
@@ -1246,6 +1294,30 @@ function setHomeSearch(value) {
   applyHomeFilter();
 }
 
+/** «📘 دوّر في القوانين» on an empty search: Help opens with the same words in its own search (1207). */
+function homeEmptyRules() {
+  const term = homeSearch;
+  openHelpModal();
+  const box = document.getElementById('help-search');
+  if (box && term) { box.value = term; filterHelp(term); }
+}
+
+/* Tapping the lit tab again (the owner's pick 1214): the screen glides to the
+   top, and on the home a search or a chip left on is cleared in place - the
+   cards slide back through flipGrid (applyHomeFilter) instead of a redraw. The
+   players and «كل واحد في مكان» chips are remembered choices and stay, as they
+   do when a game is left (resetHomeFilters). */
+function homeTabAgain(view) {
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  const main = document.getElementById('shell-main');
+  if (main) main.scrollTo({ top: 0, behavior: motionOff() ? 'auto' : 'smooth' });
+  if (view !== 'menu' || (!homeSearch && homeFilter === 'all')) return;
+  homeSearch = '';
+  const box = document.getElementById('home-search');
+  if (box) box.value = '';
+  setHomeFilter('all');
+}
+
 /* Back on the home from a game, the next person to pick the phone up sees all
    the games: a search or a chip left behind hid most of them. Switching
    between the three tabs keeps them. */
@@ -1269,26 +1341,35 @@ function applyHomeFilter(opts) {
   const searching = !!term;
   let shown = 0;
 
+  const passes = (g, filter) => {
+    const isTool = g.group === 'tools';
+    // Tools answer a search only; the chips are about how a game is played.
+    let ok = isTool ? searching && filter === 'all' : catalogMatchesFilter(g, filter);
+    // A hub's other ways (chess's) are inside its card, and come out for a search only.
+    if (g.hub && !searching) ok = false;
+    if (ok && homePlayers !== 'off') {
+      ok = catalogMatchesPlayers(g, homePlayers);
+    }
+    if (ok && homeLocation !== 'together') {
+      ok = catalogMatchesLocation(g, homeLocation);
+    }
+    if (ok && searching) ok = catalogSearchHit(g, term, t, other);
+    return ok;
+  };
   const decide = () => {
+    const results = [];
     view.querySelectorAll('[data-game]').forEach(el => {
       const g = CATALOG_BY_ID[el.dataset.game];
       if (!g) return;
-      const isTool = g.group === 'tools';
-      // Tools answer a search only; the chips are about how a game is played.
-      let ok = isTool ? searching && homeFilter === 'all' : catalogMatchesFilter(g, homeFilter);
-      // A hub's other ways (chess's) are inside its card, and come out for a search only.
-      if (g.hub && !searching) ok = false;
-      if (ok && homePlayers !== 'off') {
-        ok = catalogMatchesPlayers(g, homePlayers);
-      }
-      if (ok && homeLocation !== 'together') {
-        ok = catalogMatchesLocation(g, homeLocation);
-      }
-      if (ok && searching) ok = catalogSearchHit(g, term, t, other);
+      const ok = passes(g, homeFilter);
       el.classList.toggle('hidden', !ok);
       // Only results count: a recent tile is a shortcut, hidden while searching.
-      if (ok && el.closest('section[data-group]')) shown++;
+      if (el.closest('section[data-group]')) {
+        results.push(g);
+        if (ok) shown++;
+      }
     });
+    homeFilterCounts(view, results, passes);
 
     view.querySelectorAll('section[data-group]').forEach(sec => {
       const visible = sec.querySelectorAll('[data-game]:not(.hidden)').length;
@@ -1310,6 +1391,21 @@ function applyHomeFilter(opts) {
   if ((opts && opts.animate === false) || typeof flipGrid !== 'function') shelves();
   else flipGrid(view, shelves);
   syncShelves(view);
+}
+
+/* Counts on the filter chips (the owner's pick 1210, 7 Oct 2026): each chip
+   says how many games it would leave with the search and the players chips as
+   they are, decided by applyHomeFilter's own test; a chip that would leave none
+   is dimmed (still a button: tapping it shows the empty note and its ways). */
+function homeFilterCounts(view, games, passes) {
+  const seen = {};
+  const list = games.filter(g => !seen[g.id] && (seen[g.id] = true));
+  view.querySelectorAll('.filter-chip[data-filter]').forEach(chip => {
+    const n = list.filter(g => passes(g, chip.dataset.filter)).length;
+    const box = chip.querySelector('.filter-chip__n');
+    if (box && box.textContent !== String(n)) box.textContent = String(n);
+    if (chip.classList.contains('is-none') !== (n === 0)) chip.classList.toggle('is-none', n === 0);
+  });
 }
 
 /* Search that knows how people ask (the owner's pick 1206, 7 Oct 2026): a game
@@ -1516,6 +1612,66 @@ function catalogHeroHtml(g, t, switchId) {
     ${card}`;
 }
 
+/* The mode switch says what each side needs (the owner's pick 1222, 7 Oct
+   2026): a small line under each half - «موبايل واحد بيتلف» (or «على الموبايل
+   ده» for a game one person can play) and «كل واحد محتاج نت · من ٣» (the room's
+   fewest, GAME_LIST's room.min, said from 2). Offline the own-phones half greys
+   out with «📶 محتاج نت», a tap on it only says so (setPlayMode asks
+   setupModeOffline), and a setup remembered on that side opens on the other.
+   Only the plain switches: سكرو's and الدومينو's sides are «في التطبيق» / «على
+   الطاولة», which these lines don't describe. */
+const SETUP_MODE_LABELS = { mode_device: 1, mode_online: 1, ludo_mode_phone: 1 };
+function setupModeOffline() { return typeof navigator !== 'undefined' && navigator.onLine === false; }
+/** One of the plain switches (SETUP_MODE_LABELS), or null. */
+function setupModePlain(view) {
+  const sw = view && view.querySelector('.mode-switch');
+  if (!sw) return null;
+  const items = Array.from(sw.querySelectorAll('.segmented__item'));
+  return items.length && items.every(b => SETUP_MODE_LABELS[b.getAttribute('data-i18n')]) ? sw : null;
+}
+/** The own-phones side can't be used here now: no network, on a plain switch. */
+function setupModeBlocked(view) { return setupModeOffline() && !!setupModePlain(view); }
+function setupModeNeeds(view, g, t) {
+  const sw = setupModePlain(view);
+  if (!sw || !g) return;
+  const items = Array.from(sw.querySelectorAll('.segmented__item'));
+  const offline = setupModeOffline();
+  const min = g.room && g.room.min > 1 ? g.room.min : 0;
+  const solo = !!(g.players && g.players[0] <= 1);
+  const lineOf = (mode) => mode === 'online'
+    ? (offline ? (t.mode_need_offline || '') : (t.mode_need_net || '') + (min ? ' · ' + (t.mode_need_from || '{n}').replace('{n}', String(min)) : ''))
+    : (solo ? (t.mode_need_this || '') : (t.mode_need_pass || ''));
+  let row = sw.nextElementSibling;
+  if (!row || !row.classList.contains('mode-needs')) {
+    row = document.createElement('div');
+    row.className = 'mode-needs';
+    row.setAttribute('aria-hidden', 'true');
+    sw.after(row);
+    // The switch's own bottom margin (inline in the markup) goes under the lines instead.
+    sw.style.marginBottom = 'var(--sp-1)';
+  }
+  const html = items.map(b => `<span class="mode-needs__line${b.dataset.mode === 'online' && offline ? ' is-off' : ''}">${escapeHTML(lineOf(b.dataset.mode))}</span>`).join('');
+  if (row.innerHTML !== html) row.innerHTML = html;
+  // The hero's mode pills are the same switch (catalogHeroHtml): its own-phones pill greys too.
+  items.concat(Array.from(view.querySelectorAll('.game-hero [data-pmode]'))).forEach(b => {
+    const off = (b.dataset.mode || b.dataset.pmode) === 'online' && offline;
+    if (b.classList.contains('is-offline') !== off) b.classList.toggle('is-offline', off);
+    if (off) b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled');
+  });
+  // Opened on the own-phones side with no network: show the side that works.
+  const onlineOn = sw.querySelector('.segmented__item.is-active[data-mode="online"]');
+  if (offline && onlineOn && typeof applyPlayMode === 'function') applyPlayMode(view, 'device');
+}
+/** The network came or went: the setup showing redraws its lines. */
+function setupModeNetChanged() {
+  const id = appState.currentView || '';
+  if (id.indexOf('setup-') !== 0) return;
+  const g = GAME_CATALOG.find(x => x.setup === id);
+  if (g) setupModeNeeds(document.getElementById('view-' + id), g, TRANSLATIONS[appState.lang] || {});
+}
+window.addEventListener('online', setupModeNetChanged);
+window.addEventListener('offline', setupModeNetChanged);
+
 /** The hero's mode pills lit for the switch's side (see catalogHeroHtml). */
 function heroSyncModes(view, mode) {
   if (!view) return;
@@ -1542,6 +1698,7 @@ function syncGameHero(viewId) {
   hero.innerHTML = catalogHeroHtml(g, t, sw && viewId.indexOf('setup-') === 0 ? viewId.slice('setup-'.length) : '');
   hero.classList.toggle('game-hero--modes', !!sw);
   if (sw) {
+    setupModeNeeds(view, g, t);
     const on = sw.querySelector('.segmented__item.is-active');
     heroSyncModes(view, on ? on.dataset.mode : 'device');
   }

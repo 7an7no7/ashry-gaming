@@ -11,6 +11,13 @@
 function setPlayMode(gameId, mode) {
   const view = document.getElementById('view-setup-' + gameId) || document.querySelector('[id^="view-setup-"]:not(.hidden)');
   if (!view) return;
+  // No network: the own-phones side only says it needs one (1222, JS_Catalog.html).
+  if (mode === 'online' && setupModeBlocked(view)) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    showToast(t.mode_need_offline || '', 'info');
+    haptic('light');
+    return;
+  }
   applyPlayMode(view, mode);
   // The way this table plays is the default next time the game is opened.
   rememberOptions('playMode', { [gameId]: mode === 'online' ? 'online' : 'device' });
@@ -41,6 +48,7 @@ function paintPlayMode(viewId) {
   const id = viewId.slice('setup-'.length);
   let mode = recallOptions('playMode', {})[id] || PLAY_MODE_DEFAULT[id] || 'device';
   if (playModeOnce && playModeOnce.id === id) { mode = playModeOnce.mode; playModeOnce = null; }
+  if (mode === 'online' && setupModeBlocked(view)) mode = 'device';
   applyPlayMode(view, mode);
 }
 

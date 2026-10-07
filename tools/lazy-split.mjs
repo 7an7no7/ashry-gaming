@@ -338,7 +338,7 @@ export const SHELL_USES_OK = {
   JS_WhoAmI: 'WHOAMI_DB matchCategoryKey',
   JS_RoomCodenames: 'cnClockText CN_TEAM_LABEL CN_UNLIMITED CN_COVER cnLog refreshCodenamesHostTools CN_CONFETTI',
   JS_RoomTrivia: 'triviaRevealPlan startTriviaClock stopTriviaClock triviaRevealRun',
-  JS_RoomDraw: 'drawHintHtml resetDrawSurface bindDrawSurface paintStrokes paintGuessList startDrawClock stopDrawClock',
+  JS_RoomDraw: 'drawHintHtml resetDrawSurface bindDrawSurface paintStrokes paintGuessList drawPaintCategory startDrawClock stopDrawClock',
   JS_RoomFakeArtist: 'faOnline faDot faName faSkipTurnCall faResultLine faFakeName fakeArt bindFakeArtistCanvas paintFakeArtist',
   JS_RoomBuzzer: 'bzFinishHtml bzGapHtml bzUndoHtml bzQuizHtml',
   JS_StopBus: 'stopBusSceneHtml stopBusRoomPax stopBusLeftHtml stopBusLeftNames stopBusMem stopBusSyncPax stopBusWhenDriving',

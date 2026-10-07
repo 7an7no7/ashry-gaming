@@ -96,6 +96,22 @@ gameText({
       box_opened: "الصناديق اللي اتفتحت",
       box_next_in: "الصندوق اللي بعده بعد",
       box_final_in: "النتيجة النهائية بعد",
+      box_ins: "🛡️ تأمين بـ{n} ج",
+      box_ins_hint: "لو طلعلك عقرب أو الحرامي سرقك، تخسر النص بس",
+      box_ins_on: "🛡️ إنت مأمّن ({n} ج)",
+      box_ins_paid: "🛡️ التأمين وفّر لـ{w} {v}",
+      box_finale: "🏁 صندوق الختام: كل حاجة جواه ×2!",
+      box_finale_tag: "صندوق الختام ×2",
+      box_sh_drum_x2: "دررررررررم الختام… ×2!",
+      box_offer_title: "🎩 عرض الحاج",
+      box_offer_you: "الحاج بيقولك: خد {v} وسيب الصندوق مقفول؟",
+      box_offer_take: "💰 هات الفلوس",
+      box_offer_open: "📦 لأ، افتح الصندوق!",
+      box_offer_others: "الحاج بيعرض على {w} {v} ويسيب الصندوق… ياخد ولا يفتح؟ زعّقوا!",
+      box_offer_tv: "{w}: ياخد {v} من الحاج ولا يفتح؟",
+      box_sh_deal: "{w} خد {v} من الحاج! نشوف ساب إيه…",
+      box_sh_nodeal: "{w} رفض عرض الحاج! افتح يا صندوق!",
+      box_res_deal: "{w} خد {v} وساب الصندوق… وكان جواه: {k}",
     },
     en: {
       box_lobby_hint: "8 boxes, and a true secret clue about each on your phone. A minute of talk (people may lie!), then one secret bid each. The richest at the end wins.",
@@ -190,6 +206,22 @@ gameText({
       box_opened: "Boxes opened",
       box_next_in: "The next box in",
       box_final_in: "The final results in",
+      box_ins: "🛡️ Insurance for {n}",
+      box_ins_hint: "A scorpion or the thief then costs you half",
+      box_ins_on: "🛡️ You're insured ({n})",
+      box_ins_paid: "🛡️ insurance saved {w} {v}",
+      box_finale: "🏁 The finale box: everything inside counts double!",
+      box_finale_tag: "The finale box ×2",
+      box_sh_drum_x2: "The finale's drumroll… ×2!",
+      box_offer_title: "🎩 The old host's offer",
+      box_offer_you: "The old host says: take {v} and hand the box back unopened?",
+      box_offer_take: "💰 Take the money",
+      box_offer_open: "📦 No, open the box!",
+      box_offer_others: "The old host offers {w} {v} to hand the box back… take it or open it? Shout!",
+      box_offer_tv: "{w}: take {v} from the old host, or open it?",
+      box_sh_deal: "{w} took {v} from the old host! Let's see what they gave up…",
+      box_sh_nodeal: "{w} turned the old host down! Open the box!",
+      box_res_deal: "{w} took {v} and handed the box back… it held: {k}",
     }
   },
   rules: {
@@ -211,6 +243,12 @@ gameText({
                 <li>🪙 <b>دبل أو ولا حاجة</b>: عملة… وش ترجعلك مزايدتك ضعفين، ضهر ولا حاجة.</li>
                 <li>🗝️ <b>مفتاح</b>: إنت بس اللي هتعرف الصندوق الجاي فيه إيه.</li>
                 <li>💨 <b>فاضي</b>: دفعت في الهوا!</li>
+            </ul>
+            <p class="help-sub">✨ الزيادات</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>🛡️ <b>تأمين</b>: وإنت بتزايد تقدر تحط ٥٠ جنيه تأمين (بتدفعها في الفتحة كسبت الصندوق ولا لأ). لو طلعلك عقرب أو الحرامي سرقك، تخسر <b>النص بس</b>. المأمّنين بيبان جنبهم 🛡️ في الفتحة.</li>
+                <li>🎩 <b>عرض الحاج</b>: مرتين في اللعبة، في صندوقين بالصدفة (عمره ما يبقى صندوق الختام)، قبل ما الغطا يطير الحاج بيعرض على اللي كسب فلوس عشان يرجّع الصندوق مقفول. معاه ٨ ثواني: ياخد الفلوس ولا يفتح (لو سكت بيتفتح). لو أخد، الصندوق بيتفتح للفرجة بس ومالوش أي أثر.</li>
+                <li>🏁 <b>صندوق الختام</b>: الصندوق التامن متعلن من الأول، وكل حاجة جواه <b>×٢</b>: كنز دبل، عقرب دبل (٦٠٠)، فاتورة ١٠٠ لكل واحد، الحرامي ياخد ضعف (لحد كل فلوسه)، والعملة بالوش ترجّع ٤ أضعاف. بطبلة لوحده!</li>
             </ul>
             <p class="help-sub">⚖️ التعادل والنهاية</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -245,6 +283,12 @@ gameText({
                 <li>🪙 <b>Double-or-nothing</b>: a coin… heads pays your bid back twice, tails nothing.</li>
                 <li>🗝️ <b>A key</b>: only you will know what's in the next box.</li>
                 <li>💨 <b>Nothing</b>: you paid for thin air!</li>
+            </ul>
+            <p class="help-sub">✨ Extras</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>🛡️ <b>Insurance</b>: while bidding you can add 50 of insurance (paid at the opening, whoever takes the box). If you take a scorpion or the thief robs you, you lose <b>only half</b>. The insured show a 🛡️ at the opening.</li>
+                <li>🎩 <b>The old host's offer</b>: twice a game, at two random boxes (never the finale), before the lid flies the old host offers the winner money to hand the box back unopened. 8 seconds: take the money or open it (no answer opens it). Taken, the box is opened just to see, and does nothing.</li>
+                <li>🏁 <b>The finale box</b>: the eighth box is announced from the start, and everything inside counts <b>×2</b>: a double treasure, a double scorpion (600), a bill of 100 each, the thief takes twice as much (up to everything), and heads pays four times the bid. With its own drumroll!</li>
             </ul>
             <p class="help-sub">⚖️ Ties and the end</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

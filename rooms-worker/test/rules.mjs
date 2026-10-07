@@ -13612,7 +13612,7 @@ Date.now = duelTestClock;
     for (let g = 0; g < 150; g++) {
       const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].slice(0, 3 + (g % 6));
       const r = boxRoom(ids);
-      applyRoomAction(r, 'a', 'start', {});
+      applyRoomAction(r, 'a', 'start', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
       const deck = r._box.deck;
       if (deck.length !== 8 || deck.filter((b) => b.kind === 'treasure').length < 3 || !deck.some((b) => b.kind === 'scorpion')) deckOk = false;
       if (deck[7].kind === 'key') keyLast = true;
@@ -13642,7 +13642,7 @@ Date.now = duelTestClock;
   {
     const r = boxRoom(['a', 'b', 'c', 'd']);
     check(threw(() => applyRoomAction(r, 'b', 'start', {})), 'box: only the host starts');
-    applyRoomAction(r, 'a', 'start', {});
+    applyRoomAction(r, 'a', 'start', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
     let s = r.shared;
     check(r.phase === 'play' && s.phase === 'talk' && s.box === 0 && s.boxes === 8 && ['a', 'b', 'c', 'd'].every((id) => s.money[id] === 1000),
       'box: box 1 of 8, everyone with 1,000');
@@ -13694,7 +13694,7 @@ Date.now = duelTestClock;
   {
     const setUp = (kind, value, money) => {
       const r = boxRoom(['a', 'b', 'c', 'd']);
-      applyRoomAction(r, 'a', 'start', {});
+      applyRoomAction(r, 'a', 'start', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
       r._box.deck[0] = { kind, value };
       r._box.deck[1] = { kind: 'treasure', value: 700 };
       if (money) Object.assign(r.shared.money, money);
@@ -13742,17 +13742,17 @@ Date.now = duelTestClock;
   }
   {
     const r = boxRoom(['a', 'b', 'c', 'd']);
-    applyRoomAction(r, 'a', 'start', {});
+    applyRoomAction(r, 'a', 'start', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
     for (let i = 0; i < 8; i++) { allBid(r, { a: 10 * i, b: 0, c: 0, d: 5 }); tick(r); }
     const s = r.shared;
     check(s.phase === 'gameover' && s.opened.length === 8 && s.board.length === 4 && s.board[0].score >= s.board[3].score && roomDeadline(r) === null && !r._box,
       'box: after the eighth box the richest wins; the board is money');
-    applyRoomAction(r, 'a', 'playAgain', {});
+    applyRoomAction(r, 'a', 'playAgain', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
     check(r.shared.phase === 'talk' && r.shared.box === 0 && r.shared.money.b === 1000, 'box: play again deals eight new boxes');
   }
   {
     const r = boxRoom(['a', 'b', 'c', 'd']);
-    applyRoomAction(r, 'a', 'start', {});
+    applyRoomAction(r, 'a', 'start', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
     applyRoomAction(r, 'a', 'bid', { box: 0, amount: 100 });
     applyRoomAction(r, 'b', 'bid', { box: 0, amount: 100 });
     applyRoomAction(r, 'c', 'bid', { box: 0, amount: 100 });
@@ -13767,13 +13767,108 @@ Date.now = duelTestClock;
   }
   {
     const r = boxRoom(['a', 'b', 'c']);
-    applyRoomAction(r, 'a', 'start', {});
+    applyRoomAction(r, 'a', 'start', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
     check(threw(() => applyRoomAction(r, 'b', 'closeBids', { box: 0 })), 'box: only the host (or a stand-in) closes the bids');
     applyRoomAction(r, 'a', 'openBids', { box: 0 });
     check(r.shared.phase === 'bid', 'box: the host can end the talk sooner');
     applyRoomAction(r, 'a', 'closeBids', { box: 0 });
     check(r.shared.phase === 'open', 'box: and close the bids');
 
+  }
+  // The owner's picks of 7 Oct 2026: «تأمين» (836), «صندوق الختام» (837), «عرض الحاج» (834).
+  {
+    const at = (box, kind, value, money, offer) => {
+      const r = boxRoom(['a', 'b', 'c', 'd']);
+      applyRoomAction(r, 'a', 'start', {});
+      r._box.offerAt = offer ? [box] : [];
+      r._box.deck[box] = { kind, value };
+      if (box > 0) {
+        // Straight to that box: the one before it opened long ago.
+        r.shared.box = box - 1; r.shared.phase = 'open'; r.shared.openAt = clock - 20000; r.shared.nextAt = clock;
+        r.shared.result = { box: box - 1, kind: 'empty', bids: {}, delta: {}, before: {} };
+        applyRoomAction(r, 'a', 'nextBox', { box: box - 1 });
+      }
+      if (money) Object.assign(r.shared.money, money);
+      return r;
+    };
+    const bidAll = (r, list) => list.forEach(([id, amount, insure]) => applyRoomAction(r, id, 'bid', { box: r.shared.box, amount, insure }));
+    // 836: insurance.
+    let r = at(0, 'scorpion', 300);
+    bidAll(r, [['a', 200, true], ['b', 100, true], ['c', 0], ['d', 0]]);
+    let s = r.shared;
+    check(s.money.a === 600 && s.money.b === 950 && s.result.insPaid.a === 150 && s.result.insured.sort().join() === 'a,b',
+      'box (836): insured: the 50 is paid by all who took it; a scorpion costs the insured winner half');
+    r = at(0, 'treasure', 500);
+    applyRoomAction(r, 'a', 'bid', { box: 0, amount: 5000, insure: true });
+    check(r._box.bids.a === 950 && r._box.insured.a && r.secrets.a.insured === true && !r.secrets.b.insured && !('insured' in r.shared), 'box (836): an insured bid is capped 50 under the money; only its own phone knows');
+    r = at(0, 'treasure', 500, { b: 40 });
+    applyRoomAction(r, 'b', 'bid', { box: 0, amount: 30, insure: true });
+    check(!r._box.insured.b && r._box.bids.b === 30, 'box (836): no insurance without the 50 for it');
+    r = at(0, 'steal', null, { b: 900, c: 1300, d: 1200 });
+    bidAll(r, [['a', 100], ['b', 50], ['c', 0, true], ['d', 0]]);
+    s = r.shared;
+    check(s.result.victimId === 'c' && s.money.c === 1300 - 50 - 310 && s.money.a === 900 + 310 && s.result.insPaid.c === 310, 'box (836): the thief takes half as much from the insured');
+    // 837: the finale.
+    let doubled = true, saw = false;
+    for (let k = 0; k < 60; k++) {
+      const q = boxRoom(['a', 'b', 'c']);
+      applyRoomAction(q, 'a', 'start', {});
+      const f = q._box.deck[7];
+      if (f.kind === 'treasure') { saw = true; if (f.value % 200 || f.value < 600 || f.value > 1600) doubled = false; }
+      if (f.kind === 'scorpion' && f.value !== 600) doubled = false;
+      if (f.kind === 'bill' && f.value !== 100) doubled = false;
+      if (q.shared.finale !== 7) doubled = false;
+    }
+    check(doubled && saw, 'box (837): the eighth box is the finale, announced; its treasure, scorpion or bill counts double');
+    r = at(7, 'steal', null, { b: 900, c: 1300, d: 1200 });
+    bidAll(r, [['a', 100], ['b', 0], ['c', 0], ['d', 0]]);
+    check(r.shared.result.x2 && r.shared.money.c === 0 && r.shared.money.a === 900 + 1300, 'box (837): the finale\'s thief takes twice the half - everything');
+    let fourX = 0;
+    for (let k = 0; k < 30; k++) {
+      r = at(7, 'double', null);
+      bidAll(r, [['a', 200], ['b', 0], ['c', 0], ['d', 0]]);
+      if (r.shared.result.coin === 'heads' && r.shared.money.a === 800 + 800) fourX++;
+      else if (r.shared.result.coin !== 'tails' || r.shared.money.a !== 800) fourX = -99;
+    }
+    check(fourX > 3, 'box (837): the finale\'s double-or-nothing pays four times the bid');
+    // 834: the old host's offer.
+    let twice = true, neverLast = true;
+    for (let k = 0; k < 80; k++) {
+      const q = boxRoom(['a', 'b', 'c']);
+      applyRoomAction(q, 'a', 'start', {});
+      if (new Set(q._box.offerAt).size !== 2) twice = false;
+      if (q._box.offerAt.indexOf(7) !== -1) neverLast = false;
+    }
+    check(twice && neverLast && !('offerAt' in boxRoom(['a', 'b', 'c']).shared), 'box (834): two offers a game, at two random boxes, never the finale, secret');
+    r = at(0, 'treasure', 600, null, true);
+    bidAll(r, [['a', 200], ['b', 100], ['c', 0], ['d', 0]]);
+    s = r.shared;
+    check(s.phase === 'offer' && s.offer.winnerId === 'a' && s.offer.bid === 200 && s.offer.amount >= 50 && s.offer.endsAt - clock === 8000 && !s.result && s.money.a === 1000 && !JSON.stringify(s).includes('treasure'),
+      'box (834): the bids in, the winner is offered money first: 8 s, nothing paid yet, the box still secret');
+    check(roomDeadline(r) === s.offer.endsAt + 600, 'box (834): the offer is on the server\'s clock');
+    applyRoomAction(r, 'b', 'deal', { box: 0, take: true });
+    applyRoomAction(r, 'a', 'deal', { box: 3, take: true });
+    check(r.shared.phase === 'offer', 'box (834): only the winner answers, for this box');
+    const amount = s.offer.amount;
+    applyRoomAction(r, 'a', 'deal', { box: 0, take: true });
+    s = r.shared;
+    check(s.phase === 'open' && s.result.deal === amount && s.money.a === 1000 - 200 + amount && s.result.kind === 'treasure' && !s.offer,
+      'box (834): taken: the winner pays the bid, pockets the offer, and the box is only shown');
+    r = at(0, 'treasure', 600, null, true);
+    bidAll(r, [['a', 200], ['b', 100], ['c', 0], ['d', 0]]);
+    applyRoomAction(r, 'a', 'deal', { box: 0, take: false });
+    check(r.shared.phase === 'open' && r.shared.result.deal === null && r.shared.result.offer > 0 && r.shared.money.a === 1400, 'box (834): turned down: the box opens and does what it does');
+    r = at(0, 'treasure', 600, null, true);
+    bidAll(r, [['a', 200], ['b', 100], ['c', 0], ['d', 0]]);
+    tick(r);
+    check(r.shared.phase === 'open' && r.shared.money.a === 1400, 'box (834): no answer in 8 s: the box opens');
+    r = at(0, 'treasure', 600, null, true);
+    bidAll(r, [['a', 200], ['b', 100], ['c', 0], ['d', 0]]);
+    gone(r, 'a');
+    check(r.shared.phase === 'open' && !r.shared.result.winnerId && r.shared.money.b === 1000, 'box (834): the winner leaving mid-offer: the box opens, nobody takes it');
+    r = at(7, 'treasure', 600, null, true);
+    bidAll(r, [['a', 200], ['b', 100], ['c', 0], ['d', 0]]);
+    check(r.shared.phase === 'open', 'box (834): never an offer on the finale');
   }
 }
 /* --- الأوضة المضلمة (29 Sep 2026): one walks blind, the rest guide with the map under a lens --- */

@@ -1088,7 +1088,8 @@ const PROBES = {
   box(room) {
     const s = room.shared || {};
     const h = room._box;
-    const closed = !!h && (s.phase === 'talk' || s.phase === 'bid');
+    // «عرض الحاج» (7 Oct 2026): the box stays shut while its winner is offered the money.
+    const closed = !!h && (s.phase === 'talk' || s.phase === 'bid' || s.phase === 'offer');
     return [
       probe('the box on the table is on no phone before it opens', closed, (view, pid, idx) => {
         const sv = view.shared || {};
@@ -1113,6 +1114,11 @@ const PROBES = {
         const b = view.you && view.you.bid;
         if (b === undefined || b === null) return null;
         return h.bids[pid] === b ? null : 'you.bid (someone else\'s)';
+      }),
+      // «تأمين» (7 Oct 2026): who insured is a phone's own until the opening.
+      probe('an insurance is on its own phone only, until the opening', closed && Object.keys(h.insured || {}).length > 0, (view, pid) => {
+        if (hasKey(view.shared, 'insured')) return 'shared.insured';
+        return view.you && view.you.insured && !(h.insured || {})[pid] ? 'you.insured (someone else\'s)' : null;
       })
     ];
   },
@@ -2577,6 +2583,7 @@ const DRIVERS = {
     const T = table('box', 5);
     must(T, T.host, 'start', {});
     T.room._box.deck[2] = { kind: 'key', value: null };
+    T.room._box.offerAt = [0, 6];          // «عرض الحاج» at two boxes the driver plays through
     for (let guard = 0; guard < 80 && S(T).phase !== 'gameover'; guard++) {
       const s = S(T);
       if (s.phase === 'talk' || s.phase === 'bid') {
@@ -2594,7 +2601,12 @@ const DRIVERS = {
           scan(T, 'left');
           continue;
         }
-        here.forEach((id) => act(T, id, 'bid', { box: s.box, amount: 10 * Math.floor(Math.random() * 30) }));
+        here.forEach((id, i) => act(T, id, 'bid', { box: s.box, amount: 10 + 10 * Math.floor(Math.random() * 30), insure: i % 2 === 0 }));
+        continue;
+      }
+      if (s.phase === 'offer') {
+        if (s.box === 0) must(T, s.offer.winnerId, 'deal', { box: s.box, take: true });
+        else runClock(T, (r) => r.shared.phase !== 'offer', 3);
         continue;
       }
       if (s.phase === 'open') {

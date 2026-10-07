@@ -737,8 +737,12 @@ async function bumperRobots() {
   J.ws.send(JSON.stringify({ t: 'live', d: { k: 'i', x: 50, y: 0 } }));
   await sleep(400);
   check(TV.live.length === 0, 'bumper: nothing is relayed before the round');
+  // «اختار عربيتك»: a pick in the lobby reaches the TV (its plinths), and the round deals it.
+  await J.must('car', { body: 'tuktuk' });
+  await all([TV], (s) => (s.shared.cars || {})[J.pid] === 'tuktuk', 'bumper: a phone\'s pick of a car reaches the TV in the lobby');
+  check(!(await J.act('car', { body: 'rocket' })).ok, 'bumper: a car not on the list is refused');
   await H.must('start', { mode: 'points', secs: 60 });
-  await all([H, J, TV], (s) => s.game === 'bumper' && s.shared.phase === 'play' && s.shared.roster.length === 2, 'bumper: the round reaches every phone and the TV');
+  await all([H, J, TV], (s) => s.game === 'bumper' && s.shared.phase === 'play' && s.shared.roster.length === 2 && s.shared.bodies[J.pid] === 'tuktuk' && s.shared.bodies[H.pid] === 'bumper', 'bumper: the round reaches every phone and the TV, with each one\'s car');
   const t0 = Date.now();
   for (let i = 0; i < 10; i++) { J.ws.send(JSON.stringify({ t: 'live', d: { k: 'i', x: i * 10, y: -20 } })); await sleep(66); }
   H.ws.send(JSON.stringify({ t: 'live', d: { k: 'p', n: 1, at: t0, r: -1 } }));

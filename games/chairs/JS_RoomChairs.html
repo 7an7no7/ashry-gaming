@@ -158,6 +158,7 @@ function mchChairSvg() {
  * (CSS trig would leave a 2021 phone with no layout at all).
  */
 function mchRingHtml(state, s, o) {
+  if (mchIsFinal(s)) return mchFinalHtml(state, s, o);      // «النهائي»: two left, the stage
   const t = mchT();
   const me = Room.me;
   const chairs = Math.max(0, s.chairs || 0);
@@ -504,7 +505,8 @@ function mchAfter(state, el, before) {
       });
     }
   }
-  if (!orbitEl) mchStopOrbit();
+  if (!orbitEl && !el.querySelector('[data-mch-bounce]')) mchStopOrbit();
+  mchFinalAfter(el);
   // The avatars that moved hop from where they were (a chair, or their spot in the orbit).
   if (before && Object.keys(before).length) mchFlip(el, before, s);
   // «الدي جي»: the DJ's phone buzzes as their round starts (and the turn alert says so).
@@ -617,7 +619,8 @@ function mchMusicSync(state, s) {
   mchMusicStop();
   const ctx0 = fxCtx();
   if (!ctx0) return;
-  const m = { key, step: 0, ctx: ctx0, nextT: ctx0.currentTime + 0.08, paused: false, timer: null, s };
+  // «النهائي»: the zaffa in place of the maqsum and its riff.
+  const m = { key, step: 0, ctx: ctx0, nextT: ctx0.currentTime + 0.08, paused: false, timer: null, s, final: mchIsFinal(s) };
   mch.music = m;
   const tick = () => {
     if (mch.music !== m) return;
@@ -632,7 +635,7 @@ function mchMusicSync(state, s) {
     while (m.nextT < ctx.currentTime + 0.28) {
       const bpm = mchTempo(sh);
       const stepDur = 60 / bpm / 2;
-      mchPlayStep(m.step, m.nextT, stepDur);
+      (m.final ? mchPlayZaffa : mchPlayStep)(m.step, m.nextT, stepDur);
       m.step++;
       m.nextT += stepDur;
     }
@@ -686,6 +689,247 @@ function mchSound(kind, i) {
   } catch (e) {}
 }
 
+/* --- «النهائي» (850 B, the owner's pick of 7 Oct 2026) ------------------------------
+   When two are left with one chair the ring becomes a stage: red curtains, a floor, one
+   spotlight on the chair in the middle, the two big on the left and the right like a
+   boxing final, «VS», and the zaffa (its own beat and a mizmar line, mchPlayZaffa). At
+   the stop the one who sat hops onto the chair. At the end the moment plays again slowed
+   down: two lanes, a dashed finish line through the chair, each running to it at its own
+   tap time (sits[].ms, ×MCH_REPLAY_SLOW, the clocks counting), the winner taking the
+   chair with the crown, and the gap in seconds below. Phone and TV draw the same stage
+   (positions are percentages of it, sizes in cqw). The stage is always dark: its own
+   colours (curtain, floor, light) are fixed, like a TV stage. Played once (motionFirst);
+   with motion off it is drawn at its end. */
+const MCH_REPLAY_SLOW = 4, MCH_REPLAY_MAX_MS = 4200;
+const MCH_FIN_LANE = [36, 68];       // the lanes' heights (% of the stage): the left one's, the right one's
+/** The round is the final: two in the ring and one chair (a round dealt to two). */
+const mchIsFinal = (s) => !!s && s.chairs === 1 && (s.order || []).length === 2 && !!s.phase;
+const mchSecs = (ms) => (Math.max(0, ms) / 1000).toFixed(3);
+/** The chair on the stage, from the side (the ring's is seen from above). */
+const MCH_FIN_CHAIR = '<svg viewBox="0 0 100 120" aria-hidden="true" focusable="false"><path d="M20 10 h60 v50 h-60z" fill="#c98b5a" stroke="#3b2414" stroke-width="5"/><path d="M14 60 h72 v14 h-72z" fill="#e0a56e" stroke="#3b2414" stroke-width="5"/><path d="M20 74 v40 M80 74 v40" stroke="#3b2414" stroke-width="7"/></svg>';
+
+function mchFinalHtml(state, s, o) {
+  const t = mchT();
+  const order = s.order;
+  const music = s.phase === 'music', sit = s.phase === 'sit';
+  const sits = s.sits || [];
+  const msOf = (id) => { const x = sits.find((r) => r.id === id); return x && typeof x.ms === 'number' ? x.ms : null; };
+  const winner = !music && !sit ? (s.winnerId || (s.loserId ? order.find((id) => id !== s.loserId) : '')) : '';
+  // The replay: once, with motion on, when the winner has a time to run.
+  const runs = !!winner && s.why !== 'early' && s.why !== 'left' && msOf(winner) !== null;
+  const replay = runs && !motionOff() && motionFirst(['mch-replay', roomDealKey(state), s.round].join('|'));
+  const face = (id, x, y, cls, attr, tag) => {
+    const name = mchNameOf(state, id) || (sits.find((r) => r.id === id) || {}).name || (id === s.loserId ? s.loserName : '') || '';
+    return `<div class="mch-fin__av ${id === Room.me ? 'is-me' : ''} ${cls}" ${attr} style="left:${x}%;top:${y}%">
+      <span class="mch-fin__face" style="${mchChipStyle(mchColorOf(s, id))}">${escapeHTML(mchInitial(name))}${tag || ''}</span>
+      <span class="mch-fin__name">${escapeHTML(name)}</span></div>`;
+  };
+  let h = '<div class="mch-fin__curtain is-l"></div><div class="mch-fin__curtain is-r"></div><div class="mch-fin__floor"></div><div class="mch-fin__cone"></div>'
+    + `<div class="mch-fin__chair">${MCH_FIN_CHAIR}</div>`;
+  if (music) {
+    h += `<div class="mch-fin__title">${escapeHTML(t.mch_final)}</div><div class="mch-fin__vs">VS</div>`;
+    order.forEach((id, i) => { h += face(id, i ? 80 : 20, 46, '', `data-mch-av="${escapeHTML(id)}" data-mch-bounce="${i}"`); });
+    h += `<div class="mch-fin__zaffa"><span data-mch-zb>🥁</span><span data-mch-zb>🎺</span><b>${escapeHTML(s.djLost ? mchDjT().mch_dj_lost : t.mch_zaffa)}</b><span data-mch-zb>🪘</span><span data-mch-zb>💃</span></div>`;
+  } else if (sit) {
+    h += `<div class="mch-fin__title is-stop">${escapeHTML(t.mch_stopped)}<div class="mch-window"><i data-mch-window></i></div></div>`;
+    order.forEach((id, i) => {
+      const sat = !!sits.length && sits[0].id === id;
+      h += face(id, sat ? 50 : (i ? 70 : 30), sat ? 50 : 46, sat ? 'is-sat' : '', `data-mch-av="${escapeHTML(id)}"`);
+    });
+  } else {
+    h += `<div class="mch-fin__title">${escapeHTML(t.mch_final)}</div>`;
+    if (runs) h += `<div class="mch-fin__lane" style="top:${MCH_FIN_LANE[0]}%"></div><div class="mch-fin__lane" style="top:${MCH_FIN_LANE[1]}%"></div><div class="mch-fin__line"></div>`;
+    if (replay) h += `<div class="mch-fin__replay">⏪ ${escapeHTML(t.mch_replay)}</div>`;
+    order.forEach((id, i) => {
+      const win = id === winner;
+      if (!win && id !== s.loserId) return;
+      const ms = msOf(id);
+      const x = win ? 50 : runs ? (i ? 64 : 36) : (i ? 78 : 22);
+      const y = win ? 50 : runs ? MCH_FIN_LANE[i] : 46;
+      h += face(id, x, y, win ? 'is-win' : 'is-out', `data-fin-side="${i}" data-fin-ms="${ms === null ? '' : ms}"`,
+        win ? '<span class="mch-fin__crown" aria-hidden="true">👑</span>' : '');
+      if (s.why === 'left' && !win) return;
+      const txt = id === s.loserId && s.why === 'early' ? t.mch_early_short : ms === null ? '—' : mchSecs(ms);
+      h += `<div class="mch-fin__time ${win ? 'is-win' : ''}" style="left:${i ? 76 : 24}%"><b>${escapeHTML(mchNameOf(state, id) || (id === s.loserId ? s.loserName : '') || '')}</b><span class="metric" dir="ltr" data-fin-time="${ms === null || (id === s.loserId && s.why === 'early') ? '' : ms}">${escapeHTML(txt)}</span></div>`;
+    });
+    const lo = s.loserId ? msOf(s.loserId) : null, wi = winner ? msOf(winner) : null;
+    if (runs && lo !== null && wi !== null) h += `<div class="mch-fin__gap">${escapeHTML(t.mch_gap)} <b class="metric" dir="ltr">${mchSecs(lo - wi)}</b> ${escapeHTML(t.mch_secs)}</div>`;
+  }
+  return `<div class="mch-fin ${o && o.tv ? 'mch-fin--tv' : ''} ${replay ? 'is-replay' : ''}" data-mch-ring data-mch-final dir="ltr">${h}</div>`;
+}
+
+/** The final's motion after a paint: the bounce to the beat (on the orbit's list, so the tempo and a fake pause hold it), and the replay. */
+function mchFinalAfter(el) {
+  const st = el.querySelector('[data-mch-final]');
+  if (!st) return;
+  const bounce = st.querySelectorAll('[data-mch-bounce], [data-mch-zb]');
+  if (bounce.length && !st.dataset.spun) {
+    st.dataset.spun = '1';
+    mchStopOrbit();
+    if (!motionOff() && st.animate) {
+      const beat = 60 / MCH_BPM_START * 1000;
+      bounce.forEach((b, i) => {
+        const lean = (b.dataset.mchBounce !== undefined ? (b.dataset.mchBounce === '1' ? 1 : -1) : (i % 2 ? 1 : -1)) * 6;
+        mch.eq.push(b.animate([
+          { transform: 'translateY(0) rotate(0deg)' },
+          { transform: `translateY(-14%) rotate(${lean}deg)` },
+          { transform: 'translateY(0) rotate(0deg)' },
+          { transform: `translateY(-8%) rotate(${-lean}deg)` },
+          { transform: 'translateY(0) rotate(0deg)' }
+        ], { duration: beat * 2, iterations: Infinity, delay: -(i % 2) * beat * 0.5, easing: 'ease-in-out' }));
+      });
+    }
+  }
+  if (!st.classList.contains('is-replay') || st.dataset.played) return;
+  st.dataset.played = '1';
+  const W = st.clientWidth, H = st.clientHeight;
+  const times = Array.from(st.querySelectorAll('[data-fin-time]')).filter((x) => x.dataset.finTime !== '');
+  const most = Math.max(1, ...Array.from(st.querySelectorAll('[data-fin-side]')).map((a) => Number(a.dataset.finMs) || 0));
+  const k = Math.max(1, Math.min(MCH_REPLAY_SLOW, MCH_REPLAY_MAX_MS / most));
+  const px = (dx, dy) => `translate(${(dx / 100 * W).toFixed(1)}px, ${(dy / 100 * H).toFixed(1)}px)`;
+  let total = 0;
+  st.querySelectorAll('[data-fin-side]').forEach((a) => {
+    if (a.dataset.finMs === '' || !a.animate) return;           // never tapped: stood still
+    const i = Number(a.dataset.finSide), run = Number(a.dataset.finMs) * k;
+    const x = parseFloat(a.style.left), y = parseFloat(a.style.top);
+    const sx = i ? 88 : 12, lane = MCH_FIN_LANE[i];
+    if (a.classList.contains('is-win')) {
+      // To the line at its own time, then the hop onto the chair.
+      const dur = run + 460;
+      a.animate([
+        { transform: px(sx - x, lane - y) },
+        { transform: px(50 - x, lane - y), offset: run / dur },
+        { transform: px(0, (lane - y) / 2 - 8) + ' scale(1.12)', offset: (run + 260) / dur },
+        { transform: 'translate(0px, 0px) scale(1)' }
+      ], { duration: dur, easing: 'linear', fill: 'backwards' });
+      total = Math.max(total, dur);
+    } else {
+      a.animate([{ transform: px(sx - x, 0) }, { transform: 'translate(0px, 0px)' }], { duration: run, easing: 'linear', fill: 'backwards' });
+      total = Math.max(total, run);
+    }
+  });
+  // The clocks run in the slowed time, each stopping at its own.
+  const t0 = performance.now();
+  times.forEach((x) => { x.textContent = mchSecs(0); });
+  const tick = () => {
+    if (!st.isConnected) return;
+    const real = (performance.now() - t0) / k;
+    let going = false;
+    times.forEach((x) => {
+      const ms = Number(x.dataset.finTime);
+      const v = mchSecs(Math.min(ms, real));
+      if (x.textContent !== v) x.textContent = v;
+      if (real < ms) going = true;
+    });
+    if (going) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  // The end: the crown, the gap, the loser greyed - by a timer, never only by an animation's end.
+  setTimeout(() => {
+    times.forEach((x) => { x.textContent = mchSecs(Number(x.dataset.finTime)); });
+    if (!st.isConnected) return;
+    st.classList.remove('is-replay');
+    const rep = st.querySelector('.mch-fin__replay');
+    if (rep) rep.remove();
+    st.querySelectorAll('.mch-fin__crown, .mch-fin__gap').forEach((x) => {
+      if (x.animate) x.animate([{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    });
+  }, total + 120);
+}
+
+/* --- the zaffa: the final's music (a zaffa on the tabl and the riq, a mizmar line in hijaz) --- */
+// Two bars of eighths: D _ T T D _ T _ | D _ T T D T T _.
+const MCH_ZAFFA = ['D', '', 'T', 'T', 'D', '', 'T', '', 'D', '', 'T', 'T', 'D', 'T', 'T', ''];
+const MCH_ZAFFA_RIFF = [587.33, 0, 523.25, 466.16, 440, 0, 466.16, 440, 392, 0, 369.99, 392, 440, 0, 0, 0,
+                        440, 466.16, 523.25, 587.33, 0, 523.25, 466.16, 440, 392, 369.99, 392, 440, 0, 392, 369.99, 293.66];
+function mchPlayZaffa(step, at, dur) {
+  const hit = MCH_ZAFFA[step % 16];
+  if (hit === 'D') {
+    fxTone('sine', [[0, 120], [0.12, 45]], [[0, 0.6], [0.03, 0.5], [0.3, 0.001]], at);
+    fxNoise('lowpass', 380, 0.9, [[0, 0.4], [0.08, 0.001]], at);
+  } else if (hit === 'T') {
+    fxNoise('highpass', 2200, 1.4, [[0, 0.24], [0.05, 0.001]], at);
+  }
+  // The riq's jingles on every step, the beat's ones louder.
+  fxNoise('bandpass', 7500, 3, [[0, step % 2 ? 0.05 : 0.09], [0.07, 0.001]], at);
+  const note = MCH_ZAFFA_RIFF[step % MCH_ZAFFA_RIFF.length];
+  if (note) {
+    const len = Math.min(0.32, dur * 1.8);
+    fxTone('sawtooth', [[0, note]], [[0, 0.0001], [0.015, 0.05], [len * 0.8, 0.035], [len, 0.0001]], at, 6);
+    fxTone('square', [[0, note]], [[0, 0.0001], [0.015, 0.03], [len, 0.0001]], at, -5);
+  }
+}
+
+/** This game's styles for the final (the stage), put in the page once, after the app's own. */
+const MCH_FIN_CSS = `
+.mch-fin { position: relative; width: 100%; aspect-ratio: 4 / 3; container-type: inline-size; overflow: hidden; border-radius: 20px;
+  background: radial-gradient(ellipse at 50% 40%, #2a1f55, #0d0a1c 72%); color: #fff; --fin-av: 19cqw; isolation: isolate; }
+.mch-fin--tv { aspect-ratio: auto; width: 100%; flex: 1 1 0; min-height: 0; border-radius: 0; --fin-av: 13cqw; }
+.mch-fin.is-flash .mch-fin__cone { animation: mchFinFlash 0.7s ease-out; }
+@keyframes mchFinFlash { 0% { opacity: 1; } 30% { opacity: .2; } 60% { opacity: 1; } 80% { opacity: .5; } 100% { opacity: 1; } }
+.mch-fin > * { position: absolute; }
+.mch-fin__curtain { top: 0; bottom: 0; width: 11%; background: repeating-linear-gradient(90deg, #8b1530 0 2.2cqw, #6d0f25 2.2cqw 4.4cqw); box-shadow: inset 0 -4cqw 6cqw rgba(0,0,0,.5); z-index: 1; }
+.mch-fin__curtain.is-l { left: 0; border-radius: 0 0 5cqw 0; }
+.mch-fin__curtain.is-r { right: 0; border-radius: 0 0 0 5cqw; }
+.mch-fin__floor { left: 0; right: 0; bottom: 0; height: 26%; background: linear-gradient(180deg, #3a2a1e, #1e140d); }
+.mch-fin__cone { left: 34%; width: 32%; top: -4%; height: 92%; pointer-events: none;
+  background: radial-gradient(ellipse 50% 20% at 50% 82%, rgba(255,240,190,.4), transparent 70%), linear-gradient(180deg, rgba(255,240,190,0), rgba(255,240,190,.16));
+  clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%); }
+.mch-fin__chair { left: 50%; top: 60%; width: 13cqw; height: 15.6cqw; margin: -7.8cqw 0 0 -6.5cqw; filter: drop-shadow(0 0 2cqw rgba(255,220,140,.6)); }
+.mch-fin__chair svg { display: block; width: 100%; height: 100%; }
+.mch-fin__title { left: 0; right: 0; top: 3%; text-align: center; font-family: var(--font-display); font-weight: 900; font-size: 5.5cqw; color: #fbbf24; text-shadow: 0 0.3cqw 2cqw rgba(251,191,36,.5); z-index: 3; display: grid; justify-items: center; gap: 1.2cqw; }
+.mch-fin__title.is-stop { font-size: 8cqw; color: #fff; text-shadow: 0 0 3cqw #f59e0b, 0 0.5cqw 0 #b45309; }
+.mch-fin__title .mch-window { width: 40cqw; }
+.mch-fin__vs { left: 0; right: 0; top: 24%; text-align: center; font-weight: 900; font-size: 7cqw; color: rgba(255,255,255,.2); }
+.mch-fin__av { width: var(--fin-av); height: var(--fin-av); margin: calc(var(--fin-av) / -2) 0 0 calc(var(--fin-av) / -2); z-index: 4; }
+.mch-fin__face { position: relative; display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; font-weight: 900; font-size: calc(var(--fin-av) * .42);
+  border: 0.5cqw solid #fff; box-shadow: 0 1cqw 2.4cqw rgba(0,0,0,.5); box-sizing: border-box; }
+.mch-fin__av.is-me .mch-fin__face { outline: 0.6cqw solid #fbbf24; outline-offset: 0.4cqw; }
+.mch-fin__name { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 1cqw; white-space: nowrap; max-width: 30cqw; overflow: hidden; text-overflow: ellipsis;
+  font-weight: 900; font-size: 3.8cqw; color: #fff; text-shadow: 0 0.2cqw 1cqw rgba(0,0,0,.7); }
+.mch-fin__av.is-sat .mch-fin__face, .mch-fin:not(.is-replay) .mch-fin__av.is-win .mch-fin__face { box-shadow: 0 0 0 0.9cqw rgba(52,211,153,.45), 0 0 4cqw rgba(52,211,153,.6); }
+.mch-fin:not(.is-replay) .mch-fin__av.is-out .mch-fin__face { filter: grayscale(.9) brightness(.6); }
+.mch-fin__av[data-fin-side] .mch-fin__name { display: none; }
+.mch-fin__crown { position: absolute; top: -38%; left: 50%; margin-left: -0.5em; font-size: 70%; line-height: 1; }
+.mch-fin.is-replay .mch-fin__crown, .mch-fin.is-replay .mch-fin__gap { opacity: 0; }
+.mch-fin__zaffa { left: 0; right: 0; bottom: 3%; display: flex; justify-content: center; align-items: center; gap: 2cqw; font-size: 4.4cqw; z-index: 3; }
+.mch-fin__zaffa > span { display: inline-block; }
+.mch-fin__zaffa b { font-size: 3.2cqw; color: #fbbf24; padding: 0.6cqw 2cqw; border-radius: 999px; background: rgba(0,0,0,.5); }
+.mch-fin__lane { left: 13%; right: 13%; height: 0.4cqw; margin-top: -0.2cqw; background: rgba(255,255,255,.14); }
+.mch-fin__line { left: 50%; top: 22%; height: 58%; width: 0.4cqw; margin-left: -0.2cqw; background: repeating-linear-gradient(180deg, #fff 0 1.2cqw, transparent 1.2cqw 2.2cqw); z-index: 2; }
+.mch-fin__replay { top: 15%; left: 50%; transform: translateX(-50%); white-space: nowrap; padding: 0.6cqw 1.6cqw; border-radius: 1cqw; background: #e5383b; color: #fff; font-weight: 900; font-size: 2.6cqw; z-index: 5; }
+.mch-fin__time { bottom: 10%; transform: translateX(-50%); display: grid; justify-items: center; padding: 0.6cqw 1.6cqw; border-radius: 1.4cqw; background: rgba(12,10,28,.85); box-shadow: 0 0 0 0.15cqw rgba(255,255,255,.15); z-index: 5; }
+.mch-fin__time b { font-size: 2.4cqw; max-width: 24cqw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mch-fin__time b, .mch-fin__time span { color: #fff; }
+.mch-fin__time span { font-size: 4.6cqw; font-weight: 900; }
+.mch-fin:not(.is-replay) .mch-fin__time.is-win { box-shadow: 0 0 0 0.35cqw #34d399; }
+.mch-fin__gap { left: 0; right: 0; bottom: 2%; text-align: center; font-weight: 900; font-size: 3.2cqw; z-index: 5; }
+.mch-fin__gap b { color: #34d399; }
+.mch-fin--tv .mch-fin__name { font-size: 2.4cqw; }
+.mch-fin--tv .mch-fin__title { font-size: 4cqw; }
+.mch-fin--tv .mch-fin__title.is-stop { font-size: 6cqw; }
+.mch-fin--tv .mch-fin__chair { width: 9cqw; height: 10.8cqw; margin: -5.4cqw 0 0 -4.5cqw; }
+.mch-fin--tv .mch-fin__zaffa { font-size: 3.2cqw; }
+.mch-fin--tv .mch-fin__zaffa b { font-size: 2.4cqw; }
+.mch-fin--tv .mch-fin__time b { font-size: 1.8cqw; }
+.mch-fin--tv .mch-fin__time span { font-size: 3.4cqw; }
+.mch-fin--tv .mch-fin__gap { font-size: 2.6cqw; }
+.mch-fin--tv .mch-fin__replay { font-size: 1.9cqw; }
+.mch-fin--tv .mch-fin__vs { font-size: 5cqw; }
+.mch-tv.is-final { grid-template-columns: minmax(0, 1fr); }
+.mch-tv.is-final-over { grid-template-columns: minmax(0, 2fr) minmax(24vmin, 1fr); }
+.mch-tv.is-final .mch-tv__stage, .mch-tv.is-final-over .mch-tv__stage { height: 100%; width: 100%; align-items: stretch; }
+.mch-tv.is-final .mch-tv__stage > .tv-eyebrow, .mch-tv.is-final-over .mch-tv__stage > .tv-eyebrow { align-self: center; }
+`;
+function mchFinalStyleOn() {
+  if (document.getElementById('mch-fin-style')) return;
+  const st = document.createElement('style');
+  st.id = 'mch-fin-style';
+  st.textContent = MCH_FIN_CSS;
+  document.body.appendChild(st);
+}
+mchFinalStyleOn();
+
 /* --- the big screen ---------------------------------------------------------- */
 TV_GAMES.chairs = {
   sig(state) {
@@ -707,7 +951,12 @@ TV_GAMES.chairs = {
     const hint = s.phase === 'music' ? `<div class="tv-note">${escapeHTML(t.mch_tap_hint)}</div>` : '';
     // A list of up to eight in the side's phone components, zoomed (tv-scale); the end in the TV's own sizes.
     const many = (s.roster || []).length > 6 ? ' is-many' : '';
-    return `<div class="mch-tv">
+    // «النهائي»: the stage takes the whole screen while the two play; at the end the side keeps the places.
+    const final = mchIsFinal(s);
+    if (final && !over) {
+      return `<div class="mch-tv is-final"><div class="mch-tv__stage">${head}${mchRingHtml(state, s, { tv: true })}${hint}</div></div>`;
+    }
+    return `<div class="mch-tv${final ? ' is-final-over' : ''}">
       <div class="mch-tv__stage">${head}${mchRingHtml(state, s, { tv: true })}${hint}</div>
       <div class="mch-tv__side${over ? ' is-over' : ' tv-scale'}${many}">${side}${host}</div>
     </div>`;

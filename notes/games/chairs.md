@@ -188,6 +188,42 @@ the TV block of الكراسي; `TV_GAMES.chairs.frame`, `mchOverHtml(state, s, 
 
 - **A late alarm** (the audit of 6 Oct 2026): a fake pause handled after its own end is skipped (its deadline would stay due and rest the room 30 s), and the secret stop is stamped when the server publishes it (`chairsStop(room, now)`), so a late alarm never shortens the 3 s to sit.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **850 B «النهائي»** (the look picked from the design sheet of 7 Oct 2026, sheet7, look ب): when two are
+  left with one chair, the ring becomes a stage - red curtains, a floor, one spotlight on the chair in the
+  middle, the two big on the left and the right like a boxing final, «VS», «الزفة! النهائي» with 🥁🎺🪘💃 -
+  and the voice plays a zaffa instead of the maqsum. At the end the moment is replayed slowed down: two
+  lanes, a dashed finish line through the chair, each running to it at their own tap time, the clocks
+  counting, the winner hopping onto the chair with the crown, and «الفرق 0.076 ثانية» below.
+  - Client only (`JS_RoomChairs.html`); no rule changed. `mchIsFinal(s)` (`s.chairs === 1` and two in
+    `s.order`) makes `mchRingHtml` hand over to `mchFinalHtml(state, s, o)`, on the phone (a 4:3 stage)
+    and on the TV. While the two play the TV frame is the stage alone (`.mch-tv.is-final`, no side); at
+    the end the side keeps the places (`.is-final-over`, the stage two thirds).
+  - Positions are percentages of the stage, sizes in `cqw` (`container-type: inline-size`, the width on the
+    stage itself). `order[0]` stands on the left, `order[1]` on the right (a stage, physical sides, `dir="ltr"`).
+  - Music: the avatars and the instruments bounce on the beat (Web Animations pushed on `mch.eq`, so the
+    tempo and a fake pause hold them, as the orbit). The stop: the one who sat hops onto the chair (the
+    existing `mchFlip`, `data-mch-av`), the cone flickers (`is-flash`).
+  - The replay (`mchFinalAfter`): the stage drawn at its end, played once (`motionFirst('mch-replay|deal|round')`),
+    nothing with motion off. Each runner from its lane's start to the line in `ms × k` (k = 4, or less
+    so the slower one takes at most 4.2 s: `MCH_REPLAY_SLOW`, `MCH_REPLAY_MAX_MS`); the clocks count in
+    that slowed time (rAF); the crown, the gap, the loser greyed and the winner's ring come by a timer
+    (`is-replay` taken off), never by an animation's end. A false start, a leave or no time: no replay,
+    the winner on the chair and «قعد بدري» / «—».
+  - The zaffa (`mchPlayZaffa`, `MCH_ZAFFA`, `MCH_ZAFFA_RIFF`): a 16-step zaffa on the tabl, the riq's
+    jingles on every step, a mizmar line in hijaz (sawtooth and square on `fxTone` / `fxNoise`), on the
+    same lookahead scheduler and the same voice (`mchMusicSync`, `m.final`).
+  - Its styles are `MCH_FIN_CSS` in the chunk (put into the page once, `mchFinalStyleOn`), not Style_Rooms.
+    The stage's own colours (curtain, floor, light, chair) are fixed: the stage is always dark, like a TV
+    stage, in both themes.
+  - Words: `mch_final`, `mch_zaffa`, `mch_replay`, `mch_gap`, `mch_secs` (chairs.text.js); the rules got a
+    line about the final.
+  - Decided here: the stage on the phones too (the sheet drew the TV); no zaghrouta (the owner's rule of 28
+    Sep stands); the replay's slow factor ×4 capped at 4.2 s.
+  - Shots: `scratchpad/sheet7/built/850-*.png` (1280x720 music, replay, end; 1920x1080 end; phone 375 music
+    and end in English, light).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

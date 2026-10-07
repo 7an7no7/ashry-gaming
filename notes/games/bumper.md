@@ -231,6 +231,40 @@ Decided here (open to change, each in one place):
   first (as a board with nobody ahead is everywhere).
 - The ball: 46 cm, 0.55 of a car's mass, a goal mouth of 3 m and a net 1.2 m deep, posts that bounce.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **858 A «اختار عربيتك»** (look أ of the design sheet of 7 Oct 2026, sheet7): in the lobby each phone flips
+  through the bodies - the plain bumper car, the black-and-white taxi, the tuk-tuk, the microbus, the
+  ice-cream cart - and the TV shows each player's car on a turning plinth under their name; the pick stays
+  for the next round; the same physics; drawn in the 3D rink and the flat rink; the player's colour stays on
+  the stripe, the balloons and the name.
+  - **Server** (`RoomBumper.js`): `car { body }` from a person's phone (a screen and a computer player have
+    none), `body` one of `BUMPER_BODIES` (`bumper`, `taxi`, `tuktuk`, `micro`, `cart`) or refused, only in
+    the lobby or between rounds (`s.phase === 'over'`), into `shared.cars { pid: body }`. Every start / play
+    again (the ball too) keeps `cars` (`bumperCars`, unknown bodies dropped) and deals `bodies { pid: body }`
+    (`bumperBodies`): the pick, the plain car for whoever didn't pick, a computer player a body by its seat.
+  - **The phone** (`JS_RoomBumper.html`): `lobbyTop` draws the garage (`bmpGarageHtml`) for every person in
+    the lobby, and the result screen has it under the result. ‹ › (drawn chevrons: ‹ › mirror in Arabic) or
+    a swipe on the car (`bmpCarSwipe`) flips it (`bmpCarStep`): each flip is the pick, sent at once and
+    remembered (`recallOptions('bumper').car`). `bmpCarSync` sends the remembered pick when a lobby doesn't
+    have it (a new room, a new game from the hub: `chooseGame` clears the shared state), once per room and
+    round. No «confirm» button: the flip is the pick (the sheet's «دي عربيتي ✓» left out, simpler).
+  - **The TV's lobby**: `tvLobbyPlayers` (a TV that isn't the host) and `lobbyTop` on a hosting TV draw
+    `bmpPlinthsHtml`: a tile a player, the car in its colour on a disc, the name and the body's short name.
+    The car swings round (`bmpPlinthSpin`: a Web Animation of scaleX through 0 to the far side and back,
+    each a beat apart; none with motion off).
+  - **The rink**: `bmpBodyOf(state, id)` (dealt, else picked, else plain). Flat: `bmpFlatBody` from above in
+    place of the oval. 3D: `bmpBody3d` builds the body into the car's group where the shell was (the shell
+    hidden; the taxi and the microbus hide the open seat and driver), its materials kept per car so a ghost
+    fades them and `freeCar` disposes them; the car is rebuilt if its body changes. The pole, the spark, the
+    balloons and the name tag stay as they were, in the player's colour.
+  - Lobby colours: the deal's seat (`bmpLobbyColor`: the index in the room's list, as the start deals).
+  - Styles: `BMP_CARS_CSS` in the chunk (`bmpCarsStyleOn`). Words: `bmp_car_*`, `bmp_body_*` (bumper.text.js),
+    a rules line. Tests: `rules.mjs` «bumper/cars» (8), `play-all.mjs --only=bumper` (the pick reaches the
+    TV, a car off the list refused, the round deals it).
+  - Shots: `scratchpad/sheet7/built/858-*.png` (phone garage 375 ar dark / en light / 667x375, the TV lobby's
+    plinths 1280x720, the 3D rink).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

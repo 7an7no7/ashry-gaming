@@ -266,6 +266,263 @@ function bmpPickSide(side) {
   roomAct('side', { side });
 }
 
+/* ============================================================================
+   «اختار عربيتك» (858 A, the owner's pick of 7 Oct 2026)
+   ----------------------------------------------------------------------------
+   In the lobby (and between rounds) each phone flips through the bodies - the
+   plain bumper car, the black-and-white taxi, the tuk-tuk, the microbus, the
+   ice-cream cart - with ‹ › or a swipe; each flip is the pick (`car { body }`,
+   checked against BUMPER_BODIES on the server) and is remembered on the phone
+   (recallOptions('bumper').car), sent again in the next room. The TV's lobby
+   shows each player's car on a turning plinth under their name (bmpPlinthsHtml).
+   A round deals `bodies`; the rink draws them in 3D (bmpBody3d, built where the
+   bumper car's shell was) and flat (bmpFlatBody). Same physics for every body;
+   the player's colour stays on the stripe, the balloons and the name.
+   ========================================================================= */
+const BMP_BODIES = ['bumper', 'taxi', 'tuktuk', 'micro', 'cart'];      // BUMPER_BODIES on the server
+const bmpBodyName = (kind, short) => bmpT()['bmp_body_' + kind + (short ? '_s' : '')] || kind;
+/** A driver's body: the round's (dealt), else the pick (the lobby, a latecomer), else the plain car. */
+function bmpBodyOf(state, id) {
+  const s = (state && state.shared) || {};
+  const k = (s.bodies && s.bodies[id]) || (s.cars && s.cars[id]);
+  if (BMP_BODIES.indexOf(k) !== -1) return k;
+  // A computer player in the lobby: the body the server will give it by its seat.
+  const players = ((state && state.players) || []).slice(0, 8);
+  const at = players.findIndex(p => p.id === id);
+  if (!s.bodies && at !== -1 && players[at].bot) return BMP_BODIES[1 + (at % (BMP_BODIES.length - 1))];
+  return 'bumper';
+}
+/** A driver's colour in the lobby: the one the deal will give (the seat in the room's list). */
+function bmpLobbyColor(state, id) {
+  const s = (state && state.shared) || {};
+  if (s.colors && s.colors[id] !== undefined) return bmpColorOf(state, id);
+  const at = Math.max(0, ((state && state.players) || []).findIndex(p => p.id === id));
+  return BMP_COLORS[at % BMP_COLORS.length];
+}
+/** This phone's pick (remembered), the plain car until one is chosen. */
+function bmpMyCar() {
+  const k = recallOptions('bumper', { car: 'bumper' }).car;
+  return BMP_BODIES.indexOf(k) !== -1 ? k : 'bumper';
+}
+
+/** A body from the side, in the player's colour (the lobby's garage and plinths). */
+function bmpBodySvg(kind, col) {
+  const ink = '#1a1530';
+  const wheel = (x, y, r = 14) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${ink}"/><circle cx="${x}" cy="${y}" r="${r * 0.45}" fill="#bbb"/>`;
+  const svg = (inner) => `<svg viewBox="0 0 200 120" aria-hidden="true" focusable="false">${inner}</svg>`;
+  if (kind === 'taxi') return svg(`<path d="M14 84 V62 Q16 54 30 52 L56 50 L74 28 H136 L154 50 L178 54 Q188 58 188 70 V84Z" fill="#111" stroke="${ink}" stroke-width="4"/><path d="M60 50 L76 32 H134 L150 50Z" fill="#fff" stroke="${ink}" stroke-width="3"/><path d="M80 34 h22 v14 h-28z M108 34 h22 l12 14 h-34z" fill="#9cc4e8"/><rect x="88" y="16" width="34" height="12" rx="3" fill="#fff" stroke="${ink}" stroke-width="3"/><path d="M14 66 H188" stroke="#fff" stroke-width="10"/><path d="M14 74 H188" stroke="${col}" stroke-width="5"/>${wheel(52, 86)}${wheel(152, 86)}`);
+  if (kind === 'tuktuk') return svg(`<path d="M40 20 H150 Q160 20 160 30 V36 H34 V30 Q34 20 40 20Z" fill="#111" stroke="${ink}" stroke-width="4"/><path d="M44 36 V80 M150 36 V64" stroke="${ink}" stroke-width="5"/><path d="M30 86 V58 Q30 46 46 44 H120 L150 64 L176 70 Q182 72 180 80 L176 86Z" fill="${col}" stroke="${ink}" stroke-width="4"/><path d="M60 52 h44 v18 h-44z" fill="#ffd166" stroke="${ink}" stroke-width="3"/><circle cx="168" cy="72" r="5" fill="#fff6c4"/><path d="M40 30 h110" stroke="#f59e0b" stroke-width="3" stroke-dasharray="6 5"/>${wheel(56, 88, 13)}${wheel(162, 88, 11)}`);
+  if (kind === 'micro') return svg(`<rect x="10" y="10" width="40" height="10" rx="3" fill="${col}" stroke="${ink}" stroke-width="3"/><path d="M8 88 V30 Q8 18 22 18 H150 Q172 18 184 48 L190 72 V88Z" fill="#fff" stroke="${ink}" stroke-width="4"/><path d="M8 66 H190" stroke="#2f6fd6" stroke-width="9"/><g fill="#9cc4e8" stroke="${ink}" stroke-width="3"><rect x="18" y="28" width="30" height="24" rx="3"/><rect x="54" y="28" width="30" height="24" rx="3"/><rect x="90" y="28" width="30" height="24" rx="3"/><path d="M128 28 H152 Q168 30 174 52 H128Z"/></g><path d="M8 76 H190" stroke="${col}" stroke-width="4"/>${wheel(44, 90)}${wheel(156, 90)}`);
+  if (kind === 'cart') return svg(`<path d="M100 30 V8" stroke="${ink}" stroke-width="4"/><path d="M40 34 Q100 -6 160 34Z" fill="#ff7eb6" stroke="${ink}" stroke-width="4"/><path d="M70 34 Q100 4 100 4 Q100 4 130 34" fill="#fff" stroke="${ink}" stroke-width="2"/><path d="M100 34 V48" stroke="${ink}" stroke-width="4"/><rect x="40" y="48" width="120" height="40" rx="8" fill="#fff" stroke="${ink}" stroke-width="4"/><rect x="48" y="56" width="104" height="24" rx="5" fill="${col}"/><path d="M84 66 l12 -2 l-6 14z" fill="#e0a56e" stroke="${ink}" stroke-width="2"/><circle cx="91" cy="62" r="7" fill="#ffd1e6" stroke="${ink}" stroke-width="2"/><path d="M160 56 L186 50" stroke="${ink}" stroke-width="5" stroke-linecap="round"/>${wheel(62, 92, 12)}${wheel(138, 92, 12)}`);
+  // The plain bumper car: a rubber skirt, the shell in the colour, a seat, the driver, the pole.
+  return svg(`<path d="M58 40 V4" stroke="${ink}" stroke-width="4"/><circle cx="58" cy="4" r="5" fill="#fde047"/><rect x="12" y="70" width="176" height="24" rx="12" fill="#2b2b36" stroke="${ink}" stroke-width="4"/><path d="M26 72 Q26 44 58 42 H146 Q176 44 178 72Z" fill="${col}" stroke="${ink}" stroke-width="4"/><rect x="66" y="22" width="18" height="26" rx="5" fill="#1b1b1f"/><circle cx="104" cy="30" r="12" fill="#e8b48a" stroke="${ink}" stroke-width="3"/><path d="M92 28 Q104 12 116 28Z" fill="#2a1a12"/><circle cx="174" cy="60" r="5" fill="#fff6c4"/>`);
+}
+
+/* --- the phone's garage ------------------------------------------------------ */
+// The arrows are drawn, not ‹ ›: those characters mirror in an Arabic line.
+const BMP_CHEVRON = (dir) => `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="${dir < 0 ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+function bmpGarageHtml(state) {
+  const t = bmpT();
+  const kind = bmpMyCar();
+  const col = bmpLobbyColor(state, Room.me);
+  const dots = BMP_BODIES.map(k => `<i class="${k === kind ? 'is-on' : ''}"></i>`).join('');
+  return `<div class="card card--tight bmp-garage" id="bmp-garage">
+      <div class="eyebrow">🚗 ${escapeHTML(t.bmp_car_title)}</div>
+      <div class="bmp-garage__car" dir="ltr">
+        <button type="button" class="bmp-garage__arrow" onclick="bmpCarStep(-1)" aria-label="${escapeHTML(t.bmp_car_prev)}">${BMP_CHEVRON(-1)}</button>
+        <div class="bmp-garage__art" data-bmp-art onpointerdown="bmpCarSwipe(event, 0)" onpointerup="bmpCarSwipe(event, 1)" onpointercancel="bmpCarSwipe(event, 2)">${bmpBodySvg(kind, col)}</div>
+        <button type="button" class="bmp-garage__arrow" onclick="bmpCarStep(1)" aria-label="${escapeHTML(t.bmp_car_next)}">${BMP_CHEVRON(1)}</button>
+      </div>
+      <b class="bmp-garage__name" data-bmp-carname>${escapeHTML(bmpBodyName(kind))}</b>
+      <div class="bmp-garage__dots" data-bmp-dots aria-hidden="true">${dots}</div>
+      <p class="field__hint" style="text-align:center">${escapeHTML(t.bmp_car_hint)}</p>
+    </div>`;
+}
+/** ‹ or ›: the next body, picked at once (sent and remembered), the art sliding in from that side. */
+function bmpCarStep(dir) {
+  const was = bmpMyCar();
+  const kind = BMP_BODIES[(BMP_BODIES.indexOf(was) + dir + BMP_BODIES.length) % BMP_BODIES.length];
+  rememberOptions('bumper', { car: kind });
+  haptic('light');
+  const st = Room.state;
+  if (st) { bmp.carSent = ''; bmpCarSync(st); }
+  const box = document.getElementById('bmp-garage');
+  if (!box) return;
+  const art = box.querySelector('[data-bmp-art]');
+  if (art) {
+    art.innerHTML = bmpBodySvg(kind, bmpLobbyColor(st, Room.me));
+    if (!motionOff() && art.animate) {
+      art.animate([{ transform: `translateX(${dir * 40}%) scale(.9)`, opacity: 0 }, { transform: 'translateX(0) scale(1)', opacity: 1 }],
+        { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    }
+  }
+  const name = box.querySelector('[data-bmp-carname]');
+  if (name) name.textContent = bmpBodyName(kind);
+  box.querySelectorAll('[data-bmp-dots] > i').forEach((d, i) => d.classList.toggle('is-on', BMP_BODIES[i] === kind));
+}
+/** A swipe on the car: right or left flips it (in the car's own left-to-right row). */
+function bmpCarSwipe(e, phase) {
+  if (phase === 0) { bmp.carSwipe = { x: e.clientX, y: e.clientY }; return; }
+  const from = bmp.carSwipe;
+  bmp.carSwipe = null;
+  if (phase !== 1 || !from) return;
+  const dx = e.clientX - from.x, dy = e.clientY - from.y;
+  if (Math.abs(dx) > 36 && Math.abs(dx) > Math.abs(dy)) bmpCarStep(dx < 0 ? 1 : -1);
+}
+/** The pick this phone remembers goes to the room once, when the room doesn't have it (a new room, a new lobby). */
+function bmpCarSync(state) {
+  if (!state || state.youAreScreen || state.game !== 'bumper') return;
+  if (!(state.players || []).some(p => p.id === Room.me && !p.bot)) return;
+  const s = state.shared || {};
+  if (state.phase !== 'lobby' && s.phase !== 'over') return;
+  const mine = bmpMyCar();
+  const has = (s.cars || {})[Room.me];
+  if ((has || 'bumper') === mine) return;
+  const key = state.code + '|' + mine + '|' + (s.round || 0) + '|' + state.phase;
+  if (bmp.carSent === key) return;
+  bmp.carSent = key;
+  roomAct('car', { body: mine });
+}
+
+/* --- the TV's lobby: each player's car on a turning plinth -------------------- */
+function bmpPlinthsHtml(state) {
+  const t = bmpT();
+  const tiles = (state.players || []).slice(0, 8).map(p => {
+    const kind = bmpBodyOf(state, p.id);
+    const col = bmpLobbyColor(state, p.id);
+    return `<div class="bmp-plinth${p.online === false ? ' is-away' : ''}">
+        <div class="bmp-plinth__turn"><div class="bmp-plinth__disc" style="--car:${col}"></div><div class="bmp-plinth__car" data-bmp-turn="${escapeHTML(p.id + ':' + kind)}">${bmpBodySvg(kind, col)}</div></div>
+        <b class="bmp-plinth__name"><bdi>${escapeHTML(p.name)}</bdi>${p.bot ? ' 🤖' : ''}</b>
+        <span class="bmp-plinth__kind" style="color:${col}">${escapeHTML(bmpBodyName(kind, true))}</span>
+      </div>`;
+  }).join('');
+  setTimeout(bmpPlinthSpin, 0);
+  return `<div class="bmp-plinths-wrap"><div class="bmp-plinths__head">🚗 ${escapeHTML(t.bmp_car_tv)}</div><div class="bmp-plinths">${tiles}</div></div>`;
+}
+/** The plinths turn: each car swings round (scaleX through 0 to the far side and back), a beat apart. */
+function bmpPlinthSpin() {
+  if (motionOff()) return;
+  document.querySelectorAll('[data-bmp-turn]').forEach((car, i) => {
+    if (car.dataset.spun || !car.animate) return;
+    car.dataset.spun = '1';
+    car.animate([
+      { transform: 'scaleX(1)' }, { transform: 'scaleX(1)', offset: 0.3 }, { transform: 'scaleX(0.08)', offset: 0.42 },
+      { transform: 'scaleX(-1)', offset: 0.54 }, { transform: 'scaleX(-1)', offset: 0.8 }, { transform: 'scaleX(0.08)', offset: 0.9 }, { transform: 'scaleX(1)' }
+    ], { duration: 7000, iterations: Infinity, delay: -i * 900, easing: 'ease-in-out' });
+  });
+}
+
+/* --- the rink: the bodies from above (flat) and in 3D ----------------------------- */
+/** A body from above on the flat rink, centred, facing +x; the colour on its stripe. */
+function bmpFlatBody(ctx, kind, col) {
+  const R = BMP_R;
+  const rr = (x, y, w, h, r, fill, stroke) => {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+    ctx.fillStyle = fill; ctx.fill();
+    if (stroke) { ctx.lineWidth = 5; ctx.strokeStyle = stroke; ctx.stroke(); }
+  };
+  if (kind === 'taxi') {
+    rr(-R * 1.25, -R * 0.75, R * 2.5, R * 1.5, 12, '#111', '#000'); rr(-R * 0.55, -R * 0.62, R * 1.1, R * 1.24, 10, '#fff');
+    rr(-R * 0.2, -R * 0.2, R * 0.4, R * 0.4, 4, '#f2c14e');
+    ctx.fillStyle = col; ctx.fillRect(-R * 1.25, -R * 0.78, R * 2.5, 6); ctx.fillRect(-R * 1.25, R * 0.72, R * 2.5, 6);
+  } else if (kind === 'tuktuk') {
+    ctx.beginPath(); ctx.moveTo(R * 1.3, 0); ctx.lineTo(-R * 0.8, -R * 0.78); ctx.lineTo(-R * 1.1, -R * 0.7); ctx.lineTo(-R * 1.1, R * 0.7); ctx.lineTo(-R * 0.8, R * 0.78); ctx.closePath();
+    ctx.fillStyle = col; ctx.fill();
+    rr(-R * 1.05, -R * 0.7, R * 1.6, R * 1.4, 10, '#111');
+    ctx.strokeStyle = '#f59e0b'; ctx.setLineDash([8, 6]); ctx.lineWidth = 4; ctx.strokeRect(-R * 0.95, -R * 0.6, R * 1.4, R * 1.2); ctx.setLineDash([]);
+  } else if (kind === 'micro') {
+    rr(-R * 1.45, -R * 0.8, R * 2.9, R * 1.6, 14, '#fff', '#1a1530');
+    ctx.fillStyle = '#2f6fd6'; ctx.fillRect(-R * 1.45, -R * 0.2, R * 2.9, R * 0.4);
+    rr(-R * 1.1, -R * 0.55, R * 0.9, R * 1.1, 6, col); rr(R * 0.85, -R * 0.7, R * 0.5, R * 1.4, 8, '#9cc4e8');
+  } else if (kind === 'cart') {
+    rr(-R, -R * 0.75, R * 2, R * 1.5, 10, '#fff', '#1a1530');
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.05, 0, Math.PI * 2); ctx.fillStyle = '#ff7eb6'; ctx.fill();
+    for (let k = 0; k < 8; k += 2) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R * 1.05, k * Math.PI / 4, (k + 1) * Math.PI / 4); ctx.fillStyle = '#fff'; ctx.fill(); }
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.3, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+  }
+}
+/**
+ * The same bodies in 3D, built into the car's body group where the bumper car's shell
+ * was (that shell hidden; the taxi and the microbus hide the open seat and driver too).
+ * Facing +x like the car. Its materials are the car's own, so a ghost fades them all.
+ */
+function bmpBody3d(T, body, kind, color, paint, parts) {
+  const mats = [], geos = [];
+  const M = (c, o) => { const m = new T.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.4, metalness: 0.1, transparent: true }, o || {})); mats.push(m); return m; };
+  const add = (geo, mat, x, y, z) => { geos.push(geo); const m = new T.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; body.add(m); return m; };
+  const box = (w, h, d, mat, x, y, z) => add(new T.BoxGeometry(w, h, d), mat, x, y, z);
+  const glass = () => M(0x7fb2dc, { roughness: 0.1 });
+  parts.shell.visible = false;
+  if (kind === 'taxi' || kind === 'micro') ['seat', 'head', 'hair', 'wheel'].forEach(k => { parts[k].visible = false; });
+  if (kind === 'taxi') {
+    const black = M(0x111111), white = M(0xffffff);
+    box(1.0, 0.24, 0.66, black, 0, 0.34, 0);
+    box(0.56, 0.22, 0.6, white, -0.06, 0.57, 0);
+    box(0.4, 0.14, 0.62, glass(), -0.06, 0.58, 0);
+    box(0.18, 0.08, 0.26, M(0xffffff, { emissive: 0x555555 }), -0.06, 0.72, 0);
+    box(1.01, 0.06, 0.672, white, 0, 0.4, 0);
+    box(1.02, 0.04, 0.68, paint, 0, 0.31, 0);
+  } else if (kind === 'tuktuk') {
+    parts.seat.position.set(-0.2, 0.62, 0);
+    const nose = add(new T.CylinderGeometry(0.18, 0.32, 0.5, 4, 1), paint, 0.32, 0.4, 0);
+    nose.rotation.z = Math.PI / 2; nose.rotation.x = Math.PI / 4;
+    box(0.6, 0.34, 0.6, paint, -0.15, 0.42, 0);
+    box(0.78, 0.05, 0.66, M(0x111111), -0.08, 1.08, 0);
+    const post = M(0x222222, { metalness: 0.6 });
+    [[0.25, 0.3], [0.25, -0.3], [-0.44, 0.3], [-0.44, -0.3]].forEach(([x, z]) => box(0.035, 0.5, 0.035, post, x, 0.84, z));
+    box(0.8, 0.03, 0.68, M(0xf59e0b), -0.08, 1.04, 0);
+  } else if (kind === 'micro') {
+    const glassM = glass();
+    box(1.1, 0.56, 0.7, M(0xffffff), -0.02, 0.6, 0);
+    box(1.11, 0.1, 0.71, M(0x2f6fd6), -0.02, 0.5, 0);
+    box(0.9, 0.16, 0.72, glassM, -0.08, 0.72, 0);
+    box(0.5, 0.06, 0.5, paint, -0.1, 0.92, 0);
+    box(0.06, 0.2, 0.6, glassM, 0.53, 0.7, 0);
+  } else if (kind === 'cart') {
+    box(0.66, 0.34, 0.6, M(0xffffff), -0.05, 0.42, 0);
+    box(0.68, 0.18, 0.62, paint, -0.05, 0.42, 0);
+    box(0.03, 0.62, 0.03, M(0xdddddd, { metalness: 0.6 }), 0.05, 0.9, 0);
+    add(new T.ConeGeometry(0.42, 0.2, 12, 1, true), M(0xff7eb6, { side: T.DoubleSide }), 0.05, 1.24, 0);
+    const cone = add(new T.ConeGeometry(0.1, 0.28, 12), M(0xe0a56e), 0.2, 0.75, 0);
+    cone.rotation.z = Math.PI;
+    add(new T.SphereGeometry(0.12, 14, 10), M(0xffd1e6), 0.2, 0.92, 0);
+  }
+  return { mats, geos };
+}
+
+/** This look's styles, put in the page once, after the app's own. */
+const BMP_CARS_CSS = `
+.bmp-garage { display: grid; gap: var(--sp-2); }
+.bmp-garage__car { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: var(--sp-1); padding: var(--sp-3) var(--sp-1); border-radius: 20px; background: var(--surface-2); }
+.bmp-garage__art { touch-action: pan-y; user-select: none; -webkit-user-select: none; min-width: 0; }
+.bmp-garage__art svg { display: block; width: 100%; max-width: 15rem; max-height: 30vh; margin-inline: auto; filter: drop-shadow(0 10px 8px rgba(0,0,0,.25)); }
+.bmp-garage__arrow { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--surface); color: var(--text); cursor: pointer; }
+.bmp-garage__name { text-align: center; font-family: var(--font-display); font-size: 1.2rem; color: var(--text); }
+.bmp-garage__dots { display: flex; justify-content: center; gap: 8px; }
+.bmp-garage__dots i { width: 9px; height: 9px; border-radius: 5px; background: var(--surface-3); transition: width .2s, background-color .2s; }
+.bmp-garage__dots i.is-on { width: 22px; background: var(--accent); }
+.bmp-plinths-wrap { display: grid; gap: 1.6vmin; }
+.bmp-plinths__head { text-align: center; font-weight: 900; font-size: var(--tv-md, 3vmin); color: var(--text); }
+.bmp-plinths { display: grid; grid-template-columns: repeat(auto-fit, minmax(17vmin, 1fr)); gap: 1.6vmin; }
+.bmp-plinth { display: grid; justify-items: center; gap: 0.4vmin; padding: 1.2vmin; border-radius: 2.4vmin; background: color-mix(in srgb, var(--text) 6%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 12%, transparent); min-width: 0; }
+.bmp-plinth.is-away { opacity: .55; }
+.bmp-plinth__turn { position: relative; width: 100%; aspect-ratio: 7 / 5; display: grid; place-items: end center; }
+.bmp-plinth__disc { position: absolute; bottom: 2%; width: 92%; height: 26%; border-radius: 50%; background: radial-gradient(ellipse, #4b4270, #2b2350); box-shadow: 0 0.6vmin 0 #1a1530, 0 0 3vmin color-mix(in srgb, var(--car) 45%, transparent); }
+.bmp-plinth__car { position: relative; width: 90%; transform-origin: 50% 80%; margin-bottom: 10%; }
+.bmp-plinth__car svg { display: block; width: 100%; }
+.bmp-plinth__name { font-size: var(--tv-sm, 2.2vmin); color: var(--text); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bmp-plinth__kind { font-weight: 800; font-size: calc(var(--tv-sm, 2.2vmin) * .85); filter: brightness(1.25); }
+`;
+function bmpCarsStyleOn() {
+  if (document.getElementById('bmp-cars-style')) return;
+  const st = document.createElement('style');
+  st.id = 'bmp-cars-style';
+  st.textContent = BMP_CARS_CSS;
+  document.body.appendChild(st);
+}
+bmpCarsStyleOn();
+
 /* --- the phone ---------------------------------------------------------------- */
 ROOM_GAMES.bumper = {
   lateJoin: true,       // someone who joins mid-round gets a car at once
@@ -273,6 +530,15 @@ ROOM_GAMES.bumper = {
   lobbyOptions(state) { return bmpLobbyHtml(state); },
   // «كورة التصادم»: the sides are where the table is seated, so never folded with the host's options.
   lobbySeats(state) { return bmpLobbySeats(state); },
+  // «اختار عربيتك»: every phone's garage above the options; a hosting TV shows the plinths there.
+  lobbyTop(state) {
+    if (state.youAreScreen) return bmpPlinthsHtml(state);
+    if (!(state.players || []).some(p => p.id === Room.me && !p.bot)) return '';
+    setTimeout(() => bmpCarSync(Room.state), 0);
+    return bmpGarageHtml(state);
+  },
+  // A TV that isn't the host: each player's car on a turning plinth under their name.
+  tvLobbyPlayers(state) { return bmpPlinthsHtml(state); },
   startPayload() { return bmpLobbyOpts(); },
   // The cars drive on the big screen: Start waits for one to be online (the server refuses it too).
   startBlock(state) { const t = bmpT(); return bmpHasScreen(state) ? '' : '📺 ' + t.bmp_start_need_tv; },
@@ -292,8 +558,8 @@ ROOM_GAMES.bumper = {
       s.phase === 'over' ? JSON.stringify(s.results) + JSON.stringify(s.wins) + JSON.stringify(s.picks || {}) : '',
       bmpIsBall(s) ? bmpSideOf(state, me) + bmpShirtNo(state, me) : ''].join('|');
     renderRoomFrame(el, sig, () => {
-      if (s.phase === 'over' && bmpIsBall(s)) return bmpBallOverHtml(state, s, t) + (driver ? bmpSidesHtml(state, bmpX('next_side')) : '') + renderRoomPlayerStrip(state);
-      if (s.phase === 'over') return bmpOverHtml(state, s, t) + renderRoomPlayerStrip(state);
+      if (s.phase === 'over' && bmpIsBall(s)) return bmpBallOverHtml(state, s, t) + (driver ? bmpSidesHtml(state, bmpX('next_side')) + bmpGarageHtml(state) : '') + renderRoomPlayerStrip(state);
+      if (s.phase === 'over') return bmpOverHtml(state, s, t) + (driver ? bmpGarageHtml(state) : '') + renderRoomPlayerStrip(state);
       const color = bmpColorOf(state, me);
       const noTv = bmpHasScreen(state) ? '' : `<div class="waiting-note bmp-need">📺 ${escapeHTML(t.bmp_need_tv)}</div>`;
       const ink = bmpCarInk(color);
@@ -346,6 +612,7 @@ ROOM_GAMES.bumper = {
         ${host}${renderRoomPlayerStrip(state)}</div>`;
     });
     refreshRoomPlayerStrip(el, state);
+    if (s.phase === 'over') bmpCarSync(state);
     if (bmpIsBall(s)) bmpBallPhone(el, state);
     if (s.phase === 'play' && driver) bmpControllerOn(); else bmpControllerOff();
     bmpWirePad();
@@ -2068,16 +2335,21 @@ function bmpFlatView(g, stage) {
         ctx.globalAlpha = c.ghost || c.out ? 0.35 : 1;
         ctx.translate(c.x, c.y);
         ctx.rotate(c.h);
-        ctx.fillStyle = '#2b2b36';
-        ctx.beginPath(); ctx.ellipse(0, 0, BMP_R * 1.2, BMP_R, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = c.flash > 0 ? '#fff' : bmpColorOf(state, c.id);
-        ctx.beginPath(); ctx.ellipse(0, 0, BMP_R, BMP_R * 0.8, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,.6)';
-        ctx.beginPath(); ctx.moveTo(BMP_R, 0); ctx.lineTo(BMP_R * 0.5, -BMP_R * 0.35); ctx.lineTo(BMP_R * 0.5, BMP_R * 0.35); ctx.fill();
+        // «اختار عربيتك»: a body from above, or the plain bumper car.
+        const kind = bmpBodyOf(state, c.id);
+        if (kind !== 'bumper') bmpFlatBody(ctx, kind, c.flash > 0 ? '#fff' : bmpColorOf(state, c.id));
+        else {
+          ctx.fillStyle = '#2b2b36';
+          ctx.beginPath(); ctx.ellipse(0, 0, BMP_R * 1.2, BMP_R, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = c.flash > 0 ? '#fff' : bmpColorOf(state, c.id);
+          ctx.beginPath(); ctx.ellipse(0, 0, BMP_R, BMP_R * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,.6)';
+          ctx.beginPath(); ctx.moveTo(BMP_R, 0); ctx.lineTo(BMP_R * 0.5, -BMP_R * 0.35); ctx.lineTo(BMP_R * 0.5, BMP_R * 0.35); ctx.fill();
+        }
         ctx.restore();
         ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
         ctx.font = '700 26px ' + getComputedStyle(document.body).fontFamily;
-        ctx.fillText(c.name + (g.st.mode === 'balloons' && !c.ghost ? ' ' + '●'.repeat(c.lives) : ''), c.x, c.y - BMP_R * 1.4);
+        ctx.fillText(c.name + (g.st.mode === 'balloons' && !c.ghost ? ' ' + '●'.repeat(c.lives) : ''), c.x, c.y - BMP_R * (kind === 'bumper' ? 1.4 : 1.7));
       });
       if (g.ball) bmpBallFlatBall(ctx, g);
       g.sparks.forEach(p => { p.x += p.vx / 60; p.y += p.vy / 60; ctx.fillStyle = '#fde047'; ctx.globalAlpha = p.t / 0.45; ctx.fillRect(p.x - 4, p.y - 4, 8, 8); });
@@ -2335,6 +2607,9 @@ function bmp3dView(g, stage, T) {
     const pole = new T.Mesh(poleGeo, chromeMat); pole.position.set(-0.36, 1.05, 0); body.add(pole);
     const spark = new T.Sprite(glowMat.clone()); spark.position.set(-0.36, 1.72, 0); spark.scale.set(0.35, 0.35, 1); body.add(spark);
     const boost = new T.Sprite(glowMat); boost.position.set(-0.6, 0.35, 0); boost.scale.set(0.001, 0.001, 1); body.add(boost);
+    // «اختار عربيتك»: the body picked, built where the shell was (the same car underneath).
+    const kind = bmpBodyOf(Room.state, c.id);
+    const extra = kind !== 'bumper' ? bmpBody3d(T, body, kind, color, paint, { shell, seat, head, hair, wheel }) : null;
     const bl = [];
     let bm = null;
     if (balloons) {
@@ -2356,7 +2631,7 @@ function bmp3dView(g, stage, T) {
     grp.add(lab);
     const horn = label('📯', color); horn.scale.set(1.3, 0.33, 1); horn.position.set(0.5, 1.5, 0); horn.visible = false; grp.add(horn);
     scene.add(grp);
-    return { grp, body, paint, spark, boost, bl, bm, lab, horn, name: c.name };
+    return { grp, body, paint, spark, boost, bl, bm, lab, horn, name: c.name, kind, extra };
   };
   const freeCar = (v) => {
     scene.remove(v.grp);
@@ -2365,6 +2640,7 @@ function bmp3dView(g, stage, T) {
     v.horn.material.map.dispose(); v.horn.material.dispose();
     if (v.bm) v.bm.dispose();
     v.bl.forEach(x => x.sg.dispose());
+    if (v.extra) { v.extra.mats.forEach(m => m.dispose()); v.extra.geos.forEach(x => x.dispose()); }
   };
   // Sparks: one pool of points.
   const MAXP = 240;
@@ -2431,9 +2707,10 @@ function bmp3dView(g, stage, T) {
       party.forEach((l, i) => { const a = tt * 0.5 + i * Math.PI; l.position.set(Math.cos(a) * 6, 4, Math.sin(a) * 3.5); });
       Object.values(g.cars).forEach(c => {
         let v = views[c.id];
-        if (!v || v.name !== c.name) { if (v) freeCar(v); v = views[c.id] = makeCar(c); }
+        if (!v || v.name !== c.name || v.kind !== bmpBodyOf(state, c.id)) { if (v) freeCar(v); v = views[c.id] = makeCar(c); }
         const faded = c.ghost || c.out;
         v.paint.opacity = faded ? 0.35 : 1;
+        if (v.extra && v.extra.faded !== faded) { v.extra.faded = faded; v.extra.mats.forEach(m => { m.opacity = faded ? 0.35 : 1; }); }
         v.paint.color.set(c.flash > 0 ? 0xffffff : bmpColorOf(state, c.id));
         let y = 0, rx = 0, rz = 0;
         let x = c.x, z = c.y;

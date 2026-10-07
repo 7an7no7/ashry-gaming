@@ -136,9 +136,12 @@ function ludoBoardHtml(g, o) {
         ${can ? '' : 'tabindex="-1"'} aria-label="${escapeHTML(label)}"></button>`;
   }).join('');
   const deg = LUDO_ROT[opt.view] || 0;
+  // The turn clock as a ring round the yard of the player up (the TV: the sofa reads the board).
+  const yard = opt.ring && LUDO_YARD[opt.ring];
+  const ring = yard ? `<span class="ludo-yardclock" data-ludo-ring style="left:${ludoPct(yard[0])};top:${ludoPct(yard[1])};--pc:${LUDO_HEX[opt.ring]}" aria-hidden="true"></span>` : '';
   return `<div class="ludo-board ${opt.tv ? 'ludo-board--tv' : ''} ${movable.length ? 'is-choosing' : ''}" dir="ltr" data-ludo-board>
       <div class="ludo-rot" style="transform:rotate(${deg}deg)" data-ludo-rot>
-        ${ludoFixedHtml()}
+        ${ludoFixedHtml()}${ring}
         <div class="ludo-fx" data-ludo-fx aria-hidden="true"></div>
         ${pieces}
       </div>
@@ -201,8 +204,10 @@ function ludoStripHtml(c) {
     const name = c.names[pid] || '…';
     const initial = typeof duelInitial === 'function' ? duelInitial(name) : name.charAt(0);
     const away = c.away && c.away[pid];
+    // With a turn clock, the player up's face wears the time left as a ring (ludoTickClock fills it).
+    const ring = c.clock && pid === up ? '<span class="ludo-chip__ring" data-ludo-ring aria-hidden="true"></span>' : '';
     return `<div class="ludo-chip ${pid === up ? 'is-turn' : ''} ${place !== -1 ? 'is-done' : ''} ${away ? 'is-away' : ''}" style="--pc:${LUDO_HEX[color]}" data-ludo-chip="${escapeHTML(pid)}">
-        <span class="ludo-chip__av ludo-av--${color}" aria-hidden="true">${place !== -1 ? ['🥇', '🥈', '🥉', '4'][place] : c.bots && c.bots[pid] ? '🤖' : escapeHTML(initial)}</span>
+        <span class="ludo-chip__av ludo-av--${color}" aria-hidden="true">${place !== -1 ? ['🥇', '🥈', '🥉', '4'][place] : c.bots && c.bots[pid] ? '🤖' : escapeHTML(initial)}${ring}</span>
         <span class="ludo-chip__who">
           <span class="ludo-chip__name">${escapeHTML(name)}${pid === c.me && name !== ludoT('xo_you') ? ` <small>· ${escapeHTML(ludoT('xo_you'))}</small>` : ''}</span>
           <span class="ludo-chip__dots" aria-label="${escapeHTML(ludoT('ludo_home_count', { n: home }))}">${dots}</span>
@@ -222,7 +227,7 @@ function ludoBarLines(c) {
   if (mine) {
     if (tn.stage === 'roll') return [ludoT('ludo_your_turn'), tn.sixes ? ludoT('ludo_again_six') : ludoT('ludo_roll_hint')];
     const only = ludoOnlyMove(g, c.me) !== -1;
-    return [ludoT('ludo_you_rolled', { n: tn.dice }), only ? ludoT('ludo_moving_itself') : ludoT('ludo_pick_piece')];
+    return [ludoT('ludo_you_rolled', { n: tn.dice }), only ? ludoT('ludo_moving_itself') : ludoT('ludo_pick_n', { n: (g.movable || []).length })];
   }
   if (tn.stage === 'move') return [ludoT('ludo_rolled', { name: name, n: tn.dice }), c.bots && c.bots[tn.pid] ? ludoT('ludo_thinking', { name: name }) : ludoT('ludo_choosing', { name: name })];
   return [ludoT('ludo_turn_of', { name: name }), c.bots && c.bots[tn.pid] ? ludoT('ludo_thinking', { name: name }) : ''];
@@ -234,14 +239,18 @@ function ludoBarHtml(c) {
   const canRoll = g.phase === 'play' && tn.pid === c.me && tn.stage === 'roll' && !c.tv;
   const lines = ludoBarLines(c);
   const color = g.colors[tn.pid] || (c.lastRoller ? g.colors[c.lastRoller] : '');
+  // Your roll: the die is the button itself, «ارمي» on it, and the line beside it;
+  // after the roll the same die shows the number next to what to do with it.
+  const die = canRoll
+    ? `<button type="button" class="btn btn--primary btn--lg btn--auto ludo-bar__roll" onclick="${c.rollJs}">${ludoDieHtml(color, false)}<span>${escapeHTML(ludoT('ludo_roll'))}</span></button>`
+    : ludoDieHtml(color, false);
   return `<div class="ludo-bar ${canRoll ? 'is-mine' : ''} ${tn.pid === c.me && tn.stage === 'move' ? 'is-picking' : ''}">
-      ${ludoDieHtml(color, canRoll, c.rollJs)}
+      ${die}
       <div class="ludo-bar__txt">
         <div class="ludo-bar__t1"><span class="ludo-bar__dot" style="background:${LUDO_HEX[g.colors[tn.pid]] || 'transparent'}"></span>${escapeHTML(lines[0])}</div>
         ${lines[1] ? `<div class="ludo-bar__t2">${escapeHTML(lines[1])}</div>` : ''}
       </div>
       ${c.clock ? `<span class="badge badge--accent metric ludo-bar__clock" data-ludo-clock></span>` : ''}
-      ${canRoll ? `<button type="button" class="btn btn--primary btn--auto ludo-bar__roll" onclick="${c.rollJs}">${escapeHTML(ludoT('ludo_roll'))}</button>` : ''}
     </div>`;
 }
 
@@ -308,7 +317,7 @@ function ludoFrameHtml(c) {
   const mineMovable = !over && g.turn && g.turn.pid === c.me && g.turn.stage === 'move' && ludoOnlyMove(g, c.me) === -1 ? (g.movable || []) : [];
   return `<div class="ludo ${c.tv ? 'ludo--tv' : ''} ${over ? 'is-over' : ''}">
       <div class="ludo-layout">
-        <div class="ludo-layout__board">${ludoBoardHtml(g, { view: c.view, movable: mineMovable, me: c.me, tv: c.tv })}</div>
+        <div class="ludo-layout__board">${ludoBoardHtml(g, { view: c.view, movable: mineMovable, me: c.me, tv: c.tv, ring: c.tv && c.clock && !over && g.turn ? g.colors[g.turn.pid] : '' })}</div>
         <div class="ludo-layout__side">
           ${over ? `<div class="card card--accent ludo-over">
               <p class="ludo-over__title">🏁 ${escapeHTML(ludoT('ludo_over'))}</p>
@@ -593,11 +602,25 @@ function ludoWire(root, c, onMove, delay) {
     });
   };
   board.querySelectorAll('.ludo-pc.is-movable').forEach(btn => {
+    // A finger held on a piece shows its path the way a mouse does; lifting it
+    // after that moves nothing (a quick tap still moves).
+    let hold = null;
+    const letGo = () => { clearTimeout(hold); hold = null; };
+    btn.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse') return;
+      btn._ludoHeld = false;
+      letGo();
+      hold = setTimeout(() => { hold = null; btn._ludoHeld = true; show(btn); haptic('light'); }, 380);
+    });
+    btn.addEventListener('pointerup', () => { letGo(); if (btn._ludoHeld) ludoFx.timers.push(setTimeout(clear, 1200)); });
+    btn.addEventListener('pointercancel', () => { letGo(); clear(); });
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
     btn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') show(btn); });
-    btn.addEventListener('pointerleave', clear);
-    btn.addEventListener('focus', () => show(btn));
+    btn.addEventListener('pointerleave', (e) => { letGo(); if (e.pointerType === 'mouse') clear(); });
+    btn.addEventListener('focus', () => { if (!btn._ludoHeld) show(btn); });
     btn.addEventListener('blur', clear);
     btn.addEventListener('click', () => {
+      if (btn._ludoHeld) { btn._ludoHeld = false; return; }
       clear();
       if (layer) layer.querySelectorAll('.ludo-land').forEach(x => x.remove());
       const i = Number(String(btn.getAttribute('data-ludo-pc')).split('|')[1]);

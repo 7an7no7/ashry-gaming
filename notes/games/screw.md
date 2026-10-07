@@ -339,6 +339,12 @@ Page-side only: nothing the rooms server runs was touched (no rules tests needed
   `busyUntil`), after the move's own flights and during a replay.
 - GAME_RULES (both languages): a fifth line in سكرو's ordered list.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+Picked from the ideas page of 7 Oct 2026 (round three); the owner asked no extra rule unless said: "build as described, choose simple family-friendly details".
+
+- **888 The score card's hand fields move on.** Each hand total (`#sk-hand-<i>`, still `type="number"`, so the minus of a −1 hand is still typed) has `enterkeyhint="next"` (the last one `"done"`), and Enter goes to the next player's field (`skHandKey`, the order of the card: `skHandOrder` - in teams, the team cards' order; the finisher's empty hand skipped), the last one to «حفظ» (`#sk-save`, focused, not pressed: a slip of the finger never saves a round). The field's text is selected on arrival so a number is typed over.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

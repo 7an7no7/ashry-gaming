@@ -34,6 +34,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>اتنين بس بيلعبوا في المرة، والباقي بيتفرج. <b>اللي يكسب يفضل قاعد</b>، واللي عليه الدور في الطابور يقعد قصاده ويبدأ هو.</li>
                 <li>لو حد قاعد خرج من الغرفة، التاني يكسب بالانسحاب. ولو موبايل اللي عليه الدور فصل <b>دقيقة</b>، بيخسر الماتش ده غياب (وبيفضل في الغرفة).</li>
+                <li>⏱️ <b>وقت التفكير</b> (اختيار المضيف، مقفول من الأول): 20 أو 40 ثانية للخط. لما يخلص، التطبيق يرسم خط مايدّيش مربع ضلع تالت لو فيه.</li>
                 <li>آخر خط في اللوحة، لو مش هيكسّبك، بيترسم لوحده بعد لحظة.</li>
             </ul>
             <p class="help-sub">📺 على التلفزيون</p>
@@ -63,6 +64,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Two play at a time and the rest watch. <b>Winner stays on</b>; the next in line sits down against them and moves first.</li>
                 <li>If a seated player leaves the room, the other wins by forfeit. If the phone whose turn it is goes offline for <b>a minute</b>, that player loses this game by absence (and stays in the room).</li>
+                <li>⏱️ <b>Think time</b> (the host's choice, off to start with): 20 or 40 seconds a line. When it runs out, the app draws a line that gives no box a third side, if there is one.</li>
                 <li>The last line on the board, when it doesn't win you the game, is drawn for you after a moment.</li>
             </ul>
             <p class="help-sub">📺 On the TV</p>

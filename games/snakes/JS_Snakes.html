@@ -3465,7 +3465,8 @@ function snkBarLines(k) {
   // In teams, a member home rolls for the teammate furthest behind.
   const forId = tn.pid ? snakesPieceOf(g, tn.pid) : null;
   const forLine = forId && forId !== tn.pid ? snkT('snk_roll_for', { name: k.names[forId] || '' }) : '';
-  if (tn.pid === k.me) return [snkT('snk_your_turn'), forLine || (tn.sixes ? snkT('snk_again_six') : snkT('snk_roll_hint'))];
+  // Your roll for a teammate: the button names them, the line says why.
+  if (tn.pid === k.me) return [snkT('snk_your_turn'), forLine ? snkT('snk_for_behind', { name: k.names[forId] || '' }) : (tn.sixes ? snkT('snk_again_six') : snkT('snk_roll_hint'))];
   return [snkT('snk_turn_of', { name: name }), forLine || (k.bots && k.bots[tn.pid] ? snkT('snk_thinking', { name: name }) : '')];
 }
 
@@ -3475,6 +3476,15 @@ function snkBarHtml(k) {
   const canRoll = g.phase === 'play' && tn.pid === k.me && !k.tv;
   const lines = snkBarLines(k);
   const col = SNK_HEX[g.colors[tn.pid]] || 'transparent';
+  // In teams, a member home rolls for the teammate furthest behind: the button says for whom, with their face.
+  const forId = canRoll ? snakesPieceOf(g, tn.pid) : null;
+  let label = '🎲 ' + escapeHTML(snkT('snk_roll'));
+  const rollFor = !!(forId && forId !== tn.pid);
+  if (rollFor) {
+    const fname = k.names[forId] || '…';
+    const initial = typeof duelInitial === 'function' ? duelInitial(fname) : fname.charAt(0);
+    label = `<span class="snk-bar__for" style="--pc:${SNK_HEX[g.colors[forId]] || '#888'}" aria-hidden="true">${escapeHTML(initial)}</span><span class="snk-bar__forname">${escapeHTML(snkT('snk_roll_btn_for', { name: fname }))}</span>`;
+  }
   return `<div class="snk-bar ${canRoll ? 'is-mine' : ''}" data-snk-bar>
       <span class="snk-bar__dot" style="background:${col}" aria-hidden="true"></span>
       <div class="snk-bar__txt">
@@ -3482,7 +3492,7 @@ function snkBarHtml(k) {
         <div class="snk-bar__t2">${escapeHTML(lines[1] || '')}</div>
       </div>
       ${k.clock ? `<span class="badge badge--accent metric snk-bar__clock" data-snk-clock></span>` : ''}
-      ${canRoll ? `<button type="button" class="btn btn--primary btn--auto btn--lg snk-bar__roll" data-snk-roll onclick="${k.rollJs}" disabled>🎲 ${escapeHTML(snkT('snk_roll'))}</button>` : ''}
+      ${canRoll ? `<button type="button" class="btn btn--primary btn--auto btn--lg snk-bar__roll${rollFor ? ' snk-bar__roll--for' : ''}" data-snk-roll onclick="${k.rollJs}" disabled>${label}</button>` : ''}
     </div>`;
 }
 
@@ -3881,7 +3891,10 @@ function snkSyncIdle(root, k) {
   const playing = busy && c && c.currentPid;
   const up = playing ? c.currentPid : (k.g.phase === 'play' && k.g.turn ? k.g.turn.pid : null);
   root.querySelectorAll('[data-snk-chip]').forEach(el => el.classList.toggle('is-turn', el.getAttribute('data-snk-chip') === up));
-  if (c) Object.keys(c.players).forEach(id => c.players[id].e.classList.toggle('is-up', id === up && !c.players[id].hidden));
+  // The piece that pulses is the one the coming roll moves: in teams, a member home rolls for the
+  // teammate furthest behind, so theirs pulses (on every phone and the TV), not a surprise.
+  const upPiece = !playing && up && k.g.phase === 'play' ? (snakesPieceOf(k.g, up) || up) : up;
+  if (c) Object.keys(c.players).forEach(id => c.players[id].e.classList.toggle('is-up', id === upPiece && !c.players[id].hidden));
   snkMatSync(c, k, busy);
   if (k.tv) snkLastRollSync(root, k);
   if (bar) {

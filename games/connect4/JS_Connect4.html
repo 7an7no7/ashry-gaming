@@ -595,8 +595,9 @@ function paintConnect4(opts) {
   } else {
     status = s.vs === 'phone' ? (t.duel_your_turn || '') : (t.duel_turn_of || '').replace('{name}', duelIso(names[s.turn - 1]));
   }
-  const nextLine = s.phase === 'done' ? `<p class="duel-next">${escapeHTML((t.duel_first_next || '').replace('{name}', duelIso(names[s.first - 1])))}</p>` : '';
   const mark = (p) => `<span class="c4-chip c4-disc--${p}"></span>`;
+  // Whoever went second starts the next game: said on the result with their disc, their pill pulsing (the owner's pick 1026).
+  const nextLine = s.phase === 'done' ? `<p class="duel-next c4-next">${escapeHTML((t.c4_next_starts || t.duel_first_next || '').replace('{name}', duelIso(names[s.first - 1])))} ${mark(s.first)}</p>` : '';
   el.innerHTML = `
     <div class="duel c4-game">
       <div class="duel-layout">
@@ -630,6 +631,10 @@ function paintConnect4(opts) {
   });
   if (s.last && s.last.block && !o.still) c4BlockFx(el, key + '|' + s.moves, { delay: fx.dropMs, seat: s.last.p - 1 });
   duelPillsAfter(el, 'c4-local', { turn: s.phase === 'play' ? s.turn - 1 : -1, scores: [s.scores[1] || 0, s.scores[2] || 0] });
+  if (s.phase === 'done') {
+    const pill = el.querySelector(`[data-duel-pill="${s.first - 1}"]`);
+    if (pill) pill.classList.add('is-next');
+  }
   if (s.phase === 'done' && duelOnce(key + '|cheer') && !o.still) {
     const cheer = s.winner && (s.vs === 'friend' || s.winner === 1);
     afterReveal(el, () => {

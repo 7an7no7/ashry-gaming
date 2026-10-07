@@ -153,6 +153,9 @@ const bankNewRoomGame = (room, playerId, action, p) => {
   // The seats go round from whoever starts, the rest in the room's order.
   const made = bankNewGame(ids, bankFillTokens(ids, tokens), off.first, settings, Date.now(), Math.random);
   const g = made.g;
+  // The computer players' seats: with every person out, the game ends on worth (bankOnlyBotsLeft).
+  const botIds = ids.filter(id => room.players.some(x => x.id === id && x.bot));
+  if (botIds.length && botIds.length < ids.length) g.bots = botIds;    // a table of bots alone (a TV watching) plays on
   g.turnSeq = (prev.turnSeq || 0) + 1;
   g.eventSeq = prev.eventSeq || 0;
   bankEvent(g, 'rolloff', { rounds: off.rounds, first: off.first });

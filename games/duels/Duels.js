@@ -39,3 +39,9 @@ function duelNextOf(players, shared) {
   if (!champ && waiting.length >= 2) return { seats: [waiting[0], waiting[1]], line: waiting.slice(2) };
   return null;
 }
+
+/**
+ * The think clock's choices in winner stays (the owner's picks 1022 and 1031, 7 Oct 2026), in
+ * seconds a move, 0 off (the default): the lobby offers them and the server takes only these.
+ */
+const DUEL_THINK = { connect4: [0, 15, 30], dots: [0, 20, 40] };

@@ -201,6 +201,13 @@ frame waits for the token to land marks `bankFx.pending` and greys the last fram
   instead. «🏗️ هعملها بإيدي» (`bankPlanByHand`) closes it and opens the 🏗️
   panel. Help: a line in «الموبايل بيساعدك» and one in «على التلفزيون».
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+Picked from the ideas page of 7 Oct 2026 (round three); the owner asked no extra rule unless said: "build as described, choose simple family-friendly details".
+
+- **969 A table left with only computer players ends.** Once every person is bankrupt or gone, the game ends on worth (`bankOnlyBotsLeft` in BankAlhaz.js, checked in `bankGoBankrupt` after the one-left rule; the 'over' event's `why` is 'bots', the title «مافضلش غير الكمبيوتر: الأغنى كسب», `bank_over_bots`). The game knows its computer players by `g.bots` (their seats), set at the start: in a room by RoomBank.js's start (only when at least one person plays: a table of computer players alone, a TV watching, plays to the end as before), on one phone by `startBank`. An older game with no `g.bots` plays on as before. Decided for the owner: it applies in both lengths (the timed game too: nobody is left to watch the clock run).
+- **971 The players in one row on an upright phone.** Under 900px wide held upright, the strip (`.bank-strip`) is one row of small chips, a column each: the piece, the name, the cash (counted up as before) and its marks (🔄 🔒 🎟️ in `.bank-chip__marks`, `bankStripHtml`), the player up ringed. The strip stays where it was (above the board, with the clock), so board, players and bar fit 667px tall.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

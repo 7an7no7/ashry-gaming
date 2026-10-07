@@ -217,6 +217,12 @@ function ludoTickClock(state) {
       el.classList.toggle('badge--danger', left <= 5);
       el.classList.toggle('badge--accent', left > 5);
     });
+    // The ring round the player up (their chip, and their yard on the TV): the share of the turn left.
+    const share = isFinite(full) && full > 0 ? Math.max(0, Math.min(1, left / full)) : 1;
+    document.querySelectorAll('[data-ludo-ring]').forEach(el => {
+      el.style.setProperty('--ludo-left', String(share));
+      el.classList.toggle('is-low', left <= 5);
+    });
     return left;
   };
   if (!endsAt) { ludoStopClock(); return; }

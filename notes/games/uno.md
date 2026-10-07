@@ -231,6 +231,12 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
 
 **«مين هيكسب؟» in one round (the audit of 6 Oct 2026)** is settled on the game just played: `ROOM_RESULT_BOARDS.uno` puts `shared.winners` first and the rest after, not the evening's wins on the board (the night still ranks the board). The أونو! button stays in the colour and partner pickers, so it can be said with the wild or the 7.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+Picked from the ideas page of 7 Oct 2026 (round three); the owner asked no extra rule unless said: "build as described, choose simple family-friendly details".
+
+- **896 Rounds: the points fly to the winner.** At a round's end in points mode, once the hands have turned over, each hand that paid sends card backs flying from its points to the winner's (`unoRevealCount` / `unoFlowCard`: one hand after another, 0.8 s apart; up to five backs, more for a heavier hand; transform and opacity only), and the winner's «+» counts up hand by hand to the round's `gained` instead of jumping to it. The result's `data-reveal-ms` waits for the last one, so the confetti comes after. With motion off the numbers are written at once, as before.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -62,12 +62,28 @@
      has to be awake; every other phone and the TV count it down.
    ========================================================================== */
 const DUEL_MIN_PLAYERS = 2;
+/*
+ * The think clock in winner stays (the owner's picks 1022 and 1031, 7 Oct 2026): the host's
+ * lobby choice, off by default - كونكت ٤ 15 or 30 seconds a disc, نقط ومربعات 20 or 40 a line.
+ * `shared.think` (seconds, 0 off) counts from `turnAt`; at 0 the server plays for the seat up
+ * (DUEL_KINDS[kind].auto: a column that hands the other side no win, c4SafeCol; a line that
+ * gives no box a third side when there is one) and marks the move `last.auto`. Not in a
+ * tournament or كونكت ٤'s teams (their own clocks). The choices, DUEL_THINK, are in Duels.js.
+ */
+const DUEL_THINK_GRACE_MS = 800;     // the server plays this long after the phones' clocks reach 0
+const duelThinkPick = (kind, p, q) => {
+  const list = DUEL_THINK[kind] || [0];
+  const v = Number((p || {}).think);
+  if ((p || {}).think !== undefined && list.indexOf(v) !== -1) return v;
+  const w = Number((q || {}).think);
+  return list.indexOf(w) !== -1 ? w : 0;
+};
 // DUEL_AWAY_MS is in rooms/RoomShared.js; who sits down next, duelNextOf, in Duels.js (both read by the phones too).
 
 /** What each duel does differently: its options, a fresh board, and one move. */
 const DUEL_KINDS = {
   connect4: {
-    options: (payload, prev) => ({ mode: c4Mode(payload && payload.mode !== undefined ? payload.mode : (prev || {}).mode) }),
+    options: (payload, prev) => ({ mode: c4Mode(payload && payload.mode !== undefined ? payload.mode : (prev || {}).mode), think: duelThinkPick('connect4', payload, prev) }),
     deal: (s) => {
       const b = c4NewBoard(s.mode);
       s.cols = b.cols; s.rows = b.rows; s.n = b.n; s.grid = b.grid;
@@ -89,10 +105,12 @@ const DUEL_KINDS = {
     only: (s, seat) => {
       const col = c4OnlyMove({ cols: s.cols, rows: s.rows, n: s.n, grid: s.grid || [] }, seat + 1);
       return col < 0 ? null : { col: col };
-    }
+    },
+    // The think clock ran out: a column that doesn't hand the other side a win.
+    auto: (s, seat) => ({ col: c4SafeCol({ cols: s.cols, rows: s.rows, n: s.n, grid: s.grid.slice() }, seat + 1, Math.random) })
   },
   dots: {
-    options: (payload, prev) => ({ size: dotsSize(payload && payload.size !== undefined ? payload.size : (prev || {}).size) }),
+    options: (payload, prev) => ({ size: dotsSize(payload && payload.size !== undefined ? payload.size : (prev || {}).size), think: duelThinkPick('dots', payload, prev) }),
     deal: (s) => {
       const b = dotsNewBoard(s.size);
       s.lines = b.lines; s.boxes = b.boxes;
@@ -115,6 +133,14 @@ const DUEL_KINDS = {
     only: (s, seat) => {
       const e = dotsOnlyMove({ n: s.size, lines: s.lines || [], boxes: s.boxes || [] }, seat + 1);
       return e < 0 ? null : { edge: e };
+    },
+    // The think clock ran out: a line that gives no box a third side when there is one,
+    // else the one that gives the fewest boxes away.
+    auto: (s) => {
+      const board = { n: s.size, lines: s.lines.slice(), boxes: s.boxes.slice() };
+      const safe = dotsSafe(board);
+      if (safe.length) return { edge: safe[Math.floor(Math.random() * safe.length)] };
+      return { edge: dotsCheapest(board, dotsFree(board), Math.random) };
     }
   },
   // إكس أو in rooms (23 Sep 2026): seat 0 is X and moves first; the lobby's
@@ -396,17 +422,47 @@ ROOM_FORCED_GAMES.xo = duelForced('xo');
 const duelAwayDeadline = (v) => {
   const s = (v && v.shared) || {};
   if (s.phase !== 'play' || !Array.isArray(s.seats)) return null;
+  const think = duelThinkDeadline(v);
   const pid = s.seats[s.turn];
   const since = pid && v.lastSeen ? Number(v.lastSeen[pid]) || 0 : 0;
-  if (!since) return null;
-  return Math.max(since, Number(s.turnAt) || 0) + DUEL_AWAY_MS;
+  if (!since) return think;
+  const away = Math.max(since, Number(s.turnAt) || 0) + DUEL_AWAY_MS;
+  return think === null ? away : Math.min(away, think);
 };
 
-/** The seat to move has been gone long enough: they lose this game. True when it ended. */
+/**
+ * When the think clock plays for the seat up (its seconds and the grace after `turnAt`), or
+ * null: off, not winner stays (a tournament's match has no `line`), or a game with no `auto`.
+ */
+const duelThinkDeadline = (v) => {
+  const s = (v && v.shared) || {};
+  const k = DUEL_KINDS[v && v.game];
+  if (s.phase !== 'play' || !Array.isArray(s.seats) || !Array.isArray(s.line) || s.teamMode || !k || !k.auto) return null;
+  const sec = Number(s.think) || 0;
+  if (!sec || (DUEL_THINK[v.game] || []).indexOf(sec) === -1) return null;
+  return (Number(s.turnAt) || 0) + sec * 1000 + DUEL_THINK_GRACE_MS;
+};
+
+/**
+ * The seat to move has been gone long enough: they lose this game; or their think clock ran
+ * out: the server plays for them (marked `last.auto`, never counted a block). True when it acted.
+ */
 const duelAwayTimeout = (v, now) => {
   const due = duelAwayDeadline(v);
   if (due === null || now < due) return false;
   const s = v.shared;
+  const think = duelThinkDeadline(v);
+  if (think !== null && now >= think && due === think) {
+    const k = DUEL_KINDS[v.game];
+    const seat = s.turn;
+    const out = k.move(s, k.auto(s, seat), seat);
+    if (s.last) { s.last.auto = true; delete s.last.block; }
+    s.moves = (s.moves || 0) + 1;
+    if (out.end) { duelEnd(v, out.winner, out.reason); return true; }
+    if (!out.again) s.turn = 1 - s.turn;
+    s.turnAt = now;
+    return true;
+  }
   s.moves = (s.moves || 0) + 1;
   duelEnd(v, 1 - s.turn, 'away');
   return true;

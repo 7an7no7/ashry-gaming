@@ -529,6 +529,12 @@ Every part is optional on a game and decided on the server (or, on one phone, by
   again. Tests: `rules.mjs` (a kept seed deals the same snakes and ladders in
   its look; bad seeds and an older phone's start make a new map).
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+Picked from the ideas page of 7 Oct 2026 (round three); the owner asked no extra rule unless said: "build as described, choose simple family-friendly details".
+
+- **962 Teams: who the roll is for.** When a member home rolls for the teammate furthest behind, the roll button names them with their face: their initial on their colour, then «ترمي لـ منى» (`snkBarHtml`, `snk_roll_btn_for`, `.snk-bar__roll--for`), and the line under «دورك!» says «منى الأبعد ورا في فريقك» (`snk_for_behind`). Their piece is the one that pulses on the board, on every phone and the TV (`snkSyncIdle`: `is-up`, the disc under the piece, goes to `snakesPieceOf(g, up)`, not to the roller whose piece is home); the reach hints were already for that piece.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

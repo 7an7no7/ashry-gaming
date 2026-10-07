@@ -864,25 +864,89 @@ function unoRevealHtml(state, tv) {
       : `<span class="uno-rrow__done">${escapeHTML(unoT('uno_no_cards'))}</span>`;
     return `<div class="uno-rrow ${win ? 'is-winner' : ''}">
         <div class="uno-rrow__who"><span class="uno-rrow__name">${win ? '🏆 ' : ''}${tm ? unoTeamIcon(tm.t) + ' ' : ''}${escapeHTML(unoName(state, pid))}</span></div>
-        ${scored && (pid === r.winner || !win) ? `<div class="uno-rrow__pts">${win ? '<span class="uno-rrow__plus">+</span>' : ''}<b class="metric" data-uno-count="${pts}">${animate ? 0 : pts}</b></div>` : ''}
+        ${scored && (pid === r.winner || !win) ? `<div class="uno-rrow__pts">${win ? '<span class="uno-rrow__plus">+</span>' : ''}<b class="metric" data-uno-count="${pts}" ${win ? 'data-uno-win' : 'data-uno-from'}>${animate ? 0 : pts}</b></div>` : ''}
         <div class="uno-rrow__cards">${cardsHtml}</div>
       </div>`;
   }).join('');
   const end = animate ? 250 + k * 60 + 450 : 0;
-  return `<div class="uno-reveal ${tv ? 'uno-reveal--tv' : ''} ${animate ? 'is-revealing' : ''}" ${animate ? `data-reveal-ms="${end + 700}" data-uno-count-at="${end}"` : ''}>${html}</div>`;
+  // Rounds: each hand that paid sends its cards flying to the winner, one after another (unoRevealCount).
+  const flows = scored ? rows.filter(pid => side.indexOf(pid) === -1 && (r.points[pid] || 0) > 0).length : 0;
+  const reveal = end + 700 + (flows ? UNO_FLOW_START_MS + flows * UNO_FLOW_GAP_MS : 0);
+  return `<div class="uno-reveal ${tv ? 'uno-reveal--tv' : ''} ${animate ? 'is-revealing' : ''}" ${animate ? `data-reveal-ms="${reveal}" data-uno-count-at="${end}"` : ''}>${html}</div>`;
 }
 
-/** The totals count up once the cards have turned. */
+// The points flying to the winner (the owner's pick 896, 7 Oct 2026): after the hands have
+// turned over, one hand at a time, a little after the last.
+const UNO_FLOW_START_MS = 450;
+const UNO_FLOW_GAP_MS = 800;
+const UNO_FLOW_FLY_MS = 560;
+
+/**
+ * The totals count up once the cards have turned. In rounds mode the winner's total doesn't
+ * jump: each hand that paid sends card backs flying from its points to the winner's (more
+ * backs for a heavier hand, up to five), and the winner's number counts up hand by hand.
+ */
 function unoRevealCount(root) {
   const box = root && root.querySelector('[data-uno-count-at]');
   if (!box) return;
   const at = Number(box.getAttribute('data-uno-count-at')) || 0;
+  const win = box.querySelector('[data-uno-win]');
+  const from = win ? Array.from(box.querySelectorAll('[data-uno-from]')).filter(el => (Number(el.getAttribute('data-uno-count')) || 0) > 0) : [];
+  const flowing = !!(win && from.length && document.body.animate && !motionOff());
   unoFx.timers.push(setTimeout(() => {
     box.querySelectorAll('[data-uno-count]').forEach(el => {
+      if (flowing && el === win) return;
       const to = Number(el.getAttribute('data-uno-count')) || 0;
       if (typeof countUp === 'function' && to) countUp(el, 0, to); else el.textContent = to;
     });
   }, at));
+  if (!flowing) return;
+  const total = Number(win.getAttribute('data-uno-count')) || 0;
+  const tv = !!box.closest('.uno-reveal--tv');
+  let run = 0;
+  from.forEach((el, i) => {
+    const pts = Number(el.getAttribute('data-uno-count')) || 0;
+    const was = run;
+    run = i === from.length - 1 ? total : Math.min(total, run + pts);
+    const to = run;
+    unoFx.timers.push(setTimeout(() => {
+      if (!el.isConnected || !win.isConnected) return;
+      const n = Math.min(5, Math.max(1, Math.ceil(pts / 15)));
+      for (let c = 0; c < n; c++) unoFx.timers.push(setTimeout(() => unoFlowCard(el, win, tv), c * 70));
+      unoFx.timers.push(setTimeout(() => {
+        if (!win.isConnected) return;
+        if (typeof countUp === 'function') countUp(win, was, to); else win.textContent = to;
+        win.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.25)' }, { transform: 'scale(1)' }], { duration: 360, easing: 'ease-out' });
+      }, UNO_FLOW_FLY_MS));
+    }, at + UNO_FLOW_START_MS + i * UNO_FLOW_GAP_MS));
+  });
+  // Whatever happens to the timers, the winner's total ends right.
+  unoFx.timers.push(setTimeout(() => { if (win.isConnected) win.textContent = total; }, at + UNO_FLOW_START_MS + from.length * UNO_FLOW_GAP_MS + 1200));
+}
+
+/** One card back flying from a hand's points to the winner's (transform and opacity only). */
+function unoFlowCard(fromEl, toEl, tv) {
+  const a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
+  if (!a.width || !b.width) return;
+  const ghost = document.createElement('span');
+  ghost.className = 'motion-ghost uno-flow';
+  ghost.innerHTML = unoCardHtml(null, { size: tv ? 'md' : 'sm' });
+  document.body.appendChild(ghost);
+  const g = ghost.getBoundingClientRect();
+  const x0 = a.left + a.width / 2 - g.width / 2, y0 = a.top + a.height / 2 - g.height / 2;
+  const dx = b.left + b.width / 2 - g.width / 2 - x0, dy = b.top + b.height / 2 - g.height / 2 - y0;
+  ghost.style.left = x0 + 'px';
+  ghost.style.top = y0 + 'px';
+  const tilt = (Math.random() * 24 - 12).toFixed(1);
+  const fly = ghost.animate([
+    { transform: `translate(0px, 0px) rotate(${tilt}deg) scale(0.9)`, opacity: 1 },
+    { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 40}px) rotate(${-tilt}deg) scale(0.8)`, opacity: 1, offset: 0.55 },
+    { transform: `translate(${dx}px, ${dy}px) rotate(0deg) scale(0.35)`, opacity: 0.2 }
+  ], { duration: UNO_FLOW_FLY_MS, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'both' });
+  let gone = false;
+  const done = () => { if (!gone) { gone = true; ghost.remove(); } };
+  fly.onfinish = done;
+  setTimeout(done, UNO_FLOW_FLY_MS + 800);
 }
 
 /** The result's title: who went out (a pair, in teams), or the game left with too few. */

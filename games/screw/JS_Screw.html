@@ -663,7 +663,7 @@
     const actions = onCard
       ? `<div class="view-actions"><div class="btn-stack">
            <div class="chip-set hidden" id="sk-preview" aria-live="polite"></div>
-           <button type="button" class="btn btn--primary btn--lg" onclick="submitScores()">${escapeHTML(r < s.done ? (t.screw_save_fix || 'حفظ التعديل') : (t.save_results || 'حفظ النتائج ✅'))}</button>
+           <button type="button" class="btn btn--primary btn--lg" id="sk-save" onclick="submitScores()">${escapeHTML(r < s.done ? (t.screw_save_fix || 'حفظ التعديل') : (t.save_results || 'حفظ النتائج ✅'))}</button>
          </div></div>`
       : `<div class="view-actions"><button type="button" class="btn btn--primary btn--lg" onclick="skPlayAgain()">${escapeHTML(t.play_again || 'لعبة جديدة')}</button></div>`;
 
@@ -717,13 +717,15 @@
     }
 
     // A finisher's hand is empty: 0, and nothing to type.
+    const handOrder = skHandOrder(s, d);
+    const lastHand = handOrder[handOrder.length - 1];
     const stepper = (i) => {
       const out = d.finisher === i;
       const off = out ? ' disabled' : '';
       return `
       <span class="cs-step${out ? ' is-out' : ''}" dir="ltr">
         <button type="button" class="cs-step__btn" onclick="skStep(${i}, -1)" aria-label="−"${off}>−</button>
-        <input type="number" class="cs-step__val metric" id="sk-hand-${i}" value="${out ? '0' : escapeHTML(d.hands[i] || '')}" aria-label="${escapeHTML(names[i])}" oninput="skHandInput(${i}, this)"${off}>
+        <input type="number" class="cs-step__val metric" id="sk-hand-${i}" value="${out ? '0' : escapeHTML(d.hands[i] || '')}" aria-label="${escapeHTML(names[i])}" enterkeyhint="${lastHand === i ? 'done' : 'next'}" oninput="skHandInput(${i}, this)" onkeydown="skHandKey(${i}, event)"${off}>
         <button type="button" class="cs-step__btn" onclick="skStep(${i}, 1)" aria-label="+"${off}>+</button>
       </span>`;
     };
@@ -889,6 +891,31 @@
     d.hands[i] = String(input.value).trim();
     saveToLocal();
     skRefresh();
+  }
+
+  /** The seats whose hand is typed, in the card's order (a team card lists its members together). */
+  function skHandOrder(s, d) {
+    const order = s.opts.partners ? [].concat.apply([], skUnitsOf(s)) : s.players.map((_, i) => i);
+    return order.filter(i => i !== d.finisher);
+  }
+
+  /**
+   * Enter (the keyboard's «التالي») goes on to the next player's hand, and from
+   * the last one to Save, so an iPhone's keyboard doesn't close after every player.
+   */
+  function skHandKey(i, ev) {
+    if (!ev || ev.key !== 'Enter' || ev.isComposing) return;
+    ev.preventDefault();
+    const s = skState();
+    const r = s.activeRound;
+    if (r >= s.rounds) return;
+    const order = skHandOrder(s, skDraft(s, r));
+    const next = order[order.indexOf(i) + 1];
+    const el = next === undefined ? document.getElementById('sk-save') : document.getElementById('sk-hand-' + next);
+    if (!el) return;
+    el.focus();
+    if (next !== undefined && el.select) el.select();
+    if (el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: motionOff() ? 'auto' : 'smooth' });
   }
 
   /** − and + on a hand; from empty they give -1 (the -1 card) and 1. */

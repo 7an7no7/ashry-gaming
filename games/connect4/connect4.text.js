@@ -22,6 +22,12 @@ gameText({
       c4_draw: "تعادل، اللوحة اتملت",
       c4_block: "صدّة!",
       c4_best_blocker: "أحسن صدّاد",
+      duel_think_label: "وقت التفكير",
+      duel_think_off: "من غير",
+      duel_think_hint_c4: "لما الوقت يخلص، التطبيق ينزّل القرص في عمود مايكسّبش التاني.",
+      duel_think_hint_dots: "لما الوقت يخلص، التطبيق يرسم خط مايدّيش مربع ضلع تالت.",
+      duel_think_auto: "الوقت خلص، والتطبيق لعب بدل {name}",
+      c4_next_starts: "الماتش الجاي يبدأ: {name}",
     },
     en: {
       xo_draws: "Draws",
@@ -42,6 +48,12 @@ gameText({
       c4_draw: "A draw: the board is full",
       c4_block: "Blocked!",
       c4_best_blocker: "Best blocker",
+      duel_think_label: "Think time",
+      duel_think_off: "Off",
+      duel_think_hint_c4: "When it runs out, the app drops the disc in a column that doesn't hand the other a win.",
+      duel_think_hint_dots: "When it runs out, the app draws a line that gives no box a third side.",
+      duel_think_auto: "Time ran out, so the app played for {name}",
+      c4_next_starts: "Next game starts: {name}",
     }
   },
   rules: {
@@ -60,6 +72,7 @@ gameText({
                 <li><b>اللي يكسب يفضل قاعد</b>: اللي خسر يروح آخر الطابور، واللي عليه الدور يقعد قصاد الكسبان ويبدأ هو. التعادل: صاحب الكرسي يفضل.</li>
                 <li>لو اتنين بس في الغرفة، بيفضلوا يلعبوا والبداية بالدور. ولو حد قاعد خرج من الغرفة، التاني يكسب بالانسحاب.</li>
                 <li>لو موبايل اللي عليه الدور فصل <b>دقيقة</b>، بيخسر الماتش ده غياب (وبيفضل في الغرفة)، والعدّاد بيبان عند الباقيين.</li>
+                <li>⏱️ <b>وقت التفكير</b> (اختيار المضيف، مقفول من الأول): 15 أو 30 ثانية للقرص. لما يخلص، التطبيق ينزّل القرص في عمود مايكسّبش التاني.</li>
                 <li>لو فاضل عمود واحد بس ومش هيكسّبك، القرص بينزل لوحده بعد لحظة.</li>
                 <li><b>فرق</b> (من 4): كل واحد يختار الأحمر أو الأصفر، والفريق بينزّل بالدور واحد ورا واحد، <b>20 ثانية</b> للدور ولو خلصت الموبايل بينزّل بدالك.</li>
             </ul>
@@ -90,6 +103,7 @@ gameText({
                 <li><b>Winner stays on</b>: the loser goes to the back of the line, and the next in line sits down against the winner and moves first. A draw: the one in the seat keeps it.</li>
                 <li>With just two in the room they keep playing, taking turns to start. If a seated player leaves the room, the other wins by forfeit.</li>
                 <li>If the phone whose turn it is goes offline for <b>a minute</b>, that player loses this game by absence (and stays in the room); everyone else sees the count.</li>
+                <li>⏱️ <b>Think time</b> (the host's choice, off to start with): 15 or 30 seconds a disc. When it runs out, the app drops the disc in a column that doesn't hand the other a win.</li>
                 <li>When one column is left and the disc doesn't win you the game, it drops by itself after a moment.</li>
                 <li><b>Teams</b> (4+): pick red or yellow; a team drops in turn, one by one, <b>20 seconds</b> each, or the app drops for you.</li>
             </ul>

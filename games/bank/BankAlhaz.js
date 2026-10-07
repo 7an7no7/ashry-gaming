@@ -183,6 +183,8 @@ const bankGroupSquares = (grp) => BANK_SQUARES.map((q, i) => (q.g === grp ? i : 
 const bankOwnerOf = (g, i) => ((g.own || {})[i] || {}).by || null;
 const bankLevel = (g, i) => ((g.own || {})[i] || {}).lvl || 0;
 const bankActive = (g) => g.seats.filter(pid => g.out.indexOf(pid) === -1);
+/** Nobody but computer players still in (g.bots: the seats the computer plays; an older game has none). */
+const bankOnlyBotsLeft = (g) => Array.isArray(g.bots) && g.bots.length > 0 && bankActive(g).every(pid => g.bots.indexOf(pid) !== -1);
 /** Whether `pid` may buy yet: always, or once past Start when the table plays the first lap. */
 const bankCanBuyYet = (g, pid) => !(g.settings && g.settings.firstLap) || !!(g.lapped || {})[pid];
 // A real roll is the app's one die (Dice.js); a seeded source (the rules tests) keeps its own numbers.
@@ -916,6 +918,9 @@ const bankGoBankrupt = (g, priv, pid, to) => {
   if (g.offer && (g.offer.from === pid || g.offer.to === pid)) g.offer = null;
   bankEvent(g, 'bankrupt', { pid: pid, to: creditor || 'bank' });
   if (bankActive(g).length <= 1) bankFinish(g, 'last');
+  // Every person bankrupt or gone: computer players don't play on by themselves (they never
+  // trade, so it could go on for ever); the game ends on worth (the owner's pick 969, 7 Oct 2026).
+  else if (bankOnlyBotsLeft(g)) bankFinish(g, 'bots');
 };
 
 /** The player whose turn it is gives up the debt they can't pay. */

@@ -1615,6 +1615,8 @@ async function boxRobots() {
   check(!(TV.state.you && TV.state.you.clue), 'box: the TV has no clue');
   const ids = new Set(people.map((b) => b.state.you.clue.id));
   check(ids.size === people.length, 'box: every phone\'s clue is different');
+  check(H.state.shared.finale === 7, 'box: the eighth box is announced as the finale');
+  let offers = 0;
   for (let n = 0; n < 8; n++) {
     await all(people.concat([TV]), (s) => s.shared.box === n && (s.shared.phase === 'talk' || s.shared.phase === 'bid'), `box ${n + 1}: dealt everywhere`);
     if (n === 1) {
@@ -1638,13 +1640,30 @@ async function boxRobots() {
       `box ${n + 1}: a bid is on its own phone only; the table sees who, not how much`);
     await people[0].must('bid', { box: n, amount: 5 });
     check(people[0].state.you.bid === bids[0], `box ${n + 1}: a bid is sent once`);
-    for (let i = 1; i < people.length; i++) await people[i].must('bid', { box: n, amount: bids[i] });
-    await all(people.concat([TV]), (s) => s.shared.phase === 'open' && s.shared.result && s.shared.result.box === n, `box ${n + 1}: every bid in: the box opens on every screen`);
+    // «تأمين» (7 Oct 2026): the third phone insures its bid on the third box.
+    const ins = (i) => n === 2 && i === 2;
+    for (let i = 1; i < people.length; i++) await people[i].must('bid', { box: n, amount: bids[i], insure: ins(i) });
+    await all(people.concat([TV]), (s) => (s.shared.phase === 'open' && s.shared.result && s.shared.result.box === n) || (s.shared.phase === 'offer' && s.shared.box === n),
+      `box ${n + 1}: every bid in: the box opens (or the old host makes his offer) on every screen`);
+    let offered = null;
+    if (H.state.shared.phase === 'offer') {
+      // «عرض الحاج»: the winner takes the money the first time, and opens the box the second.
+      const o = H.state.shared.offer;
+      const W = people.find((b) => b.pid === o.winnerId);
+      check(!!W && o.amount >= 50 && !H.state.shared.result && TV.state.shared.offer && TV.state.shared.offer.amount === o.amount, `box ${n + 1}: the old host's offer, on every screen, the box still shut`);
+      offered = { take: offers === 0, amount: o.amount };
+      offers++;
+      await W.must('deal', { box: n, take: offered.take });
+      await all(people.concat([TV]), (s) => s.shared.phase === 'open' && s.shared.result && s.shared.result.box === n, `box ${n + 1}: the offer answered: the box opens`);
+    }
     const R = H.state.shared.result;
+    if (offered) check(offered.take ? R.deal === offered.amount : R.deal === null && R.offer === offered.amount, `box ${n + 1}: the offer ${offered.take ? 'taken: the box is only shown' : 'turned down: the box does what it does'}`);
+    if (n === 2) check((R.insured || []).indexOf(people[2].pid) !== -1 && (R.insured || []).length === 1, 'box 3: the insured bid is shown with its shield');
+    if (n === 7) check(R.x2 === true, 'box 8: the finale counts double');
     // A bid is capped at the money its player has (a scorpion or the thief earlier can leave less
     // than the robot asked for), so the highest is the highest of the bids the server took.
     const top = Math.max(...Object.values(R.bids));
-    check(people.every((b, i) => R.bids[b.pid] === Math.min(bids[i], R.before ? R.before[b.pid] : bids[i])),
+    check(people.every((b, i) => R.bids[b.pid] === Math.min(bids[i], R.before ? R.before[b.pid] - (ins(i) ? 50 : 0) : bids[i])),
       `box ${n + 1}: every bid is what was sent, or all the money when that was less`);
     check(Object.keys(R.bids).length === people.length && (top === 0 ? !R.winnerId : R.bid === top && R.bids[R.winnerId] === top),
       `box ${n + 1}: the bids are shown; the highest takes the box (${R.kind})`);
@@ -1775,9 +1794,19 @@ async function darkroomRobots() {
   await H.must('backToHub');
   await H.waitFor((st) => st.phase === 'lobby', 'darkroom: back in the hub');
   await H.must('chooseGame', { game: 'darkroom' });
-  await H.must('start', { story: 'tomb', mode: 'stick' });
+  await H.must('start', { story: 'tomb', mode: 'stick', mic: true });
   await all(people.concat([TV]), (st) => st.game === 'darkroom' && st.shared.story === 'tomb' && st.shared.mode === 'stick' && st.shared.level === 1, 'darkroom: the tomb with the stick');
   ({ s, M } = roles());
+  // «الميكروفون» (7 Oct 2026): the first guide holds it; the mover calls the other one.
+  {
+    const g = s.guides;
+    check(s.mic === true && s.micId === g[0], 'darkroom: the mic switch on: the first guide holds the mic');
+    await M.must('passMic', { to: g[1], from: g[0] });
+    await all(people.concat([TV]), (st) => st.shared.micId === g[1], 'darkroom: the mover calls a guide: the mic moves on every screen');
+    await byId(g[1]).must('passMic', { from: g[1] });
+    await H.waitFor((st) => st.shared.micId === g[0], 'darkroom: the holder passes the mic on');
+    s = H.state.shared;
+  }
   check((await M.act('step', { d: 'U', run: s.run })).ok && H.state.shared.steps === 0, 'darkroom: no steps in stick mode');
   await sleep(Math.max(0, s.t0 - Date.now()) + 150);
   const m3 = mapOf();

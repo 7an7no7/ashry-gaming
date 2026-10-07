@@ -19,6 +19,8 @@
    Phases (shared.phase):
      talk      the minute of talk (talkEndsAt); bids may already be sent
      bid       the last call (bidEndsAt) for whoever hasn't sent a bid
+     offer     «عرض الحاج» (7 Oct 2026): at two boxes a game the winner may take the old host's
+               money and hand the box back unopened (offer.endsAt; no answer opens it)
      open      the bids turned over, the box opened (openAt; the show is
                BOX_SHOW_MS long); the next box on nextAt or the host's nextBox
      gameover  the eighth box is open (or fewer than two are left): the board
@@ -37,6 +39,11 @@ const BOX_GRACE_MS = 600;           // a clock's moment on the server after the 
 const BOX_SCORPION = 300;           // the scorpion scatters 300 of the winner's money
 const BOX_BILL = 50;                // the bill: 50 to every other player
 const BOX_KINDS = ['treasure', 'scorpion', 'bill', 'steal', 'double', 'key', 'empty'];
+// The owner's picks of 7 Oct 2026.
+const BOX_OFFER_MS = 8000;          // «عرض الحاج»: 8 s to take the money or open it
+const BOX_OFFERS = 2;               //   twice a game, at two random boxes, never the finale
+const BOX_INSURE = 50;              // «تأمين»: 50 ج while bidding; a scorpion or the thief then costs half
+const BOX_FINALE = BOX_COUNT - 1;   // «صندوق الختام»: the eighth box, announced; everything inside counts double
 
 const boxHere = (room, id) => room.players.some(p => p.id === id && !p.bot);
 /** The roster still in the room. */
@@ -160,7 +167,13 @@ const boxAction = (room, playerId, action, payload) => {
     const money = {};
     roster.forEach(id => { money[id] = BOX_START_MONEY; });
     room.secrets = {};
-    room._box = { deck: boxDeal(Math.random), clues: {}, bids: {}, peeks: {} };
+    const deck = boxDeal(Math.random);
+    // «صندوق الختام»: its treasure, scorpion or bill counts double (the thief and double-or-nothing at the opening).
+    const fin = deck[BOX_FINALE];
+    if (fin && (fin.kind === 'treasure' || fin.kind === 'scorpion' || fin.kind === 'bill')) fin.value *= 2;
+    // «عرض الحاج»: two boxes, never the finale, kept secret until they come.
+    const offerAt = shuffled(Array.from({ length: BOX_FINALE }, (_, i) => i)).slice(0, BOX_OFFERS);
+    room._box = { deck, clues: {}, bids: {}, insured: {}, peeks: {}, offerAt, pending: null };
     room.shared = {
       roster,
       order: shuffled(roster),     // the podiums, left to right on the stage
@@ -169,6 +182,8 @@ const boxAction = (room, playerId, action, payload) => {
       start: BOX_START_MONEY,
       money,
       opened: [],                  // every box opened so far: { kind, value, winnerId, bid }
+      finale: BOX_FINALE,          // the box announced as the finale (×2)
+      offer: null,                 // «عرض الحاج» while it is on: { winnerId, bid, amount, endsAt }
       board: [],
       phase: 'talk'
     };
@@ -187,9 +202,12 @@ const boxAction = (room, playerId, action, payload) => {
     if (boxPresent(room).indexOf(playerId) === -1) throw new Error('إنت بتتفرج المرة دي');
     if (s.done.indexOf(playerId) !== -1) return;               // a bid is sent once
     const have = s.money[playerId] || 0;
+    // «تأمين»: 50 ج on top of the bid, when there is the money for it (an older phone sends none).
+    const insure = !!(payload && payload.insure === true) && have >= BOX_INSURE;
     const n = Math.floor(Number(payload && payload.amount));
-    const amount = isFinite(n) ? Math.max(0, Math.min(have, n)) : 0;
+    const amount = isFinite(n) ? Math.max(0, Math.min(have - (insure ? BOX_INSURE : 0), n)) : 0;
     room._box.bids[playerId] = amount;
+    if (insure) room._box.insured[playerId] = true;
     s.done = s.done.concat([playerId]);
     boxWriteSecrets(room);
     if (boxAllIn(room)) boxOpen(room);
@@ -208,6 +226,13 @@ const boxAction = (room, playerId, action, payload) => {
     if (staleTap(payload, 'box', s.box)) return;
     if (s.phase !== 'talk' && s.phase !== 'bid') return;
     boxOpen(room);
+    return;
+  }
+  if (action === 'deal') {
+    // «عرض الحاج»: the winner takes the money (take: true) or opens the box.
+    if (staleTap(payload, 'box', s.box)) return;
+    if (s.phase !== 'offer' || !s.offer || playerId !== s.offer.winnerId) return;
+    boxApply(room, !!(payload && payload.take === true));
     return;
   }
   if (action === 'nextBox') {
@@ -242,6 +267,9 @@ const boxNext = (room) => {
   h.clues = {};
   shuffled(here).forEach((id, i) => { h.clues[id] = clues[i % clues.length]; });
   h.bids = {};
+  h.insured = {};
+  h.pending = null;
+  s.offer = null;
   // A key opened on the box before shows this one to its holder until it opens.
   Object.keys(h.peeks || {}).forEach(id => { if (h.peeks[id].box < s.box) delete h.peeks[id]; });
   s.phase = 'talk';
@@ -273,6 +301,7 @@ const boxWriteSecrets = (room) => {
     if (s.phase === 'talk' || s.phase === 'bid') {
       if (h.clues[id]) x.clue = h.clues[id];
       if (Object.prototype.hasOwnProperty.call(h.bids, id)) x.bid = h.bids[id];
+      if ((h.insured || {})[id]) x.insured = true;
     }
     const p = (h.peeks || {})[id];
     // The key's holder knows the next box from the moment the key comes out until that box opens.
@@ -289,11 +318,9 @@ const boxWriteSecrets = (room) => {
 const boxOpen = (room) => {
   const s = room.shared;
   const h = room._box;
-  const b = h.deck[s.box];
   const here = boxPresent(room);
   const bids = {};
   here.forEach(id => { bids[id] = Object.prototype.hasOwnProperty.call(h.bids, id) ? h.bids[id] : 0; });
-  const before = Object.assign({}, s.money);
   const top = Math.max(0, ...Object.keys(bids).map(id => bids[id]));
   let winnerId = null, tie = false, tieBy = null;
   if (top > 0) {
@@ -307,10 +334,64 @@ const boxOpen = (room) => {
     }
     winnerId = best[Math.floor(Math.random() * best.length)];
   }
+  h.pending = { bids, winnerId, top, tie, tieBy };
+  // «عرض الحاج»: at its two boxes (never the finale) the winner is offered the old host's money first.
+  if (winnerId && (h.offerAt || []).indexOf(s.box) !== -1 && s.box !== BOX_FINALE) {
+    s.phase = 'offer';
+    s.talkEndsAt = s.bidEndsAt = null;
+    s.offer = { winnerId, bid: top, amount: boxOfferAmount(room, top), endsAt: Date.now() + BOX_OFFER_MS };
+    boxWriteSecrets(room);
+    return;
+  }
+  boxApply(room, false);
+};
+
+/**
+ * What the old host offers for the box back (the boxes left and the bid): most of the bid back,
+ * and some of what the boxes still on the table are worth on average, give or take a tenth.
+ */
+const boxOfferAmount = (room, bid) => {
+  const s = room.shared;
+  const h = room._box;
+  const n = boxPresent(room).length;
+  const left = h.deck.slice(s.box);
+  const worth = (b) => (b.kind === 'treasure' ? b.value : b.kind === 'scorpion' ? -b.value : b.kind === 'bill' ? -b.value * Math.max(0, n - 1)
+    : b.kind === 'steal' ? 250 : b.kind === 'double' ? bid : 0);
+  const ev = left.reduce((a, b) => a + worth(b), 0) / Math.max(1, left.length);
+  const base = bid * 0.85 + Math.max(0, ev) * 0.45;
+  return Math.max(50, boxRound10(base * (0.9 + Math.random() * 0.2)));
+};
+
+/**
+ * The box does what it does (or, «عرض الحاج» taken, the winner pockets the offer and the box is
+ * only shown): the insured pay their 50, the winner pays the bid, then the effect - doubled in
+ * the finale, halved for the insured on a scorpion or the thief.
+ */
+const boxApply = (room, took) => {
+  const s = room.shared;
+  const h = room._box;
+  const b = h.deck[s.box];
+  const here = boxPresent(room);
+  const p = h.pending || { bids: {}, winnerId: null, top: 0, tie: false, tieBy: null };
+  const bids = p.bids, top = p.top, tie = p.tie, tieBy = p.tieBy;
+  const winnerId = p.winnerId && s.money[p.winnerId] !== undefined ? p.winnerId : null;
+  const x2 = s.box === BOX_FINALE;
+  const offer = s.offer;
+  const deal = !!(took && offer && winnerId === offer.winnerId) ? offer.amount : null;
+  const before = Object.assign({}, s.money);
   const money = s.money;
   const moves = [];      // money that flies on the screen: { from, to, n } (null is the bank)
   let coin = null, victimId = null, peekFor = null;
-  if (winnerId) {
+  // «تأمين»: everyone insured pays the 50 now, whoever takes the box.
+  const insured = here.filter(id => (h.insured || {})[id]);
+  const insPaid = {};
+  insured.forEach(id => { const n = Math.min(money[id], BOX_INSURE); money[id] -= n; if (n) moves.push({ from: id, to: null, n, at: 'ins' }); });
+  if (winnerId && deal !== null) {
+    money[winnerId] -= top;
+    moves.push({ from: winnerId, to: null, n: top, at: 'pay' });
+    money[winnerId] += deal;
+    moves.push({ from: null, to: winnerId, n: deal, at: 'deal' });
+  } else if (winnerId) {
     money[winnerId] -= top;
     moves.push({ from: winnerId, to: null, n: top, at: 'pay' });
     const w = winnerId;
@@ -318,7 +399,9 @@ const boxOpen = (room) => {
       money[w] += b.value;
       moves.push({ from: null, to: w, n: b.value });
     } else if (b.kind === 'scorpion') {
-      const n = Math.min(money[w], b.value);
+      const full = Math.min(money[w], b.value);
+      const n = (h.insured || {})[w] ? Math.min(money[w], boxRound10(b.value / 2)) : full;
+      if (full > n) insPaid[w] = full - n;
       money[w] -= n;
       moves.push({ from: w, to: null, n });
     } else if (b.kind === 'bill') {
@@ -332,7 +415,9 @@ const boxOpen = (room) => {
     } else if (b.kind === 'steal') {
       const rich = here.filter(id => id !== w).sort((x, y) => (money[y] - money[x]) || (s.order.indexOf(x) - s.order.indexOf(y)))[0];
       if (rich) {
-        const n = boxRound10(money[rich] / 2);
+        const full = x2 ? Math.min(money[rich], boxRound10(money[rich] / 2) * 2) : boxRound10(money[rich] / 2);
+        const n = (h.insured || {})[rich] ? boxRound10(full / 2) : full;
+        if (full > n) insPaid[rich] = full - n;
         victimId = rich;
         money[rich] -= n;
         money[w] += n;
@@ -340,7 +425,8 @@ const boxOpen = (room) => {
       }
     } else if (b.kind === 'double') {
       coin = Math.random() < 0.5 ? 'heads' : 'tails';
-      if (coin === 'heads') { money[w] += top * 2; moves.push({ from: null, to: w, n: top * 2 }); }
+      const win = top * (x2 ? 4 : 2);
+      if (coin === 'heads') { money[w] += win; moves.push({ from: null, to: w, n: win }); }
     } else if (b.kind === 'key') {
       const next = h.deck[s.box + 1];
       if (next) {
@@ -351,8 +437,12 @@ const boxOpen = (room) => {
   }
   const delta = {};
   Object.keys(money).forEach(id => { delta[id] = money[id] - (before[id] || 0); });
-  s.result = { box: s.box, kind: b.kind, value: b.value, bids, winnerId, bid: top, tie, tieBy, coin, victimId, peekFor, before, delta, moves };
-  s.opened = s.opened.concat([{ kind: b.kind, value: b.value, winnerId, bid: top, coin }]);
+  s.result = { box: s.box, kind: b.kind, value: b.value, bids, winnerId, bid: top, tie, tieBy, coin, victimId, peekFor, before, delta, moves,
+    insured, insPaid, x2, offer: offer ? offer.amount : null, deal };
+  s.opened = s.opened.concat([{ kind: b.kind, value: b.value, winnerId, bid: top, coin, x2, deal }]);
+  s.offer = null;
+  h.pending = null;
+  h.insured = {};
   s.phase = 'open';
   s.talkEndsAt = s.bidEndsAt = null;
   s.openAt = Date.now();
@@ -392,6 +482,7 @@ const boxDeadline = (room) => {
   if (room.phase !== 'play') return null;
   if (s.phase === 'talk' && s.talkEndsAt) return s.talkEndsAt + BOX_GRACE_MS;
   if (s.phase === 'bid' && s.bidEndsAt) return s.bidEndsAt + BOX_GRACE_MS;
+  if (s.phase === 'offer' && s.offer) return s.offer.endsAt + BOX_GRACE_MS;
   if (s.phase === 'open' && s.nextAt) return s.nextAt;
   return null;
 };
@@ -401,6 +492,8 @@ const boxTimeout = (room, now) => {
   if (room.phase !== 'play') return false;
   if (s.phase === 'talk' && s.talkEndsAt && now >= s.talkEndsAt + BOX_GRACE_MS) { boxLastCall(room); return true; }
   if (s.phase === 'bid' && s.bidEndsAt && now >= s.bidEndsAt + BOX_GRACE_MS) { boxOpen(room); return true; }
+  // No answer to the old host: the box opens.
+  if (s.phase === 'offer' && s.offer && now >= s.offer.endsAt + BOX_GRACE_MS) { boxApply(room, false); return true; }
   if (s.phase === 'open' && s.nextAt && now >= s.nextAt) { boxNext(room); return true; }
   return false;
 };
@@ -413,10 +506,12 @@ const boxPlayerLeft = (room, playerId) => {
   const s = room.shared;
   const h = room._box;
   if (!s || room.phase !== 'play' || s.phase === 'gameover') return;
-  if (h) { delete h.bids[playerId]; delete h.clues[playerId]; if (h.peeks) delete h.peeks[playerId]; }
+  if (h) { delete h.bids[playerId]; delete h.clues[playerId]; if (h.peeks) delete h.peeks[playerId]; if (h.insured) delete h.insured[playerId]; }
   s.done = (s.done || []).filter(id => id !== playerId);
   if (boxPresent(room).length < 2) { boxGameOver(room); return; }
   if ((s.phase === 'talk' || s.phase === 'bid') && boxAllIn(room)) { boxOpen(room); return; }
+  // The one offered the deal left: the box opens on the bids as they stood (nobody takes it if it was them).
+  if (s.phase === 'offer' && s.offer && s.offer.winnerId === playerId) { if (h && h.pending) h.pending.winnerId = null; boxApply(room, false); return; }
   s.board = boxBoard(room);
   if (h) boxWriteSecrets(room);
 };

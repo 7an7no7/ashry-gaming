@@ -40,6 +40,20 @@ const DARK_STEP_GAP = 110;       // a step closer than this to the last one is a
 const DARK_STICK_DT = 0.35;      // at most this many seconds of joystick are walked in one message
 const DARK_NEAR_GAP = 1200;      // a near miss is told at most this often
 const DARK_EV_MAX = 12;
+const DARK_DIZZY_FROM = 3;       // «دايخ!» (7 Oct 2026): from this level a pillar, or the cat brushing past, makes the mover dizzy…
+const DARK_DIZZY_MS = 5000;      // …for this long: left and right swapped, and only the guides (and the TV) are told
+
+/** Left and right the other way round (up and down stay). */
+const darkSwapLR = (d) => (d === 'L' ? 'R' : d === 'R' ? 'L' : d);
+const darkDizzyNow = (room, now) => ((room._dark || {}).dizzyUntil || 0) > now;
+/** «دايخ!»: the mover's left and right swap for DARK_DIZZY_MS; the guides' slices say so, the mover's never. */
+const darkDizzy = (room, kind, now) => {
+  const s = room.shared, h = room._dark;
+  if ((s.level || 0) < DARK_DIZZY_FROM || s.phase !== 'play') return;
+  const was = darkDizzyNow(room, now);
+  h.dizzyUntil = now + DARK_DIZZY_MS;
+  if (!was) darkPev(room, { type: 'dizzy', k: kind, until: h.dizzyUntil });
+};
 
 const darkHere = (room, id) => room.players.some(p => p.id === id && !p.bot);
 /** The roster still in the room, in the mover order. */
@@ -72,11 +86,14 @@ const darkAction = (room, playerId, action, payload) => {
     const pick = (v, list, old, def) => (list.indexOf(v) !== -1 ? v : list.indexOf(old) !== -1 ? old : def);
     const story = pick(payload && payload.story, DARK_STORIES, prev.story, 'home');
     const mode = pick(payload && payload.mode, DARK_MODES, prev.mode, 'steps');
+    // «الميكروفون» (7 Oct 2026): a lobby switch, off unless the host turns it on; play again keeps it.
+    const mic = payload && typeof payload.mic === 'boolean' ? payload.mic : !!prev.mic;
     const roster = people.slice(0, DARK_MAX);
     room.secrets = {};
-    room._dark = { seed: 0, pev: [], pevN: 0, lastStep: 0, lastNear: 0, lastStick: 0 };
+    room._dark = { seed: 0, pev: [], pevN: 0, lastStep: 0, lastNear: 0, lastStick: 0, dizzyUntil: 0 };
     room.shared = {
       story, mode,
+      mic, micId: null,
       roster,
       order: shuffled(roster),
       turn: -1,
@@ -102,17 +119,24 @@ const darkAction = (room, playerId, action, payload) => {
   if (action === 'step') {
     if (staleTap(payload, 'run', s.run)) return;
     if (playerId !== s.moverId || s.mode !== 'steps' || s.phase !== 'play' || now < s.t0) return;
-    const d = DARK_DIRS[payload && payload.d];
-    if (!d) return;
+    if (!DARK_DIRS[payload && payload.d]) return;
     const h = room._dark;
     if (now - (h.lastStep || 0) < DARK_STEP_GAP) return;
     h.lastStep = now;
     const m = darkMapOf(room);
     if (darkCatchUp(room, m, now)) { darkSync(room); return; }
+    // Dizzy: the arrow pressed is not the way walked (the bump still names the arrow pressed, so the mover isn't told).
+    const go = darkDizzyNow(room, now) ? darkSwapLR(payload.d) : payload.d;
+    const d = DARK_DIRS[go];
     const x = Math.floor(s.pos.x), y = Math.floor(s.pos.y);
-    s.face = payload.d;
+    s.face = go;
     const b = darkBlocked(m, x, y, d[0], d[1]);
-    if (b) { darkEv(room, { type: 'bump', k: b, d: payload.d }); darkSync(room); return; }
+    if (b) {
+      darkEv(room, { type: 'bump', k: b, d: payload.d });
+      if (b === 'pillar') darkDizzy(room, 'pillar', now);
+      darkSync(room);
+      return;
+    }
     s.pos = { x: x + d[0] + 0.5, y: y + d[1] + 0.5 };
     s.steps = (s.steps || 0) + 1;
     darkArrive(room, m, [darkCellOf(m, s.pos)], now);
@@ -129,6 +153,7 @@ const darkAction = (room, playerId, action, payload) => {
     if (!isFinite(vx) || !isFinite(vy)) { vx = 0; vy = 0; }
     const len = Math.hypot(vx, vy);
     if (len > 1) { vx /= len; vy /= len; }
+    const pushed = [vx, vy];
     // Walk what the last push asked for since it came (at most DARK_STICK_DT), then take the new one.
     const old = s.vel || [0, 0];
     const dt = Math.min(DARK_STICK_DT, Math.max(0, (now - (h.lastStick || now)) / 1000));
@@ -138,15 +163,34 @@ const darkAction = (room, playerId, action, payload) => {
       s.pos = { x: Math.round(r.x * 1000) / 1000, y: Math.round(r.y * 1000) / 1000 };
       if (r.bump && !(h.lastBumpAt && now - h.lastBumpAt < 600)) {
         h.lastBumpAt = now;
-        darkEv(room, { type: 'bump', k: r.bump, d: darkFaceOf(old) });
+        darkEv(room, { type: 'bump', k: r.bump, d: darkFaceOf(h.pushed || old) });
+        if (r.bump === 'pillar') darkDizzy(room, 'pillar', now);
       }
       darkArrive(room, m, r.cells, now);
     }
     if (s.phase === 'play') {
+      // Dizzy: the stick's left and right walk the other way.
+      if (darkDizzyNow(room, now)) vx = -vx;
+      h.pushed = pushed;
       s.vel = [Math.round(vx * 100) / 100, Math.round(vy * 100) / 100];
       if (vx || vy) s.face = darkFaceOf(s.vel);
     } else s.vel = [0, 0];
     s.at = now;
+    darkSync(room);
+    return;
+  }
+  if (action === 'passMic') {
+    // «الميكروفون»: the holder passes it to the next guide, the mover calls a guide by name (`to`),
+    // or the host (anyone, once the host is away) moves it on. Sent with the holder the phone saw.
+    if (!s.mic) return;
+    if (staleTap(payload, 'from', s.micId)) return;
+    const g = s.guides || [];
+    if (g.length < 2) return;
+    if (playerId !== s.micId && playerId !== s.moverId) requireMoveOn(room, playerId);
+    const to = payload && payload.to !== undefined && payload.to !== null ? String(payload.to) : '';
+    if (to && g.indexOf(to) === -1) throw new Error('ده مش من اللي بيوصفوا');
+    s.micId = to || g[(g.indexOf(s.micId) + 1) % g.length];
+    darkEv(room, { type: 'mic', to: s.micId });
     darkSync(room);
     return;
   }
@@ -178,6 +222,8 @@ const darkArrive = (room, m, cells, now) => {
     if (c === goal && (s.mode === 'steps' || c === cells[cells.length - 1])) { darkWon(room, now); return; }
   }
   const last = cells[cells.length - 1];
+  // «دايخ!»: at home, the cat brushing past (on a square beside the mover) makes them dizzy.
+  if (s.story === 'home' && (s.level || 0) >= DARK_DIZZY_FROM && darkNear(m, last, ms) === 'cat') darkDizzy(room, 'cat', now);
   // Where the mover now stands was checked up to this tick; the alarm checks the ticks after it.
   h.checkCell = last;
   h.checkK = Math.floor(ms / DARK_TICK);
@@ -228,6 +274,8 @@ const darkToStart = (room) => {
   s.stunUntil = null;
   room._dark.lastStick = 0;
   room._dark.nearCell = -1;
+  room._dark.dizzyUntil = 0;
+  room._dark.pushed = null;
   room._dark.checkCell = darkCellOf(m, s.pos);
   room._dark.checkK = Math.floor((s.at - s.t0) / DARK_TICK) - 1;   // this tick still to check
 };
@@ -340,9 +388,13 @@ const darkSync = (room) => {
     s.order.push(p.id);
   });
   s.guides = s.roster.filter(id => id !== s.moverId && darkHere(room, id));
+  // «الميكروفون»: always with a guide still here (the first, when its holder walks or leaves).
+  if (s.mic) { if (s.guides.indexOf(s.micId) === -1) s.micId = s.guides[0] || null; } else s.micId = null;
   const m = darkMapOf(room);
   const g = { seed: h.seed, story: s.story, level: s.level };
   const pev = h.pev || [];
+  // «دايخ!»: until when the mover is dizzy, for the guides and the screen only (0: not dizzy).
+  const dz = (h.dizzyUntil || 0) > Date.now() ? h.dizzyUntil : 0;
   room.secrets = {};
   room.players.forEach(p => {
     if (p.bot) return;
@@ -350,10 +402,10 @@ const darkSync = (room) => {
       const x = Math.floor(s.pos.x), y = Math.floor(s.pos.y);
       room.secrets[p.id] = { mover: true, echo: m ? darkEcho(m, x, y) : null };
     } else if (s.roster.indexOf(p.id) !== -1) {
-      room.secrets[p.id] = { g, pev };
+      room.secrets[p.id] = { g, pev, dz };
     }
   });
-  room.screenOnly = s.phase === 'gameover' ? null : { g, pev };
+  room.screenOnly = s.phase === 'gameover' ? null : { g, pev, dz };
 };
 
 /** The server's next moment: back to the start, the next level, or a moving trap reaching the mover. */

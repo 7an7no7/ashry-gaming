@@ -14,6 +14,9 @@ gameText({
       wr_prog_wedding: "الكلوبات",
       wr_dmg_wedding: "زعل المعازيم",
       wr_watching: "بتتفرج · تلعب اللعبة الجاية",
+      wr_caller_title: "إنت المنادي!",
+      wr_caller_hint: "نادي على الأوامر بصوت عالي: اللي فوق هو اللي هيتحرق الأول",
+      wr_caller_soon: "الأوامر جاية… استعد تنادي",
       wr_shake_title: "الكل يهز الموبايل!",
       wr_shake_tap: "هزّ الموبايل… أو دوس هنا 3 مرات",
       wr_shake_done: "تمام! مستنيين الباقيين",
@@ -71,6 +74,9 @@ gameText({
       wr_prog_wedding: "Lanterns",
       wr_dmg_wedding: "Upset guests",
       wr_watching: "Watching · you'll play the next game",
+      wr_caller_title: "You're the caller!",
+      wr_caller_hint: "Read the orders out loud: the top one burns first",
+      wr_caller_soon: "Orders coming… get ready to call them",
       wr_shake_title: "Everyone shake your phone!",
       wr_shake_tap: "Shake the phone… or tap here 3 times",
       wr_shake_done: "Done! Waiting for the rest",
@@ -128,6 +134,7 @@ gameText({
                 <li>🙉 ممنوع التخبيط: لو لعبت في لوحتك <b>3 مرات ورا بعض</b> في حاجة مفيش أمر مستنيها، ده <b>ربع ضرر</b> على الترابيزة. اسمع الأوامر الأول! أول ما تعمل أمر، العدّ يبدأ من الأول.</li>
                 <li>المستويات بتصعب لحد ما تخسروا، والأوضة بتحفظ أحسن رقم.</li>
                 <li>التلات أماكن: الميكروباص عطلان على الطريق الصحراوي، المطبخ قبل الضيوف بساعة، والفرح والنور قاطع. المضيف يختار، أو عشوائي.</li>
+                <li>📣 <b>المنادي</b>: اللي داخل في النص أو الزيادة عن 8 بيتفرج، وموبايله بيوريه كل الأوامر المفتوحة وشريط كل واحد، فينادي للترابيزة على الأمر اللي قرّب يتحرق.</li>
             </ol>
             <p class="help-sub">🎁 المفاجآت</p>
             <p class="text-xs">لو المضيف سايبها شغّالة: اللوحات بتتغير كل مستوى، حاجة بتبوظ فجأة (دخان امسحه بالضغط، أو تتقلب بالمقلوب شوية)، و«الكل يهز الموبايل!» — كله يهز في نفس الوقت (أو يدوس 3 مرات).</p>
@@ -143,6 +150,7 @@ gameText({
                 <li>🙉 No mashing: <b>3 moves in a row</b> on controls no order is waiting for cost the table <b>a quarter of a damage</b>. Listen first! Doing an order starts the count again.</li>
                 <li>The levels get harder until you lose, and the room keeps its best.</li>
                 <li>Three places: the microbus broken down on the desert road, the kitchen an hour before the guests, and the wedding with the power cut. The host picks, or random.</li>
+                <li>📣 <b>The caller</b>: someone who joins mid-game or is the ninth watches, and their phone shows every open order with its bar, so they shout out the one about to burn.</li>
             </ol>
             <p class="help-sub">🎁 Surprises</p>
             <p class="text-xs">If the host leaves them on: new panels every level, a control breaking out of nowhere (smoke to wipe off with taps, or turned upside down for a while), and «Everyone shake your phone!» - all at once (or tap 3 times).</p>

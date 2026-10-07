@@ -98,6 +98,9 @@ const vaultAction = (room, playerId, action, payload) => {
       locks: [],
       sides: {},
       result: null,
+      // «المفتاح الاحتياطي» (7 Oct 2026): each side's clean safes so far and its spare keys.
+      clean: settings.way === 'teams' ? { a: 0, b: 0 } : { x: 0 },
+      keys: settings.way === 'teams' ? { a: 0, b: 0 } : { x: 0 },
       events: [], eventSeq: 0,
       phase: 'ready', why: null, startAt: null, nextAt: null
     };
@@ -157,9 +160,29 @@ const vaultAction = (room, playerId, action, payload) => {
         else vaultEvent(room, { type: 'step', side: key, i, by: playerId });
       } else {
         pr.n = 0;
+        pr.row = vaultLightRowOf(side.mistakes);      // the column that applied, for «ليه كده؟»
         vaultMistake(room, key, i, playerId, now);
       }
     }
+    vaultCheckEnd(room, now);
+    vaultWrite(room);
+    return;
+  }
+  if (action === 'useKey') {
+    // «المفتاح الاحتياطي»: a spare key opens one shut lock outright, from whoever works that lock.
+    if (staleTap(payload, 'safe', s.safeNo)) return;
+    if (s.phase !== 'play') return;
+    const i = Math.floor(Number(payload.i));
+    if (!s.locks[i]) throw new Error('قفل مش موجود');
+    const key = vaultSideOfLock(room, playerId, i);
+    if (!key) throw new Error('القفل ده مش معاك');
+    const side = s.sides[key];
+    if (side.done || side.open[i]) return;
+    s.keys = s.keys || {};
+    if (!(s.keys[key] > 0)) throw new Error('مفيش مفتاح احتياطي');
+    s.keys[key] -= 1;
+    vaultEvent(room, { type: 'keyUsed', side: key, i, k: s.locks[i].k, by: playerId });
+    vaultOpenLock(room, key, i, playerId, now);
     vaultCheckEnd(room, now);
     vaultWrite(room);
     return;
@@ -388,11 +411,24 @@ const vaultCheckEnd = (room, now) => {
   });
   const lost = !winner;
   s.result = { open: !lost, side: winner, why: lost ? (keys.map(k => s.sides[k].why).find(Boolean) || 'time') : null };
+  // «ليه كده؟»: each side's locks with a mistake on them or left shut, with what the notebook said.
+  const explain = vaultExplainAll(room);
+  if (explain) s.result.explain = explain;
   vaultEvent(room, { type: lost ? 'safeLost' : 'safeOpen', side: winner, n: s.safeNo });
+  // «المفتاح الاحتياطي»: every third safe a side opens with no mistake hangs a brass key on the line.
+  if (winner && s.sides[winner].mistakes === 0) {
+    s.clean = s.clean || {}; s.keys = s.keys || {};
+    s.clean[winner] = (s.clean[winner] || 0) + 1;
+    if (s.clean[winner] % VAULT_KEY_EVERY === 0) {
+      s.keys[winner] = (s.keys[winner] || 0) + 1;
+      vaultEvent(room, { type: 'key', side: winner, n: s.keys[winner] });
+    }
+  }
+  const between = explain ? VAULT_EXPLAIN_MS : VAULT_BETWEEN_MS;
   if (s.settings.win === 'set') {
     if (!lost) vaultScore(room, winner);
     s.phase = 'result';
-    s.nextAt = now + VAULT_BETWEEN_MS;
+    s.nextAt = now + between;
     return;
   }
   // Endless: an opened safe is a level cleared; a lost one ends the game.
@@ -400,7 +436,27 @@ const vaultCheckEnd = (room, now) => {
   s.levelsWon = s.safeNo;
   vaultSetBest(room);
   s.phase = 'result';
-  s.nextAt = now + VAULT_BETWEEN_MS;
+  s.nextAt = now + between;
+};
+
+/** «ليه كده؟»: { side: [{ i, …vaultExplainLock }] } for the locks a side slipped on or left shut, or null. */
+const vaultExplainAll = (room) => {
+  const s = room.shared, v = room._vault;
+  if (!v || !v.safe) return null;
+  const out = {};
+  let any = false;
+  Object.keys(s.sides).forEach((key) => {
+    const side = s.sides[key];
+    const list = [];
+    s.locks.forEach((l) => {
+      const pr = (v.prog[key] || [])[l.i] || {};
+      if (!pr.miss && side.open[l.i]) return;
+      const row = typeof pr.row === 'number' ? pr.row : side.mistakes;
+      list.push(Object.assign({ i: l.i }, vaultExplainLock(v.manual, v.safe.locks[l.i], v.safe.serial, row)));
+    });
+    if (list.length) { out[key] = list; any = true; }
+  });
+  return any ? out : null;
 };
 
 /** A set of safes: the points of a safe opened (only an opened safe scores). */

@@ -12216,6 +12216,29 @@ Date.now = duelTestClock;
     check(threw(() => applyRoomAction(r, 'a', 'start', {})), 'exact: fewer than three is refused');
   }
   {
+    // «الإيد الدهب» (the ideas of 7 Oct 2026, 820): five right in a row, a gold ring (+1 on the night's
+    // clean hands while worn); a mistake takes it off.
+    const r = exRoom(['a', 'b', 'c', 'd']);
+    let res = null;
+    for (let k = 1; k <= 5; k++) {
+      if (k > 1) next(r);
+      force(r, { kind: 'count', n: 3, win: 3000 });
+      press(r, 'a', 100); press(r, 'b', 200); press(r, 'c', 300);
+      res = close(r);
+      if (k === 4) check(res.ok && !res.ringWon && r.shared.streak.a === 4, 'exact (820): four right in a row is no ring yet');
+    }
+    const row = (id) => r.shared.board.find((x) => x.id === id).score;
+    check(res.ok && (res.ringWon || []).sort().join() === 'a,b,c,d' && r.shared.streak.d === 5, 'exact (820): the fifth right order in a row puts a gold ring on every hand that was right');
+    check(row('a') === r.shared.clean.a + 1 && row('a') === 6, 'exact (820): a ring worn counts +1 on the night\'s clean hands');
+    next(r);
+    force(r, { kind: 'count', n: 3, win: 3000 });
+    press(r, 'a', 100); press(r, 'b', 200); press(r, 'c', 300); press(r, 'd', 500);
+    res = close(r);
+    check(!res.ok && (res.ringLost || []).join() === 'd' && r.shared.streak.d === 0 && r.shared.streak.a === 6 && !(res.ringWon || []).length,
+      'exact (820): a mistake takes the ring off that hand only');
+    check(row('d') === r.shared.clean.d && row('d') === 5 && row('a') === 7, 'exact (820): the ring lost, its +1 goes with it');
+  }
+  {
     const r = exRoom(['a', 'b', 'c', 'd']);
     const s = r.shared;
     check(r.phase === 'play' && s.phase === 'ready' && s.round === 1 && s.level === 1 && s.lives === 3 && s.order.kind === 'count' && s.order.n === 3,
@@ -13699,7 +13722,7 @@ Date.now = duelTestClock;
     check(roomDeadline(r) === s.lookEndsAt && s.lookEndsAt - clock >= W.WITNESS_LOOK_MS, 'witness: the look lasts 8 seconds on the server\'s clock');
     tick(r);
     s = r.shared;
-    check(s.phase === 'draw' && !r.secrets[w] && s.sketch && s.sketch.g === 'm' && s.drawEndsAt - clock === W.WITNESS_DRAW_MS, 'witness: after 8 s the face leaves the witness\'s phone; 90 s to draw from a plain face');
+    check(s.phase === 'draw' && !(r.secrets[w] || {}).face && s.sketch && s.sketch.g === 'm' && s.drawEndsAt - clock === W.WITNESS_DRAW_MS, 'witness: after 8 s the face leaves the witness\'s phone; 90 s to draw from a plain face');
     applyRoomAction(r, jury[0], 'sketch', { round: 1, n: 1, face: { g: 'f' } });
     check(s.sketch.g === 'm', 'witness: only the artist draws');
     const copy = Object.assign({}, real);
@@ -13783,6 +13806,74 @@ Date.now = duelTestClock;
     gone(r, w);
     const s = r.shared;
     check(s.phase === 'ready' && s.round === 2 && s.witnessId !== w && !r._witness && !Object.keys(r.secrets).length, 'witness: a witness who leaves while looking: the round is passed over, the face gone');
+  }
+  // «ممنوع تقول…» (the ideas of 7 Oct 2026, 827) and «كل جولة أصعب» (828).
+  {
+    const W2 = new Function(readFileSync(srcPath('GuessWho.js'), 'utf8') + '\n' + readFileSync(srcPath('Witness.js'), 'utf8') + ';return { WITNESS_TABOOS };')();
+    /** Plays a round to its reveal; returns what the taboo was where it may be. */
+    const playRound = (r) => {
+      let s = r.shared;
+      const round = s.round;
+      applyRoomAction(r, s.witnessId, 'ready', { round });
+      const look = { you: (r.secrets[s.witnessId] || {}).taboo || null, screen: (r.screenOnly || {}).taboo || null, face: (r.secrets[s.witnessId] || {}).face,
+        others: Object.keys(r.secrets).filter((id) => id !== s.witnessId).length, inShared: JSON.stringify(s).indexOf('taboo":"') !== -1, ms: s.lookEndsAt - clock };
+      tick(r);
+      s = r.shared;
+      const draw = { you: (r.secrets[s.witnessId] || {}).taboo || null, screen: (r.screenOnly || {}).taboo || null };
+      applyRoomAction(r, s.artistId, 'done', { round });
+      applyRoomAction(r, r.hostId, 'closeVote', { round });
+      s = r.shared;
+      const out = { look, draw, reveal: s.taboo, screenAfter: r.screenOnly, phase: s.phase, tier: s.tier };
+      applyRoomAction(r, r.hostId, 'nextRound', { round });
+      return out;
+    };
+    let rounds = 0, with1 = 0, twice = false, secret = true, shown = true, fits = true, revealed = true;
+    for (let g = 0; g < 50; g++) {
+      const r = witRoom(['a', 'b', 'c', 'd', 'e', 'f']);
+      applyRoomAction(r, 'a', 'start', {});
+      if (g === 0) check(r.shared.settings.taboo === true && r.shared.settings.harder === false, 'witness (827/828): by default the taboo is on, harder off');
+      let last = false;
+      while (r.shared.phase === 'ready') {
+        const x = playRound(r);
+        rounds++;
+        const on = !!x.look.you;
+        if (on) with1++;
+        if (on && last) twice = true;
+        last = on;
+        if (x.look.others || x.look.inShared) secret = false;
+        if (x.look.you !== x.look.screen || x.draw.you !== x.look.you || x.draw.screen !== x.look.you) shown = false;
+        if (x.reveal !== x.look.you || x.screenAfter) revealed = false;
+        if (on) { const t = W2.WITNESS_TABOOS.find((z) => z.k === x.look.you); if (!t || (t.when && !t.when(x.look.face))) fits = false; }
+      }
+    }
+    check(!twice && with1 / rounds > 0.22 && with1 / rounds < 0.45, 'witness (827): about one round in three has a taboo (' + with1 + ' of ' + rounds + '), never two in a row');
+    check(secret && shown, 'witness (827): the taboo is on the witness\'s phone and the screen only, while they look and describe');
+    check(revealed && fits, 'witness (827): it fits the face, and the reveal tells everyone');
+    const off = witRoom(['a', 'b', 'c']);
+    applyRoomAction(off, 'a', 'start', { taboo: false });
+    let none = true;
+    while (off.shared.phase === 'ready') { if (playRound(off).look.you) none = false; }
+    check(none, 'witness (827): switched off, no taboo');
+    // Harder: 8, 6, 5 seconds by thirds; the look-alikes closer.
+    const h = witRoom(['a', 'b', 'c', 'd', 'e', 'f']);
+    applyRoomAction(h, 'a', 'start', { harder: true });
+    const ms = [], tiers = [];
+    while (h.shared.phase === 'ready') { const x = playRound(h); ms.push(x.look.ms - 400); tiers.push(x.tier); }
+    check(ms.join() === '8000,8000,6000,6000,5000,5000' && tiers.join() === '0,0,1,1,2,2', 'witness (828): harder: the look 8, 6, then 5 seconds by thirds of the game');
+    const easy = witRoom(['a', 'b', 'c']);
+    applyRoomAction(easy, 'a', 'start', {});
+    check(playRound(easy).look.ms === 8400, 'witness (828): off, every look is the owner\'s 8 seconds');
+    const KEYS = ['hair', 'style', 'hijab', 'beard', 'mous', 'brows', 'eyes', 'mouth', 'freckles', 'rosy', 'mole', 'wrinkles', 'glasses', 'sun', 'phones', 'cap', 'ear', 'necklace', 'scarf', 'top', 'tie', 'pattern', 'shirt', 'skin'];
+    const spread = (tier) => {
+      let sum = 0, n = 0;
+      for (let k = 0; k < 300; k++) {
+        const L = W.witnessLineup(Math.random, tier);
+        for (let i = 0; i < 6; i++) for (let j = i + 1; j < 6; j++) { sum += KEYS.filter((q) => JSON.stringify(L.faces[i][q] === undefined ? null : L.faces[i][q]) !== JSON.stringify(L.faces[j][q] === undefined ? null : L.faces[j][q])).length; n++; }
+      }
+      return sum / n;
+    };
+    const s0 = spread(0), s2 = spread(2);
+    check(s2 < s0 - 0.3, 'witness (828): the last third\'s lineup is closer (' + s0.toFixed(2) + ' features apart, then ' + s2.toFixed(2) + ')');
   }
 }
 
@@ -14071,7 +14162,7 @@ Date.now = duelTestClock;
     for (let g = 0; g < 150; g++) {
       const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].slice(0, 3 + (g % 6));
       const r = boxRoom(ids);
-      applyRoomAction(r, 'a', 'start', {});
+      applyRoomAction(r, 'a', 'start', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
       const deck = r._box.deck;
       if (deck.length !== 8 || deck.filter((b) => b.kind === 'treasure').length < 3 || !deck.some((b) => b.kind === 'scorpion')) deckOk = false;
       if (deck[7].kind === 'key') keyLast = true;
@@ -14101,7 +14192,7 @@ Date.now = duelTestClock;
   {
     const r = boxRoom(['a', 'b', 'c', 'd']);
     check(threw(() => applyRoomAction(r, 'b', 'start', {})), 'box: only the host starts');
-    applyRoomAction(r, 'a', 'start', {});
+    applyRoomAction(r, 'a', 'start', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
     let s = r.shared;
     check(r.phase === 'play' && s.phase === 'talk' && s.box === 0 && s.boxes === 8 && ['a', 'b', 'c', 'd'].every((id) => s.money[id] === 1000),
       'box: box 1 of 8, everyone with 1,000');
@@ -14153,7 +14244,7 @@ Date.now = duelTestClock;
   {
     const setUp = (kind, value, money) => {
       const r = boxRoom(['a', 'b', 'c', 'd']);
-      applyRoomAction(r, 'a', 'start', {});
+      applyRoomAction(r, 'a', 'start', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
       r._box.deck[0] = { kind, value };
       r._box.deck[1] = { kind: 'treasure', value: 700 };
       if (money) Object.assign(r.shared.money, money);
@@ -14201,17 +14292,17 @@ Date.now = duelTestClock;
   }
   {
     const r = boxRoom(['a', 'b', 'c', 'd']);
-    applyRoomAction(r, 'a', 'start', {});
+    applyRoomAction(r, 'a', 'start', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
     for (let i = 0; i < 8; i++) { allBid(r, { a: 10 * i, b: 0, c: 0, d: 5 }); tick(r); }
     const s = r.shared;
     check(s.phase === 'gameover' && s.opened.length === 8 && s.board.length === 4 && s.board[0].score >= s.board[3].score && roomDeadline(r) === null && !r._box,
       'box: after the eighth box the richest wins; the board is money');
-    applyRoomAction(r, 'a', 'playAgain', {});
+    applyRoomAction(r, 'a', 'playAgain', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
     check(r.shared.phase === 'talk' && r.shared.box === 0 && r.shared.money.b === 1000, 'box: play again deals eight new boxes');
   }
   {
     const r = boxRoom(['a', 'b', 'c', 'd']);
-    applyRoomAction(r, 'a', 'start', {});
+    applyRoomAction(r, 'a', 'start', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
     applyRoomAction(r, 'a', 'bid', { box: 0, amount: 100 });
     applyRoomAction(r, 'b', 'bid', { box: 0, amount: 100 });
     applyRoomAction(r, 'c', 'bid', { box: 0, amount: 100 });
@@ -14226,13 +14317,108 @@ Date.now = duelTestClock;
   }
   {
     const r = boxRoom(['a', 'b', 'c']);
-    applyRoomAction(r, 'a', 'start', {});
+    applyRoomAction(r, 'a', 'start', {}); r._box.offerAt = [];   // «عرض الحاج» has its own tests
     check(threw(() => applyRoomAction(r, 'b', 'closeBids', { box: 0 })), 'box: only the host (or a stand-in) closes the bids');
     applyRoomAction(r, 'a', 'openBids', { box: 0 });
     check(r.shared.phase === 'bid', 'box: the host can end the talk sooner');
     applyRoomAction(r, 'a', 'closeBids', { box: 0 });
     check(r.shared.phase === 'open', 'box: and close the bids');
 
+  }
+  // The owner's picks of 7 Oct 2026: «تأمين» (836), «صندوق الختام» (837), «عرض الحاج» (834).
+  {
+    const at = (box, kind, value, money, offer) => {
+      const r = boxRoom(['a', 'b', 'c', 'd']);
+      applyRoomAction(r, 'a', 'start', {});
+      r._box.offerAt = offer ? [box] : [];
+      r._box.deck[box] = { kind, value };
+      if (box > 0) {
+        // Straight to that box: the one before it opened long ago.
+        r.shared.box = box - 1; r.shared.phase = 'open'; r.shared.openAt = clock - 20000; r.shared.nextAt = clock;
+        r.shared.result = { box: box - 1, kind: 'empty', bids: {}, delta: {}, before: {} };
+        applyRoomAction(r, 'a', 'nextBox', { box: box - 1 });
+      }
+      if (money) Object.assign(r.shared.money, money);
+      return r;
+    };
+    const bidAll = (r, list) => list.forEach(([id, amount, insure]) => applyRoomAction(r, id, 'bid', { box: r.shared.box, amount, insure }));
+    // 836: insurance.
+    let r = at(0, 'scorpion', 300);
+    bidAll(r, [['a', 200, true], ['b', 100, true], ['c', 0], ['d', 0]]);
+    let s = r.shared;
+    check(s.money.a === 600 && s.money.b === 950 && s.result.insPaid.a === 150 && s.result.insured.sort().join() === 'a,b',
+      'box (836): insured: the 50 is paid by all who took it; a scorpion costs the insured winner half');
+    r = at(0, 'treasure', 500);
+    applyRoomAction(r, 'a', 'bid', { box: 0, amount: 5000, insure: true });
+    check(r._box.bids.a === 950 && r._box.insured.a && r.secrets.a.insured === true && !r.secrets.b.insured && !('insured' in r.shared), 'box (836): an insured bid is capped 50 under the money; only its own phone knows');
+    r = at(0, 'treasure', 500, { b: 40 });
+    applyRoomAction(r, 'b', 'bid', { box: 0, amount: 30, insure: true });
+    check(!r._box.insured.b && r._box.bids.b === 30, 'box (836): no insurance without the 50 for it');
+    r = at(0, 'steal', null, { b: 900, c: 1300, d: 1200 });
+    bidAll(r, [['a', 100], ['b', 50], ['c', 0, true], ['d', 0]]);
+    s = r.shared;
+    check(s.result.victimId === 'c' && s.money.c === 1300 - 50 - 310 && s.money.a === 900 + 310 && s.result.insPaid.c === 310, 'box (836): the thief takes half as much from the insured');
+    // 837: the finale.
+    let doubled = true, saw = false;
+    for (let k = 0; k < 60; k++) {
+      const q = boxRoom(['a', 'b', 'c']);
+      applyRoomAction(q, 'a', 'start', {});
+      const f = q._box.deck[7];
+      if (f.kind === 'treasure') { saw = true; if (f.value % 200 || f.value < 600 || f.value > 1600) doubled = false; }
+      if (f.kind === 'scorpion' && f.value !== 600) doubled = false;
+      if (f.kind === 'bill' && f.value !== 100) doubled = false;
+      if (q.shared.finale !== 7) doubled = false;
+    }
+    check(doubled && saw, 'box (837): the eighth box is the finale, announced; its treasure, scorpion or bill counts double');
+    r = at(7, 'steal', null, { b: 900, c: 1300, d: 1200 });
+    bidAll(r, [['a', 100], ['b', 0], ['c', 0], ['d', 0]]);
+    check(r.shared.result.x2 && r.shared.money.c === 0 && r.shared.money.a === 900 + 1300, 'box (837): the finale\'s thief takes twice the half - everything');
+    let fourX = 0;
+    for (let k = 0; k < 30; k++) {
+      r = at(7, 'double', null);
+      bidAll(r, [['a', 200], ['b', 0], ['c', 0], ['d', 0]]);
+      if (r.shared.result.coin === 'heads' && r.shared.money.a === 800 + 800) fourX++;
+      else if (r.shared.result.coin !== 'tails' || r.shared.money.a !== 800) fourX = -99;
+    }
+    check(fourX > 3, 'box (837): the finale\'s double-or-nothing pays four times the bid');
+    // 834: the old host's offer.
+    let twice = true, neverLast = true;
+    for (let k = 0; k < 80; k++) {
+      const q = boxRoom(['a', 'b', 'c']);
+      applyRoomAction(q, 'a', 'start', {});
+      if (new Set(q._box.offerAt).size !== 2) twice = false;
+      if (q._box.offerAt.indexOf(7) !== -1) neverLast = false;
+    }
+    check(twice && neverLast && !('offerAt' in boxRoom(['a', 'b', 'c']).shared), 'box (834): two offers a game, at two random boxes, never the finale, secret');
+    r = at(0, 'treasure', 600, null, true);
+    bidAll(r, [['a', 200], ['b', 100], ['c', 0], ['d', 0]]);
+    s = r.shared;
+    check(s.phase === 'offer' && s.offer.winnerId === 'a' && s.offer.bid === 200 && s.offer.amount >= 50 && s.offer.endsAt - clock === 8000 && !s.result && s.money.a === 1000 && !JSON.stringify(s).includes('treasure'),
+      'box (834): the bids in, the winner is offered money first: 8 s, nothing paid yet, the box still secret');
+    check(roomDeadline(r) === s.offer.endsAt + 600, 'box (834): the offer is on the server\'s clock');
+    applyRoomAction(r, 'b', 'deal', { box: 0, take: true });
+    applyRoomAction(r, 'a', 'deal', { box: 3, take: true });
+    check(r.shared.phase === 'offer', 'box (834): only the winner answers, for this box');
+    const amount = s.offer.amount;
+    applyRoomAction(r, 'a', 'deal', { box: 0, take: true });
+    s = r.shared;
+    check(s.phase === 'open' && s.result.deal === amount && s.money.a === 1000 - 200 + amount && s.result.kind === 'treasure' && !s.offer,
+      'box (834): taken: the winner pays the bid, pockets the offer, and the box is only shown');
+    r = at(0, 'treasure', 600, null, true);
+    bidAll(r, [['a', 200], ['b', 100], ['c', 0], ['d', 0]]);
+    applyRoomAction(r, 'a', 'deal', { box: 0, take: false });
+    check(r.shared.phase === 'open' && r.shared.result.deal === null && r.shared.result.offer > 0 && r.shared.money.a === 1400, 'box (834): turned down: the box opens and does what it does');
+    r = at(0, 'treasure', 600, null, true);
+    bidAll(r, [['a', 200], ['b', 100], ['c', 0], ['d', 0]]);
+    tick(r);
+    check(r.shared.phase === 'open' && r.shared.money.a === 1400, 'box (834): no answer in 8 s: the box opens');
+    r = at(0, 'treasure', 600, null, true);
+    bidAll(r, [['a', 200], ['b', 100], ['c', 0], ['d', 0]]);
+    gone(r, 'a');
+    check(r.shared.phase === 'open' && !r.shared.result.winnerId && r.shared.money.b === 1000, 'box (834): the winner leaving mid-offer: the box opens, nobody takes it');
+    r = at(7, 'treasure', 600, null, true);
+    bidAll(r, [['a', 200], ['b', 100], ['c', 0], ['d', 0]]);
+    check(r.shared.phase === 'open', 'box (834): never an offer on the finale');
   }
 }
 /* --- الأوضة المضلمة (29 Sep 2026): one walks blind, the rest guide with the map under a lens --- */
@@ -14518,6 +14704,69 @@ Date.now = duelTestClock;
     gone(r, 'z');
     gone(r, r.shared.guides[0]);
     check(r.shared.phase === 'gameover' && r.shared.ended === 'left', 'darkroom: one left, and the game is over');
+  }
+  // «الميكروفون» (the ideas of 7 Oct 2026, 810): one guide holds the mic; it is passed on, or the mover calls someone.
+  {
+    const r = dkRoom(['a', 'b', 'c', 'd']);
+    applyRoomAction(r, 'a', 'start', { mic: true });
+    const s = r.shared;
+    const holder = s.micId;
+    check(s.mic === true && holder === s.guides[0], 'darkroom (810): the mic switch on: the first guide holds it');
+    const quiet = s.guides.find((id) => id !== holder && id !== 'a');
+    if (quiet) check(threw(() => applyRoomAction(r, quiet, 'passMic', { from: holder })) && r.shared.micId === holder, 'darkroom (810): a guide without the mic can\'t take it');
+    applyRoomAction(r, holder, 'passMic', { from: holder });
+    const next = r.shared.micId;
+    check(next === s.guides[1] && r.shared.ev[r.shared.ev.length - 1].type === 'mic', 'darkroom (810): the holder passes it to the next guide');
+    applyRoomAction(r, holder, 'passMic', { from: holder });
+    check(r.shared.micId === next, 'darkroom (810): a double tap (sent for the old holder) is dropped');
+    applyRoomAction(r, s.moverId, 'passMic', { to: holder, from: next });
+    check(r.shared.micId === holder, 'darkroom (810): the mover calls a guide by name');
+    check(threw(() => applyRoomAction(r, s.moverId, 'passMic', { to: s.moverId, from: holder })), 'darkroom (810): the mic goes to a guide, never the mover');
+    gone(r, holder);
+    check(r.shared.guides.indexOf(r.shared.micId) !== -1, 'darkroom (810): its holder gone, the mic stays with a guide');
+    const off = dkRoom(['a', 'b', 'c']);
+    applyRoomAction(off, 'a', 'start', {});
+    applyRoomAction(off, off.shared.guides[0], 'passMic', {});
+    check(off.shared.mic === false && off.shared.micId === null, 'darkroom (810): off by default: nobody holds a mic');
+  }
+  // «دايخ!» (813): from level 3 a bump into a pillar swaps the mover's left and right for 5 s; only the guides are told.
+  {
+    const dizzyAt = (level) => {
+      const r = dkRoom(['a', 'b', 'c']);
+      applyRoomAction(r, 'a', 'start', { story: 'tomb', mode: 'steps' });
+      let m = null, spot = null;
+      for (let seed = 1; seed < 600 && !spot; seed++) {
+        r._dark.seed = seed; r.shared.level = level; m = mapOf(r);
+        for (let c = 0; c < m.w * m.h && !spot; c++) {
+          const x = c % m.w, y = Math.floor(c / m.w);
+          if (m.cellBlock[c] >= 0 || m.trapAt.has(c) || (m.dyn || []).some((z) => [0, 1, 2, 3, 4].some((k) => D.darkDynCell(m, z, k) === c))) continue;
+          for (const k of Object.keys(D.DARK_DIRS)) {
+            const d = D.DARK_DIRS[k];
+            if (D.darkBlocked(m, x, y, d[0], d[1]) === 'pillar') { spot = { c, k }; break; }
+          }
+        }
+      }
+      r.shared.pos = { x: spot.c % m.w + 0.5, y: Math.floor(spot.c / m.w) + 0.5 };
+      at(r, 1);
+      r._dark.checkCell = spot.c; r._dark.checkK = 1;
+      applyRoomAction(r, r.shared.moverId, 'step', { d: spot.k, run: r.shared.run });
+      return r;
+    };
+    const r = dizzyAt(3);
+    const s = r.shared, mover = s.moverId, guide = s.guides[0];
+    const ev = s.ev[s.ev.length - 1];
+    check(ev.type === 'bump' && ev.k === 'pillar' && r._dark.dizzyUntil === clock + 5000, 'darkroom (813): level 3, a bump into a pillar: dizzy for 5 s');
+    check(r.secrets[guide].dz === r._dark.dizzyUntil && r.screenOnly.dz === r._dark.dizzyUntil && r.secrets[guide].pev.some((e) => e.type === 'dizzy'),
+      'darkroom (813): the guides and the screen are told');
+    check(!('dz' in r.secrets[mover]) && JSON.stringify(s).indexOf('dizzy') === -1 && JSON.stringify(r.secrets[mover]).indexOf('dizzy') === -1, 'darkroom (813): the mover is never told');
+    clock += 200;
+    applyRoomAction(r, mover, 'step', { d: 'L', run: r.shared.run });
+    check(r.shared.face === 'R' || r.shared.phase !== 'play', 'darkroom (813): dizzy, the left arrow walks right');
+    clock += 5000;
+    applyRoomAction(r, mover, 'step', { d: 'L', run: r.shared.run });
+    check(r.shared.face === 'L' || r.shared.phase !== 'play', 'darkroom (813): five seconds later, left is left again');
+    const r2 = dizzyAt(2);
+    check(!r2._dark.dizzyUntil, 'darkroom (813): before level 3, a pillar is only a bump');
   }
   // The audit of 30 Sep 2026: a trap that passes a still mover between two alarms (the alarm can't come sooner than a second).
   {
@@ -16206,7 +16455,7 @@ console.log('• the secret mission');
 {
   console.log('\nThe vault');
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
-  const V = new Function(readFileSync(srcPath('Vault.js'), 'utf8') + ';return { vaultLevel, vaultUnits, vaultDealUnits, vaultManual, vaultMakeSafe, vaultWireAnswer, vaultSymbolOrder, vaultDialCode, vaultTwistOn, vaultLightAnswer, VAULT_LOCKS, VAULT_PENALTY_MS, vaultPenaltyMs, VAULT_READY_MS, VAULT_BETWEEN_MS };')();
+  const V = new Function(readFileSync(srcPath('Vault.js'), 'utf8') + ';return { vaultLevel, vaultUnits, vaultDealUnits, vaultManual, vaultMakeSafe, vaultWireAnswer, vaultSymbolOrder, vaultDialCode, vaultTwistOn, vaultLightAnswer, VAULT_LOCKS, VAULT_PENALTY_MS, vaultPenaltyMs, VAULT_READY_MS, VAULT_BETWEEN_MS, VAULT_EXPLAIN_MS, VAULT_KEY_EVERY };')();
   const vaultRoom = (ids, payload, screens) => {
     const r = newRoom(ids);
     if (screens) r.screens = screens.map((id) => ({ id }));
@@ -16457,6 +16706,67 @@ console.log('• the secret mission');
     r.players.push({ id: 'z', name: 'Z' });
     toPlay(r);
     check(!r.secrets.z && r.shared.roster.indexOf('z') === -1, 'vault: a latecomer watches until play again');
+  }
+  {
+    // «ليه كده؟» (the ideas of 7 Oct 2026, 801): a safe with a mistake explains that lock once it is over.
+    const r = vaultRoom(['a', 'b', 'c']);
+    const s = r.shared;
+    toPlay(r);
+    const i0 = s.locks[0].i, i1 = s.locks[1].i;
+    const lock0 = r._vault.safe.locks[i0];
+    const row0 = V.vaultLightAnswer(r._vault.manual.lights, lock0.look.seq || [], 0);
+    wrongMove(r, 'x', i0);
+    check(!s.result, 'vault (801): nothing is explained while the candle burns');
+    solveSafe(r, 'x');
+    const ex = ((s.result || {}).explain || {}).x || [];
+    const e0 = ex.find((e) => e.i === i0);
+    const right = !e0 ? false : lock0.k === 'lights' ? JSON.stringify(e0.a) === JSON.stringify(row0) && e0.row === 0
+      : JSON.stringify(e0.a) === JSON.stringify(lock0.sol);
+    check(s.phase === 'result' && ex.length === 1 && right && !ex.some((e) => e.i === i1),
+      'vault (801): the result explains the lock with the mistake (its rule and the right answer), not the clean one');
+    check(s.nextAt - clock === V.VAULT_EXPLAIN_MS, 'vault (801): a card that explains stays 10 s');
+    if (lock0.k === 'wires') check(e0.n >= -1 && (e0.n === -1 || !!e0.r) && e0.w.length === lock0.look.wires.length, 'vault (801): a wire\'s explanation names the rule that applied');
+    if (lock0.k === 'dial') check(e0.s === lock0.look.shape && e0.c.length === 3, 'vault (801): the dial\'s explanation gives the shape\'s code');
+    if (lock0.k === 'symbols') check(e0.col >= 1, 'vault (801): the symbols\' explanation names the column');
+  }
+  {
+    // A clean safe explains nothing; a lost one explains every lock left shut, on the end card too.
+    const r = vaultRoom(['a', 'b']);
+    toPlay(r);
+    solveSafe(r, 'x');
+    check(!r.shared.result.explain && r.shared.nextAt - clock === V.VAULT_BETWEEN_MS, 'vault (801): a clean safe has nothing to explain, 6 s as before');
+    const q = vaultRoom(['a', 'b']);
+    toPlay(q);
+    const k0 = q.shared.locks.find((l) => l.k !== 'wires').i;   // a wire can be cut wrong only so many times
+    wrongMove(q, 'x', k0); wrongMove(q, 'x', k0); wrongMove(q, 'x', k0);
+    const ex = ((q.shared.result || {}).explain || {}).x || [];
+    check(q.shared.phase === 'gameover' && ex.length === q.shared.locks.length, 'vault (801): a lost safe explains every lock left shut, kept on the end card');
+  }
+  {
+    // «المفتاح الاحتياطي» (804): every third clean safe earns a key; spent, it opens a lock outright.
+    const r = vaultRoom(['a', 'b', 'c']);
+    const s = r.shared;
+    for (let n = 1; n <= V.VAULT_KEY_EVERY; n++) {
+      toPlay(r);
+      if (n === 2) { check(s.keys.x === 0 && s.clean.x === 1, 'vault (804): one clean safe is no key yet'); }
+      solveSafe(r, 'x');
+      if (n < V.VAULT_KEY_EVERY) applyRoomAction(r, 'a', 'nextSafe', { safe: s.safeNo });
+    }
+    check(s.keys.x === 1 && s.events.some((e) => e.type === 'key'), 'vault (804): the third safe opened with no mistake earns a spare key');
+    applyRoomAction(r, 'a', 'nextSafe', { safe: s.safeNo });
+    check(threw(() => applyRoomAction(r, s.sides.x.opener, 'useKey', { i: s.locks[0].i, safe: s.safeNo })) === false && !s.sides.x.open[s.locks[0].i] && s.keys.x === 1,
+      'vault (804): no key is spent on the safe\'s card');
+    toPlay(r);
+    const opener = s.sides.x.opener, reader = s.roster.find((id) => id !== opener);
+    const li = s.locks[1].i;
+    check(threw(() => applyRoomAction(r, reader, 'useKey', { i: li, safe: s.safeNo })), 'vault (804): only who works the lock spends the key');
+    applyRoomAction(r, opener, 'useKey', { i: li, safe: s.safeNo + 1 });
+    check(!s.sides.x.open[li] && s.keys.x === 1, 'vault (804): a key tapped on another safe is dropped');
+    applyRoomAction(r, opener, 'useKey', { i: li, safe: s.safeNo });
+    check(s.sides.x.open[li] && s.keys.x === 0 && s.sides.x.mistakes === 0 && s.events.some((e) => e.type === 'keyUsed' && e.i === li), 'vault (804): the spare key opens the lock at once, and is gone');
+    check(threw(() => applyRoomAction(r, opener, 'useKey', { i: s.locks[0].i, safe: s.safeNo })), 'vault (804): no key left, none to spend');
+    const t = vaultRoom(['a', 'b', 'c', 'd'], { way: 'teams' });
+    check(JSON.stringify(t.shared.keys) === '{"a":0,"b":0}', 'vault (804): two teams keep their own keys');
   }
 }
 

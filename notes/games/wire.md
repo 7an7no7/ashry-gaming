@@ -164,6 +164,20 @@ catalog, the help); the rules are named `wire` / `WIRE_`, the page's code
 
 **The review of 1 Oct 2026.** A slider is sent once, where the finger lets go: dragging it shows the value on the phone (`wr.dragging` keeps the local value showing however long the drag) and sends nothing until `pointerup`; it used to send every value it passed, and so filled every order on the way. The arrow keys still send each step.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **793 «المنادي» للي بيتفرج** (no extra rule asked; built as described). A
+  phone that is not in the level's table (`shared.alive`: a latecomer, the
+  ninth) no longer shows only "watching": it shows every open order
+  (`shared.orders`, public already; never a panel) as a list, soonest to burn
+  first, each with whose phone it is on («موبايل منى») and its draining bar, the
+  one about to burn lit (`is-next`) and pulsing under 35% (`is-hurry`), so the
+  watcher calls it out to the table. Phone only (`wrCallerPaint` rebuilds the
+  list when the orders change, `wrCallerFrame` drains the bars each frame from
+  the server's time; the shake's pause is honoured as on the TV's fridge); the
+  TV already shows every order. No server change. Styles `.wr-call*` in
+  section 55; words `wr_caller_*`; the rules' list has a line for it.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

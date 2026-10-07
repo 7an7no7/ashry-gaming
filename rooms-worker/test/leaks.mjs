@@ -1001,6 +1001,12 @@ const PROBES = {
         if (sv.match) return 'shared.match';
         if (view.you && view.you.face) return 'you.face';
         return null;
+      }),
+      // «ممنوع تقول…» (7 Oct 2026): the taboo on the witness's phone and the screen only, until the reveal.
+      probe("the witness's taboo is on their phone and the screen only, until the reveal", !!h && !!h.taboo && s.phase !== 'reveal', (view, pid) => {
+        if (pid === s.witnessId || pid === SCREEN) return null;
+        if ((view.shared || {}).taboo) return 'shared.taboo';
+        return JSON.stringify(view).indexOf('"taboo":"') !== -1 ? 'the taboo' : null;
       })
     ];
   },
@@ -1107,6 +1113,8 @@ const PROBES = {
         return p ? 'you.pages ' + p.u : null;
       }),
       probe('vault: the table\'s state holds no look, page or answer', true, (view) => {
+        // «ليه كده؟» (7 Oct 2026): a safe's explanation only once it is over.
+        if ((view.shared || {}).phase === 'play' && ((view.shared || {}).result || {}).explain) return 'result.explain during play';
         const json = JSON.stringify(view.shared || {});
         return ['"look"', '"sol"', '"manual"', '"seed"', '"rules"', '"cols"', '"codes"', '"prog"'].find((k) => json.indexOf(k) !== -1) || null;
       })
@@ -1117,7 +1125,8 @@ const PROBES = {
   box(room) {
     const s = room.shared || {};
     const h = room._box;
-    const closed = !!h && (s.phase === 'talk' || s.phase === 'bid');
+    // «عرض الحاج» (7 Oct 2026): the box stays shut while its winner is offered the money.
+    const closed = !!h && (s.phase === 'talk' || s.phase === 'bid' || s.phase === 'offer');
     return [
       probe('the box on the table is on no phone before it opens', closed, (view, pid, idx) => {
         const sv = view.shared || {};
@@ -1142,6 +1151,11 @@ const PROBES = {
         const b = view.you && view.you.bid;
         if (b === undefined || b === null) return null;
         return h.bids[pid] === b ? null : 'you.bid (someone else\'s)';
+      }),
+      // «تأمين» (7 Oct 2026): who insured is a phone's own until the opening.
+      probe('an insurance is on its own phone only, until the opening', closed && Object.keys(h.insured || {}).length > 0, (view, pid) => {
+        if (hasKey(view.shared, 'insured')) return 'shared.insured';
+        return view.you && view.you.insured && !(h.insured || {})[pid] ? 'you.insured (someone else\'s)' : null;
       })
     ];
   },
@@ -1161,6 +1175,8 @@ const PROBES = {
         const y = view.you || {};
         if (y.g) return 'you.g';
         if (y.pev) return 'you.pev';
+        // «دايخ!» (7 Oct 2026): the guides are told the mover is dizzy; the mover never.
+        if (y.dz !== undefined || JSON.stringify(view.shared || {}).indexOf('dizzy') !== -1) return "dizzy on the mover's phone";
         if (view.screen) return 'screen';
         return null;
       }),
@@ -2547,6 +2563,13 @@ const DRIVERS = {
       if (s.phase === 'ready') {
         if (s.round === 3) { must(T, T.host, 'skipTurn', { round: s.round }); continue; }
         must(T, s.witnessId, 'ready', { round: s.round });
+        // «ممنوع تقول…» comes one round in three: the first round has one for sure, as the server would deal it.
+        if (s.round === 1 && T.room._witness && !T.room._witness.taboo) {
+          T.room._witness.taboo = 'colors';
+          T.room.secrets[s.witnessId] = Object.assign({}, T.room.secrets[s.witnessId], { taboo: 'colors' });
+          T.room.screenOnly = { taboo: 'colors' };
+          scan(T, 'a taboo dealt');
+        }
         continue;
       }
       if (s.phase === 'look') { runClock(T, (r) => r.shared.phase !== 'look', 3); continue; }
@@ -2645,6 +2668,7 @@ const DRIVERS = {
     const T = table('box', 5);
     must(T, T.host, 'start', {});
     T.room._box.deck[2] = { kind: 'key', value: null };
+    T.room._box.offerAt = [0, 6];          // «عرض الحاج» at two boxes the driver plays through
     for (let guard = 0; guard < 80 && S(T).phase !== 'gameover'; guard++) {
       const s = S(T);
       if (s.phase === 'talk' || s.phase === 'bid') {
@@ -2662,7 +2686,12 @@ const DRIVERS = {
           scan(T, 'left');
           continue;
         }
-        here.forEach((id) => act(T, id, 'bid', { box: s.box, amount: 10 * Math.floor(Math.random() * 30) }));
+        here.forEach((id, i) => act(T, id, 'bid', { box: s.box, amount: 10 + 10 * Math.floor(Math.random() * 30), insure: i % 2 === 0 }));
+        continue;
+      }
+      if (s.phase === 'offer') {
+        if (s.box === 0) must(T, s.offer.winnerId, 'deal', { box: s.box, take: true });
+        else runClock(T, (r) => r.shared.phase !== 'offer', 3);
         continue;
       }
       if (s.phase === 'open') {

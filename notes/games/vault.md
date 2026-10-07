@@ -153,6 +153,48 @@ brass padlock).
 
 - **«الكل» after people leave** (the audit of 6 Oct 2026): when a lock kind lands on every phone left (3 of 9: a dial each), `vaultDealHolders` swaps one of its locks with another phone's lock of another kind, so someone without it reads its page; only if no swap helps does the phone holding the fewest of it get the page.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **801 «ليه كده؟» بعد الغلطة** (no extra rule asked; built as described). A
+  lock's answer can't be shown at the mistake itself while the candle burns
+  (the opener would then just do it), so it is shown on the safe's result card
+  - and on the end card of an endless game lost on that safe - for every lock
+  with a mistake on it or left shut. The server builds it once the safe is over
+  (`vaultExplainAll` in `RoomVault.js`, `vaultExplainLock` in `Vault.js`)
+  into `shared.result.explain = { side: [{ i, k, … }] }`: wires `{ w, n, r, a }`
+  (the colours, the rule that applied and its index, -1 when none did, the wire),
+  symbols `{ col, a }`, the dial `{ s, c, tw, on, a }` (the notebook's code, the
+  twist, whether the chest's number turned it), the lights `{ q, row, a }` with
+  the column of mistakes that applied *when the mistake was made*
+  (`prog.row`, kept at the lights' mistake). Field names are the card's own, so
+  nothing in `shared` looks like a lock's look or a page. Shown on the phone
+  that worked those locks (the opener; in «الكل» each lock's holder) and on
+  the TV (both teams', each under its name); a reader's phone shows nothing new
+  (it holds the notebook). The words of the explanation are in the notebook's
+  language (`VT_WORDS`: `whyWires`, `whyCut`, `whySym`, `whyRev`, `whyRow`),
+  drawn by `vtExplainHtml` / `vtExplainItem` on a strip of notebook paper
+  (`.vt-why`). Chosen: a card that explains stays **10 s** instead of 6
+  (`VAULT_EXPLAIN_MS`) so the opener can read it out; a clean safe stays 6 s.
+- **804 المفتاح الاحتياطي** (no extra rule asked; built as described). Every
+  third safe a side opens with no mistake (`VAULT_KEY_EVERY` 3, counted over
+  the game, not in a row: `shared.clean[side]`) earns a key
+  (`shared.keys[side]`, the `key` event, a jingle on the voice); in «فريقين»
+  each team its own, in a set or endless alike; play again starts at none. The
+  phone working a shut lock (the opener, a lock's holder in «الكل», the TV when
+  it opens) gets «🗝️ افتحه بالمفتاح الاحتياطي (n)» under the stage, asked first
+  (`showConfirmModal`), sending `useKey { i, safe }` (stale safe dropped; only
+  while the candle burns; from the lock's worker only; refused with no key):
+  the lock opens at once (`vaultOpenLock`, the `keyUsed` event) and the key is
+  gone. Chosen: a lock opened by a key scores like any opened lock, and a safe
+  is still clean if the key was used and nobody slipped. The keys hang on the
+  TV's washing line (`.vt-tkey`, up to four a side, swaying; the TV's `sig`
+  carries `shared.keys`), and the phone's hasp says how many (`data-vt-keys`).
+- Tests: `rules.mjs` ("The vault": the explanation only once the safe is over,
+  the lock with the mistake and not the clean one, its answer, 10 s; a clean
+  safe 6 s; a lost safe explains every shut lock; a key at the third clean safe,
+  none on the card, only the lock's worker, stale dropped, opens and is gone,
+  none left; two teams' keys), `leaks.mjs` (no explanation during play).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

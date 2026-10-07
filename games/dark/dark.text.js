@@ -25,6 +25,17 @@ gameText({
       dk_cleared: "مستويات عدّيتوها",
       dk_best: "أحسن رقم للأوضة: {n}",
       dk_watching: "بتتفرج دلوقتي، وهتلعب اللعبة الجاية.",
+      dk_mic: "الميكروفون",
+      dk_mic_hint: "واحد بس من اللي بيوصفوا يتكلم في المرة: اللي معاه الميكروفون. يعدّيه للي بعده، أو اللي ماشي ينادي على حد.",
+      dk_mic_off_hint: "مقفول: كل اللي بيوصفوا يتكلموا مع بعض.",
+      dk_mic_yours: "الميكروفون معاك: إنت بس اللي تتكلم!",
+      dk_mic_other: "الميكروفون مع {name}",
+      dk_mic_wait: "اسكت واستنى دورك 🤫",
+      dk_mic_pass: "🎤 عدّيه للي بعدي",
+      dk_mic_call: "نادي على:",
+      dk_mic_your_turn: "🎤 دورك تتكلم!",
+      dk_dizzy_now: "😵 {name} داخ! الشمال بقى يمين",
+      dk_dizzy: "😵 {name} دايخ: قولوا الشمال يمين! ({n})",
       dk_you_walk: "الدور عليك تمشي",
       dk_echo_hint: "الخطوط = صدى الحيطان والعفش حواليك. اسمع صحابك!",
       dk_stick_hint: "اسحب الدايرة ناحية ما عايز تمشي",
@@ -112,6 +123,17 @@ gameText({
       dk_cleared: "levels cleared",
       dk_best: "The room's best: {n}",
       dk_watching: "You're watching now, and play the next game.",
+      dk_mic: "The mic",
+      dk_mic_hint: "Only one guide talks at a time: whoever holds the mic. They pass it on, or the walker calls someone by name.",
+      dk_mic_off_hint: "Off: all the guides talk at once.",
+      dk_mic_yours: "You hold the mic: only you talk!",
+      dk_mic_other: "{name} has the mic",
+      dk_mic_wait: "Quiet, wait your turn 🤫",
+      dk_mic_pass: "🎤 Pass it on",
+      dk_mic_call: "Call on:",
+      dk_mic_your_turn: "🎤 Your turn to talk!",
+      dk_dizzy_now: "😵 {name} is dizzy! Left is right now",
+      dk_dizzy: "😵 {name} is dizzy: say left for right! ({n})",
       dk_you_walk: "Your turn to walk",
       dk_echo_hint: "The lines are the echo of the walls and furniture around you. Listen to your friends!",
       dk_stick_hint: "Drag the circle the way you want to go",
@@ -193,6 +215,14 @@ gameText({
                 <li><b>خطوة بخطوة</b>: كل ضغطة سهم خطوة. <b>جويستيك</b>: المشي متواصل. المضيف بيختار في اللوبي، وكمان الحكاية.</li>
                 <li>لو موبايل اللي ماشي نام، المضيف يعدّي الدور للي بعده من غير ما تخسروا قلب.</li>
             </ul>
+            <p class="help-sub">🎤 الميكروفون (لو المضيف شغّله)</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>واحد بس من اللي بيوصفوا يتكلم: اللي معاه الميكروفون، واسمه كبير على كل موبايل والتلفزيون. يدوس ويعدّيه للي بعده، أو اللي ماشي ينادي على حد باسمه. مين بيوصف أحسن؟</li>
+            </ul>
+            <p class="help-sub">😵 دايخ!</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>من المستوى 3: لو اللي ماشي خبط في عمود (المقبرة) أو القطة عدّت جنبه (البيت)، بيدوخ 5 ثواني: الشمال واليمين بيتبدّلوا في إيده. هو مش بيعرف، بس اللي بيوصفوا بيتقالهم: قولوا الشمال لما تقصدوا اليمين!</li>
+            </ul>
             <p class="help-sub">📺 على التلفزيون (اختياري)</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>البيت أو المقبرة 3D من فوق (أو 2D بزرار)، وبتنوّر بس مكان العدسات. اللي ماشي يدي ضهره للشاشة!</li>
@@ -212,6 +242,14 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li><b>Step by step</b>: each arrow tap is a step. <b>Joystick</b>: smooth walking. The host picks in the lobby, and the story too.</li>
                 <li>If the walker's phone falls asleep, the host can pass the turn on without losing a heart.</li>
+            </ul>
+            <p class="help-sub">🎤 The mic (if the host turns it on)</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>Only one guide talks: whoever holds the mic, shown big on every phone and the TV. They tap to pass it on, or the walker calls someone by name. Who explains best?</li>
+            </ul>
+            <p class="help-sub">😵 Dizzy!</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>From level 3: if the walker bumps a pillar (the tomb) or the cat brushes past them (home), they are dizzy for 5 seconds: left and right swap under their thumbs. They aren't told, but the guides are: say left when you mean right!</li>
             </ul>
             <p class="help-sub">📺 On the TV (optional)</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

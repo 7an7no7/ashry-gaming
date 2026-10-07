@@ -20,6 +20,11 @@ gameText({
                 <li>🎯 <b>الرسم مطابق كام في المية؟</b> في الكشف التطبيق يقارن الرسم بالوش الحقيقي حتة حتة (الشعر، العينين، النضارة، الدقن، اللبس…؛ راجل ولا ست ونوع الشعر ولونه بضعف الوزن). <b>٧٠٪ أو أكتر</b>: <b>+١ للشاهد و+١ للرسام</b> فوق نقطهم. أقل من كده النسبة للضحك بس.</li>
                 <li>كل واحد يبقى الشاهد <b>مرة واحدة</b>، وبعدها النتيجة النهائية.</li>
             </ul>
+            <p class="help-sub">🎛️ اختيارات المضيف</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>🚫 <b>ممنوع تقول…</b> (شغّالة لوحدها): جولة من كل ٣ تقريبًا، وعمرها ما تيجي جولتين ورا بعض، الشاهد ياخد كارت ممنوع يشوفه هو والتلفزيون بس: «ممنوع تقول أي لون»، «ممنوع تقول نضارة»، «اوصف بتشبيهات بس»… وفي الكشف الكل يعرف كان ممنوع إيه.</li>
+                <li>📈 <b>كل جولة أصعب</b> (مقفولة لوحدها): الوش يبان ٨ ثواني في أول تلت اللعبة، ٦ في التاني، و٥ في الآخر، والوشوش في الطابور شبه بعض أكتر. عدّاد القضية بيقول كام ثانية.</li>
+            </ul>
             <p class="help-sub">📱 كل واحد من موبايله</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>من 3 لـ12 لاعب. لو الشاهد موبايله نام، المضيف يعدّيه؛ ولو الرسام اتأخر، المضيف يخلّص الرسم.</li>
@@ -46,6 +51,11 @@ gameText({
                 <li>The witness and the artist score <b>a point for every juror who got it</b>: a good description and a good drawing win together.</li>
                 <li>🎯 <b>How close is the sketch?</b> At the reveal the app holds the sketch against the real face feature by feature (hair, eyes, glasses, beard, clothes…; man or woman and the hair's style and colour count double). <b>70% or more</b>: <b>+1 to the witness and +1 to the artist</b> on top of their points. Under that, the % is just for the laugh.</li>
                 <li>Everyone is the witness <b>once</b>, then the final result.</li>
+            </ul>
+            <p class="help-sub">🎛️ The host's choices</p>
+            <ul class="list-disc list-inside space-y-1 text-xs">
+                <li>🚫 <b>Don't say…</b> (on unless turned off): about one round in three, never two in a row, the witness gets a forbidden card only they and the TV see: "don't say any colour", "don't say glasses", "comparisons only"… At the reveal everyone learns what it was.</li>
+                <li>📈 <b>Harder every round</b> (off unless turned on): the face shows 8 seconds in the first third of the game, 6 in the second and 5 in the last, and the lineup's faces are closer. The case count says how many seconds.</li>
             </ul>
             <p class="help-sub">📱 Everyone on their own phone</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

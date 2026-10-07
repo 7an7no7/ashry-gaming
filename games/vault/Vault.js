@@ -34,6 +34,8 @@ const VAULT_TEAM_MIN = 4;          // «فريقين»: two a side at least
 const VAULT_MAX = 10;              // at the table; the rest watch
 const VAULT_READY_MS = 5000;       // the safe's card before the clock starts
 const VAULT_BETWEEN_MS = 6000;     // a safe's result before the next one comes by itself
+const VAULT_EXPLAIN_MS = 10000;    // …and when its card says «ليه كده؟» (a mistake, a lock left shut): time to read it out
+const VAULT_KEY_EVERY = 3;         // «المفتاح الاحتياطي»: every third safe a side opens with no mistake earns one
 const VAULT_STRIKES = 3;           // «٣ غلطات»: the third sets off the alarm
 const VAULT_SPEEDUP = 0.25;        // each strike: the candle burns 25% faster (×1.25, ×1.5)
 const VAULT_PENALTY_MS = 15000;    // «من الوقت»: the first mistake of a safe burns 15 s, the next 30, then 45…
@@ -282,6 +284,31 @@ const vaultLightRowOf = (mistakes) => Math.min(2, Math.max(0, Number(mistakes) |
 const vaultLightAnswer = (lights, seq, mistakes) => {
   const row = (lights || [])[vaultLightRowOf(mistakes)] || {};
   return seq.map((c) => row[c]);
+};
+
+/* --- «ليه كده؟» (the ideas of 7 Oct 2026): what the notebook said, for the result card ---
+   Built by the server once a safe is over, only for a lock with a mistake on it or left shut;
+   the field names are the card's own (never a lock's look or the manual's), the safe is done.
+     wires    { w: the colours, n: the rule that applied (0-based; -1 none: the last wire), r: that rule, a: the wire }
+     symbols  { col: the column (1-based), a: the order }
+     dial     { s: the shape, c: the notebook's code, tw: the twist, on: it applied, a: the code to turn }
+     lights   { q: the flashes, row: the column of mistakes that applied, a: the buttons } */
+const vaultExplainLock = (manual, lock, serial, row) => {
+  const look = lock.look || {};
+  if (lock.k === 'wires') {
+    const list = (manual.wires || {})[look.wires.length] || [];
+    let n = -1;
+    for (let k = 0; k < list.length; k++) {
+      if (vaultWireIf(list[k].if, look.wires) && vaultWireDo(list[k].do, look.wires) >= 0) { n = k; break; }
+    }
+    return { k: 'wires', w: look.wires.slice(), n, r: n >= 0 ? JSON.parse(JSON.stringify(list[n])) : null, a: lock.sol };
+  }
+  if (lock.k === 'symbols') return { k: 'symbols', col: vaultSymbolCol(manual.symbols, look.syms) + 1, a: (lock.sol || []).slice() };
+  if (lock.k === 'dial') {
+    return { k: 'dial', s: look.shape, c: (manual.dial.codes[look.shape] || []).slice(), tw: manual.dial.twist, on: vaultTwistOn(manual.dial.twist, serial), a: (lock.sol || []).slice() };
+  }
+  const r = vaultLightRowOf(row);
+  return { k: 'lights', q: look.seq.slice(), row: r, a: vaultLightAnswer(manual.lights, look.seq, r) };
 };
 
 /* --- a safe ---------------------------------------------------------------------

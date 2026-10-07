@@ -143,6 +143,58 @@ computer players, the TV optional.
   host's calls, a leaver), `play-all.mjs` (`--only=box`: four phones and a TV
   through eight boxes, a leaver at the fifth, play again with the latecomer).
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **834 عرض الحاج** The owner: twice a game, at two random boxes (never the
+  finale), 8 s to take the money or open. Built: `room._box.offerAt` (two of
+  boxes 1-7, drawn at the start, secret). When the bids of such a box are in and
+  someone won it, `boxOpen` stops at a new phase **'offer'** (the winner and the
+  tie are decided, `room._box.pending`; nothing paid yet) with `shared.offer = {
+  winnerId, bid, amount, endsAt }` (`BOX_OFFER_MS` 8000, on the server's clock).
+  The amount (`boxOfferAmount`, chosen): 85% of the bid plus 45% of what the
+  boxes still on the table (this one included) are worth on average to their
+  taker, give or take a tenth, at least 50, to the 10. The winner's `deal { box,
+  take }` (stale box dropped; anyone else ignored): taken - the winner pays the
+  bid and pockets the offer, the box is opened only to be seen (no effect, no
+  key's peek, no coin toss: `result.deal`); turned down, no answer in 8 s, or
+  the winner leaving (nobody takes it then) - the box opens as always
+  (`boxApply`, `result.offer` kept for the show). The phone (`bxPhoneOfferHtml`):
+  the studio's crop, «🎩 عرض الحاج», the amount, the 8 s bar, and the winner's two
+  buttons «💰 هات الفلوس» / «📦 لأ، افتح الصندوق!» (`bxDeal`); everyone else «…ياخد
+  ولا يفتح؟ زعّقوا!». The TV: the banner and an offer card over the stage with
+  the clock. A phone-ring sound on the voice. The show then says «خد … من الحاج!
+  نشوف ساب إيه…» or «رفض عرض الحاج!», and a taken box's line is «… وكان جواه: …»
+  with the money flying from above the stage. (`roomTurnOf` in
+  `rooms/JS_RoomTurn.html` was left alone: the offer is 8 s on every screen.)
+- **836 تأمين** (no extra rule asked). With the bid, `insure: true` (an older
+  phone sends none): 50 (`BOX_INSURE`) on top, so the bid is capped 50 under the
+  money, and refused without the 50. Chosen: the premium is paid at the opening
+  by everyone who insured, whoever takes the box (like any insurance). An
+  insured winner of a scorpion loses half of it; an insured victim of the
+  thief loses half as much (`result.insPaid` says what it saved; the bill is not
+  covered). Secret until the opening (`room._box.insured`; the phone's own slice
+  `insured`); then `result.insured` - a 🛡 by the bid on the podiums and the
+  phone's chips, «🛡 −50» floating up, and the saving said in the result line.
+  The phone's bid step has the switch-card «🛡️ تأمين بـ50 ج» (`bxIns`, `bxMaxBid`).
+- **837 صندوق الختام** (no extra rule asked). `shared.finale` (7, the eighth box)
+  is announced from the start: its cell in the strip is gold-rimmed with «×2», its
+  talk has a «🏁 صندوق الختام: كل حاجة جواه ×2!» bar on the phones and the TV's
+  banner, and it opens with its own longer drumroll and a cymbal (`drumBig`,
+  also at its talk's start). Everything inside counts double: the deck's
+  treasure, scorpion (600) or bill (100 each) is doubled at the deal (so the
+  clues and a key's peek tell the true value); the thief takes twice the half -
+  everything, an insured victim half of that; heads pays four times the bid
+  (chosen, for the thief and the coin). `result.x2`; the big word reads «×2 …».
+  The finale never has an offer.
+- Tests: `rules.mjs` ("Open the box": insurance paid by all who took it, half a
+  scorpion, the cap, none without the 50, half of the thief's; the finale doubled
+  in the deck, the thief and the coin; two offers never the finale, the offer
+  phase and its clock, only the winner answers, taken, turned down, no answer,
+  the winner leaving, none on the finale; the older tests start with no offers),
+  `leaks.mjs` (the box shut and the insurance its own phone's through the
+  offer; the driver takes an offer and insures), `play-all.mjs` (`--only=box`:
+  an offer taken and one turned down when they come, an insured bid, the finale).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

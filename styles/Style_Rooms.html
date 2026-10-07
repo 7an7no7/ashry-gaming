@@ -1304,6 +1304,17 @@ button.wit-slot:active { transform: scale(0.97); }
 .wit-verdict { text-align: center; }
 .wit-verdict__line { font-family: var(--font-display); font-weight: 900; font-size: var(--fs-h1); color: var(--text); }
 .wit-verdict__pts { color: var(--text-2); font-weight: 700; font-size: var(--fs-sm); }
+/* «ممنوع تقول…» (7 Oct 2026): a red-ruled card on the witness's phone and the TV; the reveal says it to all. */
+.wit-taboo { display: grid; gap: 0.15rem; justify-items: center; text-align: center; padding: var(--sp-2) var(--sp-3); border-radius: 12px; background: #fff5f5; color: #3b0d12; border: 3px solid #d62e45; box-shadow: 0 3px 0 #7a1b25; rotate: -1.5deg; animation: wit-taboo-in 0.45s cubic-bezier(.3,1.6,.5,1) both; }
+.wit-taboo small { font-size: var(--fs-sm); font-weight: 700; color: #a3162b; }
+.wit-taboo b { font-family: var(--font-display); font-weight: 900; font-size: var(--fs-h3); line-height: 1.3; }
+.wit-taboo--tv { padding: 1.4vmin 2.4vmin; border-width: 0.5vmin; border-radius: 1.4vmin; }
+.wit-taboo--tv small { font-size: 2vmin; }
+.wit-taboo--tv b { font-size: 3.4vmin; }
+.wit-verdict__taboo { margin-top: var(--sp-1); font-weight: 800; color: var(--danger-ink, var(--danger)); font-size: var(--fs-sm); }
+.wit-tv .wit-verdict__taboo { font-size: 2.2vmin; }
+@keyframes wit-taboo-in { from { opacity: 0; transform: scale(1.4); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .wit-taboo { animation: none; } }
 .wit-gained { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; }
 .wit-gain { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.65rem 0.2rem 0.3rem; border-radius: var(--r-full); background: var(--surface-2); color: var(--text); font-size: var(--fs-sm); font-weight: 700; }
 .wit-gain b { color: var(--success-ink, var(--text)); }
@@ -1414,6 +1425,20 @@ html[dir="ltr"] .wr-mbar i { transform-origin: left; }
 .wr-mbar--p i { background: #1f9d55; transform: scaleX(var(--p)); }
 .wr-mbar--d i { background: #e5383b; transform: scaleX(var(--d)); }
 .wr-watch { margin: 1rem; padding: 1.2rem; text-align: center; font-weight: 700; border-radius: var(--r-xl); background: rgba(0, 0, 0, 0.18); }
+/* «المنادي» (7 Oct 2026): a watcher's phone lists every open order, the one about to burn on top. */
+.wr-caller { margin: 0.4rem 1rem; display: grid; gap: 0.5rem; }
+.wr-caller__head { display: grid; gap: 0.15rem; text-align: center; }
+.wr-caller__head b { font-family: var(--font-display); font-size: 1.1rem; }
+.wr-caller__head small, .wr-caller__foot { font-size: 0.75rem; font-weight: 700; opacity: 0.8; text-align: center; }
+.wr-caller__list { display: grid; gap: 0.45rem; }
+.wr-call { position: relative; padding: 0.45rem 0.8rem 1rem; border-radius: var(--r-lg); background: #fff6a8; color: #221f36; border: 2px solid #15121f; font-weight: 800; line-height: 1.3; }
+.wr-call small { display: block; font-size: 0.72rem; font-weight: 700; color: #6b6480; }
+.wr-call i { position: absolute; inset-inline: 0.8rem; bottom: 0.35rem; height: 0.35rem; border-radius: 99px; background: #e5383b; transform-origin: right; }
+html[dir="ltr"] .wr-call i { transform-origin: left; }
+.wr-call.is-idle { opacity: 0.6; text-align: center; padding-bottom: 0.45rem; }
+.wr-call.is-next { box-shadow: 0 0 0 3px #ffb938; }
+.wr-call.is-hurry { animation: wrCallPulse 0.45s ease-in-out infinite alternate; }
+@keyframes wrCallPulse { to { transform: scale(1.03); } }
 
 /* The stamp and the red edge: a moment on this phone. */
 .wr-stamp { position: absolute; inset-inline: 0; top: 40%; z-index: 5; text-align: center; white-space: pre-line; font-family: var(--font-display); font-weight: 900; font-size: 2.3rem; line-height: 1.2; pointer-events: none; opacity: 0; }
@@ -1579,7 +1604,7 @@ html[dir="ltr"] .wr-mbar i { transform-origin: left; }
   #view-room-wire .wr-bars { grid-area: bars; }
   #view-room-wire .wr > .wr-ord { grid-area: ord; }
   #view-room-wire .wr > .wr-pnl { grid-area: pnl; }
-  #view-room-wire .wr-watch { grid-column: 1 / -1; }
+  #view-room-wire .wr-watch, #view-room-wire .wr-caller { grid-column: 1 / -1; }
   #view-room-wire .wr--kitchen { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "bars" "pnl"; }
   #view-room-wire .wr--kitchen .wr-pnl { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   #view-room-wire .wr--kitchen .wr-ord--note { grid-column: span 2; grid-row: span 2; align-self: center; }
@@ -1830,6 +1855,31 @@ html[dir="ltr"] .wr-mbar i { transform-origin: left; }
 .bx-ob b { font-size: 0.85rem; }
 .bx-ob.is-open { background: linear-gradient(#34106a, #12042a); }
 .bx-ob.is-cur { box-shadow: 0 0 0 2px var(--bx-gold), 0 0 12px rgba(255, 211, 90, 0.7); }
+/* «صندوق الختام» (7 Oct 2026): the eighth cell gold-rimmed with its ×2. */
+.bx-ob { position: relative; }
+.bx-ob.is-x2 { border: 2px solid var(--bx-gold); }
+.bx-ob__x2 { position: absolute; top: -0.55rem; inset-inline-end: -0.5rem; font-style: normal; font-size: 0.62rem; font-weight: 900; line-height: 1; padding: 0.12rem 0.25rem; border-radius: 0.4rem; background: var(--bx-gold); color: var(--bx-ink); }
+.bx-tv .bx-ob__x2 { font-size: 1.5vmin; top: -1.2vmin; }
+.bx-fin { width: 100%; text-align: center; padding: 0.45rem 0.8rem; border-radius: var(--r-lg); font-family: var(--font-display); font-weight: 900; color: var(--bx-ink); background: linear-gradient(#ffe07a, var(--bx-gold-2)); animation: bx-fin 1.2s ease-in-out infinite alternate; }
+@keyframes bx-fin { to { transform: scale(1.03); } }
+/* «تأمين»: a switch-like card under the bid. */
+.bx-ins { width: 100%; display: grid; gap: 0.1rem; justify-items: center; min-height: var(--tap, 44px); padding: 0.5rem 0.8rem; border-radius: 1rem; border: 1.5px dashed var(--bx-line); background: none; color: inherit; font: inherit; cursor: pointer; }
+.bx-ins b { font-weight: 800; }
+.bx-ins small { font-size: var(--fs-xs, 0.75rem); opacity: 0.8; }
+.bx-ins.is-on { border-style: solid; border-color: #9ad1ff; background: rgba(154, 209, 255, 0.16); }
+.bx-ins:disabled { opacity: 0.4; cursor: default; }
+.bx-note--ins { color: #9ad1ff; opacity: 1; font-weight: 700; }
+/* «عرض الحاج»: the old host's offer card, 8 seconds. */
+.bx-offer { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); text-align: center; padding: var(--sp-3) var(--sp-4); border-radius: var(--r-xl); background: linear-gradient(160deg, rgba(255, 211, 90, 0.18), rgba(255, 94, 196, 0.12)); border: 2px solid var(--bx-gold); animation: bx-step-in 0.35s var(--ease-out) both; }
+.bx-offer__old { font-size: 2.6rem; line-height: 1; }
+.bx-offer__title { font-family: var(--font-display); font-weight: 900; font-size: var(--fs-h3); color: var(--bx-gold); }
+.bx-offer__amt b { font-family: "Baloo Bhaijaan 2", var(--font-display); font-weight: 800; font-size: 3rem; line-height: 1.05; color: var(--bx-gold); text-shadow: 0 0 18px rgba(255, 211, 90, 0.6); }
+.bx-offer__t { font-size: 1.6rem; color: var(--bx-gold); }
+.bx-offer__t.is-low { color: #ff8fb3; }
+.bx-offer .bx-tbar { margin-top: 0; }
+.bx-tvoffer { bottom: auto; top: 30%; max-width: 60%; font-size: 2.2cqw; padding: 1.2cqw 2.4cqw; border-width: 0.25cqw; animation: bx-tvoffer-in 0.4s var(--ease-out) both; }
+@keyframes bx-tvoffer-in { from { opacity: 0; } }
+.bx-tvoffer__old { font-size: 4cqw; line-height: 1; }
 
 /* The phone: one step at a time */
 .bx-phone {
@@ -1994,7 +2044,9 @@ body.dark .bx-mine.is-down span { color: #ff9a9a; }
   .bx-step--clue > .bx-peek { grid-area: peek; justify-self: center; }
   .bx-step--clue > .bx-note { grid-area: note; }
   .bx-step--clue > .bx-go { grid-area: go; }
-  .bx--open .bx-phone { flex-direction: row; flex-wrap: wrap; align-items: flex-start; justify-content: center; }
+  .bx--open .bx-phone, .bx--offer .bx-phone { flex-direction: row; flex-wrap: wrap; align-items: flex-start; justify-content: center; }
+  .bx--offer .bx-stage--crop { width: min(55%, calc((var(--app-h, 100vh) - 9rem) * 1.15)); }
+  .bx--offer .bx-offer { flex: 1 1 14rem; align-self: center; }
   .bx--open .bx-stage--crop { width: min(62%, calc((var(--app-h, 100vh) - 9rem) * 1.15)); }
   .bx--open .bx-bids { flex: 1 1 12rem; align-self: center; }
 }
@@ -2014,7 +2066,7 @@ body.dark .bx-mine.is-down span { color: #ff9a9a; }
 
 @media (prefers-reduced-motion: reduce) {
   .bx-bulbs .bl, .bx-cone, .bx-twk, .bx-rock, .bx-coin3, .bx-step, .bx-ban.is-in, .bx-bv.is-bump,
-  .bx-tvinfo.is-last .bx-tvinfo__clock, .bx-tvinfo__clock.is-low { animation: none; }
+  .bx-tvinfo.is-last .bx-tvinfo__clock, .bx-tvinfo__clock.is-low, .bx-fin, .bx-offer, .bx-tvoffer { animation: none; }
   .bx-after, .bx-tbar > i, .bx-dots i, .bx-av { transition: none; }
 }
 
@@ -2192,8 +2244,39 @@ body.dark .bx-mine.is-down span { color: #ff9a9a; }
 .dk-tv .dk-over__best { font-size: 2.6vmin; }
 .dk-tv .dk-over__icon { font-size: 9vmin; }
 
+/* «الميكروفون» and «دايخ!» (7 Oct 2026): who holds the mic, big; the guides told the mover is dizzy. */
+.dk-mic {
+  --dk-c: #ffd54a;
+  display: grid; gap: 0.35rem; justify-items: center; text-align: center; padding: 0.55rem 0.8rem;
+  border-radius: var(--r-lg); background: var(--dk-night-2); border: 2px solid color-mix(in srgb, var(--dk-c) 70%, transparent);
+  font-weight: 700; color: var(--dk-ink);
+}
+.dk-mic[hidden] { display: none; }
+.dk-mic.is-mine { background: color-mix(in srgb, var(--dk-c) 26%, var(--dk-night-2)); }
+.dk-mic__line { display: flex; align-items: center; justify-content: center; gap: 0.45rem; font-size: var(--fs-body); }
+.dk-mic__line b { font-family: var(--font-display); font-size: var(--fs-h3); }
+.dk-mic__icon { font-size: 1.6rem; line-height: 1; }
+.dk-mic small { color: var(--dk-ink-2); font-size: var(--fs-sm); }
+.dk-mic__call { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.4rem; }
+.dk-mic__call .chip { border-color: var(--dk-c); }
+.dk-mic--tv {
+  position: absolute; top: 9vmin; left: 50%; translate: -50% 0; z-index: 2; display: flex; align-items: center; gap: 1.4vmin;
+  padding: 1vmin 3vmin; background: rgba(10, 8, 20, 0.82); border-width: 0.4vmin; font-size: 4.2vmin; pointer-events: none;
+}
+.dk-mic--tv .dk-mic__icon { font-size: 5vmin; }
+.dk-mic--tv .dk-mic__who { font-family: var(--font-display); font-weight: 900; color: var(--dk-c); }
+.dk-dizzy {
+  position: absolute; inset-inline: 6%; top: 18%; z-index: 3; text-align: center; border-radius: var(--r-md);
+  padding: 0.45rem 0.8rem; font-family: var(--font-display); font-weight: 900; font-size: var(--fs-body);
+  background: #c9a0ff; color: #1d0b3a; pointer-events: none; animation: dkWobble 0.9s ease-in-out infinite alternate;
+}
+.dk-dizzy[hidden] { display: none; }
+.dk-dizzy--tv { inset-inline: 22%; top: 20%; font-size: 3.4vmin; padding: 1vmin 2vmin; }
+@keyframes dkWobble { from { transform: rotate(-2deg); } to { transform: rotate(2deg); } }
+
 @media (prefers-reduced-motion: reduce) {
   .dk-fb, .dk-intro, .dk-toast, .dk-banner { transition: none; }
+  .dk-dizzy { animation: none; }
 }
 
 /* ============================================================================
@@ -2333,6 +2416,15 @@ body.dark .bx-mine.is-down span { color: #ff9a9a; }
 .ex-seat--bot .ex-bub { bottom: calc(var(--edge) + 1.5cqw); }
 .ex-bub.is-on { opacity: 1; transform: translate(-50%, 0) scale(1); animation: ex-pop 0.35s cubic-bezier(.3,1.8,.5,1) both; }
 .ex-bub.is-still { animation: none; }
+/* «الإيد الدهب» (7 Oct 2026): a gold ring on the hand right five orders in a row. */
+.ex-gold { opacity: 0; transform-box: fill-box; transform-origin: center; transition: opacity 0.3s, transform 0.3s; }
+.ex-seat.has-ring .ex-gold { opacity: 1; }
+.ex-seat.has-ring .ex-hand svg { filter: drop-shadow(0 0 0.8cqw rgba(255, 210, 63, 0.75)); }
+.ex-seat.is-ring-new .ex-gold { animation: ex-gold-on 1.1s cubic-bezier(.3,1.6,.5,1) both; }
+.ex-seat.is-ring-off .ex-gold { animation: ex-gold-off 0.8s ease-in both; }
+.ex-bub.is-gold { background: #ffd23f; color: #3a2600; }
+@keyframes ex-gold-on { 0% { transform: scale(2.6); opacity: 0; } 55% { transform: scale(0.9); opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes ex-gold-off { to { transform: translateY(14px) rotate(70deg); opacity: 0; } }
 
 /* the order: a paper card in the middle of the table */
 .ex-card {
@@ -2490,6 +2582,8 @@ body.dark .bx-mine.is-down span { color: #ff9a9a; }
 @media (prefers-reduced-motion: reduce) {
   .ex-seat.is-hover .ex-hand svg, .ex-seat.is-pull .ex-hand svg, .ex-pad.is-live .ex-pad__ring, .ex-pad.is-beat .ex-pad__ring,
   .ex-steam, .ex-dish.is-new, .ex-chip--new, .ex-over--rise, .ex-bub.is-on, .ex-glass.is-refill, .ex-seat.is-lit .ex-plate { animation: none; }
+  .ex-seat.is-ring-new .ex-gold, .ex-seat.is-ring-off .ex-gold { animation: none; }
+  .ex-gold { transition: none; }
   .ex-hand, .ex-glass, .ex-pud, .ex-badge, .ex-glass .ex-tea, .ex-head__lives i { transition: none; }
   .ex-cup.is-refill { animation: none; }
 }

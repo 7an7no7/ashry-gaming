@@ -25,6 +25,7 @@ const EX_COLORS = ['#e0457b', '#2f8fe0', '#1faa74', '#f59e0b', '#8b5cf6', '#ef6b
 const EX_SKIN = ['#f2c79b', '#d9a574', '#c68b5a', '#f5d0a9', '#b87a4b', '#e8b98a'];
 const EX_INK = '#221f36';
 const EX_GRACE = 150;                 // EXACT_GRACE_MS: the pad opens this far before go on the phone's clock
+const EX_GOLD_AT = 5;                 // EXACT_GOLD_AT: right this many orders in a row, a gold ring
 const EX_BADGE_KINDS = ['count', 'all', 'seq', 'pick', 'pickcount', 'mirror', 'sum', 'none', 'pulse'];
 
 const ex = {
@@ -87,7 +88,46 @@ function exHandSvg(c, skin) {
 <rect x="18" y="22" width="9" height="30" rx="4.5" fill="${skin}"/><rect x="28" y="14" width="9" height="36" rx="4.5" fill="${skin}"/><rect x="38" y="16" width="9" height="34" rx="4.5" fill="${skin}"/><rect x="48" y="26" width="8.5" height="28" rx="4.2" fill="${skin}"/>
 <rect x="3" y="54" width="9" height="24" rx="4.5" fill="${skin}" transform="rotate(-32 8 66)"/>
 <ellipse cx="22.5" cy="26" rx="2.6" ry="3" fill="#fff" opacity=".55" stroke="none"/><ellipse cx="32.5" cy="18" rx="2.6" ry="3" fill="#fff" opacity=".55" stroke="none"/><ellipse cx="42.5" cy="20" rx="2.6" ry="3" fill="#fff" opacity=".55" stroke="none"/><ellipse cx="52.2" cy="30" rx="2.4" ry="3" fill="#fff" opacity=".55" stroke="none"/>
-<path d="M26 66 Q35 70 44 66" fill="none" stroke-width="1.6" opacity=".5"/></g></svg>`;
+<path d="M26 66 Q35 70 44 66" fill="none" stroke-width="1.6" opacity=".5"/>
+<g class="ex-gold"><rect x="36.4" y="38.4" width="12.2" height="5.4" rx="2.5" fill="#ffd23f" stroke-width="2"/><circle cx="42.5" cy="37.6" r="2.8" fill="#7fe3ff" stroke-width="1.6"/></g></g></svg>`;
+}
+
+/**
+ * «الإيد الدهب» (the ideas of 7 Oct 2026, 820): a hand right five orders in a row wears a gold ring
+ * (shared.streak); a mistake takes it off. `res` given: as the table was before this verdict
+ * (the ring won not yet on, the ring lost still on), for the reveal to change it on cue.
+ */
+function exRingsPaint(el, state, before) {
+  const s = state.shared || {};
+  const streak = s.streak || {};
+  const res = before ? (s.result || {}) : null;
+  el.querySelectorAll('[data-ex-seat]').forEach((seat) => {
+    const id = seat.dataset.exSeat;
+    let on = (streak[id] || 0) >= EX_GOLD_AT;
+    if (res && (res.ringWon || []).indexOf(id) !== -1) on = false;
+    if (res && (res.ringLost || []).indexOf(id) !== -1) on = true;
+    if (seat.classList.contains('has-ring') !== on) seat.classList.toggle('has-ring', on);
+  });
+}
+/** The reveal's moment for the rings: a new one shines on, a lost one slips off. */
+function exRingsMoment(el, state, voice) {
+  const res = (state.shared || {}).result || {};
+  const t = exT();
+  (res.ringWon || []).forEach((id) => {
+    const seat = exSeatEl(el, id);
+    if (!seat) return;
+    seat.classList.add('has-ring', 'is-ring-new');
+    exLater(1400, () => seat.classList.remove('is-ring-new'));
+    exBubble(seat, t.ex_ring_won, 'is-gold');
+    if (voice) exSound('ring');
+    if (id === Room.me) haptic('double');
+  });
+  (res.ringLost || []).forEach((id) => {
+    const seat = exSeatEl(el, id);
+    if (!seat) return;
+    seat.classList.add('is-ring-off');
+    exLater(900, () => seat.classList.remove('has-ring', 'is-ring-off'));
+  });
 }
 function exGlassSvg() {
   return `<svg viewBox="0 0 40 66" aria-hidden="true" focusable="false"><g stroke="${EX_INK}" stroke-width="2.2" stroke-linejoin="round">
@@ -627,6 +667,7 @@ function exAfter(state, el, rebuilt, revealFirst) {
   if (rebuilt) { exClearFx(); ex.prevDown = {}; ex.prevKey = ''; }
   exWirePad(el);
   exPaintLive(el, state);
+  if (s.phase !== 'reveal') exRingsPaint(el, state, false);
   if (s.phase === 'reveal') {
     if (rebuilt) {
       if (revealFirst && !motionOff()) exReveal(el, state);
@@ -717,6 +758,7 @@ function exSettle(el, state, over) {
   const res = s.result || {};
   const o = s.order || {};
   const t = exT();
+  exRingsPaint(el, state, false);
   if (over) return;
   const pressed = {};
   (res.presses || []).forEach((p, i) => { pressed[p.id] = i + 1; });
@@ -756,6 +798,7 @@ function exReveal(el, state) {
     const badge = seat.querySelector('[data-ex-badge]');
     if (badge) { badge.textContent = ''; badge.classList.remove('is-on', 'is-bad'); }
   });
+  exRingsPaint(el, state, true);
   if (card) card.innerHTML = `<div class="ex-card__kick"><span class="ex-chip">${escapeHTML(exFill(t.ex_level, { n: res.levelBefore || 1 }))}</span></div><div class="ex-card__title">${escapeHTML(exOrderText(state, o).title)}</div>`;
   const presses = res.presses || [];
   const gap = presses.length ? Math.min(230, 1500 / presses.length) : 0;
@@ -808,6 +851,8 @@ function exReveal(el, state) {
     exLater(b.why === 'stung' ? 1100 : 260, () => exBubble(seat, exWhyBubble(exT(), b, o)));
     if (id === Room.me) haptic('heavy');
   }));
+  // The gold rings: on with the verdict's moments, off with the wrong hand's.
+  exLater(T + 450 + bad.length * 320, () => exRingsMoment(el, state, voice));
   // The glasses and the food.
   exLater(T + 600 + bad.length * 320, () => {
     if (res.ok) {
@@ -938,6 +983,9 @@ function exSound(kind, i) {
     } else if (kind === 'spill') {
       fxNoise('bandpass', 700, 1.4, [[0, 0.001], [0.05, 0.3], [0.5, 0.001]], at);
       fxTone('sine', [[0, 420], [0.45, 200]], [[0, 0.12], [0.45, 0.001]], at);
+    } else if (kind === 'ring') {
+      // A gold ring: a bright little chime, up.
+      [1568, 2093, 2637].forEach((hz, k) => fxTone('sine', [[0, hz]], [[0, 0.14], [0.35, 0.001]], at + k * 0.07));
     } else if (kind === 'dish') {
       fxTone('triangle', [[0, 1200]], [[0, 0.2], [0.18, 0.001]], at);
       fxTone('triangle', [[0, 1600]], [[0, 0.12], [0.2, 0.001]], at + 0.05);

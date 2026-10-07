@@ -164,6 +164,44 @@ id `darkroom` everywhere (`room-darkroom`, `ROOM_GAMES.darkroom`,
 
 **The review of 1 Oct 2026.** The room's best is kept in `room._darkBest` (as `_wireBest`, `_exactBest`), so a trip to the hub and back no longer forgets it; `shared.best` is read from it at every start and win.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **810 «الميكروفون»** (no extra rule asked; built as described). A lobby
+  switch, **off by default** (chosen: it changes how the table talks), remembered
+  on the host's phone (`darkRoom` options, `mic`) and kept by play again. On:
+  `shared.mic`, and `shared.micId` is the guide who may talk - the first guide at
+  the start, and always a guide still here (`darkSync`: when its holder becomes
+  the mover or leaves, the first guide). `passMic { from, to? }`: the holder taps
+  «عدّيه للي بعدي» (the next guide in `shared.guides`), the mover calls a guide by
+  name (`to`, a guide only), or the host (anyone once the host is away,
+  `requireMoveOn`) moves it; `from` is the holder the phone saw (`staleTap`), so a
+  double tap passes it once; the public `mic { to }` event. Shown big on every
+  phone (`dkMicPaint`: the holder «الميكروفون معاك: إنت بس اللي تتكلم!» and the pass
+  button, the other guides «الميكروفون مع منى · اسكت واستنى دورك», the mover the
+  holder and a chip for each other guide to call) and on the TV (a pill at the
+  top in the holder's lens colour). With one guide there is nothing to pass and
+  nothing is shown. Talking is the table's rule, not the app's.
+- **813 دايخ!** (no extra rule asked). The premise needed one change: the cat
+  is a trap in this game (touching it costs a heart), so "a bump into the cat"
+  is built as **the cat brushing past** - the cat on a square beside the
+  mover's as they arrive (`darkNear` = 'cat') - at home; in the tomb **a bump
+  into a pillar** (`darkBlocked` = 'pillar', steps and joystick). From level 3
+  (`DARK_DIZZY_FROM`) that makes the mover dizzy for 5 s (`DARK_DIZZY_MS`,
+  `room._dark.dizzyUntil`, extended by another such bump): a step's left and
+  right are swapped on the server (`darkSwapLR`; up and down stay), the
+  joystick's x is turned round; the bump event still names the arrow pressed,
+  so the mover's phone is never told. The guides' slices and the screen's carry
+  `dz` (until when, by the server's clock) and the private `dizzy` event: a
+  banner «😵 منى داخ! الشمال بقى يمين» and a wobbling note with the seconds left
+  (`dkDizzyPaint`, painted every frame), a wobbly sound on the voice. Back at
+  the start (a trap, a new map, a new mover) ends it.
+- Tests: `rules.mjs` ("The dark room": the mic with the first guide, a guide
+  without it refused, passed on, a double tap dropped, the mover calling,
+  never the mover, its holder leaving, off by default; dizzy at level 3 from a
+  pillar for 5 s, told to the guides and the screen and never the mover, left
+  walks right, then left again, nothing at level 2), `leaks.mjs` (nothing
+  dizzy on the mover's phone).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

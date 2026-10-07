@@ -53,7 +53,9 @@ const spyfallRoomAction = (room, playerId, action, payload) => {
       scores: action === 'start' ? {} : (prev.scores || {}),
       roster: roster,
       vote: null,
-      outcome: null
+      outcome: null,
+      bold: false,
+      spyPts: 0
     };
     room.shared.board = scoreboardOf(room);
     room.phase = 'play';
@@ -86,6 +88,9 @@ const spyfallRoomAction = (room, playerId, action, payload) => {
     if (!mayGuess) throw new Error('ليس وقت التخمين');
     const guess = String((payload && payload.location) || '');
     if (s.locations.indexOf(guess) === -1) throw new Error('اختيار غير صحيح');
+    // 520 «جرأة الجاسوس»: a guess while nobody has accused the spy (the play
+    // phase) is the bold one; a caught spy's guess is the last chance.
+    s.bold = s.phase === 'play';
     finishSpyfall(room, guess === room._spyLoc ? 'stole' : 'caught', guess, playerId);
     return;
   }
@@ -122,7 +127,11 @@ const resolveSpyfallVote = (room) => {
   finishSpyfall(room, 'escaped', null, null);
 };
 
-/** Caught: a point to every agent. Escaped or guessed the place: two to each spy. */
+/** Caught: a point to every agent. Escaped: two to each spy. Guessed the place:
+ *  three to each spy when nobody had accused them (bold, 520), one when caught first. */
+const SPYFALL_STOLE_BOLD = 3;
+const SPYFALL_STOLE_CAUGHT = 1;
+const SPYFALL_ESCAPED = 2;
 const finishSpyfall = (room, outcome, guess, spyId) => {
   const s = room.shared;
   const spies = room._spyIds || [];
@@ -135,7 +144,9 @@ const finishSpyfall = (room, outcome, guess, spyId) => {
   if (outcome === 'caught') {
     s.roster.forEach(id => { if (spies.indexOf(id) === -1 && room.players.some(p => p.id === id)) addScore(room, id, 1); });
   } else if (outcome !== 'revealed') {
-    spies.forEach(id => addScore(room, id, 2));
+    const pts = outcome === 'stole' ? (s.bold ? SPYFALL_STOLE_BOLD : SPYFALL_STOLE_CAUGHT) : SPYFALL_ESCAPED;
+    s.spyPts = pts;
+    spies.forEach(id => addScore(room, id, pts));
   }
   s.board = scoreboardOf(room);
   s.phase = 'results';

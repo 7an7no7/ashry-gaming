@@ -17,6 +17,8 @@
 const HERD_TARGETS = [5, 8, 10];
 const HERD_MAX_LEN = 40;
 const HERD_MAX_ROUNDS = 40;
+// 710 «اختار يا خروف»: whoever holds the sheep picks the next question from this many.
+const HERD_PICK_FROM = 3;
 
 const herdPrompts = (lang) => {
   const cham = (CHAMELEON_DB[lang] || CHAMELEON_DB.ar).map(c => String(c.category).replace(/\p{Extended_Pictographic}[️‍\p{Extended_Pictographic}]*/gu, '').trim());
@@ -60,6 +62,20 @@ const herdAction = (room, playerId, action, payload) => {
     return;
   }
 
+  if (action === 'pickPrompt') {
+    // 710: the sheep's holder picks one of the three; the move-on side (the host,
+    // or anyone once the host is away) may only let the app pick for them.
+    if (staleTap(payload, 'round', s.round)) return;
+    if (s.phase !== 'pick') return;
+    let i = Number(payload && payload.i);
+    if (playerId !== s.sheepId) {
+      requireMoveOn(room, playerId);
+      i = -1;
+    }
+    herdPick(room, i);
+    return;
+  }
+
   if (action === 'submit') {
     // An answer to last round's question, arriving after the next was dealt.
     if (staleTap(payload, 'round', s.round)) return;
@@ -88,6 +104,9 @@ const herdAction = (room, playerId, action, payload) => {
     const from = s.groups.findIndex(g => g.key === String(payload && payload.from));
     const into = s.groups.findIndex(g => g.key === String(payload && payload.into));
     if (from === -1 || into === -1 || from === into) throw new Error('اختيار غير صحيح');
+    // 708: each merge is kept, so ↶ undoes the last one only.
+    room._herd.stack = (room._herd.stack || []).concat([JSON.stringify(s.groups)]);
+    s.merges = room._herd.stack.length;
     const a = s.groups[into], b = s.groups[from];
     a.ids = a.ids.concat(b.ids);
     a.names = a.names.concat(b.names);
@@ -99,9 +118,15 @@ const herdAction = (room, playerId, action, payload) => {
   }
 
   if (action === 'unmerge') {
+    // 708: the last merge only. `n` is the merges the host saw: a double tap undoes one.
     requireHost(room, playerId);
     if (s.phase !== 'reveal') return;
-    s.groups = herdGroups(room);
+    if (staleTap(payload, 'n', s.merges || 0)) return;
+    const stack = (room._herd && room._herd.stack) || [];
+    if (!stack.length) { s.groups = herdGroups(room); s.merges = 0; return; }
+    // Someone who left since that merge stays out (as the score would leave them).
+    s.groups = herdPresentGroups(room, JSON.parse(stack.pop()));
+    s.merges = stack.length;
     return;
   }
 
@@ -118,17 +143,50 @@ const herdAction = (room, playerId, action, payload) => {
 const dealHerdRound = (room) => {
   const s = room.shared;
   s.round = (s.round || 0) + 1;
-  s.prompt = nextPrompt(room, herdPrompts(s.lang), 'herd_' + s.lang);
   s.submitted = [];
+  s.merges = 0;
   s.groups = null;
   s.majorityKey = null;
   s.gained = null;
   s.sheepFrom = null;
   s.winners = null;
   s.roster = room.players.map(p => p.id);
-  s.phase = 'writing';
-  room._herd = { answers: {} };
+  room._herd = { answers: {}, stack: [] };
   s.board = scoreboardOf(room);
+  // 710 «اختار يا خروف»: with the sheep at the table, its holder picks the question from three.
+  const sheepHere = s.sheepId && room.players.some(p => p.id === s.sheepId);
+  if (sheepHere) {
+    s.choices = nextPrompts(room, herdPrompts(s.lang), 'herd_' + s.lang, HERD_PICK_FROM);
+    if (s.choices.length > 1) {
+      s.prompt = '';
+      s.picker = s.sheepId;
+      s.pickerName = roomPlayerName(room, s.sheepId);
+      s.phase = 'pick';
+      room.phase = 'pick';
+      return;
+    }
+    s.prompt = s.choices[0] || nextPrompt(room, herdPrompts(s.lang), 'herd_' + s.lang);
+  } else {
+    s.prompt = nextPrompt(room, herdPrompts(s.lang), 'herd_' + s.lang);
+  }
+  s.choices = null;
+  s.picker = null;
+  s.pickedBy = '';
+  s.phase = 'writing';
+  room.phase = 'writing';
+};
+
+/** 710: the question picked (`i` out of range: one at random), and the writing starts. */
+const herdPick = (room, i) => {
+  const s = room.shared;
+  const choices = s.choices || [];
+  if (!choices.length) return;
+  const at = Number.isInteger(i) && i >= 0 && i < choices.length ? i : Math.floor(Math.random() * choices.length);
+  s.prompt = choices[at];
+  s.pickedBy = at === i ? (s.pickerName || '') : '';
+  s.choices = null;
+  s.picker = null;
+  s.phase = 'writing';
   room.phase = 'writing';
 };
 

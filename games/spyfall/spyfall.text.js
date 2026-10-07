@@ -17,7 +17,10 @@ gameText({
       spy_guess_only_spy: "الزرار ده للجاسوس بس: أنت عارف المكان",
       spy_start_vote: "التصويت على الجاسوس",
       spy_wait_vote: "المضيف يفتح التصويت، أو يفتح لوحده لما الوقت يخلص",
-      spy_room_guess_hint: "اتمسكت! فرصة أخيرة: اختار المكان.",
+      spy_room_guess_hint: "اتمسكت! فرصة أخيرة: اختار المكان. صح = نقطة ليك.",
+      spy_bold_hint: "ضغطة على مكان = تخمينك النهائي. صح قبل ما حد يتهمك = 3 نقط ليك، غلط = نقطة لكل واحد.",
+      spy_pts_bold: "🎯 جرأة! عرف المكان قبل ما حد يتهمه: +3",
+      spy_pts_late: "عرف المكان بعد ما اتمسك: +1 بس",
       spy_guessing: "الجاسوس اتمسك وبيخمّن المكان…",
       spy_escaped: "الجاسوس هرب! كان {name}",
       spy_stole: "الجاسوس ({name}) عرف المكان وسرق الفوز",
@@ -28,7 +31,7 @@ gameText({
       spy_civilian: "مواطن في المكان",
       spy_wins: "الجاسوس كسب!",
       spy1_guess_title: "الجاسوس كشف نفسه! اختار المكان",
-      spy1_guess_hint: "صح يبقى الجاسوس كسب، غلط يبقى الطاولة كسبت.",
+      spy1_guess_hint: "صح قبل ما حد يتهمك = 3 نقط ليك، غلط يبقى الطاولة كسبت.",
     },
     en: {
       spy_room_hint: "Everyone sees the place and their job on their phone except the spy. Ask carefully; when time is up the vote opens by itself.",
@@ -44,7 +47,10 @@ gameText({
       spy_guess_only_spy: "Only the spy guesses the place: you already know it",
       spy_start_vote: "Vote on the spy",
       spy_wait_vote: "The host opens the vote, or it opens by itself when time is up",
-      spy_room_guess_hint: "Caught! One last chance: pick the place.",
+      spy_room_guess_hint: "Caught! One last chance: pick the place. Right = a point for you.",
+      spy_bold_hint: "Tapping a place is your final guess. Right before anyone accuses you = 3 points; wrong = a point to everyone else.",
+      spy_pts_bold: "🎯 Bold! Found the place before anyone accused them: +3",
+      spy_pts_late: "Found the place after being caught: just +1",
       spy_guessing: "The spy was caught and is guessing the place…",
       spy_escaped: "The spy got away! It was {name}",
       spy_stole: "{name} knew the place and stole the win",
@@ -55,7 +61,7 @@ gameText({
       spy_civilian: "At the place",
       spy_wins: "The spy wins!",
       spy1_guess_title: "The spy owns up! Pick the place",
-      spy1_guess_hint: "Right and the spy wins; wrong and the table wins.",
+      spy1_guess_hint: "Right before anyone accuses you = 3 points; wrong and the table wins.",
     }
   },
   rules: {
@@ -65,14 +71,14 @@ gameText({
                 <li>الكل في نفس <b>المكان</b> (مطار، مستشفى…) وكل واحد ليه دور فيه، إلا <b>الجاسوس</b> اللي مش عارف المكان.</li>
                 <li>مرر الموبايل: كل واحد يدوس مطوّل على الكارت ويشوف المكان ودوره، وأول ما يشيل صباعه يستخبى.</li>
                 <li>اسألوا بعض أسئلة عن المكان من غير ما تقولوه: «بتيجي هنا كتير؟». الإجابة الواضحة زيادة بتفضح المكان للجاسوس، والإجابة المهزوزة بتفضح الجاسوس.</li>
-                <li>الجاسوس يقدر يوقّف اللعبة في أي وقت ويخمّن المكان (زرار 🕵️ تحت الأماكن) من قايمة 24 مكان، المكان الصح وسطهم. لو صاب، يكسب.</li>
-                <li>لما الوقت يخلص أو تتفقوا، صوّتوا على الجاسوس. لو مسكتوه عنده فرصة أخيرة يخمّن المكان.</li>
-                <li><b>العب تاني</b> يوزّع من جديد لنفس اللاعبين ويكمّل النقط: مسكتوه وغلط = نقطة لكل واحد، هرب أو عرف المكان = نقطتين للجاسوس.</li>
+                <li>الجاسوس يقدر يوقّف اللعبة في أي وقت ويخمّن المكان (زرار 🕵️ تحت الأماكن) من قايمة 24 مكان، المكان الصح وسطهم. لو صاب قبل ما حد يتهمه، ياخد <b>3 نقط</b> (جرأة الجاسوس).</li>
+                <li>لما الوقت يخلص أو تتفقوا، صوّتوا على الجاسوس. لو مسكتوه عنده فرصة أخيرة يخمّن المكان: صح = نقطة واحدة بس.</li>
+                <li><b>العب تاني</b> يوزّع من جديد لنفس اللاعبين ويكمّل النقط: مسكتوه وغلط = نقطة لكل واحد، هرب = نقطتين للجاسوس، عرف المكان بجرأة = 3، عرفه بعد ما اتمسك = 1.</li>
             </ol>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>كل واحد يشوف المكان ودوره على موبايله. المؤقت على السيرفر، ولما يخلص التصويت يفتح لوحده. قايمة الأماكن المحتملة على كل موبايل وعلى التلفزيون، واضغط على مكان عشان تشطبه عندك.</li>
-                <li>النقاط: مسكتوا الجاسوس وغلط = نقطة لكل واحد. هرب أو عرف المكان = نقطتين له. جاسوسين محتاجين 6 لاعبين.</li>
+                <li>النقاط: مسكتوا الجاسوس وغلط = نقطة لكل واحد. هرب = نقطتين له. عرف المكان قبل ما حد يتهمه = 3، بعد ما اتمسك = 1. في وضع التخمين الكارت بيبقى أحمر وزرار «إلغاء» تحت. جاسوسين محتاجين 6 لاعبين.</li>
             </ul>`,
     },
     en: {
@@ -81,14 +87,14 @@ gameText({
                 <li>Everyone is at the same <b>place</b> (an airport, a hospital…) with a job there, except the <b>spy</b>, who doesn't know the place.</li>
                 <li>Pass the phone: each player presses and holds the card to see the place and their job; it hides again the moment they let go.</li>
                 <li>Ask each other about the place without naming it: "Do you come here often?". Too clear an answer gives the place to the spy; a shaky one gives the spy away.</li>
-                <li>The spy can stop the game at any time and guess the place (the 🕵️ button under the places) from a card of 24, the real one among them. Right, and they win.</li>
-                <li>When time is up, or you agree, vote on the spy. If caught, the spy gets one last guess at the place.</li>
-                <li><b>Play again</b> deals again to the same table and keeps score: caught and wrong = a point each, escaped or found the place = two for the spy.</li>
+                <li>The spy can stop the game at any time and guess the place (the 🕵️ button under the places) from a card of 24, the real one among them. Right before anyone accuses them, and they take <b>3 points</b> (the spy's nerve).</li>
+                <li>When time is up, or you agree, vote on the spy. If caught, the spy gets one last guess at the place: right is just one point.</li>
+                <li><b>Play again</b> deals again to the same table and keeps score: caught and wrong = a point each, escaped = two for the spy, found the place boldly = 3, after being caught = 1.</li>
             </ol>
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Everyone sees the place and their job on their own phone. The clock runs on the server and the vote opens by itself when it ends. The candidate places are on every phone and the TV; tap one to cross it out for yourself.</li>
-                <li>Points: catch the spy and they guess wrong = a point each. They escape or guess right = two points. Two spies need 6 players.</li>
+                <li>Points: catch the spy and they guess wrong = a point each. They escape = two points. Right before anyone accuses them = 3, after being caught = 1. In guess mode the card turns red and «Cancel» sits in the bar below. Two spies need 6 players.</li>
             </ul>`,
     }
   }

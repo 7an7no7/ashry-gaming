@@ -17435,6 +17435,99 @@ console.log('• the secret mission');
   check(MOVE_MAX_BYTES >= 256 * 1024 && Object.keys(MOVE_KEYS).every((k) => /^(ashry|gameTrackerState_v1$)/.test(k)), 'move: the cap and the list of keys');
 }
 
+/* --- The ideas of 7 Oct 2026, second batch (520, 676, 691, 692, 708, 710, 728) ------ */
+{
+  // 520 الموقع السري «جرأة الجاسوس»: right before anyone accused them is 3; right after a catch, 1.
+  const sf = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(sf, 'a', 'chooseGame', { game: 'spyfall' });
+  applyRoomAction(sf, 'a', 'start', { lang: 'ar' });
+  const spy = sf._spyIds[0];
+  applyRoomAction(sf, spy, 'spyGuess', { location: sf._spyLoc });
+  check(sf.shared.outcome === 'stole' && sf.shared.bold === true && sf.shared.scores[spy] === 3 && sf.shared.spyPts === 3, 'spyfall 520: a bold right guess is 3');
+  applyRoomAction(sf, 'a', 'nextRound', { lang: 'ar' });
+  const spy2 = sf._spyIds[0];
+  const before = sf.shared.scores[spy2] || 0;
+  applyRoomAction(sf, 'a', 'startVote', {});
+  sf.shared.roster.forEach((id) => applyRoomAction(sf, id, 'vote', { option: id === spy2 ? sf.shared.roster.find((x) => x !== spy2) : spy2 }));
+  check(sf.shared.phase === 'guess' && sf.shared.guesserId === spy2, 'spyfall 520: the accused spy guesses');
+  applyRoomAction(sf, spy2, 'spyGuess', { location: sf._spyLoc });
+  check(sf.shared.outcome === 'stole' && sf.shared.bold === false && sf.shared.scores[spy2] === before + 1, 'spyfall 520: a caught spy who guesses right gets only 1');
+}
+{
+  // 676 كلمة واحدة: the word itself judges itself; a near miss waits for the host.
+  const jo = newRoom(['a', 'b', 'c']);
+  applyRoomAction(jo, 'a', 'chooseGame', { game: 'justone' });
+  applyRoomAction(jo, 'a', 'start', {});
+  let g = jo.shared.guesserId;
+  ['a', 'b', 'c'].filter((id) => id !== g).forEach((id, i) => applyRoomAction(jo, id, 'submitClue', { clue: 'تلميح' + i }));
+  applyRoomAction(jo, g, 'submitGuess', { guess: ' ' + jo._joWord + ' ' });
+  check(jo.shared.phase === 'result' && jo.shared.lastResult === 'correct' && jo.shared.exact === true && jo.shared.score === 1, 'justone 676: the word itself is right at once');
+  applyRoomAction(jo, 'a', 'nextRound', {});
+  g = jo.shared.guesserId;
+  ['a', 'b', 'c'].filter((id) => id !== g).forEach((id, i) => applyRoomAction(jo, id, 'submitClue', { clue: 'كلمة' + i }));
+  applyRoomAction(jo, g, 'submitGuess', { guess: jo._joWord + 'ات' });
+  check(jo.shared.phase === 'judging' && !jo.shared.exact, 'justone 676: a near miss is the host\'s to judge');
+}
+{
+  // 691 / 692 ربع قرد: the chain skips ال; «مفيش عندي» with nothing left costs no quarter.
+  const mk = newRoom(['a', 'b', 'c']);
+  applyRoomAction(mk, 'a', 'chooseGame', { game: 'monkey' });
+  applyRoomAction(mk, 'a', 'start', { lang: 'ar', mode: 'chain', category: 'countries', timer: 0 });
+  mk.shared.required = 'ه';
+  const up = mk.shared.turnId;
+  applyRoomAction(mk, up, 'name', { text: 'الهند' });
+  check(mk.shared.used[0] === 'الهند' && mk.shared.required === 'د', 'monkey 691: الهند starts with ه in the chain');
+  mk.shared.required = 'ظ';
+  const up2 = mk.shared.turnId;
+  applyRoomAction(mk, up2, 'giveUp', {});
+  check(mk.shared.verdict.kind === 'nothing' && !mk.shared.quarters[up2] && mk.shared.required === '' && mk.shared.turnId === up2, 'monkey 692: nothing fits = no quarter, a new chain from the same player');
+  mk.shared.required = 'ب';
+  applyRoomAction(mk, up2, 'giveUp', {});
+  check(mk.shared.verdict.kind === 'giveup' && mk.shared.quarters[up2] === 1 && mk.shared.verdict.examples.length === 3, 'monkey 692: a name fits = a quarter, with three that would have done');
+}
+{
+  // 708 / 710 زي الكل: ↶ undoes the last merge; the sheep picks the question from three.
+  const hd = newRoom(['a', 'b', 'c', 'd']);
+  applyRoomAction(hd, 'a', 'chooseGame', { game: 'herd' });
+  applyRoomAction(hd, 'a', 'start', { lang: 'ar', target: 10 });
+  [['a', 'قطة'], ['b', 'كلب'], ['c', 'أسد'], ['d', 'نمر']].forEach(([id, text]) => applyRoomAction(hd, id, 'submit', { text }));
+  const k = hd.shared.groups.map((x) => x.key);
+  applyRoomAction(hd, 'a', 'merge', { from: k[1], into: k[0] });
+  applyRoomAction(hd, 'a', 'merge', { from: k[3], into: k[2] });
+  check(hd.shared.groups.length === 2 && hd.shared.merges === 2, 'herd 708: two merges');
+  applyRoomAction(hd, 'a', 'unmerge', { n: 2 });
+  applyRoomAction(hd, 'a', 'unmerge', { n: 2 });
+  check(hd.shared.groups.length === 3 && hd.shared.merges === 1, 'herd 708: ↶ undoes the last merge only, once');
+  applyRoomAction(hd, 'a', 'unmerge', { n: 1 });
+  check(hd.shared.groups.length === 4 && hd.shared.merges === 0, 'herd 708: and the first');
+  applyRoomAction(hd, 'a', 'score', {});
+  // Four alone: nobody takes the sheep. Give it to b and deal on.
+  hd.shared.sheepId = 'b';
+  applyRoomAction(hd, 'a', 'nextRound', {});
+  check(hd.shared.phase === 'pick' && hd.shared.picker === 'b' && hd.shared.choices.length === 3 && new Set(hd.shared.choices).size === 3 && !hd.shared.prompt, 'herd 710: the sheep picks from three different questions');
+  check(threw(() => applyRoomAction(hd, 'c', 'pickPrompt', { i: 0 })) && hd.shared.phase === 'pick', 'herd 710: nobody else picks');
+  const c1 = hd.shared.choices[1];
+  applyRoomAction(hd, 'b', 'pickPrompt', { i: 1, round: hd.shared.round });
+  check(hd.shared.phase === 'writing' && hd.shared.prompt === c1 && hd.shared.pickedBy === 'B', 'herd 710: the sheep\'s pick is the question');
+  [['a', 'x'], ['b', 'y'], ['c', 'y'], ['d', 'z']].forEach(([id, text]) => applyRoomAction(hd, id, 'submit', { text }));
+  applyRoomAction(hd, 'a', 'score', {});
+  hd.shared.sheepId = 'd';
+  applyRoomAction(hd, 'a', 'nextRound', {});
+  check(hd.shared.phase === 'pick' && hd.shared.picker === 'd', 'herd 710: d picks');
+  leave(hd, 'd');
+  check(hd.shared.phase === 'writing' && !!hd.shared.prompt, 'herd 710: the picker leaving, the app picks');
+}
+{
+  // 728 الجرس: the host's − / + with the score it saw; a stale tap does nothing, a silly delta is refused.
+  const bz = newRoom(['a', 'b', 'c']);
+  applyRoomAction(bz, 'a', 'chooseGame', { game: 'buzzer' });
+  applyRoomAction(bz, 'a', 'start', {});
+  applyRoomAction(bz, 'a', 'adjust', { id: 'b', delta: 1, was: 0 });
+  applyRoomAction(bz, 'a', 'adjust', { id: 'b', delta: 1, was: 0 });
+  applyRoomAction(bz, 'a', 'adjust', { id: 'b', delta: 100 });
+  check(bz.shared.scores.b === 1, 'buzzer 728: one point per tap the host saw; a delta past 5 is ignored');
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

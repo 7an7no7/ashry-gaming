@@ -171,11 +171,46 @@ ROOM_GAMES.buzzer = {
         </div>`;
       const resetScores = !state.youAreHost ? '' : `<div class="bz-reset"><button class="btn btn--ghost btn--xs btn--auto" onclick="bzResetScores()">${escapeHTML(t.bz_reset_scores || '')}</button></div>`;
 
-      return head + bzQuizHtml(state, t) + bzQuizHostHtml(state, t) + stage + last + order + renderScoreboard(s.board) + resetScores + renderRoomPlayerStrip(state) + host;
+      return head + bzQuizHtml(state, t) + bzQuizHostHtml(state, t) + stage + last + order + bzBoardHtml(state, t) + resetScores + renderRoomPlayerStrip(state) + host;
     });
     refreshRoomPlayerStrip(el, state);
   }
 };
+
+/**
+ * The standings. For the host (phone and TV) each row carries − / + (728 «عدّل النقط
+ * بإيدك»: an argument an hour ago can still be put right), sent as `adjust { id, delta,
+ * was }`; everyone else sees the plain board. Rows keep data-pid / data-score / data-count,
+ * so animateScoreboards counts and slides them as on every board.
+ */
+function bzBoardHtml(state, t) {
+  const s = state.shared || {};
+  const board = s.board || [];
+  if (!state.youAreHost || !board.length) return renderScoreboard(board);
+  const btn = (p, d) => `<button type="button" class="btn btn--ghost btn--xs btn--auto bz-adj" onclick="bzAdjust('${jsStringAttr(p.id)}', ${d}, ${Number(p.score) || 0})" aria-label="${escapeHTML((d > 0 ? (t.bz_adj_plus || '') : (t.bz_adj_minus || '')).replace('{name}', p.name))}">${d > 0 ? '+' : '−'}</button>`;
+  return `
+    <div class="section scoreboard">
+      <div class="section__head">
+        <h2 class="section__title">${escapeHTML(t.scoreboard || '')}</h2>
+        <span class="section__rule"></span>
+      </div>
+      <p class="field__hint">${escapeHTML(t.bz_adj_hint || '')}</p>
+      ${board.map((p, i) => `
+        <div class="status-row ${i === 0 && p.score > 0 ? 'status-row--turn' : ''}" data-pid="${escapeHTML(String(p.id || p.name))}" data-score="${Number(p.score) || 0}">
+          <div class="status-row__body">
+            <div class="status-row__name">${i === 0 && p.score > 0 ? '👑 ' : ''}${escapeHTML(p.name)}</div>
+          </div>
+          ${btn(p, -1)}
+          <span class="badge badge--accent metric" data-count>${p.score}</span>
+          ${btn(p, 1)}
+        </div>`).join('')}
+    </div>`;
+}
+
+function bzAdjust(id, delta, was) {
+  haptic('light');
+  roomAct('adjust', { id: id, delta: delta, was: was });
+}
 
 /** «تصفير النقاط» wipes the whole evening's tally: asked first (the phone and the TV). */
 function bzResetScores() {

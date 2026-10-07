@@ -5,7 +5,8 @@
 /*
    "Play again" deals a new place to the same table and keeps a running score,
    as a room does: caught (and wrong about the place) is a point to everyone
-   else; escaped or knew the place is two to each spy. Starting from the setup
+   else; escaped is two to each spy; knew the place is three (owned up before
+   anyone accused them, 520) or one (after being caught). Starting from the setup
    screen starts the score over. The labels follow the app's language; the
    places and jobs follow the games' language.
 */
@@ -395,14 +396,16 @@ function spySubmitLocationGuess(locName, spyName) {
 
   if (isCorrect) {
     playSound('alarm');
-    finishSpyfallGame(false, (t.spy_stole || '').replace('{name}', spyName));
+    // 520 «جرأة الجاسوس»: right before anyone accused them is 3, right after a catch only 1.
+    const bold = !spyfallState.caught;
+    finishSpyfallGame(false, (t.spy_stole || '').replace('{name}', spyName) + ' · ' + ((bold ? t.spy_pts_bold : t.spy_pts_late) || ''), null, bold ? 3 : 1);
   } else {
     playSound('success');
     finishSpyfallGame(true, (t.spy_caught || '').replace('{name}', spyName) + ' · ' + (t.spy_guess_was || '') + ': ' + locName);
   }
 }
 
-function finishSpyfallGame(civiliansWon, message, accused) {
+function finishSpyfallGame(civiliansWon, message, accused, spyPts) {
   if (spyfallState.done) return;
   spyfallState.done = true;
   if (spyfallState.timerClock) spyfallState.timerClock.stop();
@@ -415,7 +418,7 @@ function finishSpyfallGame(civiliansWon, message, accused) {
 
   // The running score, as a room keeps it.
   if (civiliansWon) spyfallState.players.forEach(p => { if (!spyfallState.spies.includes(p)) spyfallState.scores[p] = (spyfallState.scores[p] || 0) + 1; });
-  else spyfallState.spies.forEach(p => { spyfallState.scores[p] = (spyfallState.scores[p] || 0) + 2; });
+  else spyfallState.spies.forEach(p => { spyfallState.scores[p] = (spyfallState.scores[p] || 0) + (spyPts || 2); });
 
   if (civiliansWon) {
     titleEl.innerText = '🎉 ' + (t.table_wins || 'الطاولة كسبت!');

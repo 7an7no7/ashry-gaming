@@ -211,9 +211,12 @@ const buzzerQuizMove = (room, playerId, action, payload) => {
   if (action === 'lock')  { s.phase = 'locked'; s.buzzes = []; return; }
   if (action === 'arm')   { s.phase = 'armed'; s.last = null; return; }
   if (action === 'adjust') {
+    // 728 «عدّل النقط بإيدك»: the host's − / + on a standings row. `was` (optional) is the
+    // score the host's phone showed: a double tap before the board came back counts once.
     const id = String((payload && payload.id) || '');
-    const delta = Number((payload && payload.delta) || 0);
-    if (!room.players.some(p => p.id === id) || !delta) return;
+    const delta = Math.trunc(Number((payload && payload.delta) || 0));
+    if (!room.players.some(p => p.id === id) || !delta || Math.abs(delta) > 5) return;
+    if (staleTap(payload, 'was', (s.scores || {})[id] || 0)) return;
     addScore(room, id, delta);
     s.board = scoreboardOf(room);
     return;

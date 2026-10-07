@@ -129,7 +129,7 @@ const monkeyRoomAction = (room, playerId, action, payload) => {
     const hit = monkeyPool(s.lang, s.category).find(n => monkeyFold(n) === f);
     if (!hit) throw new Error('مش لاقيها في القايمة');
     if (s.used.some(n => monkeyFold(n) === f)) throw new Error('اتقالت قبل كده');
-    if (s.mode === 'chain' && s.required && f.charAt(0) !== s.required) throw new Error('لازم تبدأ بحرف ' + s.required);
+    if (s.mode === 'chain' && s.required && monkeyChainFirst(f) !== s.required) throw new Error('لازم تبدأ بحرف ' + s.required);
     s.used.unshift(hit);
     s.required = f.slice(-1);
     s.history.unshift({ kind: 'name', text: hit, by: roomPlayerName(room, playerId) });
@@ -140,6 +140,25 @@ const monkeyRoomAction = (room, playerId, action, payload) => {
 
   if (action === 'giveUp') {
     if (!isTurn) throw new Error('دور لاعب آخر');
+    // 692: «مفيش عندي» in the chain and names is checked against the list. Nothing
+    // unused fits: no quarter, «فعلاً مفيش!», and a new chain starts with the same
+    // player (the chain from any letter; the names with the list fresh again).
+    if (s.mode !== 'letters') {
+      const fits = monkeyFitting(s.lang, s.category, s.used, s.mode === 'chain' ? s.required : '');
+      if (!fits.length) {
+        s.verdict = { kind: 'nothing', loser: roomPlayerName(room, playerId), loserId: null, byId: playerId, letter: s.required || '' };
+        s.history.unshift({ kind: 'nothing', text: s.required || '', by: roomPlayerName(room, playerId) });
+        if (s.mode === 'chain') s.required = ''; else s.used = [];
+        setMonkeyTurn(room, s.turn);
+        return;
+      }
+      monkeyQuarter(room, playerId);
+      s.verdict = { kind: 'giveup', loser: roomPlayerName(room, playerId), loserId: playerId, examples: shuffled(fits).slice(0, 3) };
+      s.history.unshift({ kind: 'giveup', text: s.required || '', by: roomPlayerName(room, playerId) });
+      if (monkeyCheckEnd(room)) return;
+      advanceMonkey(room, s.turn);
+      return;
+    }
     monkeyQuarter(room, playerId);
     s.verdict = { kind: 'giveup', loser: roomPlayerName(room, playerId), loserId: playerId };
     s.history.unshift({ kind: 'giveup', text: s.mode === 'letters' ? s.letters.map(l => l.ch).join('') : (s.required || ''), by: roomPlayerName(room, playerId) });

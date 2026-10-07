@@ -18,9 +18,11 @@ gameText({
       jo_check_give: "ادّي الموبايل لـ {name}",
       jo_dup_line: "{names} كتبوا نفس الكلمة!",
       jo_dup_locked: "التلميحات اللي زي بعض بتتشال على طول",
+      jo_exact: "الكلمة بالظبط: اتحسبت لوحدها",
     },
     en: {
       jo_final: "Final score",
+      jo_exact: "The word exactly: scored by itself",
       jo_next_guesser: "Next guesser: {name}",
       jo_see_final: "Final score 🏁",
       jo_ready_next: "Ready, next round ➡",
@@ -49,6 +51,7 @@ gameText({
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>الكل يكتب تلميحه في نفس اللحظة، والتطبيق يشيل المتشابه لوحده. كل جولة مخمّن مختلف.</li>
+                <li>لو المخمّن كتب الكلمة نفسها (الإملاء مش فارقة) بتتحسب صح على طول. المضيف بيحكم بس لما التخمين قريب.</li>
             </ul>`,
     },
     en: {
@@ -63,6 +66,7 @@ gameText({
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Everyone writes their clue at the same time, and the app removes the matches itself. A different guesser every round.</li>
+                <li>A guess that is the word itself (spelling aside) counts as right at once. The host only judges a near miss.</li>
             </ul>`,
     }
   }

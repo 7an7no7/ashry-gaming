@@ -15,16 +15,7 @@ const BOMB_FUSES_ROOM = { short: [15, 30], normal: [25, 55], long: [40, 80] };
 // A pass can be sent straight back for this long: the phone cannot hear whether
 // anything was said, so the table settles it. The host is not on the clock.
 const BOMB_SEND_BACK_MS = 15000;
-const BOMB_HEAT_AT = [0.4, 0.65, 0.85];
-// How far each heat step may move from BOMB_HEAT_AT, either way, each round.
-const BOMB_HEAT_JITTER = 0.08;
-
-/** This round's heat steps: BOMB_HEAT_AT, each moved at random, still in order. Kept in room._bombHeatAt. */
-const bombHeatSteps = () => {
-  const out = BOMB_HEAT_AT.map(f => f + (Math.random() * 2 - 1) * BOMB_HEAT_JITTER);
-  for (let i = 1; i < out.length; i++) out[i] = Math.max(out[i], out[i - 1] + 0.05);
-  return out.map(f => Math.min(0.95, Math.max(0.2, f)));
-};
+// BOMB_HEAT_AT, BOMB_HEAT_JITTER and bombHeatSteps are in BombPrompts.js: one phone deals its fuse's steps the same way (699).
 /** The steps of the round being played (a room from before the jitter: the fixed ones). */
 const bombHeatAt = (room) => (Array.isArray(room._bombHeatAt) && room._bombHeatAt.length === BOMB_HEAT_AT.length ? room._bombHeatAt : BOMB_HEAT_AT);
 

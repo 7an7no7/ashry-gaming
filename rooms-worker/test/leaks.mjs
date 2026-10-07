@@ -1614,7 +1614,7 @@ const DRIVERS = {
       must(T, writers[0], 'submitClue', { clue: 'شجرة' });
       must(T, writers[1], 'submitClue', { clue: 'الشجره' });
       must(T, writers[2], 'submitClue', { clue: 'سما' });
-      must(T, s.guesserId, 'submitGuess', { guess: 'بحر' });
+      must(T, s.guesserId, 'submitGuess', { guess: 'بحرزز' }); // never the word: an exact guess judges itself (676)
       must(T, T.host, 'judge', { correct: false });
     }
     return S(T).phase === 'result';

@@ -49,6 +49,8 @@ gameText({
       mission_catch_q: "شاكك إن حد بيشتغل عليك؟",
       mission_catch_btn: "كشفتك!",
       mission_catch_pick: "مين؟",
+      mission_catch_confirm: "كشفتك يا {name}!",
+      mission_catch_wait_no: "لأ، استنى",
       mission_catch_wait: "تقدر تكشف حد تاني بعد {t}",
       mission_state_ready: "امسك الملف عشان تقراه - ولما تخلّص المهمة دوس «خلصت»",
       mission_state_wait: "الملف راح للهدف يوقّع عليه…",
@@ -136,6 +138,8 @@ gameText({
       mission_catch_q: "Think someone is working on you?",
       mission_catch_btn: "Caught you!",
       mission_catch_pick: "Who?",
+      mission_catch_confirm: "Caught you, {name}!",
+      mission_catch_wait_no: "No, wait",
       mission_catch_wait: "You can guess again in {t}",
       mission_state_ready: "Hold the file to read it - once it is done, press «Done»",
       mission_state_wait: "The file has gone to the target to sign…",
@@ -187,7 +191,7 @@ gameText({
                 <li>عملتها؟ دوس <b>«خلصت»</b>. موبايل الهدف يسأله في هدوء: «حصل معاك فعلًا؟». <b>نعم</b>: نقطة ليك وملف جديد بهدف جديد. <b>لأ</b>: ولا حاجة، كمّل في نفس المهمة. محدش بيخرج أبدًا.</li>
                 <li>ساعات المهمة تبقى <b>«قول الكلمة»</b>: «خلّي منى تقول كلمة «زرافة»». كلمة من كلمات الرسم، تنفع في أي مكان ومع أي صحبة.</li>
                 <li><b>«غيّرها»</b>: مهمة تانية لنفس الهدف، مرة كل ١٠ دقايق.</li>
-                <li><b>«كشفتك!»</b>: لو شاكك إن حد بيشتغل عليك، قول اسمه. صح: نقطة ليك وهو ياخد ملف جديد. غلط: اللي اتّهمته ياخد نقطة، وتستنى ٥ دقايق قبل ما تكشف حد تاني. اللي سألك «حصل؟» كشف نفسه بنفسه، مينفعش تكشفه، وتتحسب عليك غلط.</li>
+                <li><b>«كشفتك!»</b>: لو شاكك إن حد بيشتغل عليك، اختار وشّه وأكّد بختم «كشفتك يا …!» («لأ، استنى» يرجّعك). صح: نقطة ليك وهو ياخد ملف جديد. غلط: اللي اتّهمته ياخد نقطة، وتستنى ٥ دقايق قبل ما تكشف حد تاني. اللي سألك «حصل؟» كشف نفسه بنفسه، مينفعش تكشفه، وتتحسب عليك غلط.</li>
                 <li>اللي ييجي متأخر بياخد ملف على طول، واللي يمشي ملفه بيتقفل ومين كان بيشتغل عليه ياخد هدف جديد. أقل من ٣: المهمة تستنى.</li>
                 <li>الشاشة عمرها ما بتعرض مهمة قبل ما تتعمل: بتعرض «ملف اتقفل!» لما مهمة تخلص، ولوحة فلّين بمين قفل ملفات أكتر.</li>
                 <li>لما المضيف يقفلها: <b>مين عمل في مين إيه</b> صور وخيوط حمرا، و<b>أشطر عميل سري</b>، والترتيب بيتحسب في نقط الليلة مرة واحدة: ٥، ٣، ٢، و١ لأي حد لعب.</li>
@@ -201,7 +205,7 @@ gameText({
                 <li>Done it? Press <b>«Done»</b>. The target's phone quietly asks: "Did it really happen?". <b>Yes</b>: a point for you and a new file with a new target. <b>No</b>: nothing happens, keep at the same mission. Nobody is ever out.</li>
                 <li>Sometimes the mission is <b>«Say the word»</b>: "Get Mona to say the word giraffe". A word from the drawing words, good for any place and any company.</li>
                 <li><b>«Change it»</b>: another mission for the same target, once every 10 minutes.</li>
-                <li><b>«Caught you!»</b>: if you think someone is working on you, name them. Right: a point for you and they get a new file. Wrong: the one you named gets a point, and you wait 5 minutes before guessing again. Someone who asked you "did it happen?" gave themselves away - that one can't be caught, and it counts as a wrong guess.</li>
+                <li><b>«Caught you!»</b>: if you think someone is working on you, tap their face and confirm with the «Caught you, …!» stamp («No, wait» takes it back). Right: a point for you and they get a new file. Wrong: the one you named gets a point, and you wait 5 minutes before guessing again. Someone who asked you "did it happen?" gave themselves away - that one can't be caught, and it counts as a wrong guess.</li>
                 <li>Someone who comes late gets a file at once; someone who leaves drops out and whoever was working on them gets a new target. Fewer than 3: it waits.</li>
                 <li>The big screen never shows a mission before it is done: it shows «File closed!» when one is, and a cork board of who closed the most files.</li>
                 <li>When the host turns it off: <b>who did what to whom</b> as photos and red strings, <b>the best secret agent</b>, and the ranking counts on the night's board once: 5, 3, 2, and 1 for everyone else who played.</li>

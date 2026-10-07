@@ -80,6 +80,21 @@ One phone: «بدّل» pauses the turn clock and a cancelled swap gives it back
 (`monkeySwapClosed`); a reload mid-turn starts the turn's clock again with its full
 time (the audit of 6 Oct 2026).
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **691 The chain ignores «ال»** (rooms and one phone). `monkeyChainFirst(folded)` (`MonkeyWords.js`,
+  shared): a folded name's first letter skips a leading ال (when 2+ letters follow), so الهند starts
+  with ه. The chain's check (`name` in `RoomMonkey.js`, `monkeySubmitName`) reads it; the required
+  letter is still the last letter of the name before. Help and the mode hint say so.
+- **692 «مفيش عندي» is checked** (chain and names, rooms and one phone). `monkeyFitting(lang, cat,
+  used, required)` (`MonkeyWords.js`): the unused names that would do (the chain: by
+  `monkeyChainFirst`). None: no quarter, verdict `nothing` («✅ فعلاً مفيش! … يبدأ سلسلة جديدة من
+  غير ربع», `mk_v_nothing`), the chain starts over (`required = ''`; in names the said list is
+  emptied) and the same player starts it (a fresh turn clock). Some: a quarter as before, and the
+  verdict shows three that would have done (`examples`, «كان ممكن: …», `mk_v_could`). Chosen while
+  building: the same player starts the new chain; the examples are shown. One phone: the same in
+  `monkeyGiveUp` (undo still takes it back). Rules tests and the robot's chain round.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

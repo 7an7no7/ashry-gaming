@@ -15603,7 +15603,7 @@ console.log('• the secret mission');
 {
   console.log('\nThe vault');
   const threw = (fn) => { try { fn(); return false; } catch (e) { return true; } };
-  const V = new Function(readFileSync(srcPath('Vault.js'), 'utf8') + ';return { vaultLevel, vaultUnits, vaultDealUnits, vaultManual, vaultMakeSafe, vaultWireAnswer, vaultSymbolOrder, vaultDialCode, vaultTwistOn, vaultLightAnswer, VAULT_LOCKS, VAULT_PENALTY_MS, vaultPenaltyMs, VAULT_READY_MS, VAULT_BETWEEN_MS };')();
+  const V = new Function(readFileSync(srcPath('Vault.js'), 'utf8') + ';return { vaultLevel, vaultUnits, vaultDealUnits, vaultManual, vaultMakeSafe, vaultWireAnswer, vaultSymbolOrder, vaultDialCode, vaultTwistOn, vaultLightAnswer, VAULT_LOCKS, VAULT_PENALTY_MS, vaultPenaltyMs, VAULT_READY_MS, VAULT_BETWEEN_MS, VAULT_EXPLAIN_MS, VAULT_KEY_EVERY };')();
   const vaultRoom = (ids, payload, screens) => {
     const r = newRoom(ids);
     if (screens) r.screens = screens.map((id) => ({ id }));
@@ -15854,6 +15854,67 @@ console.log('• the secret mission');
     r.players.push({ id: 'z', name: 'Z' });
     toPlay(r);
     check(!r.secrets.z && r.shared.roster.indexOf('z') === -1, 'vault: a latecomer watches until play again');
+  }
+  {
+    // «ليه كده؟» (the ideas of 7 Oct 2026, 801): a safe with a mistake explains that lock once it is over.
+    const r = vaultRoom(['a', 'b', 'c']);
+    const s = r.shared;
+    toPlay(r);
+    const i0 = s.locks[0].i, i1 = s.locks[1].i;
+    const lock0 = r._vault.safe.locks[i0];
+    const row0 = V.vaultLightAnswer(r._vault.manual.lights, lock0.look.seq || [], 0);
+    wrongMove(r, 'x', i0);
+    check(!s.result, 'vault (801): nothing is explained while the candle burns');
+    solveSafe(r, 'x');
+    const ex = ((s.result || {}).explain || {}).x || [];
+    const e0 = ex.find((e) => e.i === i0);
+    const right = !e0 ? false : lock0.k === 'lights' ? JSON.stringify(e0.a) === JSON.stringify(row0) && e0.row === 0
+      : JSON.stringify(e0.a) === JSON.stringify(lock0.sol);
+    check(s.phase === 'result' && ex.length === 1 && right && !ex.some((e) => e.i === i1),
+      'vault (801): the result explains the lock with the mistake (its rule and the right answer), not the clean one');
+    check(s.nextAt - clock === V.VAULT_EXPLAIN_MS, 'vault (801): a card that explains stays 10 s');
+    if (lock0.k === 'wires') check(e0.n >= -1 && (e0.n === -1 || !!e0.r) && e0.w.length === lock0.look.wires.length, 'vault (801): a wire\'s explanation names the rule that applied');
+    if (lock0.k === 'dial') check(e0.s === lock0.look.shape && e0.c.length === 3, 'vault (801): the dial\'s explanation gives the shape\'s code');
+    if (lock0.k === 'symbols') check(e0.col >= 1, 'vault (801): the symbols\' explanation names the column');
+  }
+  {
+    // A clean safe explains nothing; a lost one explains every lock left shut, on the end card too.
+    const r = vaultRoom(['a', 'b']);
+    toPlay(r);
+    solveSafe(r, 'x');
+    check(!r.shared.result.explain && r.shared.nextAt - clock === V.VAULT_BETWEEN_MS, 'vault (801): a clean safe has nothing to explain, 6 s as before');
+    const q = vaultRoom(['a', 'b']);
+    toPlay(q);
+    const k0 = q.shared.locks[0].i;
+    wrongMove(q, 'x', k0); wrongMove(q, 'x', k0); wrongMove(q, 'x', k0);
+    const ex = ((q.shared.result || {}).explain || {}).x || [];
+    check(q.shared.phase === 'gameover' && ex.length === q.shared.locks.length, 'vault (801): a lost safe explains every lock left shut, kept on the end card');
+  }
+  {
+    // «المفتاح الاحتياطي» (804): every third clean safe earns a key; spent, it opens a lock outright.
+    const r = vaultRoom(['a', 'b', 'c']);
+    const s = r.shared;
+    for (let n = 1; n <= V.VAULT_KEY_EVERY; n++) {
+      toPlay(r);
+      if (n === 2) { check(s.keys.x === 0 && s.clean.x === 1, 'vault (804): one clean safe is no key yet'); }
+      solveSafe(r, 'x');
+      if (n < V.VAULT_KEY_EVERY) applyRoomAction(r, 'a', 'nextSafe', { safe: s.safeNo });
+    }
+    check(s.keys.x === 1 && s.events.some((e) => e.type === 'key'), 'vault (804): the third safe opened with no mistake earns a spare key');
+    applyRoomAction(r, 'a', 'nextSafe', { safe: s.safeNo });
+    check(threw(() => applyRoomAction(r, s.sides.x.opener, 'useKey', { i: s.locks[0].i, safe: s.safeNo })) === false && !s.sides.x.open[s.locks[0].i] && s.keys.x === 1,
+      'vault (804): no key is spent on the safe\'s card');
+    toPlay(r);
+    const opener = s.sides.x.opener, reader = s.roster.find((id) => id !== opener);
+    const li = s.locks[1].i;
+    check(threw(() => applyRoomAction(r, reader, 'useKey', { i: li, safe: s.safeNo })), 'vault (804): only who works the lock spends the key');
+    applyRoomAction(r, opener, 'useKey', { i: li, safe: s.safeNo + 1 });
+    check(!s.sides.x.open[li] && s.keys.x === 1, 'vault (804): a key tapped on another safe is dropped');
+    applyRoomAction(r, opener, 'useKey', { i: li, safe: s.safeNo });
+    check(s.sides.x.open[li] && s.keys.x === 0 && s.sides.x.mistakes === 0 && s.events.some((e) => e.type === 'keyUsed' && e.i === li), 'vault (804): the spare key opens the lock at once, and is gone');
+    check(threw(() => applyRoomAction(r, opener, 'useKey', { i: s.locks[0].i, safe: s.safeNo })), 'vault (804): no key left, none to spend');
+    const t = vaultRoom(['a', 'b', 'c', 'd'], { way: 'teams' });
+    check(JSON.stringify(t.shared.keys) === '{"a":0,"b":0}', 'vault (804): two teams keep their own keys');
   }
 }
 

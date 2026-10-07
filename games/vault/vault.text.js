@@ -82,6 +82,13 @@ gameText({
       vt_tv_opened: "{name} فتح {lock} ✓",
       vt_tv_opened_tv: "{lock} اتفتح ✓",
       vt_tv_mistake: "غلطة في {lock} ✗",
+      vt_why_title: "ليه كده؟ جدّو كان قايل:",
+      vt_key_use: "افتحه بالمفتاح الاحتياطي ({n})",
+      vt_keys_n: "{n} مفتاح احتياطي",
+      vt_key_confirm: "تصرف المفتاح الاحتياطي على قفل {lock}؟ هيتفتح على طول، والمفتاح يروح.",
+      vt_key_won: "🗝️ مفتاح احتياطي! تالت خزنة من غير غلط",
+      vt_key_used: "🗝️ المفتاح الاحتياطي فتح {lock}",
+      vt_key_name: "مفتاح احتياطي",
     },
     en: {
       vt_title: "Grandpa's chest",
@@ -162,6 +169,13 @@ gameText({
       vt_tv_opened: "{name} opened {lock} ✓",
       vt_tv_opened_tv: "{lock} open ✓",
       vt_tv_mistake: "Mistake on {lock} ✗",
+      vt_why_title: "Why? Grandpa's notebook said:",
+      vt_key_use: "Open it with the spare key ({n})",
+      vt_keys_n: "{n} spare key(s)",
+      vt_key_confirm: "Spend the spare key on the {lock} lock? It opens at once, and the key is gone.",
+      vt_key_won: "🗝️ A spare key! A third safe with no mistake",
+      vt_key_used: "🗝️ The spare key opened {lock}",
+      vt_key_name: "Spare key",
     }
   },
   rules: {
@@ -174,6 +188,8 @@ gameText({
                 <li>📱📖 <b>واحد بيفتح</b>: موبايل واحد (أو الشاشة، لو المضيف اختار) عليه الصندوق، وصفحات النوتة متقسّمة على الباقيين. اللي بيفتح بيتغيّر كل خزنة.</li>
                 <li>📱📱 <b>الكل</b>: كل موبايل عليه قفل، وصفحة من النوتة بتفتح قفل حد تاني. الكل بيتكلم مرة واحدة.</li>
                 <li>⚔️ <b>فريقين</b>: نفس الصندوق للفريقين، كل فريق بفاتح وقرّاية، وأول فريق يفتحه ياخده.</li>
+                <li>🧐 <b>ليه كده؟</b> لما خزنة تخلص وفيها غلطة أو قفل ماتفتحش، الكارت بيقول على موبايل اللي بيفتح وعلى الشاشة القاعدة اللي كانت ماشية والحل الصح.</li>
+                <li>🗝️ <b>المفتاح الاحتياطي</b>: كل تالت خزنة تتفتح من غير ولا غلطة بتكسبكم مفتاح نحاس يتعلّق على حبل الغسيل. اللي بيفتح يقدر يصرفه على أي قفل في خزنة بعد كده، فيتفتح على طول.</li>
             </ol>
             <p class="help-sub">🏆 المكسب</p>
             <p class="text-xs">مستويات ملهاش آخر (كل خزنة أصعب، والأوضة بتحفظ أحسن رقم)، أو 3 / 5 / 7 خزن بالنقط: اللي فتح الصندوق 3، كل واحد معاه النوتة 2، و+1 للكل لو اتفتح من غير ولا غلطة. في «الكل»: القفل اللي تفتحه 2 (+1 لو محدش غلط فيه، و+1 لو كان أول قفل يتفتح)، وصاحب صفحته 1.</p>
@@ -189,6 +205,8 @@ gameText({
                 <li>📱📖 <b>One opens</b>: one phone (or the screen, if the host picks it) has the chest, and the notebook's pages are shared out among the rest. The opener changes every safe.</li>
                 <li>📱📱 <b>Everyone</b>: every phone has a lock, and a page that opens someone else's. Everyone talks at once.</li>
                 <li>⚔️ <b>Two teams</b>: the same chest for both, each team with an opener and readers; the first to open it takes it.</li>
+                <li>🧐 <b>Why?</b> When a safe ends with a mistake or a lock left shut, the card on the opener's phone and the screen shows the rule that applied and the right answer.</li>
+                <li>🗝️ <b>The spare key</b>: every third safe opened with no mistake earns a brass key, hung on the washing line. The opener can spend it on any lock of a later safe, and that lock opens at once.</li>
             </ol>
             <p class="help-sub">🏆 Winning</p>
             <p class="text-xs">Endless levels (each safe harder, the room keeps its best), or a set of 3 / 5 / 7 safes for points: the opener 3, each reader 2, and +1 for everyone when it opened with no mistake. In «Everyone»: a lock you open 2 (+1 if nobody slipped on it, +1 if it was the first to open), and whoever held its page 1.</p>

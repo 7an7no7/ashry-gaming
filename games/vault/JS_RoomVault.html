@@ -102,6 +102,8 @@ const VT_WORDS = {
     sumBig: 'لو مجموع أرقام رقم الصندوق 20 أو أكتر: اقرا الكود بالمقلوب.',
     lightsHow: 'النور بيرمش ألوان ورا بعض وبيعيد. لكل لون دوس الزرار اللي قصاده بنفس الترتيب. الجدول بيتغيّر مع الغلطات — في أي قفل!',
     flash: 'لو رمش', row0: 'مفيش غلطات', row1: 'غلطة واحدة', row2: 'غلطتين أو أكتر', press: 'دوس',
+    whyWires: '{n} أسلاك: {rule}', whyNoRule: 'مفيش قاعدة اتطبقت', whyCut: 'كان لازم تقطع السلك {o} ({c})',
+    whySym: 'الرموز كلها في {col}، بالترتيب:', whyRev: 'ورقم الصندوق {no} بيقلبه ← {code}', whyRow: 'بـ«{row}»:',
     grandpa: ['جدّو: «بالراحة يا حبيبي، ماتستعجلش»', 'جدّو: «اقرا القاعدة للآخر»', 'جدّو: «اللي يغلط يعيد من الأول»', 'جدّو: «اسأل قبل ما تقطع»']
   },
   en: {
@@ -118,6 +120,8 @@ const VT_WORDS = {
     sumBig: 'If the chest number\'s digits add up to 20 or more: read the code backwards.',
     lightsHow: 'The lamp flashes colours one after another, again and again. For each colour press the button opposite it, in the same order. The table changes with the mistakes - on any lock!',
     flash: 'If it flashes', row0: 'No mistakes', row1: 'One mistake', row2: 'Two or more', press: 'Press',
+    whyWires: '{n} wires: {rule}', whyNoRule: 'No rule applied', whyCut: 'it was the {o} wire ({c})',
+    whySym: 'They are all in {col}, in this order:', whyRev: 'and chest number {no} turns it round → {code}', whyRow: 'With «{row}»:',
     grandpa: ['Grandpa: "Easy, son, no rush"', 'Grandpa: "Read the rule to the end"', 'Grandpa: "A mistake starts it over"', 'Grandpa: "Ask before you cut"']
   }
 };
@@ -199,8 +203,11 @@ function vtStageHtml(state, mine, locks) {
     ${open ? `<div class="vt-opened">${vtPadSvg(true)}<span>${escapeHTML(t.vt_open_lock)}</span></div>` : ''}
     ${many ? `<button type="button" class="vt-arr vt-arr--p" data-vt="pv" aria-label="${escapeHTML(t.vt_prev)}">‹</button><button type="button" class="vt-arr vt-arr--n" data-vt="nx" aria-label="${escapeHTML(t.vt_next)}">›</button>
     <div class="vt-dots">${locks.map((l) => `<i class="${l.i === lock.i ? 'is-on' : mine.side.open[l.i] ? 'is-ok' : ''}"></i>`).join('')}</div>` : ''}
-  </div>`;
+  </div>${!open && s.phase === 'play' && vtKeysOf(state, mine.key) > 0 ? `<button type="button" class="vt-usekey" data-vt="key">🗝️ ${escapeHTML(vtFill(t.vt_key_use, { n: vtKeysOf(state, mine.key) }))}</button>` : ''}`;
 }
+
+/** «المفتاح الاحتياطي» (804): the spare keys a side has hanging. */
+const vtKeysOf = (state, key) => Number((((state.shared || {}).keys) || {})[key]) || 0;
 
 /* --- the notebook --------------------------------------------------------------- */
 function vtPageBody(page, state) {
@@ -275,7 +282,7 @@ function vtTopHtml(state, mine) {
   const team = s.way === 'teams' && mine ? `<div class="vt-ribbon vt-ribbon--${mine.key}" data-vt-ribbon></div>` : '';
   return `<div class="vt-top">
     <div class="vt-cndw" data-vt-side="${mine ? mine.key : (s.sides || {}).a ? 'a' : 'x'}">${vtCandleHtml()}<b class="vt-clock metric" data-vt-clock dir="ltr">0:00</b></div>
-    <div class="vt-hasp"><div class="vt-lvl" data-vt-lvl></div>${team}<div class="vt-pads">${pads}</div></div>
+    <div class="vt-hasp"><div class="vt-lvl" data-vt-lvl></div>${team}<div class="vt-pads">${pads}</div><div class="vt-keys" data-vt-keys hidden></div></div>
   </div>`;
 }
 
@@ -337,6 +344,7 @@ function vtOverHtml(state, tv) {
       <div class="vt-over__big"><span class="metric" data-vt-won data-to="${s.levelsWon || 0}">${rise ? 0 : (s.levelsWon || 0)}</span></div>
       <div class="vt-over__line">${escapeHTML(t.vt_levels_cleared)}</div>
       <div class="vt-over__best">${s.newBest ? '🏆 ' + escapeHTML(t.vt_new_best) + ' · ' : ''}${escapeHTML(vtFill(t.vt_room_best, { n: s.best || 0 }))}</div>
+      ${s.why === 'alarm' || s.why === 'time' ? vtExplainHtml(state, tv ? null : vtMine(state), tv) : ''}
       ${host}</div>`;
 }
 
@@ -459,6 +467,14 @@ function vtTap(hit) {
   if (act === 'go') { vtMove(0, Number(hit.dataset.i)); return; }
   if (act === 'tab') { vt.tab = hit.dataset.n === 'page' ? 'page' : 'lock'; const root = vt.el && vt.el.querySelector('[data-vt-root]'); if (root) root.classList.toggle('is-tab-page', vt.tab === 'page'); hit.parentNode.querySelectorAll('[data-vt="tab"]').forEach((b) => { const on = b === hit; b.classList.toggle('is-active', on); b.setAttribute('aria-pressed', on); }); return; }
   if (act === 'pg') { vt.page[sk] = Number(hit.dataset.n) || 0; vtPaintNow(false, true); return; }
+  if (act === 'key') {
+    // «المفتاح الاحتياطي» on the lock on the stage: spent for good, so asked first; sent for this safe.
+    const ki = vt.cur[sk];
+    if (s.phase !== 'play' || typeof ki !== 'number') return;
+    const safe = s.safeNo;
+    showConfirmModal(vtFill(vtT().vt_key_confirm, { lock: vtLockName(((s.locks || [])[ki] || {}).k) }), () => roomAct('useKey', { i: ki, safe }));
+    return;
+  }
   const slide = hit.closest('[data-vt-i]');
   const i = slide ? Number(slide.dataset.vtI) : -1;
   if (i < 0) return;
@@ -538,6 +554,14 @@ function vtPaint(state, el) {
     }
     p.classList.toggle('is-cur', locks.length > 1 && vt.cur[sk] === i);
   });
+  // The spare keys hanging (804).
+  const keysBox = root.querySelector('[data-vt-keys]');
+  if (keysBox) {
+    const n = mine ? vtKeysOf(state, mine.key) : 0;
+    const txt = n ? '🗝️ ' + vtFill(t.vt_keys_n, { n }) : '';
+    if (keysBox.textContent !== txt) keysBox.textContent = txt;
+    keysBox.hidden = !n;
+  }
   // The ribbon of «فريقين»: my team, and how far the other one is.
   const rib = root.querySelector('[data-vt-ribbon]');
   if (rib && mine) {
@@ -552,7 +576,7 @@ function vtPaint(state, el) {
     const cur = vt.cur[sk];
     const lock = locks.find((l) => l.i === cur) || locks[0];
     const armed = vt.arm && vt.arm.key.indexOf(sk + '|') === 0 ? vt.arm.w : -1;
-    const sig = [sk, locks.map((l) => l.i + ':' + JSON.stringify(l.prog)).join(';'), side.open.join(','), cur, armed, appState.lang, vtL()].join('|');
+    const sig = [sk, locks.map((l) => l.i + ':' + JSON.stringify(l.prog)).join(';'), side.open.join(','), cur, armed, s.phase === 'play', vtKeysOf(state, mine.key), appState.lang, vtL()].join('|');
     if (vtBox(stageBox, sig, vtStageHtml(state, mine, locks))) vt.lampAt = 0;
   }
   // The notebook's page: the lights' column follows the mistakes.
@@ -596,6 +620,7 @@ function vtPaint(state, el) {
     const on = s.phase === 'result' || s.phase === 'ready';
     res.hidden = !on;
     res.dataset.phase = s.phase;
+    res.classList.toggle('has-why', on && !!(s.result || {}).explain);
     const sig = [s.phase, s.safeNo, JSON.stringify(s.result), JSON.stringify(s.board || []), appState.lang].join('|');
     if (on && vtBox(res, sig, vtResHtml(state, mine, false))) {
       if (s.phase === 'result' && s.board) animateScoreboards(state);
@@ -637,7 +662,52 @@ function vtResHtml(state, mine, tv) {
   const good = r.open && (!mine || s.way !== 'teams' || r.side === mine.key);
   const board = s.board && !tv ? renderScoreboard(s.board, '', { grid: true }) : '';
   return `<div class="vt-res__card ${good ? 'is-good' : 'is-bad'}">${r.open ? `<div class="vt-res__chest">${VT_CHEST_OPEN}</div>` : '<div class="vt-res__bell" aria-hidden="true">🚨</div>'}
-    <b>${escapeHTML(title)}</b><span class="metric" data-vt-cd></span>${board}</div>`;
+    <b>${escapeHTML(title)}</b><span class="metric" data-vt-cd></span>${vtExplainHtml(state, mine, tv)}${board}</div>`;
+}
+
+/**
+ * «ليه كده؟» (the ideas of 7 Oct 2026, 801): once a safe is over, the rule that applied and the
+ * right answer for every lock with a mistake on it or left shut (shared.result.explain, built by
+ * the server). On the phone that worked those locks (the opener; in «الكل» each lock's holder)
+ * and on the TV; a reader's phone has its notebook already.
+ */
+function vtExplainHtml(state, mine, tv) {
+  const s = state.shared || {};
+  const ex = (s.result || {}).explain;
+  if (!ex) return '';
+  const t = vtT();
+  let groups;
+  if (tv) groups = Object.keys(ex).map((k) => ({ k, list: ex[k] }));
+  else {
+    if (!mine || !ex[mine.key]) return '';
+    const list = ex[mine.key].filter((e) => mine.h.locks.indexOf(e.i) !== -1);
+    groups = list.length ? [{ k: mine.key, list }] : [];
+  }
+  if (!groups.length) return '';
+  const head = (g) => (tv && s.way === 'teams' ? `<div class="vt-why__team">${escapeHTML(t['vt_team_' + g.k] || '')}</div>` : '');
+  return `<div class="vt-why"><div class="vt-why__t">🧐 ${escapeHTML(t.vt_why_title)}</div>${groups.map((g) => `${head(g)}<ul>${g.list.map((e) => vtExplainItem(state, e)).join('')}</ul>`).join('')}</div>`;
+}
+function vtExplainItem(state, e) {
+  const w = vtW();
+  const s = state.shared || {};
+  const name = `<span class="vt-why__k">${escapeHTML(vtLockName(e.k))}</span>`;
+  let body = '';
+  if (e.k === 'wires' && Array.isArray(e.w)) {
+    const n = e.w.length;
+    const rule = e.r ? vtRuleHtml(e.r, n) : escapeHTML(w.whyNoRule);
+    const o = e.a >= n - 1 ? w.last : (w.ord[e.a] || String(e.a + 1));
+    body = `<span class="vt-why__row">${e.w.map((c) => vtChip(c)).join(' ')}</span><span>${vtFill(escapeHTML(w.whyWires), { n, rule })}</span><span class="vt-why__a">${vtFill(escapeHTML(w.whyCut), { o: escapeHTML(o), c: vtChip(e.w[e.a]) })}</span>`;
+  } else if (e.k === 'symbols' && Array.isArray(e.a)) {
+    body = `<span>${escapeHTML(vtFill(w.whySym, { col: e.col > 0 ? vtFill(w.col, { n: e.col }) : '?' }))}</span><span class="vt-why__syms vt-why__a" dir="ltr">${e.a.map(vtSymSvg).join('<i>›</i>')}</span>`;
+  } else if (e.k === 'dial' && Array.isArray(e.a)) {
+    const sh = VAULT_SHAPES[e.s] || {};
+    const code = (x) => `<span class="metric" dir="ltr">${(x || []).join(' · ')}</span>`;
+    body = `<span class="vt-why__row"><span class="vt-why__shape">${vtShapeSvg(e.s)}</span>${escapeHTML(sh[vtL()] || '')} = ${code(e.c)}</span>${e.on ? `<span class="vt-why__a">${vtFill(escapeHTML(w.whyRev), { no: `<span class="metric">${escapeHTML(s.serial || '')}</span>`, code: code(e.a) })}</span>` : `<span class="vt-why__a">${code(e.a)}</span>`}`;
+  } else if (e.k === 'lights' && Array.isArray(e.a)) {
+    const row = [w.row0, w.row1, w.row2][e.row] || w.row0;
+    body = `<span>${escapeHTML(vtFill(w.whyRow, { row }))}</span><span class="vt-why__row">${escapeHTML(w.flash)} ${(e.q || []).map((c) => vtChip(c)).join(' ')}</span><span class="vt-why__row vt-why__a">${escapeHTML(w.press)} ${e.a.map((c) => vtChip(c)).join(' ')}</span>`;
+  }
+  return `<li>${name}${body}</li>`;
 }
 
 /** Every frame while the room is on screen: the candles, the clocks, the lamp, the countdowns. */
@@ -729,7 +799,7 @@ function vtEvents(state, el) {
   const t = vtT();
   fresh.forEach((e) => {
     const ours = !!mine && (!e.side || e.side === mine.key);
-    if (voice) vtSound(e.type === 'open' ? 'open' : e.type === 'mistake' ? 'mistake' : e.type === 'step' ? 'tick' : e.type === 'safeOpen' ? 'won' : e.type === 'safeLost' || (e.type === 'lost' && e.why === 'alarm') ? 'alarm' : e.type === 'safe' ? 'safe' : '');
+    if (voice) vtSound(e.type === 'key' ? 'key' : e.type === 'open' ? 'open' : e.type === 'mistake' ? 'mistake' : e.type === 'step' ? 'tick' : e.type === 'safeOpen' ? 'won' : e.type === 'safeLost' || (e.type === 'lost' && e.why === 'alarm') ? 'alarm' : e.type === 'safe' ? 'safe' : '');
     if (vt.tv) { vtTvMoment(state, el, e); return; }
     if (e.type === 'open' && ours) {
       vtStamp(el, 'ok', vtFill(t.vt_lock_opened, { lock: vtLockName(e.k) }));
@@ -745,6 +815,11 @@ function vtEvents(state, el) {
       const won = !mine || s.way !== 'teams' || e.side === mine.key;
       vtStamp(el, won ? 'lvl' : 'bad', won ? t.vt_opened : vtFill(t.vt_team_won, { team: t['vt_team_' + e.side] }));
       if (won) { haptic('medium'); vtConfetti(el, state); }
+    } else if (e.type === 'key' && ours) {
+      vtStamp(el, 'lvl', t.vt_key_won);
+      haptic('medium');
+    } else if (e.type === 'keyUsed' && ours) {
+      vtStamp(el, 'ok', vtFill(t.vt_key_used, { lock: vtLockName(e.k) }));
     } else if (e.type === 'safe') {
       vtStamp(el, 'lvl', s.total ? vtFill(t.vt_safe_of, { n: e.n, m: s.total }) : vtFill(t.vt_level, { n: e.n }));
     }
@@ -833,6 +908,9 @@ function vtSound(kind) {
       }
     } else if (kind === 'safe') {
       fxTone('triangle', [[0, 330], [0.2, 440]], [[0, 0.14], [0.3, 0.001]], at);
+    } else if (kind === 'key') {
+      // A brass key jingling onto the line.
+      for (let k = 0; k < 3; k++) fxTone('triangle', [[0, 1320 + k * 220]], [[0, 0.12], [0.18, 0.001]], at + k * 0.09);
     } else if (kind === 'won') playFx('tada');
   } catch (e) {}
 }
@@ -885,7 +963,11 @@ function vtLineHtml(state) {
     });
   });
   const tilt = [-3, 2, -2, 3, -1, 2, -3, 1, -2, 3];
-  return `<div class="vt-line vt-line--${Math.min(10, cards.length)}">${cards.map((c, n) => `<div class="vt-pg${c.op ? ' is-op' : ''}${s.way === 'teams' ? ' vt-pg--' + c.key : ''}" style="--r:${tilt[n % tilt.length]}deg;--d:${(-n * 0.6).toFixed(1)}s"><b>${escapeHTML(c.name)}</b><span>${escapeHTML(c.what)}</span></div>`).join('')}</div>`;
+  // «المفتاح الاحتياطي» (804): each side's spare keys hang on the line too.
+  const keys = [];
+  Object.keys(s.keys || {}).forEach((key) => { for (let n = 0; n < Math.min(4, Number(s.keys[key]) || 0); n++) keys.push(key); });
+  const keyHtml = keys.map((key, n) => `<div class="vt-tkey${s.way === 'teams' ? ' vt-tkey--' + key : ''}" style="--r:${tilt[(n + 3) % tilt.length] * 2}deg;--d:${(-n * 0.8).toFixed(1)}s" title="${escapeHTML(t.vt_key_name)}">🗝️</div>`).join('');
+  return `<div class="vt-line vt-line--${Math.min(10, cards.length)}">${cards.map((c, n) => `<div class="vt-pg${c.op ? ' is-op' : ''}${s.way === 'teams' ? ' vt-pg--' + c.key : ''}" style="--r:${tilt[n % tilt.length]}deg;--d:${(-n * 0.6).toFixed(1)}s"><b>${escapeHTML(c.name)}</b><span>${escapeHTML(c.what)}</span></div>`).join('')}${keyHtml}</div>`;
 }
 
 function vtTvHtml(state, t) {
@@ -918,7 +1000,7 @@ TV_GAMES.vault = {
   sig(state) {
     const s = state.shared || {};
     const holders = Object.keys(s.sides || {}).map((k) => k + ':' + (s.sides[k].opener || '') + ':' + JSON.stringify(s.sides[k].holders)).join('|');
-    return ['vault', roomDealKey(state), s.safeNo, s.phase === 'gameover', s.tvOpens, holders, (s.locks || []).map((l) => l.k).join(','), s.serial,
+    return ['vault', roomDealKey(state), s.safeNo, s.phase === 'gameover', s.tvOpens, holders, (s.locks || []).map((l) => l.k).join(','), s.serial, JSON.stringify(s.keys || {}),
       state.youAreHost, appState.lang, vtL(), s.phase === 'gameover' ? JSON.stringify(s.board || []) + s.levelsWon + s.best : ''].join('|');
   },
   frame(state, t) { return vtTvHtml(state, t); },
@@ -1012,9 +1094,11 @@ function vtTvMoment(state, el, e) {
   let msg = '';
   const who = e.by ? vtName(state, e.by) : '';
   if (e.type === 'open') msg = vtFill(who ? t.vt_tv_opened : t.vt_tv_opened_tv, { name: vtIso(who), lock: vtLockName(e.k) });
+  else if (e.type === 'key') msg = t.vt_key_won;
+  else if (e.type === 'keyUsed') msg = vtFill(t.vt_key_used, { lock: vtLockName(e.k) });
   else if (e.type === 'mistake') msg = vtFill(t.vt_tv_mistake, { lock: vtLockName(e.k) }) + (s.settings.mistakes === 'time' ? ' · −' + (e.pen || 15) : '');
   else if (e.type === 'lost') msg = (s.way === 'teams' ? t['vt_team_' + e.side] + ': ' : '') + (e.why === 'alarm' ? t.vt_lost_alarm : t.vt_lost_time);
-  if (s.way === 'teams' && e.side && (e.type === 'open' || e.type === 'mistake')) msg = t['vt_team_' + e.side] + ': ' + msg;
+  if (s.way === 'teams' && e.side && (e.type === 'open' || e.type === 'mistake' || e.type === 'key' || e.type === 'keyUsed')) msg = t['vt_team_' + e.side] + ': ' + msg;
   if (!motionOff()) {
     if (e.type === 'mistake' || e.type === 'safeLost' || (e.type === 'lost' && e.why === 'alarm')) { tv.classList.remove('is-alarm'); void tv.offsetWidth; tv.classList.add('is-alarm'); }
     if (e.type === 'safeOpen') {

@@ -1070,6 +1070,8 @@ const PROBES = {
         return p ? 'you.pages ' + p.u : null;
       }),
       probe('vault: the table\'s state holds no look, page or answer', true, (view) => {
+        // «ليه كده؟» (7 Oct 2026): a safe's explanation only once it is over.
+        if ((view.shared || {}).phase === 'play' && ((view.shared || {}).result || {}).explain) return 'result.explain during play';
         const json = JSON.stringify(view.shared || {});
         return ['"look"', '"sol"', '"manual"', '"seed"', '"rules"', '"cols"', '"codes"', '"prog"'].find((k) => json.indexOf(k) !== -1) || null;
       })

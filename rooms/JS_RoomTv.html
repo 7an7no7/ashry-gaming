@@ -218,6 +218,7 @@ function renderRoomTv(state) {
       </div>`;
   });
   if (!rebuilt) refreshTvStrip(el, state, t);
+  tvCornerSync(el, state, t, lobby);
   // مافيا's night is played in the night palette on the TV (section 42): the
   // screen's own tokens go dark while the town sleeps; the app's theme is untouched.
   el.classList.toggle('tv-night', !lobby && state.game === 'mafia' && !!state.shared && state.shared.phase === 'night');
@@ -291,6 +292,50 @@ function refreshTvStrip(el, state, t) {
   const strip = el.querySelector('[data-tv-strip]');
   if (strip) strip.outerHTML = tvStrip(state, t);
 }
+
+/* A small QR in the corner all through a game (the ideas of 7 Oct 2026, 1287): «ادخل» and the code,
+   so a latecomer scans it and watches until the next round. Built once per room code and kept
+   across the frame's rebuilds (the node is moved back in, its QR intact). The host's phone asks
+   for it big (room action tvQr, state.tvQrAt): it grows for TV_QR_BIG_MS, by transform only. */
+const TV_QR_BIG_MS = 10000;
+const tvCorner = { el: null, code: '', lang: '', bigTimer: 0, bigAt: 0 };
+function tvCornerSync(view, state, t, lobby) {
+  const frame = view.querySelector('.tv');
+  const show = !!frame && !lobby && !!state.game && state.phase !== 'lobby';
+  if (!show) { if (tvCorner.el) tvCorner.el.remove(); return; }
+  if (!tvCorner.el || tvCorner.code !== state.code || tvCorner.lang !== appState.lang) {
+    if (tvCorner.el) tvCorner.el.remove();
+    const el = document.createElement('aside');
+    el.className = 'tv-corner';
+    el.setAttribute('aria-label', (t.tv_corner_join || '') + ' ' + (state.code || ''));
+    el.innerHTML = `<div id="tv-corner-qr" class="tv-corner__qr" aria-hidden="true"></div>
+      <div class="tv-corner__text"><span class="tv-corner__join">${escapeHTML(t.tv_corner_join || '')}</span>
+      <b class="tv-corner__code" dir="ltr">${escapeHTML(state.code || '')}</b></div>`;
+    frame.appendChild(el);
+    renderJoinQR('tv-corner-qr', roomJoinUrl(state.code));
+    tvCorner.el = el;
+    tvCorner.code = state.code;
+    tvCorner.lang = appState.lang;
+    tvCorner.bigAt = 0;
+  } else if (tvCorner.el.parentNode !== frame) {
+    frame.appendChild(tvCorner.el);
+  }
+  // Asked big: for the time left of its TV_QR_BIG_MS, by the server's clock.
+  const at = Number(state.tvQrAt) || 0;
+  const left = at ? at + TV_QR_BIG_MS - roomServerNow() : 0;
+  if (at !== tvCorner.bigAt) {
+    tvCorner.bigAt = at;
+    clearTimeout(tvCorner.bigTimer);
+    if (left > 0) {
+      tvCorner.el.classList.add('is-big');
+      playSound('pop');
+      tvCorner.bigTimer = setTimeout(() => { if (tvCorner.el) tvCorner.el.classList.remove('is-big'); }, left);
+    } else {
+      tvCorner.el.classList.remove('is-big');
+    }
+  }
+}
+onLeaveScreen((from, to) => { if (from === 'room-tv' && to !== 'room-tv' && tvCorner.el) { clearTimeout(tvCorner.bigTimer); tvCorner.el.remove(); tvCorner.el = null; } });
 
 function tvLookAtPhones(t) {
   return `<div class="tv-center"><div class="tv-big-icon" aria-hidden="true">📱</div><div class="tv-title">${t.tv_look_phones || ''}</div></div>`;
@@ -410,15 +455,15 @@ function tvNightLine(state, t) {
   // and a TV does not scroll.
   const night = state.night || {};
   if (!Object.keys(night).length) return '';
-  const board = state.players.map(p => ({ id: p.id, name: p.name, score: night[p.id] || 0 }))
-    .sort((a, b) => b.score - a.score);
+  // Those who left keep their points (1306): «مشي» after the name.
+  const board = roomNightRows(state);
   if (!board.some(r => r.score > 0)) return '';
   // One line, not a table: under the QR there is about a line and a
   // half left on a 720p screen, and a TV cannot scroll to the rest.
   // The full table is on everyone's phone.
   const medals = ['🥇', '🥈', '🥉'];
   const top = board.filter(r => r.score > 0).slice(0, 3)
-    .map((r, i) => `${medals[i]} ${escapeHTML(r.name)} ${r.score}`).join(' · ');
+    .map((r, i) => `${medals[i]} ${r.left ? `<span class="tv-night-left">${escapeHTML(r.name)} (${escapeHTML(t.room_night_left || '')})</span>` : escapeHTML(r.name)} ${r.score}`).join(' · ');
   return `<h2 class="tv-h">🌙 ${escapeHTML(t.room_night_title || 'ليلتنا')}</h2>
           <p class="tv-join__hint">${top}</p>`;
 }
@@ -434,6 +479,25 @@ function tvFaceAccent(id) {
    and the rooms this TV has drawn a lobby for: the first draw pops nothing. */
 let tvStageNew = 0;
 const tvStageSeen = {};
+
+/* «إزاي نلعبها» (the ideas of 7 Oct 2026, 1288): once a game is chosen and before Start, a TV that
+   isn't the host shows the first three lines of its rules (firstPlaySteps, the first-play card's
+   lines from GAME_RULES) as a big card beside the game, one line popping in after another, once
+   per game chosen (motionFirst); the table learns while the host sets it up. */
+function tvHowToHtml(state, t) {
+  if (!state.game || typeof firstPlaySteps !== 'function') return '';
+  const key = typeof firstPlayKey === 'function' ? firstPlayKey(state.game, true) : state.game;
+  let steps = [];
+  try { steps = firstPlaySteps(key, appState.lang, true) || []; } catch (e) { steps = []; }
+  if (!steps.length) return '';
+  const pop = motionFirst('tvhow|' + state.code + '|' + state.game + '|' + appState.lang);
+  return `
+      <section class="tv-how${pop ? ' is-new' : ''}" aria-label="${escapeHTML(t.tv_how_title || '')}">
+        <h3 class="tv-how__title"><span aria-hidden="true">📘</span> ${escapeHTML(t.tv_how_title || '')}</h3>
+        <ol class="tv-how__list">${steps.slice(0, 3).map((line, i) => `
+          <li class="tv-how__line" style="--i:${i}"><span class="tv-how__n metric" aria-hidden="true">${i + 1}</span><span>${escapeHTML(line)}</span></li>`).join('')}</ol>
+      </section>`;
+}
 
 function tvLobby(state, t) {
   const url = roomJoinUrl(state.code);
@@ -477,7 +541,8 @@ function tvLobby(state, t) {
     const board = typeof missionTvBoardHtml === 'function' && state.mission && state.mission.on ? missionTvBoardHtml(state) : '';
     // One panel: a game that draws its own people (tvLobbyPlayers) already shows its teams there.
     const top = !own && state.game && ROOM_GAMES[state.game] && ROOM_GAMES[state.game].lobbyTop ? ROOM_GAMES[state.game].lobbyTop(state, true) : '';
-    control = `${chosen}${top ? `<div class="tv-scale">${top}</div>` : ''}${board || own || people}<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
+    const how = tvHowToHtml(state, t);
+    control = `${chosen}${how}${top ? `<div class="tv-scale">${top}</div>` : ''}${board || own || people}<div class="tv-panel tv-note">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</div>`;
     // The stage (the owner's look 2A, 3 Oct 2026): «يلا نلعب!», the code beside
     // the QR, and everyone as a big face along the foot, each new one dropping in.
     // A game that draws its own lobby (teams, المهمة السرية's board) keeps the columns.
@@ -493,7 +558,7 @@ function tvLobby(state, t) {
           ${tvNightLine(state, t)}
         </div>
       </div>
-      ${chosen}
+      ${how ? `<div class="tv-show__pair">${chosen}${how}</div>` : chosen}
       <div class="tv-show__faces">${state.players.map(tile).join('')}</div>
       <p class="tv-show__wait">${state.game ? (t.room_wait_host || '') : (t.room_hub_wait || '')}</p>
     </div>`;
@@ -510,14 +575,23 @@ function tvLobby(state, t) {
               <span class="tv-hub__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
               <span class="tv-hub__name">${escapeHTML(roomHubTileName(tile, t))}</span>
               ${off ? gameOffBadge(t) : enough ? '' : `<span class="tv-hub__need">${escapeHTML(t.room_need_more ? t.room_need_more.replace('{n}', String(tile.min - count)) : tile.min + '+')}</span>`}
+              ${roomPlayedBadgeHtml(roomPlayedCount(state, tile), t)}
             </button>`;
     };
     // Under the home's section heads (CATALOG_GROUPS), so a host finds a game
     // by kind; a family opened (chess's ways) is one list of its own.
-    const tiles = roomHubTiles();
+    let tiles = roomHubTiles();
     let list;
+    // The last game played tonight first, under «تاني؟» (1314), when it can start now.
+    const lastTile = roomPlayedLastTile(state, tiles.filter(x => count >= x.min));
+    if (lastTile) tiles = tiles.filter(x => x !== lastTile);
+    const again = lastTile ? `
+        <section class="tv-hub__sec tv-hub__sec--again">
+          <h3 class="tv-hub__head"><span aria-hidden="true">🔁</span> ${escapeHTML(t.room_played_again || '')}</h3>
+          <div class="tv-hub">${tileHtml(lastTile)}</div>
+        </section>` : '';
     if (roomHubGroup || typeof CATALOG_GROUPS === 'undefined') {
-      list = `<div class="tv-hub">${tiles.map(tileHtml).join('')}</div>`;
+      list = again + `<div class="tv-hub">${tiles.map(tileHtml).join('')}</div>`;
     } else {
       const groups = CATALOG_GROUPS.map(gr => ({ gr: gr, tiles: [] }));
       const more = { gr: null, tiles: [] };
@@ -525,7 +599,7 @@ function tvLobby(state, t) {
         const found = groups.find(x => x.gr.id === tvHubGroupOf(tile.g.id));
         (found || more).tiles.push(tile);
       });
-      list = groups.concat([more]).filter(x => x.tiles.length).map(x => `
+      list = again + groups.concat([more]).filter(x => x.tiles.length).map(x => `
         <section class="tv-hub__sec">
           ${x.gr ? `<h3 class="tv-hub__head"><span aria-hidden="true">${x.gr.icon}</span> ${escapeHTML(t[x.gr.title] || x.gr.id)}</h3>` : ''}
           <div class="tv-hub">${x.tiles.map(tileHtml).join('')}</div>

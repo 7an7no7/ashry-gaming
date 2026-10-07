@@ -650,6 +650,48 @@ const leave = (r, id, hook = true) => {
 }
 
 {
+  // The ideas of 7 Oct 2026 (second batch): «لعبناها», the night's leavers, the TV's QR.
+  const r = newRoom(['a', 'b', 'c']);
+  check(!r.played, 'played: nothing dealt yet, nothing played');
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'trivia' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar', count: 5 });
+  check(JSON.stringify(r.played) === '["trivia"]', 'played: a game dealt from the lobby is played tonight (1314)');
+  let threw = false;
+  try { applyRoomAction(r, 'a', 'start', { lang: 'ar', count: 5 }); } catch (e) { threw = true; }
+  check(threw && r.played.length === 1, 'played: a second start (refused) counts nothing');
+  r.shared.board = [{ id: 'a', name: 'A', score: 30 }, { id: 'b', name: 'B', score: 10 }, { id: 'c', name: 'C', score: 0 }];
+  applyRoomAction(r, 'a', 'backToHub', {});
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'trivia' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar', count: 5 });
+  check(JSON.stringify(r.played) === '["trivia","trivia"]', 'played: the same game twice is ×2');
+  r.played = Array.from({ length: 70 }, () => 'trivia');
+  applyRoomAction(r, 'a', 'backToHub', {});
+  applyRoomAction(r, 'a', 'chooseGame', { game: 'wouldyou' });
+  applyRoomAction(r, 'a', 'start', { lang: 'ar' });
+  check(r.played.length === 60 && r.played[59] === 'wouldyou', 'played: the last 60 are kept, the newest last');
+
+  // b leaves: their points stay on the night, and their name is projected for the board (1306).
+  r.players = r.players.filter((p) => p.id !== 'b');
+  const { roomView } = await import('../src/view.js').catch(() => ({}));
+  if (roomView) {
+    const v = roomView(r, 'a', new Set(['a', 'c']));
+    check(v.night.b > 0 && v.night.b === r.night.b && JSON.stringify(v.nightNames) === JSON.stringify({ b: 'B' }),
+      'night: someone who left keeps their points, their name sent beside them (nightNames)');
+    check(!JSON.stringify(v).includes('nightx'), 'night: nothing else of nightx reaches a phone');
+    r.nightx.bots.push('b');
+    check(JSON.stringify(roomView(r, 'a', new Set(['a'])).nightNames) === '{}', 'night: a computer player taken out is not named');
+    r.nightx.bots = [];
+  }
+
+  // «كبّر الكود على الشاشة» (1287): the host's alone, a moment by the server's clock.
+  let refused = false;
+  try { applyRoomAction(r, 'c', 'tvQr', {}); } catch (e) { refused = true; }
+  check(refused && !r.tvQrAt, 'tvQr: only the host asks the TV for its QR');
+  applyRoomAction(r, 'a', 'tvQr', {});
+  check(r.tvQrAt === clock && r.phase !== 'lobby', 'tvQr: the host asks mid-game, the moment is kept, the game goes on');
+}
+
+{
   // المختلف: nobody is told their role, and naming them ends the round.
   const r = newRoom(['a', 'b', 'c', 'd']);
   applyRoomAction(r, 'a', 'chooseGame', { game: 'imposter' });

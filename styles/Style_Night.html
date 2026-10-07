@@ -1846,5 +1846,132 @@ body.is-tv-view .bz-quiz__ch b { width: 4vmin; height: 4vmin; font-size: 2vmin; 
   .qm-sheet:not(.hidden) .bways > .bway, .modal-overlay.qm-sheet:not(.hidden) .qm-sheet__box, .bz-quiz__ch.is-revealed { animation: none; }
 }
 
+/* ==========================================================================
+   ROOMS, THE IDEAS OF 7 OCT 2026 (second batch, the owner's picks; notes/rooms.md)
+   The banner's «دورك!» (1215 = 1294), the night on the lobby's rows (1280), a
+   latecomer's live card (1307), those who left on the night (1306), «لعبناها»
+   on the tiles (1314), the TV's corner QR (1287) and «إزاي نلعبها» (1288), the
+   مع بعض sheet (1273) and a closed room's card (1320).
+   ========================================================================== */
+/* «دورك!»: the banner in the pop colour while the room waits on this phone. */
+.active-room-banner.is-turn,
+body.dark .active-room-banner.is-turn {
+  background: linear-gradient(135deg, var(--pop), var(--pop-hover));
+  border-color: var(--pop-hover);
+  box-shadow: 0 6px 18px -6px var(--pop-glow);
+}
+.active-room-banner.is-turn .arb__desc { color: var(--pop-on); font-weight: 900; }
+.active-room-banner.is-turn .arb__badge,
+body.dark .active-room-banner.is-turn .arb__badge { background: rgba(0, 0, 0, 0.12); border-color: rgba(0, 0, 0, 0.22); }
+.active-room-banner.is-turn .arb__code { color: var(--pop-on); }
+.active-room-banner.is-turn .arb__btn--return { background: var(--pop-on); color: var(--pop); box-shadow: none; }
+
+/* The night on a lobby row: 👑 for whoever leads, 🌙 for the rest. */
+.lobby-row__night { gap: 0.2rem; background: var(--surface-2); color: var(--text-strong); }
+.lobby-row__night.is-lead { background: color-mix(in srgb, var(--pop) 22%, var(--surface-solid)); box-shadow: inset 0 0 0 1px var(--pop); }
+.lobby-row__night .metric { font-weight: 900; }
+
+/* Someone who left the night: greyed, «مشي». */
+.badge.night-left { font-size: var(--fs-xs); background: var(--surface-2); color: var(--text-3); }
+.tv-night-left { opacity: 0.6; }
+
+/* A mid-round joiner's live card. */
+.room-spec { display: grid; gap: var(--sp-2); text-align: center; }
+.room-spec__head { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--sp-2); }
+.room-spec__icon { font-size: 2rem; line-height: 1; }
+.room-spec__name { font-family: var(--font-display); font-weight: 900; font-size: var(--fs-h3); color: var(--text-strong); }
+.room-spec__board { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-1) var(--sp-3); }
+.room-spec__row { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 700; color: var(--text); }
+.room-spec__row b { color: var(--accent-ink); }
+.room-spec__note { margin: 0; display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; font-size: var(--fs-sm); color: var(--text-2); }
+.room-spec__live { width: 0.55rem; height: 0.55rem; flex: none; border-radius: 50%; background: var(--danger); animation: roomSpecLive 1.6s ease-in-out infinite; }
+@keyframes roomSpecLive { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.8); } }
+
+/* «لعبناها»: ✓ (×2) at the top of a tile played tonight; «تاني؟» heads the last one. */
+.room-played {
+  position: absolute;
+  top: var(--sp-2);
+  inset-inline-end: var(--sp-2);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 1px 7px;
+  border-radius: var(--r-full);
+  background: var(--success-btn, var(--success));
+  color: var(--success-on, #fff);
+  font-size: var(--fs-xs);
+  font-weight: 900;
+  line-height: 1.5;
+  pointer-events: none;
+}
+.tv-hub__game > .room-played { top: 0.4em; inset-inline-end: 0.4em; padding: 0.1em 0.5em; font-size: max(0.75rem, 1.3vmin); }
+.room-hub-again { color: var(--accent-ink); }
+
+/* The TV's corner: a small QR and «ادخل CODE» all through a game; asked big, it grows from its corner. */
+.tv-corner {
+  position: fixed;
+  inset-block-end: calc(var(--tv-gap, 12px) + var(--safe-bottom, 0px));
+  inset-inline-end: calc(var(--tv-gap, 12px) + var(--safe-right, 0px));
+  z-index: var(--z-float);
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.45em;
+  border: 1px solid var(--border);
+  border-radius: var(--tv-r, 14px);
+  background: var(--surface-solid);
+  box-shadow: var(--sh-2);
+  font-size: var(--tv-xs, 0.8rem);
+  transform-origin: bottom right;
+  transition: transform 420ms var(--ease-spring), box-shadow 420ms var(--ease-out);
+  pointer-events: none;
+}
+[dir="rtl"] .tv-corner { transform-origin: bottom left; }
+.tv-corner__qr { width: clamp(56px, 9vmin, 150px); aspect-ratio: 1; padding: 3px; border-radius: 6px; background: #ffffff; }
+.tv-corner__qr svg { display: block; width: 100%; height: 100%; }
+.tv-corner__text { display: grid; gap: 0.1em; text-align: center; }
+.tv-corner__join { font-weight: 800; color: var(--text-2); }
+.tv-corner__code { font-family: var(--font-display); font-size: var(--tv-sm, 1rem); letter-spacing: 0.14em; color: var(--accent-ink); }
+.tv-corner.is-big { transform: scale(2.6); box-shadow: 0 0 0 0.5vmin var(--pop), 0 3vmin 6vmin -1vmin rgba(0, 0, 0, 0.55); }
+/* The strip's chips leave the corner its room. */
+#view-room-tv .tv:has(> .tv-corner) .tv-strip { padding-inline-end: calc(clamp(56px, 9vmin, 150px) + 6em); }
+
+/* «إزاي نلعبها» on the stage of a TV that isn't the host: the game's first three lines, popping in. */
+.tv-show__pair { display: flex; flex-wrap: wrap; align-items: stretch; justify-content: center; gap: calc(var(--tv-gap) * 1.2); max-width: 94%; }
+.tv-show__pair > .tv-lobby__game { flex: 0 1 auto; }
+.tv-how {
+  flex: 1 1 26rem;
+  max-width: min(100%, 60rem);
+  display: grid;
+  gap: 0.5em;
+  padding: 0.8em 1.1em;
+  border-radius: var(--tv-r, 14px);
+  background: var(--surface-solid);
+  border: 1px solid var(--border);
+  box-shadow: var(--sh-2);
+  text-align: start;
+}
+.tv-how__title { margin: 0; font-family: var(--font-display); font-size: var(--tv-md); font-weight: 900; color: var(--text-strong); }
+.tv-how__list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.45em; }
+.tv-how__line { display: flex; align-items: flex-start; gap: 0.6em; font-size: var(--tv-sm); font-weight: 700; line-height: 1.4; color: var(--text); }
+.tv-how__n { flex: none; display: grid; place-items: center; width: 1.7em; height: 1.7em; border-radius: 50%; background: var(--accent); color: var(--accent-on); font-weight: 900; }
+.tv-how.is-new .tv-how__line { animation: tvHowLine 520ms var(--ease-spring) both; animation-delay: calc(500ms + var(--i, 0) * 650ms); }
+@keyframes tvHowLine { from { opacity: 0; transform: translateY(0.8em) scale(0.97); } to { opacity: 1; transform: none; } }
+.tv-lobby--stage:has(.tv-how) .tv-qr { width: min(22vmin, 340px); }
+.tv-lobby--stage:has(.tv-how) .tv-join__code.tv-show__code { font-size: 11vmin; }
+
+/* The مع بعض sheet and a closed room's card. */
+.together-sheet__icon { font-size: 3rem; }
+.together-sheet__meta { margin: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--text-2); }
+.room-closed__table { display: grid; gap: var(--sp-1); padding: var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); }
+.room-closed__row { display: flex; align-items: center; gap: var(--sp-2); font-weight: 700; color: var(--text); }
+.room-closed__row b { margin-inline-start: auto; color: var(--accent-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  .room-spec__live, .tv-how.is-new .tv-how__line { animation: none; }
+  .tv-corner { transition: none; }
+}
+
 
 </style>

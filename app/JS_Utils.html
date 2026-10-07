@@ -2716,6 +2716,10 @@ function openExitSheet(navTarget) {
     const rows = [];
     if (playing && state.youAreHost) rows.push(exitSheetRow(t.exit_room_change || '', 'exitSheetBackToHub()', 'btn--primary btn--lg'));
     if (playing && !state.youAreHost) rows.push(exitSheetRow(t.exit_room_ask || '', 'exitSheetAsk()', 'btn--secondary btn--lg'));
+    // A big screen on: the host shows its corner QR big for someone just in (1287, roomTvQrAsk).
+    if (playing && state.youAreHost && typeof roomHasScreenOn === 'function' && roomHasScreenOn(state)) {
+      rows.push(exitSheetRow(t.room_tv_qr || '', "closeModal('exit-modal'); roomTvQrAsk()"));
+    }
     // The bar (Help's door) is hidden while a game is played: the rules are here.
     rows.push(exitSheetRow(t.exit_rules || '', "closeModal('exit-modal'); openHelpModal()"));
     rows.push(exitSheetRow(t.exit_room_menu || '', "closeModal('exit-modal'); setView('menu')"));

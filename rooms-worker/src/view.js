@@ -10,6 +10,19 @@
  */
 import { chatFor, missionView } from '../generated/rules.js';
 
+/** The night's leavers: pid -> name, for every id with night points who is no longer a player. */
+const nightLeftNames = (room) => {
+  const out = {};
+  const x = room.nightx || {};
+  const names = x.names || {};
+  const bots = x.bots || [];
+  const here = new Set((room.players || []).map((p) => p.id));
+  Object.keys(room.night || {}).forEach((id) => {
+    if (!here.has(id) && bots.indexOf(id) === -1 && names[id]) out[id] = String(names[id]);
+  });
+  return out;
+};
+
 export const roomView = (room, pid, online, extra) => {
   const screens = room.screens || [];
   const isScreen = screens.some((s) => s.id === pid);
@@ -37,6 +50,14 @@ export const roomView = (room, pid, online, extra) => {
     // The leaderboard of the night: room-level like the chat, so it survives
     // every deal and the trip back to the hub.
     night: room.night || {},
+    // Those banked on the night who have left the room since: their names (room.nightx.names), so a
+    // cousin who left at 11 keeps her points on the board (the ideas of 7 Oct 2026, 1306). Nothing else
+    // of nightx leaves the server, and never a computer player's.
+    nightNames: nightLeftNames(room),
+    // «لعبناها» (1314): the games dealt tonight, oldest first (the last ROOM_PLAYED_KEEP).
+    played: Array.isArray(room.played) ? room.played : [],
+    // The host's «كبّر الكود على الشاشة» (1287): when the TV's corner QR was asked for (the server's clock).
+    tvQrAt: room.tvQrAt || 0,
     // برنامج السهرة (RoomProgram.js): the list, where it is, the night's table, the finale.
     // Public by design: each game's options and the awards' raw log stay behind (room._prog*).
     program: room.program || null,

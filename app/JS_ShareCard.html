@@ -127,7 +127,11 @@ async function drawShareCard(o) {
   // the card. Whatever room they leave is split above and below, so a card
   // with three names is not three names and a field of nothing.
   const rows = (o.rows || []).slice(0, Math.min(SHARE_CARD.hardMaxRows, o.maxRows || SHARE_CARD.maxRows));
-  const plateRoom = 830;
+  // The night's card: a row of the evening's games and the date under the champion's line
+  // (o.games, o.date; the owner's pick 1268) take some of the plate's room.
+  const strip = (o.games || []).filter(Boolean).slice(0, 12);
+  const extra = strip.length || o.date ? 160 : 0;
+  const plateRoom = 830 - extra;
   const pad = 96;
   const rowH = Math.min(132, Math.floor((plateRoom - 56) / Math.max(1, rows.length)));
   const rowFont = Math.max(30, Math.min(54, Math.round(rowH * 0.42)));
@@ -186,8 +190,9 @@ async function drawShareCard(o) {
     ctx.textAlign = 'center';
     // Clamped, so a full plate of ten names does not push this line into the mark.
     ctx.fillText(shareCardFit(ctx, foot, SHARE_CARD.w - 160), mid,
-                 Math.min(1500, plateTop + rows.length * rowH + 150));
+                 Math.min(1500 - extra, plateTop + rows.length * rowH + 150));
   }
+  if (extra) await drawShareNightStrip(ctx, strip, o.date, Math.min(1500 - extra, plateTop + rows.length * rowH + 150) + (foot ? 84 : 0), font);
 
   // The mark and the link, at the foot.
   const mark = await shareCardMark();
@@ -201,6 +206,38 @@ async function drawShareCard(o) {
   return await new Promise((resolve) => {
     try { canvas.toBlob(resolve, 'image/png'); } catch (e) { resolve(null); }
   });
+}
+
+/**
+ * The night's card, under the champion's line: the evening's games as their icons in one
+ * row («🕵️ 🎨 💣 🃏»), and the day in words («الجمعة ٩ أكتوبر») under it (the owner's
+ * pick 1268, 7 Oct 2026). A drawn icon (أونو, الدومينو) is drawn as its picture.
+ */
+async function drawShareNightStrip(ctx, icons, date, y, font) {
+  const mid = SHARE_CARD.w / 2;
+  if (icons.length) {
+    const size = Math.min(72, Math.floor((SHARE_CARD.w - 200) / icons.length) - 14);
+    const step = size + 14;
+    const rtl = (appState.lang || 'ar') === 'ar';
+    // In the order they were played, from the line's start: right to left in Arabic.
+    const x0 = mid + (rtl ? 1 : -1) * (icons.length - 1) * step / 2;
+    const arts = await Promise.all(icons.map(i => artIconImage(i, 256)));
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    font('400', size);
+    icons.forEach((icon, k) => {
+      const x = x0 + (rtl ? -1 : 1) * k * step;
+      if (arts[k]) ctx.drawImage(arts[k], x - size / 2, y - size / 2, size, size);
+      else ctx.fillText(String(icon), x, y);
+    });
+    y += size / 2 + 56;
+  }
+  if (date) {
+    ctx.fillStyle = 'rgba(255,255,255,0.78)';
+    font('700', 40);
+    ctx.textAlign = 'center';
+    ctx.fillText(shareCardFit(ctx, date, SHARE_CARD.w - 160), mid, y);
+  }
 }
 
 /**
@@ -371,13 +408,51 @@ function shareRoomNight() {
   if (!rows.length) return;
   const top = rows[0];
   const title = '🌙 ' + (t.room_night_title || '');
+  const games = shareNightGamesOf(state.code).map(id => {
+    const g = typeof CATALOG_BY_ID !== 'undefined' ? CATALOG_BY_ID[id === 'chess' ? 'shatranj' : id] : null;
+    return g && g.icon;
+  }).filter((icon, i, all) => icon && all.indexOf(icon) === i);
+  const date = shareNightDate(new Date());
   return shareResultCard({
     title: title,
     icon: '🏆',
     rows: rows,
     footer: (t.night_champion || '🏆 {name}').replace('{name}', top.name),
-    text: title + ' · ' + (t.night_champion || '🏆 {name}').replace('{name}', top.name)
+    games: games,
+    date: date,
+    text: title + ' · ' + date + ' · ' + (t.night_champion || '🏆 {name}').replace('{name}', top.name)
   });
+}
+
+/* The evening's games, for the night's card: every game dealt in this room today, in the
+   order they were first played, kept on this phone (the room keeps no such list: its
+   night board is points only). A phone that came in late knows the games since. */
+const SHARE_NIGHT_GAMES_KEY = 'ashryNightGames_v1';
+function shareNightDay() {
+  const d = new Date();
+  return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+}
+function shareNightGamesOf(code) {
+  try {
+    const n = JSON.parse(localStorage.getItem(SHARE_NIGHT_GAMES_KEY) || 'null');
+    return n && n.code === code && n.day === shareNightDay() && Array.isArray(n.games) ? n.games : [];
+  } catch (e) { return []; }
+}
+function shareNightRemember(state) {
+  if (!state || !state.code || !state.game || state.phase === 'lobby' || state.youAreScreen) return;
+  const games = shareNightGamesOf(state.code);
+  if (games.indexOf(state.game) !== -1) return;
+  try {
+    localStorage.setItem(SHARE_NIGHT_GAMES_KEY, JSON.stringify({ code: state.code, day: shareNightDay(), games: games.concat(state.game).slice(-30) }));
+  } catch (e) {}
+}
+if (typeof Room !== 'undefined') Room.onChange(shareNightRemember);
+
+/** The day in words: «الجمعة ٩ أكتوبر», "Friday 9 October". */
+function shareNightDate(d) {
+  try {
+    return d.toLocaleDateString(appState.lang === 'en' ? 'en-GB' : 'ar-EG', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/[،,]/g, '').replace(/\s+/g, ' ').trim();
+  } catch (e) { return ''; }
 }
 
 /** Builds that card from the room as it stands when the button is pressed. */

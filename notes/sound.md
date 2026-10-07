@@ -53,3 +53,15 @@ plays no web sound (Safari's `navigator.audioSession.type = 'playback'` could
 change that, but it would also stop the phone's music - not done). The
 bomb ticks with its own `playSound('bomb')`, a wooden tick-tock loud enough to
 hear across a table, on the holder's phone and the TV only.
+
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **1239 Settings → الصوت.** شغّال / الهزة بس / مقفول (`soundPref()`, `cycleSoundPref()`,
+  `localStorage.ashrySound`, beside `haptic` in JS_Core.html). `playSound` and `playFx`
+  play only on «شغّال»; `haptic` buzzes on «شغّال» and «الهزة بس». The owner's answer:
+  effects only - a game whose sound is the game plays whatever the setting says:
+  دندنها's clips and the chairs' music and zaffa have their own players, and the
+  soundboard calls `playFx(id, true)`. The row's hint says so. Per device, so a TV
+  keeps its own. Not covered: a game that builds its own sound on `fxCtx()` directly
+  (bowling's rumble, bumper's engine, golf…) still plays; moving those behind the
+  setting is a change in each game.

@@ -453,7 +453,7 @@ function qmDelete(i) {
     qmRender();
     haptic('medium');
   };
-  if (q.q || q.c.some(Boolean)) showConfirmModal(qmT().qm_del_confirm || '', go);
+  if (q.q || q.c.some(Boolean)) showConfirmModal(qmT().qm_del_confirm || '', go, { yes: 'cf_delete', tone: 'danger', icon: '🗑️' });
   else go();
 }
 function qmMove(i, dir) {
@@ -477,7 +477,7 @@ function qmDeleteQuiz() {
     qmEdit = { id: null, open: -1, err: null, emojiFor: -1, saving: false };
     qmRemember();
     setView('setup-quizmaker');
-  });
+  }, { yes: 'cf_delete', tone: 'danger', icon: '🗑️' });
 }
 
 /* --- drag to reorder: the ⋮⋮ of a row ----------------------------------------- */
@@ -795,7 +795,7 @@ function wpCopyMine() {
   wpPaint();
 }
 function wpForget() {
-  showConfirmModal(qmT().wp_remove_confirm || '', () => { packWordsPut(null); wpPaint(); });
+  showConfirmModal(qmT().wp_remove_confirm || '', () => { packWordsPut(null); wpPaint(); }, { yes: 'cf_delete', tone: 'danger', icon: '🗑️' });
 }
 async function wpOpenCode() {
   const el = document.getElementById('wp-code-in');
@@ -821,7 +821,7 @@ async function wpOpenCode() {
   };
   if (!PACK_CODE_RE.test(code)) { showToast(packErrorText('not_found'), 'error'); return; }
   // The phone's own words, not yet kept anywhere else, aren't swapped away without asking.
-  if (had && packIsMine(had) && had.code !== code && had.words.length) showConfirmModal(qmT().wp_replace_confirm || '', go);
+  if (had && packIsMine(had) && had.code !== code && had.words.length) showConfirmModal(qmT().wp_replace_confirm || '', go, { yes: 'cf_replace', tone: 'danger', icon: '🔁' });
   else go();
 }
 async function wpSave() {

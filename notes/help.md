@@ -79,3 +79,15 @@ it rather than asking for another tap.
 **Nothing destructive lives here.** "Delete all data" used to sit in this
 footer, one tap away from a rules sheet and styled almost as loudly as Close. It
 belongs in Settings, which is where it now is — only.
+
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **1244 A search marks the words.** While searching, every hit inside an open-able
+  card's rules is wrapped in `<mark class="help-mark">` (the accent's soft colour, no
+  padding so an Arabic word's joins hold; `Style.html` beside the settings rows):
+  `helpMarkHits(root, term)` in JS_Utils.html folds letter by letter the way
+  `helpNormalise` does (أ/إ/آ, ة, ى, ؤ, ئ, the harakat, spaces) and maps each hit back onto
+  the text as written; a hit split by markup (a `<b>` inside it) is left unmarked. A card
+  opened while searching (by a tap, or the single hit opened for you) scrolls its first
+  mark to a third of the way down the sheet (`helpScrollToMark`, the sheet's own
+  `scrollTo`, never `scrollIntoView`), from a `toggle` listener on the document (capture).

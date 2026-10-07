@@ -1199,8 +1199,27 @@ function setupMoreToggled(el) {
   }
 
   /* --- ALERTS & CONFIRMS --- */
-  function showConfirmModal(msg, callback) {
+  /**
+   * A confirm that names its action (the owner's pick 1254, 7 Oct 2026).
+   *   opts: { yes, tone, icon } - all optional.
+   *   yes:  the button's words: a key of TRANSLATIONS (cf_restart, cf_guess…) or the words themselves;
+   *   tone: 'danger' (red: something is lost - a game, a score, a name) or 'accent' (the
+   *         screen's colour: a guess, a claim, a skip); red when no opts are given, as before;
+   *   icon: the thing it is about (🎯 a guess, 🏳️ resigning), 🤔 by default.
+   * Everything is set again on every open: the popup is one, shared by every caller.
+   */
+  function showConfirmModal(msg, callback, opts) {
+    const o = opts || {};
+    const t = TRANSLATIONS[appState.lang] || {};
     document.getElementById('custom-confirm-msg').innerText = msg;
+    const yes = document.getElementById('custom-confirm-yes');
+    if (yes) {
+      yes.textContent = (o.yes && (t[o.yes] || (/^cf_/.test(o.yes) ? '' : o.yes))) || t.yes || 'نعم';
+      const tone = o.tone || (opts ? 'accent' : 'danger');
+      yes.className = 'btn btn--lg ' + (tone === 'danger' ? 'btn--danger' : 'btn--primary');
+    }
+    const icon = document.getElementById('custom-confirm-icon');
+    if (icon) icon.textContent = o.icon || '🤔';
     confirmCallback = callback;
     document.getElementById('custom-confirm-modal').classList.remove('hidden');
   }
@@ -1523,7 +1542,7 @@ function toggleResults() {
         if(typeof initializeApp === 'function') {
             initializeApp(); 
         }
-    });
+    }, { yes: 'cf_delete_all', tone: 'danger', icon: '🗑️' });
 }
   
   /* The soundboard lives in JS_Sounds.html (toggleSoundboard / openSoundboard). */
@@ -1552,6 +1571,9 @@ function toggleResults() {
   onLeaveScreen((from) => {
       if (!/^play-/.test(from) && !(/^room-/.test(from) && from !== 'room-lobby' && from !== 'room-tv')) return;
       try { localStorage.setItem(INSTALL_PLAYED_KEY, '1'); } catch (e) {}
+      // After the first game, ask the browser to keep this phone's data (the owner's
+      // pick 1260; keepDataAsk in JS_Core.html asks once, whatever else asked first).
+      keepDataAsk();
   });
   let installAskPending = true;     // this page load hasn't asked yet
   let installPromptEvent = null;    // Chrome's install prompt, kept for our own button
@@ -1616,6 +1638,9 @@ function toggleResults() {
       show('install-ok', !canPrompt);
       show('install-later', canPrompt);
       show('install-have', !!who && !canPrompt);   // Chrome only offers its prompt when it isn't installed
+      // An iPhone (any browser there is Safari underneath): a site's data is cleared after
+      // 7 days without a visit, the home-screen copy's never (the owner's pick 1260).
+      show('install-perk-keep', !!who && who.os === 'ios');
   }
 
   function showInstallHelp() {
@@ -2190,7 +2215,11 @@ function renderHelpContent() {
   const empty = document.getElementById('help-empty');
   if (empty) empty.classList.toggle('hidden', !(searching && shown === 0));
 
-  // A single hit gets opened for you rather than asking for one more tap.
+  // The words searched for, marked inside the rules (the owner's pick 1244).
+  if (searching && box) box.querySelectorAll('.help-game-text').forEach(el => helpMarkHits(el, helpSearchTerm));
+
+  // A single hit gets opened for you rather than asking for one more tap
+  // (and its first mark is scrolled to: helpScrollToMark, on its toggle).
   if (searching && shown === 1) {
     const only = document.querySelector('#help-content-area .help-game-card');
     if (only) only.open = true;
@@ -2198,6 +2227,79 @@ function renderHelpContent() {
 
   renderHelpContext(helpContextKey(), rules, t, searching);
 }
+
+/**
+ * Wraps every place `term` (already through helpNormalise) is found in `root`'s text in
+ * <mark class="help-mark"> (the owner's pick 1244, 7 Oct 2026): «قاتلة» lands on the line
+ * about the assassin. Matched the way the search matches - the same folds, letter by letter,
+ * so أسماء is found by اسماء - and mapped back onto the text as written. A hit split across
+ * two pieces of markup (a <b> in the middle of it) is left unmarked.
+ */
+function helpMarkHits(root, term) {
+  if (!root || !term) return;
+  const fold = (c) => {
+    if (/[ً-ْٰ]/.test(c)) return '';
+    if (/[أإآٱ]/.test(c)) return 'ا';
+    if (c === 'ة') return 'ه';
+    if (c === 'ى') return 'ي';
+    if (c === 'ؤ') return 'و';
+    if (c === 'ئ') return 'ء';
+    if (/\s/.test(c)) return ' ';
+    const low = c.toLowerCase();
+    return low.length === 1 ? low : c;
+  };
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(node => {
+    const text = node.nodeValue || '';
+    // The folded text, and for each of its letters the index of the letter it came from.
+    let norm = '';
+    const at = [];
+    for (let i = 0; i < text.length; i++) {
+      const f = fold(text[i]);
+      if (!f || (f === ' ' && norm.endsWith(' '))) continue;
+      norm += f;
+      at.push(i);
+    }
+    const spans = [];
+    for (let k = norm.indexOf(term); k !== -1; k = norm.indexOf(term, k + term.length)) {
+      spans.push([at[k], at[k + term.length - 1] + 1]);
+    }
+    if (!spans.length) return;
+    const frag = document.createDocumentFragment();
+    let from = 0;
+    spans.forEach(([a, b]) => {
+      if (a > from) frag.appendChild(document.createTextNode(text.slice(from, a)));
+      const m = document.createElement('mark');
+      m.className = 'help-mark';
+      m.textContent = text.slice(a, b);
+      frag.appendChild(m);
+      from = b;
+    });
+    if (from < text.length) frag.appendChild(document.createTextNode(text.slice(from)));
+    node.parentNode.replaceChild(frag, node);
+  });
+}
+
+/** A card opened while searching: its first mark comes into the middle of the sheet. The
+    sheet's own scrollTop, not scrollIntoView, which would scroll the page under it too. */
+function helpScrollToMark(card) {
+  const mark = card && card.querySelector('mark.help-mark');
+  const area = document.getElementById('help-content-area');
+  if (!mark || !area) return;
+  requestAnimationFrame(() => {
+    const r = mark.getBoundingClientRect(), a = area.getBoundingClientRect();
+    const top = Math.max(0, area.scrollTop + r.top - a.top - a.height / 3);
+    const still = typeof motionOff === 'function' ? motionOff() : false;
+    area.scrollTo({ top: top, behavior: still ? 'auto' : 'smooth' });
+  });
+}
+// `toggle` doesn't bubble: listened for on the way down.
+document.addEventListener('toggle', (e) => {
+  const card = e.target;
+  if (helpSearchTerm && card && card.classList && card.classList.contains('help-game-card') && card.open) helpScrollToMark(card);
+}, true);
 
 /** The card for the screen help was opened from. */
 function renderHelpContext(key, rules, t, searching) {
@@ -2457,7 +2559,7 @@ function deleteGroupFromModal() {
             });
             
             showToast(appState.lang === 'ar' ? "تم الحذف" : "Deleted", "success");
-        });
+        }, { yes: 'cf_delete', tone: 'danger', icon: '🗑️' });
     }
 }
 

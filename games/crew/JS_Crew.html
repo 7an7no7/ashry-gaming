@@ -246,7 +246,7 @@ function crewPackRemove(packCode) {
     if (res.crew) { crewPage.data[code] = res.crew; crewCacheWrite(code, res.crew); }
     showToast(t.crew_pack_removed || '', 'info');
     crewPacksChanged();
-  });
+  }, { yes: 'cf_remove', tone: 'danger', icon: '🗑️' });
 }
 
 function crewSwitch(code) {
@@ -716,14 +716,14 @@ function crewHandOver(id) {
   const d = crewPage.data[crewPage.code] || {};
   const m = (d.members || []).find(x => x.id === id) || {};
   closeModal('crew-modal');
-  showConfirmModal(crewFmt(t.crew_hand_over_q, { name: m.name || '' }), () => crewMove('handOver', { id }, true));
+  showConfirmModal(crewFmt(t.crew_hand_over_q, { name: m.name || '' }), () => crewMove('handOver', { id }, true), { yes: 'cf_hand_over', tone: 'accent', icon: '👑' });
 }
 function crewRemove(id) {
   const t = crewT();
   const d = crewPage.data[crewPage.code] || {};
   const m = (d.members || []).find(x => x.id === id) || {};
   closeModal('crew-modal');
-  showConfirmModal(crewFmt(t.crew_remove_q, { name: m.name || '' }), () => crewMove('removeMember', { id }, true));
+  showConfirmModal(crewFmt(t.crew_remove_q, { name: m.name || '' }), () => crewMove('removeMember', { id }, true), { yes: 'cf_remove', tone: 'danger', icon: '👋' });
 }
 /* «ضيف موبايلك التاني» (the review of 1 Oct 2026): the manager's power is a key's, so the
    manager's other phone - in by tapping their name - pairs with a 6-digit code this phone makes
@@ -767,7 +767,7 @@ function crewLeave() {
       showToast((res.phoneOnly ? t.crew_left_phone : t.crew_left) || '', 'info');
       renderCrew();
     } else showToast(roomErrLocal((res && res.error) || '') || t.crew_err_net, 'error');
-  });
+  }, { yes: 'cf_leave', tone: 'danger', icon: '🚪' });
 }
 
 // A language changed on the page: the page again, in the new words.

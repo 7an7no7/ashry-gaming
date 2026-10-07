@@ -2608,7 +2608,7 @@ function chAbandonLocal() {
 function chConfirmReplace(go) {
   const s = chState();
   if (!chRatedPending(s)) { go(); return; }
-  showConfirmModal(chT('ch_rated_abandon'), () => { chAbandonLocal(); go(); });
+  showConfirmModal(chT('ch_rated_abandon'), () => { chAbandonLocal(); go(); }, { yes: 'cf_new_match', tone: 'danger', icon: '♟️' });
 }
 
 /** A rating change as "+12" / "−8" (the caller holds it left to right). */
@@ -3181,13 +3181,13 @@ function chResignLocal() {
     chEnd(s, loser === 0 ? 'b' : 'w', 'resign');
     saveToLocal();
     chPaint();
-  });
+  }, { yes: 'cf_resign', tone: 'danger', icon: '🏳️' });
 }
 
 function chDrawLocal() {
   const s = chState();
   if (s.phase !== 'play' || s.vs !== 'friend') return;
-  showConfirmModal(chT('ch_draw_confirm'), () => { chEnd(s, 'd', 'agreed'); saveToLocal(); chPaint(); });
+  showConfirmModal(chT('ch_draw_confirm'), () => { chEnd(s, 'd', 'agreed'); saveToLocal(); chPaint(); }, { yes: 'cf_draw', tone: 'accent', icon: '🤝' });
 }
 
 /** The game is over: the tally, the clock stopped, the game kept for the review. */

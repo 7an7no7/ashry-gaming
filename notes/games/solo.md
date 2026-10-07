@@ -495,6 +495,93 @@ Decided here (open to change):
   from inside a game keep that game's size (the owner, 6 Oct 2026: `start2048(n)`); only the setup's Start
   deals the setup's pick.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built - part one
+
+The owner's answer to each: "build as described" (no extra rule asked). The details below
+marked *chosen* were left to the builder (the simplest family-friendly one).
+
+- **1078 الذاكرة: the result through `soloResult`.** `memoryFinish` keeps the board's end
+  as before and calls `memoryShowResult()`: the solo sheet with 🎴, the moves counting up
+  (`value`), the time and (when not beaten) the best as lines, the gold stamp on a new best
+  (`record`), confetti, «🔄 العب تاني» (`startMemory`), «شوف اللوحة» and exit (`setupMemory`).
+  Two players: the winner (or «تعادل!») as the title and each score beside its name, no count.
+  The best per size is the same `ashryMemoryBest_v1` as always, weighed once per board
+  (`m.weighed`, `m.recorded`, `m.prevBest`, reset in `startMemory`). Memory is now a
+  registered solo game (`soloRegister('memory', { …, timed: true })` through `SOLO_LATE`), so
+  «شوف اللوحة» knows its board, a language change repaints through `repaint`, and the sheet
+  pause and the away-pause run through the solo pieces (its own hooks stay, harmless).
+  `#memory-result-modal` and `replayMemory` are gone (Controller.html, and its two lines in
+  `tools/lazy-split.mjs`: `POPUP_CHUNKS`, `MARKUP_USES_OK`).
+- **1082 خمّن الرقم: the friend's secret as dots.** `#gn-secret` is a `.secret-field`
+  (`type="text"`, `inputmode="numeric"`, the letters transparent, one dot a digit drawn by
+  `gnSecretDots`) with an eye (`gnSecretEye`, `gn_show_secret`), as المشنقة's word; Enter
+  starts. `gnSecretValue` reads Arabic-Indic and Persian digits too (a text field keeps what
+  the keyboard typed). After Start the field is emptied and hidden again.
+- **1090 تحدي اليوم: the archive's «all done» for that day.** `DAILY_GAMES` entries carry
+  `since` for the dailies added after the hub opened (16 Sep 2026): خمن الكلمة and تشابه
+  `2026-09-28`, ميني جولف and ألغاز شطرنج `2026-09-24` (the days they were committed).
+  `dailyLiveOn(day)` (JS_Daily.html) is the dailies that day had - and for today
+  `dailyLive()` (none switched off). The archive's day badge, its ★, its aria label and
+  «اتحل n من m» count only those, and only their results (an old الترتيب الأعمى result no
+  longer counts). The list under the calendar still shows every daily (each can be played
+  from the archive).
+- **1099 خمن الكلمة: «✍️ اكتبها لصاحبك» on one phone.** On the setup (one phone), under the
+  daily: a button opens a small form (`#wordle-friend-form`, `wordleFriendOpen`): a
+  `.secret-field` with its dots (`wordleFriendDots`) and eye (`wordleFriendEye`), the rule
+  line (which turns into the error, `wordleFriendHint`), and «تمام، ادّي الموبايل»
+  (`wordleFriendStart`). The word is checked as the room checks a set word (`wordleFriendWord`:
+  marks and tatweel off, أ إ آ ٱ as ا, spaces out, capitals; 5 to 8 letters all on one
+  keypad); its alphabet picks the keypad (`s.lang`), whatever the games' language. The board is
+  the usual one with `s.friend = true`: its badge «✍️ كلمة من صاحبك», no dictionary nudge (any
+  guess the keypad types, as in the room), no list memory, not a daily. The result says the
+  word as typed; «✍️ اكتب واحدة تانية» opens the form again. The form empties and closes when
+  the setup is left. *Chosen*: no separate «pass the phone» card - the board opens at once and
+  the word is never on it, so the writer just hands it over.
+- **1107 تشابه: free puzzles end properly.** `finishConnections` keeps a free puzzle's tally at
+  once (`connectTally(level, won, mistakes)`: `soloRecord('connections', <level>, { solved,
+  perfect, played }, () => true)` - a running count per level, not a best), and
+  `connectSettle` ends every board on `soloResult`: the groups found counting up, the mistakes,
+  and for a free one «متوسط: حلّيت 12 · 4 من غير غلطة» (`conn_tally`); again is a new puzzle of
+  the level, exit the setup; confetti on a win from the sheet.
+- **1113 سودوكو: «🔢 كل الاحتمالات».** While ✏️ is on, a row under the tools holds the button
+  (`sudokuAllNotes`): every empty cell's notes become its candidates (the numbers its row,
+  column and box don't hold; a red number counts for nothing, a race's conflicting one
+  neither), the changed cells fade in. One undo step (`{ i: -1, all }` in `s.undo`,
+  `undoSudoku`) puts every note back. Notes keep themselves clean as before (a right number
+  clears itself from its peers). It is no hint: the best still counts; `s.autoNotes` puts
+  «🔢 اتحلّت بـ«كل الاحتمالات»» on the result and ` · 🔢` on a daily's share. The race may use
+  it too. *Chosen*: shown only with ✏️ on (five buttons in the tools row didn't fit 375px).
+- **1134 الملكات: «🔣 نقشة لكل لون».** A switch on the setup (`#queens-patterns`,
+  `setQueensPatterns`, `queensPatternsOn`; this phone's setting `ashryQueensPatterns`, so a race
+  board wears it too) puts `.is-patterned` on the grid: a faint pattern per region over its
+  pastel (dots, stripes at 45°, across, down, at -45°, a grid, a cross-hatch, rings, a checker,
+  a zigzag: `.queens-grid.is-patterned .queens-cell.q0…q9`, Style_Solo.html). *Chosen*:
+  patterns, no letters (a letter would sit under the crown); off by default.
+- **1140 شمس وقمر: sunrise to night on a win.** `tangoSky(cells)` replaces the flip on a solo
+  win (the race keeps `tangoCelebrate`): a `.tango-sky` layer under each mark - the suns' warm
+  glow fades in from the bottom row up while each sun rises and grows, then the moons' cells go
+  to night (an indigo sky with a small star) while each moon dims. Transform and opacity only,
+  nothing with motion off; the result follows when it has played (`skyMs + 250`).
+- **1142 شمس وقمر: «⏱️ تحدي التلات دقايق».** A button on the setup (`startTangoRun`) with its
+  line and best (`#tango-run-best`). `s.run = { count }`: easy boards (`tangoMake('easy')`), one
+  clock for the run (`s.startedAt`, moved forward while the board is away like every timed
+  solo clock, so it is three minutes of play), counting down in the bar with the boards solved
+  (`tango-run-count`). A solved board (`tangoRunNext`) pops, is counted, and the next is dealt
+  into the state at once and drawn a beat later (`tangoRunHold`: taps wait). No hint in a run.
+  At nought (`tangoArmTimer`'s painter → `tangoRunEnd`) the board stops and the sheet counts the
+  boards up, with the best (`soloRecord('tango', 'run3', { count })`, the most). «كمّل اللعبة»
+  and a reload come back to the run with the time it had; a free board or the daily clears
+  `s.run`.
+- **1148 نونوجرام: a count bubble while dragging.** `nonoBubble(x, y, count)`: from the second
+  cell a drag paints, a bubble over the finger (`.nono-bubble`, fixed under `<body>`, placed
+  with transform, popped on each new count with `soloPop`) says how many cells the drag has
+  painted; gone when the finger lifts (`nonoBubbleHide` in the drag's `end`). Western digits,
+  as every number in the app.
+
+Shared files touched: `app/Controller.html` (the markup of these screens; the memory popup
+removed), `app/JS_Daily.html` (1090), `styles/Style_Solo.html` (queens patterns, the tango sky,
+the nonogram bubble), `tools/lazy-split.mjs` (the memory popup's two lines).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

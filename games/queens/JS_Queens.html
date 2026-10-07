@@ -51,6 +51,26 @@ function paintQueensSetup() {
   if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
   const daily = document.getElementById('queens-daily');
   if (daily) daily.innerHTML = soloDailyButtonHtml('queens', 'startQueens(true)');
+  const pat = document.getElementById('queens-patterns');
+  if (pat) pat.checked = queensPatternsOn();
+}
+
+/*
+ * 1134 (the owner's picks, 7 Oct 2026): «نقشة لكل لون» - a switch that lays a
+ * faint pattern over each region's colour (dots, stripes one way and the other,
+ * a grid, rings, a checker…: .queens-grid.is-patterned, Style_Solo.html), so a
+ * colour-blind player, or dark mode in a bright room, can still tell regions
+ * apart. A setting of this phone (ashryQueensPatterns), so a race board wears it too.
+ */
+const QUEENS_PATTERNS_KEY = 'ashryQueensPatterns';
+function queensPatternsOn() {
+  try { return localStorage.getItem(QUEENS_PATTERNS_KEY) === '1'; } catch (e) { return false; }
+}
+function setQueensPatterns(on) {
+  try { localStorage.setItem(QUEENS_PATTERNS_KEY, on ? '1' : '0'); } catch (e) {}
+  haptic('light');
+  const grid = document.getElementById('queens-grid');
+  if (grid) grid.classList.toggle('is-patterned', !!on);
 }
 
 function setQueensLevel(level) {
@@ -123,7 +143,7 @@ function paintQueens() {
   el.innerHTML = `
     <div class="solo-layout">
       <div class="solo-layout__board">
-        <div class="queens-grid" id="queens-grid" dir="ltr" style="--q-n:${n}">
+        <div class="queens-grid${queensPatternsOn() ? ' is-patterned' : ''}" id="queens-grid" dir="ltr" style="--q-n:${n}">
           ${s.regions.map((g, i) => {
             const r = Math.floor(i / n), c = i % n;
             const edge = (rr, cc) => rr < 0 || rr >= n || cc < 0 || cc >= n || s.regions[rr * n + cc] !== g;

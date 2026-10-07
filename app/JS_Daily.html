@@ -21,8 +21,8 @@ const dailyHints = (r) => (r.hints ? ' 💡' + r.hints : '');
 const dailyIconText = (icon) => { const x = typeof iconText === 'function' ? iconText(icon) : icon; return x ? x + ' ' : ''; };
 
 const DAILY_GAMES = [
-  { id: 'wordle',    start: () => startWordleGame(5, true), line: (r) => r.won ? `✅ ${r.tries}/${r.max || 6}` : `❌ X/${r.max || 6}` },
-  { id: 'connections', start: () => startConnections(true), line: (r) => `${r.won ? '✅' : '❌'} ${r.groups}/${r.total || 4}${r.mistakes ? ' · ' + '🔴'.repeat(r.mistakes) : ''}` },
+  { id: 'wordle',    since: '2026-09-28', start: () => startWordleGame(5, true), line: (r) => r.won ? `✅ ${r.tries}/${r.max || 6}` : `❌ X/${r.max || 6}` },
+  { id: 'connections', since: '2026-09-28', start: () => startConnections(true), line: (r) => `${r.won ? '✅' : '❌'} ${r.groups}/${r.total || 4}${r.mistakes ? ' · ' + '🔴'.repeat(r.mistakes) : ''}` },
   { id: 'flags',     start: () => startFlags(true),     line: (r) => r.won ? `✅ ${r.guesses}/6` : '❌ X/6' },
   { id: 'streak',    start: () => startStreak(true),    line: (r) => `${r.score >= 7 ? '✅' : '☑️'} ${r.score}/10` },
   { id: 'pinpoint',  start: () => startPinpoint(true),  line: (r) => `${r.score >= 13 ? '✅' : '☑️'} ${r.score}/25` },
@@ -33,8 +33,8 @@ const DAILY_GAMES = [
   { id: 'tango',     start: () => startTango(true),     line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
   { id: 'nonogram',  start: () => startNonogram(true),  line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
   { id: 'mines',     start: () => startMines(true),     line: (r) => r.lost ? '💥' : `✅ ${soloTime(r.seconds)}` },
-  { id: 'minigolf',  start: () => startMiniGolf(true),  line: (r) => `${r.strokes <= r.par ? '🟢 ' : ''}⛳ ${r.strokes} · 🎯 ${r.par}` },
-  { id: 'chesspuzzle', start: () => chPzStartDaily(),  line: (r) => !r || !r.solved ? '♟️ ❌' : r.hint ? '♟️ 💡' : r.tries > 1 ? '♟️ ✅ ' + r.tries : '♟️ ✅' }
+  { id: 'minigolf',  since: '2026-09-24', start: () => startMiniGolf(true),  line: (r) => `${r.strokes <= r.par ? '🟢 ' : ''}⛳ ${r.strokes} · 🎯 ${r.par}` },
+  { id: 'chesspuzzle', since: '2026-09-24', start: () => chPzStartDaily(),  line: (r) => !r || !r.solved ? '♟️ ❌' : r.hint ? '♟️ 💡' : r.tries > 1 ? '♟️ ✅ ' + r.tries : '♟️ ✅' }
 ];
 
 let soloHubReturn = false;
@@ -63,6 +63,19 @@ function dailyDone() {
     doesn't hold back «خلصت كل حاجة», the count and the bar while it is off. */
 function dailyLive() {
   return DAILY_GAMES.filter(g => !(typeof catalogOff === 'function' && catalogOff(g.id)));
+}
+
+/**
+ * 1090 (the owner's picks, 7 Oct 2026): the dailies a day had - the ones that
+ * existed then (`since`: the day a daily came into تحدي اليوم; none, from the
+ * start) and, for today, the ones not switched off (dailyLive). The archive's
+ * star and its «اتحل n من m» count only these, so a day before ميني جولف or
+ * ألغاز شطرنج existed can be complete, and an old result of a game since
+ * removed (الترتيب الأعمى) counts for nothing.
+ */
+function dailyLiveOn(day) {
+  const list = day >= soloRealToday() ? dailyLive() : DAILY_GAMES;
+  return list.filter(g => !g.since || g.since <= day);
 }
 
 function renderDaily() {
@@ -296,8 +309,9 @@ function renderDailyArchive() {
     const isFuture = dayStr > todayStr;
     const isSelected = dayStr === archiveSelectedDay;
     const dayResults = allDailies[dayStr] || {};
-    const doneCount = Object.keys(dayResults).length;
-    const isAll = doneCount === DAILY_GAMES.length;
+    const dayGames = dailyLiveOn(dayStr);
+    const doneCount = dayGames.filter(g => dayResults[g.id]).length;
+    const isAll = doneCount > 0 && doneCount === dayGames.length;
 
     let badge = '';
     if (!isFuture && doneCount > 0) {
@@ -306,14 +320,15 @@ function renderDailyArchive() {
 
     daysHtml += `
       <button type="button" class="archive-cal__day${isSelected ? ' is-selected' : ''}${isFuture ? ' is-future' : ''}" onclick="selectArchiveDay('${dayStr}')" ${isFuture ? 'disabled' : ''}
-              aria-label="${dayStr}${isFuture ? '' : ' - ' + doneCount + '/' + DAILY_GAMES.length}" aria-pressed="${isSelected ? 'true' : 'false'}">
+              aria-label="${dayStr}${isFuture ? '' : ' - ' + doneCount + '/' + dayGames.length}" aria-pressed="${isSelected ? 'true' : 'false'}">
         <span>${d}</span>
         ${badge}
       </button>`;
   }
 
   const selectedResults = allDailies[archiveSelectedDay] || {};
-  const selectedDoneCount = Object.keys(selectedResults).length;
+  const selectedGames = dailyLiveOn(archiveSelectedDay);
+  const selectedDoneCount = selectedGames.filter(g => selectedResults[g.id]).length;
   // The day's title as a date a person reads («الجمعة، 25 سبتمبر»), not 2026-09-25.
   const [sy, sm, sd] = archiveSelectedDay.split('-').map(Number);
   let selectedLabel = archiveSelectedDay;
@@ -331,7 +346,7 @@ function renderDailyArchive() {
         ${daysHtml}
       </div>
       <div class="field__hint" style="text-align:center;margin:0">
-        ${escapeHTML((t.daily_archive_solved_count || 'اتحل {n} من {m}').replace('{n}', selectedDoneCount).replace('{m}', DAILY_GAMES.length))}
+        ${escapeHTML((t.daily_archive_solved_count || 'اتحل {n} من {m}').replace('{n}', selectedDoneCount).replace('{m}', selectedGames.length))}
       </div>
     </div>
 

@@ -7,11 +7,15 @@ gameText({
       race_unit_crowns: "تيجان",
       queens_placed: "التيجان",
       queens_hint: "لمسة ✕، لمستين 👑، واسحب عشان تعلّم ✕ على كذا خانة",
+      queens_patterns: "🔣 نقشة لكل لون",
+      queens_patterns_hint: "كل منطقة ليها نقشة خفيفة (نقط، خطوط…) فوق لونها، عشان تفرّق بينهم لو الألوان شبه بعض.",
     },
     en: {
       race_unit_crowns: "crowns",
       queens_placed: "Crowns",
       queens_hint: "Tap for ✕, twice for 👑; drag to mark ✕ on many cells",
+      queens_patterns: "🔣 A pattern for each colour",
+      queens_patterns_hint: "Each region gets a faint pattern (dots, stripes…) over its colour, so regions stay apart when colours look alike.",
     }
   },
   rules: {
@@ -22,6 +26,7 @@ gameText({
                 <li>مفيش تاجين يلمسوا بعض، ولا حتى من الركن.</li>
                 <li>لمسة بتحط ✕ (خانة متأكد إنها فاضية)، ولمسة تانية بتحط 👑، وتالتة بتمسح. اسحب صباعك عشان تحط ✕ على كذا خانة مرة واحدة.</li>
                 <li>التاج اللي بيكسر قاعدة بيتعلم بالأحمر. كل لوحة ليها حل واحد بس.</li>
+                <li><b>🔣 نقشة لكل لون</b> (في الإعدادات): نقشة خفيفة فوق كل منطقة، لو الألوان صعب تفرّق بينها.</li>
             </ol>
             <p class="help-sub">📱 سباق ألغاز (في غرفة)</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -39,6 +44,7 @@ gameText({
                 <li>No two crowns may touch, not even corner to corner.</li>
                 <li>One tap marks ✕ (a cell you know is empty), a second places 👑, a third clears. Drag to mark ✕ on many cells at once.</li>
                 <li>A crown that breaks a rule turns red. Every board has exactly one solution.</li>
+                <li><b>🔣 A pattern for each colour</b> (in the setup): a faint pattern over each region, for when the colours are hard to tell apart.</li>
             </ol>
             <p class="help-sub">📱 Puzzle race (in a room)</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

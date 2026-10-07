@@ -98,6 +98,7 @@ function startSudoku(daily, sure) {
   s.notesMode = false;
   s.mistakes = 0;
   s.hints = 0;
+  s.autoNotes = false;
   s.undo = [];
   s.startedAt = Date.now();
   s.pausedAt = 0;
@@ -188,6 +189,9 @@ function paintSudoku() {
       <button type="button" class="btn btn--sm ${s.notesMode ? 'btn--primary' : 'btn--neutral'}" onclick="toggleSudokuNotes()" aria-pressed="${s.notesMode}">✏️ ${escapeHTML(t.sdk_notes || '')}</button>
       ${s.race ? '' : `<button type="button" class="btn btn--neutral btn--sm" onclick="hintSudoku()">💡 ${escapeHTML(t.solo_hint || '')}</button>`}
     </div>
+    ${s.notesMode && s.phase === 'play' ? `<div class="sdk-tools sdk-tools--notes">
+      <button type="button" class="btn btn--secondary btn--sm" onclick="sudokuAllNotes()">🔢 ${escapeHTML(t.sdk_all_notes || '')}</button>
+    </div>` : ''}
     </div>
     </div>
     ${s.race ? '' : `<div class="view-actions play-foot">
@@ -276,6 +280,13 @@ function undoSudoku() {
   const s = sudokuState();
   const last = s.undo.pop();
   if (!last || s.phase !== 'play') return;
+  // «كل الاحتمالات» taken back: every cell's notes as they were before it.
+  if (last.all) {
+    s.notes = last.all.slice();
+    saveToLocal();
+    paintSudoku();
+    return;
+  }
   sudokuSetCell(last.i, last.v);
   s.notes[last.i] = last.n;
   if (last.peers) Object.keys(last.peers).forEach(k => { s.notes[Number(k)] = last.peers[k]; });
@@ -290,6 +301,47 @@ function toggleSudokuNotes() {
   s.notesMode = !s.notesMode;
   saveToLocal();
   paintSudoku();
+}
+
+/**
+ * 1113 (the owner's picks, 7 Oct 2026): «كل الاحتمالات» - every empty cell's
+ * notes become its candidates in one tap (the numbers its row, column and box
+ * don't have yet; a red number counts for nothing), so a hard grid stops being
+ * a typing job. The notes then keep themselves clean as before: a right number
+ * takes itself out of its peers' notes. One undo step puts every note back. It is
+ * no hint (the best still counts); the result says it was used (s.autoNotes).
+ * The button is under the tools while ✏️ is on; a race may use it too.
+ */
+function sudokuAllNotes() {
+  const s = sudokuState();
+  if (s.phase !== 'play') return;
+  const conflicts = s.race ? sudokuConflicts(s.cells) : new Set();
+  const counts = (k) => s.cells[k] !== '0' && (s.puzzle[k] !== '0' || sudokuCellOk(s, k, conflicts));
+  s.undo.push({ i: -1, all: s.notes.slice() });
+  if (s.undo.length > 200) s.undo.shift();
+  const before = s.notes.slice();
+  for (let i = 0; i < 81; i++) {
+    if (s.cells[i] !== '0') continue;
+    let mask = 0x3FE;   // 1..9
+    for (let k = 0; k < 81; k++) {
+      if (k === i || !counts(k)) continue;
+      if (Math.floor(k / 9) === Math.floor(i / 9) || k % 9 === i % 9 || SUDOKU_BOX[k] === SUDOKU_BOX[i]) mask &= ~(1 << Number(s.cells[k]));
+    }
+    s.notes[i] = mask;
+  }
+  s.autoNotes = true;
+  haptic('light');
+  saveToLocal();
+  paintSudoku();
+  // The cells whose notes changed pop, from the top down (motion only).
+  if (!motionOff()) {
+    document.querySelectorAll('#sdk-grid .sdk-cell').forEach(el => {
+      const k = Number(el.dataset.i);
+      if (before[k] === s.notes[k] || !el.animate) return;
+      el.animate([{ opacity: 0.35, transform: 'scale(0.92)' }, { opacity: 1, transform: 'scale(1)' }],
+                 { duration: 260, delay: Math.floor(k / 9) * 30 + (k % 9) * 6, easing: 'ease-out', fill: 'backwards' });
+    });
+  }
 }
 
 /** The selected cell's number, or the first empty or wrong cell's. A hint is counted. */
@@ -367,9 +419,10 @@ function sudokuFinish() {
   let share = '';
   if (s.daily) {
     soloMarkDaily('sudoku', { seconds: s.elapsed, mistakes: s.mistakes, hints: s.hints }, s.daily);
-    share = `${soloShareHeader(t, s.daily)}\n#️⃣ ${t.setup_sudoku || ''} ✅ ${soloTime(s.elapsed)}${s.mistakes ? ' · ❌ ' + s.mistakes : ''}${s.hints ? ' · 💡 ' + s.hints : ''}`;
+    share = `${soloShareHeader(t, s.daily)}\n#️⃣ ${t.setup_sudoku || ''} ✅ ${soloTime(s.elapsed)}${s.mistakes ? ' · ❌ ' + s.mistakes : ''}${s.hints ? ' · 💡 ' + s.hints : ''}${s.autoNotes ? ' · 🔢' : ''}`;
   }
   const lines = [`${escapeHTML(t.sdk_mistakes || '')}: ${s.mistakes}${s.hints ? ` · 💡 ${s.hints}` : ''}`];
+  if (s.autoNotes) lines.push(`🔢 ${escapeHTML(t.sdk_all_notes_used || '')}`);
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
   soloLater('sudoku', motionOff() ? 0 : 500, () => soloResult({
     icon: '#️⃣',
@@ -421,7 +474,7 @@ RACE_UI.sudoku = {
   stage: 'sudoku-stage',
   unit: 'race_unit_cells',
   fresh: (pub) => ({ level: 'easy', playLevel: 'easy', daily: '', puzzle: pub.puzzle, solution: '', cells: pub.puzzle, notes: new Array(81).fill(0),
-    sel: -1, notesMode: false, mistakes: 0, hints: 0, undo: [], elapsed: 0 }),
+    sel: -1, notesMode: false, mistakes: 0, hints: 0, autoNotes: false, undo: [], elapsed: 0 }),
   // A reload: the cells the server last took from this phone are the grid.
   sync(s, board) {
     if (board && typeof board.cells === 'string' && board.cells.length === 81 && !sudokuHasWork(s)) s.cells = board.cells;

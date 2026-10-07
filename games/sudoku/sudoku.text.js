@@ -7,11 +7,15 @@ gameText({
       sdk_mistakes: "غلطات",
       sdk_erase: "امسح",
       sdk_notes: "ملاحظات",
+      sdk_all_notes: "كل الاحتمالات",
+      sdk_all_notes_used: "اتحلّت بـ«كل الاحتمالات»",
     },
     en: {
       sdk_mistakes: "Mistakes",
       sdk_erase: "Erase",
       sdk_notes: "Notes",
+      sdk_all_notes: "All candidates",
+      sdk_all_notes_used: "Solved with «All candidates»",
     }
   },
   rules: {
@@ -22,6 +26,7 @@ gameText({
                 <li>الرقم مايتكررش في نفس الصف، ولا نفس العمود، ولا نفس المربع الصغير.</li>
                 <li>اختار خانة ثم رقم. الرقم الغلط بيبقى أحمر ويتحسب غلطة.</li>
                 <li><b>ملاحظات ✏️</b>: اكتب أرقام صغيرة محتملة في الخانة. بتتمسح لوحدها لما الرقم يتحط في صفها أو عمودها أو مربعها.</li>
+                <li><b>🔢 كل الاحتمالات</b> (بيظهر وانت في الملاحظات): بيكتب في كل خانة فاضية كل الأرقام اللي ممكن تيجي فيها مرة واحدة. مش تلميح، والنتيجة بتقول إنك استخدمته.</li>
                 <li>كل لغز ليه حل واحد بس. <b>سهل</b> 40 رقم ظاهر، <b>متوسط</b> 32، <b>صعب</b> 26.</li>
             </ol>
             <p class="help-sub">💡 تلميحات</p>
@@ -45,6 +50,7 @@ gameText({
                 <li>No number repeats in the same row, the same column or the same small box.</li>
                 <li>Pick a cell, then a number. A wrong number shows red and counts as a mistake.</li>
                 <li><b>Notes ✏️</b>: small candidate numbers in a cell. They clear themselves when the number is placed in their row, column or box.</li>
+                <li><b>🔢 All candidates</b> (shown while notes are on): fills every empty cell with every number that could go there, in one tap. It's no hint; the result says you used it.</li>
                 <li>Every puzzle has exactly one solution. <b>Easy</b> shows 40 numbers, <b>medium</b> 32, <b>hard</b> 26.</li>
             </ol>
             <p class="help-sub">💡 Hints</p>

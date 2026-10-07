@@ -348,26 +348,45 @@ function finishConnections(won, waitMs) {
     soloMarkDaily('connections', { won: won, mistakes: c.mistakes, groups: found, total: c.puzzle.groups.length }, c.daily);
     share = connectShareText(t, c.daily, won, c.mistakes, c.guesses || []);
   }
+  // 1107: a free puzzle keeps its tally per level now, at once like a daily's result.
+  c.tally = !c.daily && !c.archive ? connectTally(c.level, won, c.mistakes) : null;
   if (waitMs) { setTimeout(() => { if (connections.puzzle === puzzle) connectSettle(won, found, share); }, waitMs); return; }
   connectSettle(won, found, share);
+}
+
+/**
+ * 1107 (the owner's picks, 7 Oct 2026): a free puzzle's tally per level, kept
+ * through soloRecord ('connections:<level>' in ashrySoloBest_v1): puzzles
+ * solved and solved with no mistake. Every board ends on the result sheet,
+ * a free one as a daily does (without the share), with the tally under it.
+ */
+function connectTally(level, won, mistakes) {
+  const prev = soloBest('connections', level) || {};
+  const next = {
+    solved: (prev.solved || 0) + (won ? 1 : 0),
+    perfect: (prev.perfect || 0) + (won && !mistakes ? 1 : 0),
+    played: (prev.played || 0) + 1
+  };
+  soloRecord('connections', level, next, () => true);
+  return next;
 }
 
 function connectSettle(won, found, share) {
   const c = connections;
   renderConnections(true);
-  if (!c.daily && !c.archive) {
-    if (won) confetti({ particleCount: 160, spread: 80, origin: { y: 0.6 } });
-    else playSound('miss');
-    return;
-  }
-  // A daily (or a day from the archive): the result sheet (today's was kept at once).
+  // The result sheet, a daily's (today's was kept at once), a past day's or a free puzzle's.
   const t = TRANSLATIONS[appState.lang] || {};
+  const lines = [escapeHTML((t.conn_daily_mistakes || '').replace('{n}', c.mistakes).replace('{m}', CONNECT_MAX_MISTAKES))];
+  if (c.tally) {
+    const lvl = t['solo_lvl_' + c.level] || '';
+    lines.push(escapeHTML((t.conn_tally || '').replace('{level}', lvl).replace('{n}', c.tally.solved).replace('{p}', c.tally.perfect)));
+  }
   soloLater('connections', motionOff() ? 0 : 900, () => soloResult({
     icon: '🔗',
     title: won ? (c.mistakes ? (t.conn_daily_won || '') : (t.conn_daily_perfect || '')) : (t.conn_daily_lost || ''),
     value: found,
     valueLabel: (t.conn_daily_groups || '').replace('{n}', c.puzzle.groups.length),
-    lines: [escapeHTML((t.conn_daily_mistakes || '').replace('{n}', c.mistakes).replace('{m}', CONNECT_MAX_MISTAKES))],
+    lines: lines,
     win: won, share: share,
     again: () => startConnections(false), exit: setupConnections
   }));

@@ -81,6 +81,10 @@ function startMemory() {
   m.pausedAt = 0;
   m.elapsed = 0;
   m.phase = 'play';
+  m.weighed = false;
+  m.recorded = false;
+  m.prevBest = null;
+  if (typeof soloNewGame === 'function') soloNewGame('memory');
   saveToLocal();
   setView('play-memory');
   paintMemory();
@@ -244,44 +248,53 @@ function memoryPaintBar() {
 
 function memoryFinish() {
   const m = memoryState();
-  const t = TRANSLATIONS[appState.lang];
   memoryStopClock();
   m.elapsed = Math.round((Date.now() - m.startedAt) / 1000);
   m.phase = 'done';
-
-  let title, detail;
-  if (m.mode === 'duo') {
-    const [x, y] = m.scores;
-    title = x === y ? (t.mem_tie || '') : `🏆 ${x > y ? (t.mem_player1 || '') : (t.mem_player2 || '')}`;
-    // Each score beside its player: a bare "6 – 0" reads either way round in an Arabic line.
-    const side = (name, n) => `<span class="flex items-center gap-2"><bdi>${escapeHTML(name || '')}</bdi><b class="metric metric--md">${n}</b></span>`;
-    detail = `<div class="flex justify-center gap-4">${side(t.mem_player1, x)}${side(t.mem_player2, y)}</div>`;
-  } else {
-    const best = memoryBest();
-    const prev = best[m.size];
-    const record = !prev || m.moves < prev.moves || (m.moves === prev.moves && m.elapsed < prev.seconds);
-    if (record) {
-      best[m.size] = { moves: m.moves, seconds: m.elapsed };
-      try { localStorage.setItem(MEMORY_BEST_KEY, JSON.stringify(best)); } catch (e) {}
-    }
-    title = record ? (t.mem_new_best || '') : (t.mem_done || '');
-    detail = `<div class="result-line"><span class="metric">${m.moves}</span> ${escapeHTML(t.mem_moves || '')} · <span class="metric">${memoryClockText(m.elapsed)}</span></div>` +
-             (prev && !record ? `<p class="sheet__subtitle">${escapeHTML(t.mem_best || '')}: ${prev.moves} ${escapeHTML(t.mem_moves || '')} · ${memoryClockText(prev.seconds)}</p>` : '');
-  }
   saveToLocal();
-  const tEl = document.getElementById('memory-result-title');
-  const dEl = document.getElementById('memory-result-detail');
-  if (tEl) tEl.textContent = title;
-  if (dEl) dEl.innerHTML = detail;
-  const modal = document.getElementById('memory-result-modal');
-  if (modal) modal.classList.remove('hidden');
-  playSound('success');
-  if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 75, origin: { y: 0.6 } });
+  memoryShowResult(false);
 }
 
-function replayMemory() {
-  closeModal('memory-result-modal');
-  startMemory();
+/**
+ * 1078 (the owner's picks, 7 Oct 2026): the result is the solo games' sheet
+ * (soloResult) - the moves count up, «شوف اللوحة», again and exit - like every
+ * other game on its own. The best per size is kept as it always was
+ * (ashryMemoryBest_v1), weighed once per board (m.weighed).
+ */
+function memoryShowResult(quiet) {
+  const m = memoryState();
+  const t = TRANSLATIONS[appState.lang] || {};
+  const o = { icon: '🎴', win: true, quiet: !!quiet, again: startMemory, againLabel: '🔄 ' + (t.play_again || ''), exit: setupMemory };
+  if (m.mode === 'duo') {
+    const [x, y] = m.scores;
+    // Each score beside its player: a bare "6 – 0" reads either way round in an Arabic line.
+    const side = (name, n) => `<span class="flex items-center gap-2"><bdi>${escapeHTML(name || '')}</bdi><b class="metric metric--md">${n}</b></span>`;
+    o.title = x === y ? (t.mem_tie || '') : `🏆 ${x > y ? (t.mem_player1 || '') : (t.mem_player2 || '')}`;
+    o.valueText = '';
+    o.lines = [`<span class="flex justify-center gap-4">${side(t.mem_player1, x)}${side(t.mem_player2, y)}</span>`];
+  } else {
+    const best = memoryBest();
+    if (!m.weighed) {
+      const prev = best[m.size] || null;
+      const record = !prev || m.moves < prev.moves || (m.moves === prev.moves && m.elapsed < prev.seconds);
+      if (record) {
+        best[m.size] = { moves: m.moves, seconds: m.elapsed };
+        try { localStorage.setItem(MEMORY_BEST_KEY, JSON.stringify(best)); } catch (e) {}
+      }
+      m.weighed = true;
+      m.recorded = record;
+      m.prevBest = prev;
+      saveToLocal();
+    }
+    const was = m.prevBest;
+    o.title = m.recorded ? (t.mem_new_best || '') : (t.mem_done || '');
+    o.record = !!m.recorded;
+    o.value = m.moves;
+    o.valueLabel = t.mem_moves || '';
+    o.lines = [`${escapeHTML(t.mem_time || '')}: <span class="metric">${memoryClockText(m.elapsed)}</span>`]
+      .concat(was && !m.recorded ? [`${escapeHTML(t.mem_best || '')}: ${was.moves} ${escapeHTML(t.mem_moves || '')} · ${memoryClockText(was.seconds)}`] : []);
+  }
+  soloResult(o);
 }
 
 /** After a reload: the same board. A pair left face up is turned back. */
@@ -324,9 +337,14 @@ if (typeof onLeaveScreen === 'function') {
     if (to === 'play-memory') setTimeout(memoryLastPair, 0);
   });
 }
-if (typeof onLanguageChange === 'function') {
-  onLanguageChange(view => { if (view === 'play-memory') paintMemory(); });
-}
+// A registered solo game (1078): its result is soloResult's sheet, whose «شوف اللوحة»
+// needs the board known; a language change repaints it through `repaint`. `timed`:
+// the solo pieces stop its clock away from the board (its own hooks below do too).
+(window.SOLO_LATE = window.SOLO_LATE || []).push(() => soloRegister('memory', {
+  setup: 'setup-memory', play: 'play-memory', state: memoryState, restore: restoreMemory,
+  paintSetup: paintMemorySetup, repaint: paintMemory, timed: true,
+  resume: () => { setView('play-memory'); if (!restoreMemory()) setupMemory(); }
+}));
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (appState.currentView === 'play-memory') memoryPauseAway(document.visibilityState === 'hidden');

@@ -3640,6 +3640,64 @@ Date.now = duelTestClock;
   clock += 1000;
   applyRoomAction(aw2, mover, 'move', { col: 3, move: 0 });
   check(roomDeadline(aw2) === clock + 60000, 'duel away: the turn just came to a phone already gone: a minute from now');
+
+  // The think clock in winner stays (the owner's picks 1022 and 1031, 7 Oct 2026): off by default;
+  // كونكت ٤ 15 / 30 s a disc, نقط ومربعات 20 / 40 s a line; at 0 the server plays a safe move.
+  const dotsGeomForTest = new Function(readFileSync(srcPath('DotsBoxes.js'), 'utf8') + '\nreturn dotsGeom;')();
+  const th0 = duel('connect4', ['a', 'b'], {});
+  check(!th0.shared.think && roomDeadline(th0) === null, 'duel think: off by default, no clock');
+  const thBad = duel('connect4', ['a', 'b'], { think: 20 });
+  check(!thBad.shared.think, 'duel think: كونكت ٤ refuses a time it doesn\'t offer');
+  const th = duel('connect4', ['a', 'b', 'c'], { think: 15 });
+  check(th.shared.think === 15 && roomDeadline(th) === th.shared.turnAt + 15000 + 800, 'duel think: كونكت ٤ 15 s a disc, from the turn');
+  // The seat up could win next with column 0 open for the other: the clock's disc must not hand it over.
+  const thUp = th.shared.turn;
+  const thMoves = th.shared.moves;
+  check(!roomTimeout(th, th.shared.turnAt + 15000) && th.shared.moves === thMoves, 'duel think: not before the grace');
+  const thAt = th.shared.turnAt + 15800;
+  check(roomTimeout(th, thAt) && th.shared.moves === thMoves + 1 && th.shared.last.auto === true && th.shared.last.seat === thUp &&
+        th.shared.turn === 1 - thUp && th.shared.turnAt === thAt && th.shared.phase === 'play',
+        'duel think: at 0 the server drops a disc for the seat up, and the turn moves on with a fresh clock');
+  check(roomDeadline(th) === thAt + 15800, 'duel think: the next seat gets its own 15 s');
+  check((applyRoomAction(th, th.shared.seats[thUp], 'move', { col: 0, move: thMoves }), th.shared.moves === thMoves + 1),
+        'duel think: a late tap from the board before the clock\'s disc is dropped');
+  {
+    // A board where only one column doesn't give the other side four in a row.
+    const sb = duel('connect4', ['a', 'b'], { think: 30 });
+    const g = sb.shared.grid;
+    const rows = sb.shared.rows;
+    const put = (r, c, v) => { g[r * sb.shared.cols + c] = v; };
+    // The other side (seat 1 = 2) has three across the bottom in columns 1..3, column 4 already
+    // blocked: only column 0 keeps it from four in a row next.
+    put(rows - 1, 1, 2); put(rows - 1, 2, 2); put(rows - 1, 3, 2); put(rows - 1, 4, 1);
+    sb.shared.turn = 0;
+    roomTimeout(sb, sb.shared.turnAt + 30800);
+    check(sb.shared.last && sb.shared.last.auto && sb.shared.last.col === 0,
+      'duel think: the clock\'s disc blocks a win the other side would have next (c4SafeCol)');
+  }
+  const dt = duel('dots', ['a', 'b'], { size: 4, think: 40 });
+  check(dt.shared.think === 40 && roomDeadline(dt) === dt.shared.turnAt + 40000 + 800, 'duel think: نقط ومربعات 40 s a line');
+  check(duel('dots', ['a', 'b'], { size: 4, think: 15 }).shared.think === 0, 'duel think: نقط ومربعات refuses 15 s');
+  {
+    // Every line left but one would give a box its third side: the clock draws the safe one.
+    let safeAlways = true;
+    for (let n = 0; n < 30; n++) {
+      const d = duel('dots', ['a', 'b'], { size: 4, think: 20 });
+      for (let k = 0; k < 6; k++) {
+        const before = d.shared.lines.slice();
+        const g4 = dotsGeomForTest(4);
+        const safeExisted = before.some((x, e) => !x && g4.edges[e].boxes.every((b) => g4.boxEdges[b].filter((y) => before[y]).length < 2));
+        roomTimeout(d, d.shared.turnAt + 20800);
+        const e = d.shared.last.edge;
+        const gives = g4.edges[e].boxes.some((b) => g4.boxEdges[b].filter((y) => before[y]).length === 2);
+        if (safeExisted && gives) safeAlways = false;
+        if (d.shared.phase !== 'play') break;
+      }
+    }
+    check(safeAlways, 'duel think: the clock\'s line never gives a box its third side while a safe line exists');
+  }
+  const xt = duel('xo', ['a', 'b'], { think: 15 });
+  check(roomDeadline(xt) === null, 'duel think: إكس أو has no think clock');
 }
 
 /* --- كونكت ٤ team against team, «أحمر ضد أصفر» (the owner, 2 Oct 2026) ------------- */
@@ -5385,6 +5443,38 @@ Date.now = duelTestClock;
     g.debt = { pid: 'a', amount: 100, to: 'each', fine: false, then: { kind: 'after' } };
     BB.bankRemovePlayer(g, priv, 'c', 0);
     check(g.debt && g.debt.amount === 50, 'bank: a "pay everyone" debt loses the share of the player who left');
+
+    // The owner's pick 969 (7 Oct 2026): once every person is out, the computer players don't play on.
+    ({ g, priv } = mk());
+    g.bots = ['b', 'c'];
+    g.cash.b = 900; g.cash.c = 2100;
+    BB.bankRemovePlayer(g, priv, 'a', 0);
+    const over = (g.events || []).filter((e) => e.type === 'over').pop();
+    check(g.phase === 'gameover' && over && over.why === 'bots' && g.places.join() === 'c,b,a',
+      'bank: every person out and only computer players left: the game ends on worth, the richest first');
+    ({ g, priv } = mk());
+    g.bots = ['c'];
+    BB.bankRemovePlayer(g, priv, 'a', 0);
+    check(g.phase === 'play', 'bank: a person still in: the game goes on');
+    ({ g, priv } = mk());
+    BB.bankRemovePlayer(g, priv, 'a', 0);
+    check(g.phase === 'play', 'bank: an older game with no computer players listed plays on as before');
+    {
+      const br = newRoom(['h']);
+      applyRoomAction(br, 'h', 'chooseGame', { game: 'bank' });
+      applyRoomAction(br, 'h', 'addBot', { level: 'easy', name: 'B' });
+      applyRoomAction(br, 'h', 'addBot', { level: 'easy', name: 'C' });
+      applyRoomAction(br, 'h', 'start', {});
+      const bots = br.players.filter((p) => p.bot).map((p) => p.id).sort().join();
+      check((br.shared.bots || []).slice().sort().join() === bots, 'bank room: the computer players\' seats are kept for the end');
+      const tv = newRoom(['h']);
+      applyRoomAction(tv, 'h', 'becomeScreen', {});
+      applyRoomAction(tv, 'h', 'chooseGame', { game: 'bank' });
+      applyRoomAction(tv, 'h', 'addBot', { level: 'easy', name: 'B' });
+      applyRoomAction(tv, 'h', 'addBot', { level: 'easy', name: 'C' });
+      applyRoomAction(tv, 'h', 'start', {});
+      check(!tv.shared.bots, 'bank room: a table of computer players alone (a TV watching) plays to the end');
+    }
 
     // Play again keeps the host's turn clock.
     const rr = newRoom(['h', 'p']);

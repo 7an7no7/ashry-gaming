@@ -363,13 +363,29 @@ function chRoomStatus(state, tv) {
   return chT('duel_turn_of', { name: duelIso(names[view.g.turn] || '') }) + check;
 }
 
+/**
+ * A watcher in winner stays (the owner's pick 979, 7 Oct 2026): a slim chip under the
+ * opponent's bar saying where they are in the line - «بعد الماتش: انت», «انت التالت في الدور» -
+ * so they know when to get ready. '' for the two playing, a screen, a tournament, or nobody in line.
+ */
+function chRoomLineChipHtml(state) {
+  const s = state.shared || {};
+  if (s.tourMid || s.phase !== 'play' || state.youAreScreen || chRoomSeat(state) !== -1) return '';
+  const pos = duelRoomWaiting(state, s.seats || []).indexOf(Room.me);
+  if (pos === -1) return '';
+  const n = pos + 1;
+  const text = n === 1 ? chT('ch_line_next') : n <= 5 ? chT('ch_line_nth', { nth: chT('ch_nth_' + n) }) : chT('ch_line_n', { n: n });
+  return `<p class="ch-linechip ${n === 1 ? 'is-next' : ''}">${n === 1 ? '🙋 ' : '⏳ '}${escapeHTML(text)}</p>`;
+}
+
 function chRoomBarHtml(state) {
   const s = state.shared;
   const bd = s.chess;
   const seat = chRoomSeat(state);
   const t = TRANSLATIONS[appState.lang] || {};
   if (s.phase !== 'play' || bd.result) return '';
-  if (seat === -1) return duelRoomWatchNote(state, t);
+  // A watcher's place in the line is the chip under the opponent's bar (chRoomLineChipHtml).
+  if (seat === -1) return '';
   if (bd.hq && bd.hq.picking) {
     const left = chRoomHqPickLeft(state);
     const clock = left === null ? '' : ` <b class="ch-clock metric" data-ch-hqclock>${left}</b>`;
@@ -524,7 +540,7 @@ function chRoomRender(state, still) {
   const view = chRoomBoard(state);
   const myTurn = s.phase === 'play' && !bd.result && seat === view.g.turn;
   const over = s.phase === 'over';
-  chSetHtml(el, '[data-ch-head]', `${chRoomPills(state)}${chRoomTagHtml(state)}${bply >= 0 ? chBrowseNoteHtml(bd.sans) : `<p class="duel-status ${over ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(chRoomStatus(state))}</p>`}`);
+  chSetHtml(el, '[data-ch-head]', `${chRoomPills(state)}${chRoomLineChipHtml(state)}${chRoomTagHtml(state)}${bply >= 0 ? chBrowseNoteHtml(bd.sans) : `<p class="duel-status ${over ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(chRoomStatus(state))}</p>`}`);
   chSetHtml(el, '[data-ch-browse]', chBrowseNavHtml((bd.hist || []).length));
   chSetHtml(el, '[data-ch-bar]', chRoomBarHtml(state) + chRoomHostRow(state));
   const side = [];

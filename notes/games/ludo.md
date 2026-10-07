@@ -115,6 +115,14 @@ section, the way the duels are built:
 
 **A player who got home and then left keeps their place on the board** (the audit of 6 Oct 2026): `ludoBoard` keeps a seat that is in `places`, with the name the board had, so the night banks the winner who left as the winner.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+Picked from the ideas page of 7 Oct 2026 (round three); the owner asked no extra rule unless said: "build as described, choose simple family-friendly details".
+
+- **953 Movable pieces lift.** After your roll the pieces you can move rise and pulse (`.ludo-pc.is-movable`: a bigger shadow and `ludoLift`, a scale 1.12 ↔ 1.26; still at 1.18 with motion off) and every other piece steps back (`.ludo-board.is-choosing .ludo-pc:not(.is-movable)` at 45% opacity). Where each would land was already drawn at once (`ludoLandMarks`, the second batch); a finger **held** 0.38 s on a piece now draws its whole path, as a mouse does (`ludoWire`: `pointerdown` timer, `_ludoHeld`; lifting after a hold moves nothing, a quick tap still moves; no callout or text selection on a piece). The bar's line says «اختار حجر: {n} يقدروا يتحركوا» (`ludo_pick_n`, the count of `g.movable`; `ludo_pick_piece` gone).
+- **954 The die is the roll button.** On your roll the bar's button is the die itself with «ارمي» on it (`.ludo-bar__roll`, `btn--primary btn--lg`, the die inside nudging; 46% of the bar on an upright phone, as السلم والتعبان's), the line beside it; after the roll the same die shows the number next to what to do (`ludoBarHtml`). The separate die and «ارمي» button are gone; `ludoRoomRoll` still spins `.ludo-die` as the finger lifts.
+- **955 The turn clock as a ring.** With a turn clock the player up's face in the strip wears a ring of the time left in their colour (`.ludo-chip__ring`, a conic gradient masked to a ring), and on the TV their yard too (`.ludo-yardclock`, drawn by `ludoBoardHtml`'s `ring` option round the yard's white square). `ludoTickClock`'s `paint` sets `--ludo-left` (the share of the turn left, once a second) on every `[data-ludo-ring]` and `is-low` (a blink) in the last five seconds.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

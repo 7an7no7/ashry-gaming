@@ -3648,6 +3648,23 @@ async function connect4Seg() {
     duelBots.forEach((b) => b.close());
   }
 
+  /* --- the think clock (the owner's pick 1022, 7 Oct 2026): at 0 the server drops a disc --- */
+  {
+    const H = await Bot.host('هند', null);
+    const J = await Bot.join(H.code, 'جمال');
+    const pair = [H, J];
+    await H.must('chooseGame', { game: 'connect4' });
+    await H.must('start', { mode: 4, think: 15 });
+    await all(pair, (s) => s.game === 'connect4' && s.shared.phase === 'play' && s.shared.think === 15, 'connect4 think: the host\'s 15 s reach every phone');
+    const up = byId(pair, H.state.shared.seats[H.state.shared.turn]);
+    const upSeat = H.state.shared.turn;
+    await all(pair, (s) => s.shared.moves === 1 && s.shared.last && s.shared.last.auto === true && s.shared.last.seat === upSeat && s.shared.turn === 1 - upSeat,
+              'connect4 think: nobody moves for 15 s: the server drops a disc for them, and the turn moves on', 25000);
+    check((await up.act('move', { col: 0, move: 0 })).ok, 'connect4 think: a tap from before the clock\'s disc is answered, and dropped');
+    await sleep(150);
+    check(H.state.shared.moves === 1, 'connect4 think: (it played nothing)');
+    pair.forEach((b) => b.close());
+  }
 }
 
 async function c4TeamsSeg() {

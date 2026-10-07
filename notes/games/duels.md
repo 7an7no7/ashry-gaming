@@ -377,6 +377,13 @@ Picked from the ideas page of 7 Oct 2026 (round two); the owner asked no extra r
 
 Tests: `rules.mjs` («c4 block:», «dots run:»); the robots' connect4, c4teams, dots and duels segments pass with the new fields.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built
+
+Picked from the ideas page of 7 Oct 2026 (round three); the owner asked no extra rule unless said: "build as described, choose simple family-friendly details".
+
+- **1022 كونكت ٤ and 1031 نقط ومربعات: a think clock in winner stays.** The host's lobby choice, **off by default**: كونكت ٤ 15 or 30 seconds a disc, نقط ومربعات 20 or 40 a line (`DUEL_THINK` in Duels.js, read by both sides; `duelThinkPick` takes only those). `shared.think` counts from `turnAt`; the server's clock is `duelThinkDeadline` inside `duelAwayDeadline` / `duelAwayTimeout` (RoomDuels.js; 0.8 s of grace): at 0 the server plays for the seat up (`DUEL_KINDS.<kind>.auto`: كونكت ٤ `c4SafeCol`, a column that hands the other side no win; نقط ومربعات a random line from `dotsSafe` - no box gets a third side - or, with none left, `dotsCheapest`), marks it `last.auto` (never counted a «صدّة!») and moves the turn on with a fresh clock. Not in a tournament (a match has no `line`) nor كونكت ٤'s teams (their own 20 s). On the phones and the TV: the lobby row «⏱️ وقت التفكير» (`duelThinkLobbyHtml`, remembered on the host's phone, `recallOptions('duelThink_<game>')`, sent in the start payload), a badge with the seconds left beside the status (`duelThinkHtml`, `duelThinkTick` by the server's time, a tick on the mover's phone in the last five, red then), and «⏱️ الوقت خلص، والتطبيق لعب بدل …» after the clock's move; the signatures carry `duelThinkAt`. Help: a line in each game's rooms rules.
+- **1026 كونكت ٤ on one phone: who starts the next game.** The result says «الماتش الجاي يبدأ: هند» with her disc (`c4_next_starts`, `.c4-next`) and her pill pulses (`.duel-pill.is-next`, `duelNextPulse`; a ring with motion off). The rule was already so (whoever went second starts); only the saying is new.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

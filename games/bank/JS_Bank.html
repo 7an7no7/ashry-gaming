@@ -227,11 +227,14 @@ function bankStripHtml(c) {
     const jail = g.jail[pid] !== undefined;
     const cards = (g.cards[pid] || []).length;
     const place = g.places ? g.places.indexOf(pid) : -1;
+    // The marks after the cash: 🔄 still on the first lap, 🔒 in jail, 🎟️ a jail card kept.
+    const marks = (!out && g.phase === 'play' && !bankCanBuyYet(g, pid) ? ` <span title="${escapeHTML(bankT('bank_first_lap'))}" aria-label="${escapeHTML(bankT('bank_first_lap'))}">🔄</span>` : '')
+      + (jail ? ' 🔒' : '') + (cards ? ` <span title="${escapeHTML(bankT('bank_jail_card'))}">🎟️${cards > 1 ? '×' + cards : ''}</span>` : '');
     return `<div class="bank-chip ${pid === up ? 'is-turn' : ''} ${out ? 'is-out' : ''} ${c.away && c.away[pid] ? 'is-away' : ''}" style="--pc:${bankSeatHex(g, pid)}" data-bank-chip="${escapeHTML(pid)}">
         <span class="bank-chip__tok" aria-hidden="true">${place >= 0 && place < 3 ? ['🥇', '🥈', '🥉'][place] : bankTokenOf(g, pid)}</span>
         <span class="bank-chip__who">
           <span class="bank-chip__name">${escapeHTML(c.names[pid] || '…')}${c.bots && c.bots[pid] ? ' <small>🤖</small>' : ''}</span>
-          <span class="bank-chip__cash">${out ? escapeHTML(bankT('bank_out')) : `<b class="metric" dir="ltr" data-bank-cash="${escapeHTML(pid)}">${bankFmt(g.cash[pid])}</b>`}${!out && g.phase === 'play' && !bankCanBuyYet(g, pid) ? ` <span title="${escapeHTML(bankT('bank_first_lap'))}" aria-label="${escapeHTML(bankT('bank_first_lap'))}">🔄</span>` : ''}${jail ? ' 🔒' : ''}${cards ? ` <span title="${escapeHTML(bankT('bank_jail_card'))}">🎟️${cards > 1 ? '×' + cards : ''}</span>` : ''}</span>
+          <span class="bank-chip__cash">${out ? escapeHTML(bankT('bank_out')) : `<b class="metric" dir="ltr" data-bank-cash="${escapeHTML(pid)}">${bankFmt(g.cash[pid])}</b>`}${marks ? `<span class="bank-chip__marks">${marks}</span>` : ''}</span>
         </span>
       </div>`;
   }).join('');
@@ -540,7 +543,7 @@ function bankOverHtml(c) {
       <div class="podium__block"><span class="metric">${i + 1}</span></div></div>`).join('') + '</div>';
   const why = (g.events || []).slice().reverse().find(e => e.type === 'over');
   return `<div class="card card--accent bank-over">
-      <p class="bank-over__title">🏁 ${escapeHTML(bankT(why && why.why === 'time' ? 'bank_over_time' : 'bank_over_last'))}</p>
+      <p class="bank-over__title">🏁 ${escapeHTML(bankT(why && why.why === 'time' ? 'bank_over_time' : why && why.why === 'bots' ? 'bank_over_bots' : 'bank_over_last'))}</p>
       ${podium}
       <p class="field__hint" style="text-align:center">${escapeHTML(bankT('bank_worth_hint'))}</p>
       ${c.over || ''}
@@ -1065,6 +1068,7 @@ function startBank() {
   ids.slice(1).forEach((id, k) => { names[id] = pool[k]; bots[id] = s.level; });
   const off = bankRollOff(ids, Math.random, s.oneDie ? 1 : 2);
   const made = bankNewGame(ids, bankFillTokens(ids, { me: s.token }), off.first, { length: s.length, pot: s.pot, go400: s.go400, firstLap: s.firstLap, highRent: s.highRent, oneDie: s.oneDie }, Date.now(), Math.random);
+  made.g.bots = ids.slice(1);       // once you are out, the game ends on worth (bankOnlyBotsLeft)
   bankEvent(made.g, 'rolloff', { rounds: off.rounds, first: off.first });
   s.g = made.g;
   s.priv = made.priv;

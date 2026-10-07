@@ -1814,13 +1814,20 @@ function renderRoomLobby(state, opts) {
   // game is chosen, then «مستنيين المضيف يبدأ اللعبة…» - never both.
   if (waitNote) waitNote.classList.toggle('hidden', !!state.youAreHost || inHub);
   // The QR folds behind «ادعي حد كمان ▾» once two or more people are in, so the
-  // game chosen comes first; folded once per room, a tap opens it again.
+  // game chosen comes first; folded once per room, a tap opens it again. Alone in
+  // the room, a phone keeps it behind «📷 وريهم الـ QR» too (the owner's look 2B, 7 Oct
+  // 2026: the code card filled a phone's first screen); a laptop shows it in the code
+  // bar while alone (look 1B), since a phone can't be held up to its screen anyway.
   const invite = document.getElementById('room-invite');
   if (invite) {
     const many = state.players.filter(p => !p.bot).length >= 2;
+    const wide = typeof matchMedia === 'function' && matchMedia('(min-width: 1000px)').matches;
     invite.classList.toggle('is-solo', !many);
-    if (!many) { invite.open = true; delete invite.dataset.folded; }
-    else if (invite.dataset.folded !== state.code) { invite.open = false; invite.dataset.folded = state.code; }
+    if (!many) {
+      delete invite.dataset.folded;
+      if (wide) invite.open = true;
+      else if (invite.dataset.soloFolded !== state.code) { invite.open = false; invite.dataset.soloFolded = state.code; }
+    } else if (invite.dataset.folded !== state.code) { invite.open = false; invite.dataset.folded = state.code; }
   }
   // Under the host's Start: how many more the chosen game needs, if any.
   const needEl = document.getElementById('room-start-need');

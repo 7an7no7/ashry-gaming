@@ -14,7 +14,7 @@ gameText({
       gw_lobby_clock: "وقت الدور",
       gw_lobby_hint: "اتنين بيلعبوا والباقي بيتفرج، واللي يكسب يفضل قاعد. الأسئلة من دماغك: بصوتك أو تكتبها.",
       gw_ask_hint: "سؤال أيوه ولا لأ: نضارة؟ بيضحك؟ طرحة؟",
-      gw_hold_hint: "دوس مطوّل على أي وش تشوفه كبير",
+      gw_hold_hint: "دوس مطوّل على أي وش تشوفه كبير، وكمّل ضاغط تحط عليه «؟»",
       gw_loud_log: "سؤال بالصوت",
       gw_left: "باقي {n}",
       gw_your_face: "وشّك",
@@ -79,7 +79,7 @@ gameText({
       gw_lobby_clock: "Turn clock",
       gw_lobby_hint: "Two play, the rest watch, and the winner stays on. You think of the questions: out loud or typed.",
       gw_ask_hint: "A yes-or-no question: Glasses? Smiling? A hijab?",
-      gw_hold_hint: "Hold any face to see it big",
+      gw_hold_hint: "Hold any face to see it big; keep holding to mark it «?»",
       gw_loud_log: "asked out loud",
       gw_left: "{n} left",
       gw_your_face: "Your face",
@@ -143,7 +143,7 @@ gameText({
                 <li><b>السؤال من دماغك</b>: <b>بصوتك</b> أو <b>تكتبه</b>. مفيش أسئلة جاهزة. بص على الوشوش: طرحة؟ كاب؟ سماعات؟ نضارة شمس؟ بيضحك؟ نمش؟ شامة؟ كرافتة؟ لابس حاجة حمرا؟ تيشيرت مقلّم؟</li>
                 <li>التاني يبص على وشّه السري ويدوس <b>أيوه</b> أو <b>لأ</b>. الموبايل مايعرفش السؤال، فالإجابة زي ما هو قالها. دست غلط؟ <b>«↶ غلطت»</b> بترجّعها طول ما التاني لسه بيوقّع الوشوش، والوشوش اللي وقّعها عليها بتقوم تاني.</li>
                 <li>بعد الإجابة <b>توقّع الوشوش بإيدك</b> (دوس على كل وش) وتدوس خلصت. تقدر توقّع وش أو ترجّعه في أي وقت.</li>
-                <li><b>دوس مطوّل</b> على أي وش (أو على وشّك) تشوفه كبير بكل تفاصيله.</li>
+                <li><b>دوس مطوّل</b> على أي وش (أو على وشّك) تشوفه كبير بكل تفاصيله. <b>كمّل ضاغط</b> على وش في لوحتك يتحط عليه <b>«؟»</b>: علامة ليك انت بس لما الإجابة مش أكيدة، والوش لسه واقف.</li>
                 <li>التخمين: <b>"هو كريم؟"</b> وطبلة، وبعدين صح ولا غلط.</li>
                 <li>التخمين الصح بيكسب اللعبة. <b>التخمين الغلط بيخسّرها</b> (أو الدور بس، لو المضيف غيّرها).</li>
                 <li>اللي يكسب <b>يفضل قاعد</b>، واللي عليه الدور في الطابور يقعد قصاده ويبدأ هو.</li>
@@ -161,6 +161,7 @@ gameText({
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>اللوحتين قدام الكل، والسؤال والإجابة في النص. الوش السري مش بيبان غير في الآخر.</li>
+                <li>👑 في الآخر بتتعاد أسئلة الكسبان، وكل سؤال وقّع كام وش، وأكتر سؤال وقّع ياخد <b>«أحسن سؤال»</b>.</li>
             </ul>
             ${TOUR_RULES_HELP.ar}`,
     },
@@ -172,7 +173,7 @@ gameText({
                 <li><b>You think of the question</b>: ask it <b>out loud</b> or <b>type it</b>. There is no list. Look at the faces: a hijab? a cap? headphones? sunglasses? smiling? freckles? a mole? a tie? wearing red? a striped shirt?</li>
                 <li>The other looks at their secret face and taps <b>yes</b> or <b>no</b>. The phone doesn't know the question, so the answer is theirs. Tapped the wrong one? <b>"↶ Oops, wrong one"</b> takes it back while the other is still putting faces down, and the faces they put down on it stand up again.</li>
                 <li>After the answer, <b>put the faces down by hand</b> (tap each one) and tap done. You can put a face down or back up any time.</li>
-                <li><b>Hold</b> any face (or your own) to see it big, every detail.</li>
+                <li><b>Hold</b> any face (or your own) to see it big, every detail. <b>Keep holding</b> a face on your board to stick a <b>«?»</b> on it: your own note for an answer you're not sure of; the face still counts as up.</li>
                 <li>A guess: <b>"is it Karim?"</b>, a drum roll, then right or wrong.</li>
                 <li>A right guess wins the game. <b>A wrong guess loses it</b> (or only the turn, if the host changed that).</li>
                 <li>The winner <b>stays on</b>; the next in line sits down against them and moves first.</li>
@@ -190,6 +191,7 @@ gameText({
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>Both boards in front of everyone, the question and its answer between them. The secret faces show only at the end.</li>
+                <li>👑 At the end the winner's questions are replayed with how many faces each put down, and the one that put down the most is crowned <b>«Best question»</b>.</li>
             </ul>
             ${TOUR_RULES_HELP.en}`,
     }

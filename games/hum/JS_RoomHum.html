@@ -120,6 +120,13 @@ function dndAudio() {
 
 function dndPlayingClass(on) {
   document.querySelectorAll('.dnd').forEach(el => el.classList.toggle('is-playing', !!on));
+  // «قايمة أغاني السهرة»: the row playing now shows ■.
+  document.querySelectorAll('[data-dnd-pl]').forEach(el => {
+    const mine = !!on && dnd.plAt === Number(el.getAttribute('data-dnd-pl'));
+    el.classList.toggle('is-on', mine);
+    const b = el.querySelector('.dnd-pl__play');
+    if (b) b.textContent = mine ? '■' : '▶';
+  });
 }
 
 /** A second of silence, made once: what the first tap plays to let this page play sound later. */
@@ -220,9 +227,65 @@ function dndPlayTap() {
   const s = st.shared || {};
   const token = dndTokenOf(st);
   if (!token) return;
+  dnd.plAt = -1;
+  dndPlayToken(token, s.mode === 'listen' && s.replay !== 'full' && s.phase !== 'reveal');
+}
+
+/*
+ * «قايمة أغاني السهرة» (the owner's pick of 7 Oct 2026, 761): at the end every song of the game,
+ * in the order played, with its singer and a ▶ that plays its clip on this phone (the token its
+ * reveal sent, answered by /song while the end is on screen), and «📸 ابعت القايمة» - the night's
+ * playlist as a picture (and the titles as text) for the family group. Nothing on the TV: it plays no songs.
+ */
+function dndPlaylistTap(i) {
+  const st = Room.state;
+  if (!st || st.game !== 'hum') return;
+  const row = ((st.shared || {}).playlist || [])[i];
+  if (!row || !row.token) return;
+  if (dnd.cur === 'manual' && dnd.plAt === i && dnd.audio && !dnd.audio.paused) { haptic('light'); dndStopSound(); return; }
+  if (dnd.cur === 'manual' && dnd.audio && !dnd.audio.paused) dndStopSound();
+  dnd.plAt = i;
+  dndPlayToken(row.token, false);
+}
+
+function dndPlaylistHtml(state) {
+  const s = state.shared || {};
+  const list = s.playlist || [];
+  if (!list.length || state.youAreScreen) return '';
+  const rows = list.map((r, i) => `<li class="dnd-pl__row" data-dnd-pl="${i}">
+      <button type="button" class="dnd-pl__play" onclick="dndPlaylistTap(${i})" aria-label="${escapeHTML(dndT('dnd_pl_play', { t: r.t }))}">▶</button>
+      <span class="dnd-pl__t"><b>${escapeHTML(r.t)}</b><em>${escapeHTML(r.s)}${appState.lang === 'en' && r.en ? ' · ' + escapeHTML(r.en + (r.se ? ' (' + r.se + ')' : '')) : ''}</em></span>
+    </li>`).join('');
+  return `<div class="card card--tight dnd-pl">
+      <div class="eyebrow">🎶 ${escapeHTML(dndT('dnd_pl_title'))}</div>
+      <ol class="dnd-pl__list">${rows}</ol>
+      <div class="btn-row" style="justify-content:center"><button type="button" class="btn btn--secondary btn--auto" onclick="dndSharePlaylist()">📸 ${escapeHTML(dndT('dnd_pl_share'))}</button></div>
+    </div>`;
+}
+
+/** The playlist as a share card: each song and its singer, the night's winner at the foot; the titles as text too. */
+function dndSharePlaylist() {
+  const st = Room.state;
+  if (!st || st.game !== 'hum' || typeof shareResultCard !== 'function') return;
+  const s = st.shared || {};
+  const list = s.playlist || [];
+  if (!list.length) return;
+  const top = (s.board || [])[0];
+  const title = '🎶 ' + dndT('dnd_pl_title');
+  return shareResultCard({
+    title: title,
+    icon: '🎵',
+    rows: list.slice(0, 10).map(r => ({ name: r.t, value: r.s })),
+    maxRows: 10,
+    footer: top && top.score > 0 ? '🏆 ' + top.name : '',
+    text: title + '\n' + list.map((r, i) => (i + 1) + '. ' + r.t + ' - ' + r.s).join('\n')
+  });
+}
+
+/** Plays a clip by its token from the start (or only arms the page, `clockOnly`). */
+function dndPlayToken(token, clockOnly) {
   haptic('light');
   if (dnd.cur === 'manual' && dnd.audio && !dnd.audio.paused) { dndStopSound(); return; }
-  const clockOnly = s.mode === 'listen' && s.replay !== 'full' && s.phase !== 'reveal';
   dndUnlock(!clockOnly && !!dnd.blob && dnd.blob.token === token);
   if (clockOnly) { dndPaintNow(); return; }   // only the clock plays these
   const a = dndAudio();
@@ -412,6 +475,7 @@ function dndSig(state) {
     (s.choices || []).length, s.mode, s.replay, state.youAreHost, appState.lang,
     s.phase === 'arm' ? (s.armed || []).indexOf(Room.me) !== -1 : '',
     s.phase === 'reveal' || s.phase === 'gameover' ? JSON.stringify(s.board || []) : '',
+    s.phase === 'gameover' ? (s.playlist || []).length : '',
     !!you.song, !!s.envelope, (you.envelopes || []).length, (s.roster || []).filter(id => (state.players || []).some(p => p.id === id)).join(',')].join('|');
 }
 
@@ -545,6 +609,7 @@ function dndPhoneFrame(state) {
           ${podium}
         </div>
         ${renderScoreboard(s.board)}
+        ${dndPlaylistHtml(state)}
         ${typeof roomShareBtnHtml === 'function' ? roomShareBtnHtml(state, s.board) : ''}
         ${dndHostBtns(state)}
         ${renderRoomPlayerStrip(state)}
@@ -780,6 +845,7 @@ function dndAfter(state, el) {
     if ((s.gained || {})[Room.me]) setTimeout(() => haptic('medium'), 500);
   }
   if (s.phase === 'reveal' || s.phase === 'gameover') animateScoreboards(state);
+  if (s.phase === 'gameover') dndPlayingClass(dnd.cur === 'manual' && !!dnd.audio && !dnd.audio.paused);
   if (s.phase === 'gameover' && dndOnce('over|' + roomDealKey(state) + '|' + el.id)) {
     dndStopSound();
     if (dndVoice(state)) dndSound('win');

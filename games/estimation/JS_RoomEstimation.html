@@ -561,7 +561,7 @@ function esRoundFrame(state) {
   return `<div class="es es--round">
       ${esHeadHtml(state)}
       ${esResultHtml(state, s.results, false)}
-      ${next}
+      ${autoNextSlotHtml(state)}${next}
       ${esBoardHtml(state)}
       <button type="button" class="btn btn--ghost btn--sm btn--auto es-sheetbtn" onclick="esToggleSheet()">📋 ${escapeHTML(esT(esLocal.sheetOpen ? 'es_sheet_hide' : 'es_sheet_show'))}</button>
       ${esLocal.sheetOpen ? esSheetHtml(state) : ''}
@@ -722,13 +722,13 @@ ROOM_GAMES.estimation = {
           ${o.turnClock ? `<p class="field__hint">${escapeHTML(esT('es_clock_hint'))}</p>` : ''}
         </div>
         ${hint}
-      </div>`;
+      </div>` + autoNextLobbyHtml(state, 'estimation');
   },
   startPayload() {
     // The computer players that fill the empty seats get names in the host's language.
     const st = Room.state;
     const names = (ROOM_BOT_NAMES[appState.lang] || ROOM_BOT_NAMES.ar).filter(n => !((st && st.players) || []).some(p => samePlayer(p.name, n)));
-    return Object.assign(esOpts(), { botNames: shuffleArray(names.slice()).slice(0, 3) });
+    return Object.assign(esOpts(), { botNames: shuffleArray(names.slice()).slice(0, 3), autoNext: autoNextChoice('estimation') });
   },
   render(state) {
     if (appState.currentView !== 'room-estimation') setView('room-estimation');
@@ -1110,7 +1110,7 @@ TV_GAMES.estimation = {
       const w = s.winners || [];
       const host = over
         ? (state.youAreHost ? `<div class="tv-actions">${tvBtn(t.play_again || '', "esAct(this, 'playAgain', { botNames: ROOM_GAMES.estimation.startPayload().botNames })") + tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}</div>` : '')
-        : roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(esT('es_next_round', { n: (s.round || 0) + 1 }), "esAct(this, 'nextRound')")}</div>`);
+        : autoNextSlotHtml(state) + roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(esT('es_next_round', { n: (s.round || 0) + 1 }), "esAct(this, 'nextRound')")}</div>`);
       return `<div class="es-tvres">
           ${over ? `<div class="tv-big-icon" aria-hidden="true">🏆</div><div class="tv-title tv-center-text">${escapeHTML(w.length > 1
             ? esT('es_won_shared', { names: esNamesList(state, w) })

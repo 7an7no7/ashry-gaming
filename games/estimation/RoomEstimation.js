@@ -41,6 +41,22 @@ const EST_EVENTS = 40;
 const EST_GRACE_MS = 1500;
 const EST_TRICK_PAUSE_MS = 2300;    // a bot leading after a trick waits for it to be seen going to its taker
 
+/*
+ * «التالي لوحده» (the owner's pick of 7 Oct 2026, 933): a lobby switch, off by default -
+ * the host's tap stays the default. With it on, a round's result deals the next round by
+ * itself after EST_AUTONEXT_MS, through the room engine's AUTONEXT_GAMES (RoomGames.js:
+ * the count, «⏸ استنى», the same `nextRound { round }` as the host's button). Registered
+ * here, beside the game's rules; the last round goes to the end by itself, so a count is
+ * never for a final result.
+ */
+const EST_AUTONEXT_MS = 12000;
+AUTONEXT_GAMES.estimation = {
+  action: 'nextRound', deals: false, ms: EST_AUTONEXT_MS,
+  ready: (s) => s.phase === 'roundOver',
+  key: (s) => 'r' + s.round + '.' + s.deal,
+  args: (s) => ({ round: s.round })
+};
+
 const estHere = (room, id) => room.players.some(p => p.id === id);
 const estSeatOf = (s, pid) => (s.seats || []).indexOf(pid);
 

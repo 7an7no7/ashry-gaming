@@ -220,6 +220,29 @@ catalog, the help); the rules are named `hum` / `HUM_`, the page's code
   in the deck, the clock takes the first, a skip before a pick), `leaks.mjs` (each envelope's title
   on the hummer's phone alone; the driver picks), `play-all.mjs` (`hum`).
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **761 «قايمة أغاني السهرة»** (no extra rule asked). At the end every song the game played, in order, with
+  its singer, each with a ▶ that plays its clip again on that phone, and «📸 ابعت القايمة»: a share card (the
+  titles left, the singers right, the winner at the foot; up to 10) and the titles as text for the family group.
+  - Server (`RoomHum.js`): `humReveal` keeps `room._hum.played` (`{ i, token }`, the token the reveal already
+    sent everyone; at most `HUM_PLAYLIST_MAX` 20); `humGameOver` publishes `shared.playlist` [`{ t, s, en, se,
+    token }`] (`humPlaylistOf`) - only revealed songs, no pin. `humSongIndexOf(room, token)` is what `/song`
+    asks now (`Room.songOf` in `rooms-worker/src/room.js`, exported through `rooms-worker/build.mjs`): the song on
+    now, or at the game's end one of its played songs; a token from an earlier round answers nothing while the
+    game is on, and play again drops them.
+  - Page (`JS_RoomHum.html`): `dndPlaylistHtml` on the phone's end screen (none on the TV: it plays no songs),
+    `dndPlaylistTap(i)` → `dndPlayToken(token)` (the old `dndPlayTap`'s body, now shared), the playing row shows ■
+    (`dndPlayingClass`, `dnd.plAt`), `dndSharePlaylist` (`shareResultCard`, rows `{ name: title, value: singer }`).
+    Words `dnd_pl_title`, `dnd_pl_share`, `dnd_pl_play`; styles `.dnd-pl*` (Style_Talk, beside `.dnd-over`); a
+    line in the rules.
+  - Chosen: the playlist is this game's songs (a game is the night's set; a second game makes a new list), the
+    skipped ones included (they were shown); the share card is a separate button from the results card.
+  - Tests: `rules.mjs` («hum playlist»: five songs in order with singers and tokens, each token answers its song
+    at the end, an older token nothing during play, no pin on the table, play again drops them), `play-all.mjs`
+    (`hum`: «سمّع» skipped through to the end, the playlist on every phone and the TV's state, a song streamed
+    again by its token, a wrong one 404).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

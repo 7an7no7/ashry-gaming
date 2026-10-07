@@ -239,6 +239,7 @@ gameText({
                 <li>كل واحد جنبه <b>خد / طلب</b> (3/5)، و<b>👀 آخر لمّة</b> توريك آخر لمّة راحت لمين.</li>
                 <li>الكراسي الفاضية بيقعد عليها <b>الكمبيوتر</b> (سهل أو صعب): بيطلب على قد ورقه وبيلعب عشان يجيب طلبه، ومابيشوفش ورق حد. ولو حد خرج، الكمبيوتر بيكمّل مكانه.</li>
                 <li>وقت الدور (30 أو 60 ثانية) لو المضيف حطه، والمضيف يقدر يلعب بدل حد موبايله فصل.</li>
+                <li><b>التالي لوحده</b> (مقفول من الأول): لو المضيف فتحه، الجولة الجاية بتتوزع لوحدها بعد 12 ثانية من النتيجة، وأي حد يقدر يدوس «⏸ استنى».</li>
             </ul>
             <p class="help-sub">📺 على التلفزيون</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -275,6 +276,7 @@ gameText({
                 <li>Every seat shows <b>took / called</b> (3/5), and <b>👀 Last trick</b> shows the last trick and who took it.</li>
                 <li><b>Computer players</b> (easy or hard) take the empty seats: they call what their hand looks good for and play to make it, and never see anyone's cards. If someone leaves, a computer player takes their seat.</li>
                 <li>A turn clock (30 or 60 seconds) if the host sets one, and the host can play for a phone that dropped.</li>
+                <li><b>Next by itself</b> (off unless the host turns it on): the next round is dealt 12 seconds after a round's result, and «⏸ Wait» stops the count.</li>
             </ul>
             <p class="help-sub">📺 On the TV</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

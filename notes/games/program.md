@@ -286,6 +286,27 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
   keeping the kept options, the new first game dealt with them, not while a game is played, one
   removed after a game), `play-all.mjs` (`program`: an edit while paused, the count going on).
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **780 «السهرة بالأرقام»** (no extra rule asked). Before the champion the finale counts the night up:
+  «🎮 ٥ ألعاب · ⏱️ ساعة و٢٠ دقيقة · ❓ ٤٧ سؤال · 🔔 ٣٠ ضغطة على الجرس · 🤥 ١٢ كدبة في كدّاب · 🎳 ٣ سترايك».
+  - Server (`RoomProgram.js`): `room._progLog.n` (`programCountsNew`, `programCount`): `questions` (each room
+    trivia question reaching its results, key `tqn…`; each buzzer question the host marks right with a press in),
+    `presses` (every press on الجرس, once per player and question, key `bp…`), `fibs` (lies told in كدّاب, counted
+    in `programLogEnd` once that game is over - until then an uncalled lie is a secret), `knocks` (bowling strikes,
+    at the game's end). `programFinish` puts them in `final.stats` (`programStatsOf`) beside `games` and
+    `minutes`. The names avoid the log's own (`buzz`, `lies`, `strikes`…), which the leak probe looks for in the
+    public program.
+  - Page (`JS_RoomProgram.html`): `progStatsHtml` (a zero is left out; the time as minutes, «ساعة» or «ساعة و…
+    دقيقة»), drawn under the title (which then says «السهرة بالأرقام» instead of repeating the games and the
+    minutes) and above the champion, on the phones and the TV; `progAfter` counts each number up once, one after
+    another (`countUp`, 260 ms apart), and the champion comes in after them (`.prog-fresh .prog-stats ~
+    .prog-champ`, 1.5 s). Words `prog_stats_title`, `prog_st_*`; styles `.prog-stats`, `.prog-stat` (Style_Night);
+    the rules' finale line.
+  - Chosen: no "laughs on the buzzer" (nothing measures a laugh); the counts are what the program already
+    watches - other games add nothing yet.
+  - Tests: `rules.mjs` («program numbers»: the buzzer's 10 judged questions and 20 presses).
+
 ## Not done
 
 - The program's awards as crew titles (the crew reads and shows them; they don't count

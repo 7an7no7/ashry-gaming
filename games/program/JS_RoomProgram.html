@@ -573,10 +573,34 @@ function progAwardText(a, t) {
   };
 }
 
+/*
+ * «السهرة بالأرقام» (the owner's pick of 7 Oct 2026, 780): before the champion the finale counts
+ * the night up - the games, the time, then what the server's log saw (final.stats: questions,
+ * buzzer presses, lies told, strikes), a zero left out. Each number is a .metric the finale counts
+ * up once (progAfter, countUp), one after another; the champion comes in after them.
+ */
+function progStatsHtml(f, t) {
+  const num = (n) => `<b class="metric" data-prog-n="${Number(n) || 0}">${Number(n) || 0}</b>`;
+  const fill = (key, map) => progFill(escapeHTML(t[key] || ''), map);
+  const items = [];
+  if (f.games) items.push(['🎮', fill('prog_st_games', { n: num(f.games) })]);
+  const mins = Number(f.minutes) || 0;
+  if (mins) {
+    const h = Math.floor(mins / 60), m = mins % 60;
+    items.push(['⏱️', h ? (m ? fill('prog_st_hm', { h: num(h), m: num(m) }) : fill('prog_st_h', { h: num(h) })) : fill('prog_st_min', { m: num(m) })]);
+  }
+  const st = f.stats || {};
+  [['questions', '❓'], ['presses', '🔔'], ['fibs', '🤥'], ['knocks', '🎳']].forEach(([k, icon]) => { if (st[k] > 0) items.push([icon, fill('prog_st_' + k, { n: num(st[k]) })]); });
+  if (!items.length) return '';
+  return `<div class="prog-stats" aria-label="${escapeHTML(t.prog_stats_title || '')}">${items.map((x, i) =>
+    `<span class="prog-stat" style="--i:${i}"><span aria-hidden="true">${x[0]}</span> <span>${x[1]}</span></span>`).join('<span class="prog-stat__dot" aria-hidden="true">·</span>')}</div>`;
+}
+
 function progFinalHtml(state, t, tv) {
   const p = state.program;
   const f = p.final || { table: [], champions: [], awards: [], games: 0, minutes: 0 };
   const champs = (f.champions || []).map(id => (f.table.find(r => r.id === id) || {}).name).filter(Boolean);
+  const stats = progStatsHtml(f, t);
   const board = (f.table || []).map(r => ({ id: r.id, name: r.name, score: r.pts }));
   const podium = typeof renderPodium === 'function' ? renderPodium(state, board) : '';
   const awards = (f.awards || []).map((a, i) => {
@@ -600,7 +624,8 @@ function progFinalHtml(state, t, tv) {
     : '';
   return `
     <div class="prog prog--final ${tv ? 'prog--tv' : ''}" data-accent="amber">
-      <div class="prog-fin-title">✨ ${escapeHTML(progFill(t.prog_fin_title || '', { n: f.games || 0, m: f.minutes || 0 }))} ✨</div>
+      <div class="prog-fin-title">✨ ${escapeHTML(stats ? (t.prog_stats_title || '') : progFill(t.prog_fin_title || '', { n: f.games || 0, m: f.minutes || 0 }))} ✨</div>
+      ${stats}
       <div class="prog-champ">${champs.length ? `<span aria-hidden="true">👑</span> ${escapeHTML(progFill(champs.length > 1 ? (t.prog_champs || '') : (t.prog_champ || ''), { name: champs.join(t.prog_and || ' & ') }))}` : escapeHTML(t.prog_no_champ || '')}</div>
       ${podium ? `<div class="prog-podium">${podium}</div>` : ''}
       ${awards ? `<div class="prog-awards">${awards}</div>` : ''}
@@ -653,6 +678,13 @@ function progAfter(el, state, tv) {
     });
   }
   if (p.phase === 'final') {
+    // «السهرة بالأرقام»: the numbers count up one after another, once (on a reload they stand).
+    el.querySelectorAll('[data-prog-n]').forEach((b, i) => {
+      const to = Number(b.dataset.progN) || 0;
+      if (!fresh || !to || motionOff() || typeof countUp !== 'function') { b.textContent = String(to); return; }
+      b.textContent = '0';
+      setTimeout(() => { if (b.isConnected) countUp(b, 0, to); }, 250 + i * 260);
+    });
     const box = el.querySelector('.prog--final');
     if (fresh && box && typeof confetti === 'function' && (tv || !(typeof roomHasScreen === 'function' && roomHasScreen()))) {
       afterReveal(box, () => confetti({ particleCount: 180, spread: 90, origin: { y: 0.6 } }));

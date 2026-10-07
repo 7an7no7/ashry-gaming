@@ -145,6 +145,7 @@ const gwDeal = (room) => {
   s.q = null;
   s.log = [];
   s.reveal = null;
+  s.asks = null;
   s.result = null;
   s.turn = 0;
   s.stage = null;
@@ -152,7 +153,7 @@ const gwDeal = (room) => {
   s.propose = null;
   s.roster = duelHere(room);
   s.turnSeq = (s.turnSeq || 0) + 1;
-  room._gw = { secret: [null, null], propose: null };
+  room._gw = { secret: [null, null], propose: null, asks: [[], []] };
   if (s.settings.pick === 'choose') {
     s.phase = 'pick';
     room.phase = 'play';
@@ -167,9 +168,44 @@ const gwDeal = (room) => {
   gwWriteSecrets(room);
 };
 
+/*
+ * «أحسن سؤال» (the owner's pick of 7 Oct 2026, 845): every answered question of a game, with how
+ * many faces the asker put down on it (counted when the turn moves on: faces down now that weren't
+ * when the answer came, one put back up taking one off). Kept in room._gw.asks by seat while the
+ * game is on (the questions are public already, the counts only matter at the end) and published
+ * at the end as shared.asks [seat 0's, seat 1's]: [{ kind, text, answer, n }]; the TV replays the
+ * winner's and crowns the one that put down the most.
+ */
+const GW_ASKS_MAX = 40;
+const gwAskOpen = (room, seat, q, yes) => {
+  const g = room._gw;
+  if (!g) return;
+  g.asks = g.asks || [[], []];
+  const list = g.asks[seat] || (g.asks[seat] = []);
+  if (list.length >= GW_ASKS_MAX) return;
+  list.push({ kind: q.kind === 'typed' ? 'typed' : 'loud', text: q.kind === 'typed' ? (q.text || '') : '', answer: !!yes,
+    before: (room.shared.down[seat] || []).slice(), n: null });
+};
+/** The asker's turn moves on (or the game ends) while they were putting faces down: count them. */
+const gwAskClose = (room) => {
+  const s = room.shared;
+  const g = room._gw;
+  if (!g || !g.asks || s.stage !== 'flip' || typeof s.turn !== 'number') return;
+  const list = g.asks[s.turn] || [];
+  const last = list[list.length - 1];
+  if (!last || last.n !== null) return;
+  last.n = (s.down[s.turn] || []).filter(i => last.before.indexOf(i) === -1).length;
+};
+const gwAsksPublish = (room) => {
+  const g = room._gw || {};
+  room.shared.asks = [0, 1].map(k => ((g.asks || [])[k] || []).map(a => ({ kind: a.kind, text: a.text, answer: a.answer, n: a.n === null ? 0 : a.n })));
+};
+
 /** The game is over: the duel's line moves on, and both faces are shown. */
 const gwEnd = (room, winner, reason) => {
   const s = room.shared;
+  gwAskClose(room);
+  gwAsksPublish(room);
   gwDropPropose(room);
   if (gwTeamsOn(s)) gwTeamEnd(room, winner, reason); else duelEnd(room, winner, reason);
   s.stage = null;
@@ -179,6 +215,7 @@ const gwEnd = (room, winner, reason) => {
 
 const gwNextTurn = (room) => {
   const s = room.shared;
+  gwAskClose(room);
   gwDropPropose(room);
   s.turn = 1 - s.turn;
   s.stage = 'ask';
@@ -204,6 +241,7 @@ const gwTakeAnswer = (room, yes, by) => {
   const entry = q.kind === 'typed' ? { seat: q.seat, kind: 'typed', text: q.text, answer: yes } : { seat: q.seat, kind: 'loud', answer: yes };
   if (gwTeamsOn(s)) { entry.by = q.by; entry.byName = q.byName; }
   gwLog(s, entry);
+  gwAskOpen(room, s.turn, q, yes);
   s.stage = 'flip';
   s.turnSeq = (s.turnSeq || 0) + 1;
   room._gwUndo.turnSeq = s.turnSeq;
@@ -221,6 +259,9 @@ const gwUnanswer = (room) => {
   const u = room._gwUndo;
   room._gwUndo = null;
   s.down[s.turn] = u.down.slice();
+  // «غلطت»: the answer taken back takes its question out of «أحسن سؤال» too.
+  const asks = room._gw && room._gw.asks && room._gw.asks[s.turn];
+  if (asks && asks.length && asks[asks.length - 1].n === null) asks.pop();
   const log = (s.log || []).slice();
   if (log.length && (log[log.length - 1].kind === 'loud' || log[log.length - 1].kind === 'typed')) log.pop();
   s.log = log;

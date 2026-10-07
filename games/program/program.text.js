@@ -60,6 +60,15 @@ gameText({
       prog_close: "خلّصنا",
       prog_fin_title: "خلصت السهرة · {n} ألعاب في {m} دقيقة",
       prog_champ: "بطل الليلة: {name}",
+      prog_stats_title: "السهرة بالأرقام",
+      prog_st_games: "{n} ألعاب",
+      prog_st_min: "{m} دقيقة",
+      prog_st_hm: "{h} ساعة و{m} دقيقة",
+      prog_st_h: "{h} ساعة",
+      prog_st_questions: "{n} سؤال",
+      prog_st_presses: "{n} ضغطة على الجرس",
+      prog_st_fibs: "{n} كدبة في كدّاب",
+      prog_st_knocks: "{n} سترايك",
       prog_champs: "أبطال الليلة: {name}",
       prog_and: " و",
       prog_no_champ: "محدش كمّل لعبة للآخر",
@@ -122,6 +131,15 @@ gameText({
       prog_close: "We're done",
       prog_fin_title: "That's the night · {n} games in {m} min",
       prog_champ: "Champion of the night: {name}",
+      prog_stats_title: "The night in numbers",
+      prog_st_games: "{n} games",
+      prog_st_min: "{m} min",
+      prog_st_hm: "{h} h {m} min",
+      prog_st_h: "{h} h",
+      prog_st_questions: "{n} questions",
+      prog_st_presses: "{n} buzzer presses",
+      prog_st_fibs: "{n} lies in Doubt",
+      prog_st_knocks: "{n} strikes",
       prog_champs: "Champions of the night: {name}",
       prog_and: " & ",
       prog_no_champ: "Nobody finished a game",
@@ -136,7 +154,7 @@ gameText({
                 <li>أول ما يبدأ، الكل يشوف برنامج الليلة، وبعدين أول لعبة تبدأ لوحدها.</li>
                 <li>لما لعبة تخلص، نتيجتها تفضل شوية، وبعدين <b>الترتيب لحد دلوقتي</b> حوالي 10 ثواني جنب اللعبة الجاية وعداد، واللعبة الجاية تبدأ لوحدها.</li>
                 <li>النقط بالمراكز مش بنقط كل لعبة: الأول 5، التاني 3، التالت 2، وأي حد لعب 1. اللي متعادلين ياخدوا نقط المركز كلهم. في الألعاب الجماعية (العقل، الحقوا!، الأوضة المضلمة، حط إيدك!…) كل اللي لعب ياخد زي بعض.</li>
-                <li>في الآخر: <b>بطل الليلة</b> على البوديوم، وجوايز من اللي حصل فعلاً في السهرة، وصورة للسهرة تبعتها.</li>
+                <li>في الآخر: <b>السهرة بالأرقام</b> (كام لعبة، قد إيه وقت، كام سؤال، كام ضغطة على الجرس…)، وبعدها <b>بطل الليلة</b> على البوديوم، وجوايز من اللي حصل فعلاً في السهرة، وصورة للسهرة تبعتها.</li>
             </ol>
             <p class="help-sub">👑 المضيف</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
@@ -154,7 +172,7 @@ gameText({
                 <li>Once it starts, everyone sees tonight's line-up, then the first game starts by itself.</li>
                 <li>When a game ends its result stays up a moment, then <b>the table so far</b> shows for about 10 seconds beside the next game and a countdown, and the next game starts by itself.</li>
                 <li>Points go by place, not each game's own score: 1st 5, 2nd 3, 3rd 2, anyone who played 1. Tied players all take the place's points. In a co-op game (The Mind, Panic Stations!, The Dark Room, Hands Down!…) everyone who played gets the same.</li>
-                <li>At the end: <b>the champion of the night</b> on the podium, awards for what really happened tonight, and a picture of the night to send.</li>
+                <li>At the end: <b>the night in numbers</b> (how many games, how long, how many questions, buzzer presses…), then <b>the champion of the night</b> on the podium, awards for what really happened tonight, and a picture of the night to send.</li>
             </ol>
             <p class="help-sub">👑 The host</p>
             <ul class="list-disc list-inside space-y-1 text-xs">

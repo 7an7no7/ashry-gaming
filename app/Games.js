@@ -99,7 +99,7 @@ const GAME_LIST = [
   { id: 'doubt',      icon: 'art:doubt', title: 'setup_doubt',      desc: 'cat_doubt',      accent: 'violet', players: [1, 12], mins: 15, modes: ['room', 'tv'],           group: 'table', room: { min: 1 }, crew: 'liar' },
   { id: 'skull',      icon: 'art:skull', title: 'setup_skull',      desc: 'cat_skull',      accent: 'rose',   players: [1, 8],  mins: 20, modes: ['room', 'tv'],           group: 'table', room: { min: 1 }, crew: 'liar' },
   { id: 'chess4',     icon: 'art:chess4', title: 'setup_chess4',   desc: 'cat_chess4',     accent: 'green',  players: [1, 4],  mins: 30, modes: ['room', 'tv'],           group: 'duo', hub: 'shatranj', room: { min: 1 }, crew: 'brain' },
-  { id: 'estimation', icon: 'art:estimation', title: 'setup_estimation', desc: 'cat_estimation', accent: 'green',  players: [1, 4],  mins: 45, modes: ['room', 'tv'],           group: 'table', room: { min: 1 }, crew: 'cards' },
+  { id: 'estimation', icon: 'art:estimation', title: 'setup_estimation', desc: 'cat_estimation', accent: 'green',  players: [1, 4],  mins: 45, modes: ['room', 'tv'],           group: 'table', room: { min: 1, autoNext: true }, crew: 'cards' },
   { id: 'oldmaid',    icon: 'art:oldmaid', title: 'setup_oldmaid',  desc: 'cat_oldmaid',    accent: 'amber',  players: [2, 8],  mins: 10, modes: ['room', 'tv'],           group: 'table', room: { min: 2 }, crew: 'cards' },
   // Chess for teams: a board game at the table, on everyone's phone (RoomVoteChess.js, RoomHandBrain.js).
   { id: 'votechess',  icon: 'art:votechess', title: 'setup_votechess', desc: 'cat_votechess', accent: 'indigo', players: [2, 12], mins: 25, modes: ['room', 'tv'],          group: 'duo', hub: 'shatranj', room: { min: 2 }, crew: 'brain' },

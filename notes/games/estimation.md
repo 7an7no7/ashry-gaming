@@ -161,6 +161,20 @@ online still deciding keeps their own answer. A phone on an older page sends no
 everyone. The TV's held frame (a card still flying) now answers with the
 signature it was drawn with, `|hideTrickNo` included, so it really holds.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **933 «التالي لوحده» between rounds** (the owner: a lobby switch, off by default - the host's tap stays the
+  default). With it on, a round's result deals the next round by itself after 12 s with a countdown and
+  «⏸ استنى», the same engine as the party games.
+  - `RoomEstimation.js` registers `AUTONEXT_GAMES.estimation` (`nextRound { round }`, `EST_AUTONEXT_MS` 12 s,
+    ready on `roundOver`, keyed by round and deal); `app/Games.js` gives the entry `autoNext: true` (the two
+    lists must name the same games). The last round goes straight to the end, so a count is never for a final
+    result. Page: `autoNextLobbyHtml(state, 'estimation')` under the options, `autoNext` in `startPayload`, the
+    count's slot (`autoNextSlotHtml`) above «التالي» on the phone and the TV. A line in the rules.
+  - In برنامج السهرة the switch is now on for إستميشن too (the program turns it on for every game that has it).
+  - Tests: `rules.mjs` («estimation next by itself»: off by default, the count, the deal, the host's pause, a
+    stale pause, the host's tap any time).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

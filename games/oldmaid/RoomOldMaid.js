@@ -54,6 +54,8 @@ const OM_MIN = 2;
 const OM_MAX = 8;
 const OM_PAIRS_EACH = 8;
 const OM_ALL_PAIRS = 26;
+// «ش-ا-ي-ب» (the owner's pick of 7 Oct 2026, 917): each loss earns a letter; the fourth crowns «شايب السهرة».
+const OM_WORD_LEN = 4;
 
 /** The pairs dealt for `n` players: about eight each, at most a whole deck's 26. */
 const omPairsFor = (n) => Math.min(OM_ALL_PAIRS, OM_PAIRS_EACH * Math.max(1, n));
@@ -101,10 +103,17 @@ const omNewGame = (room, playerId, action, p) => {
   const was = action === 'playAgain' ? (prev.settings || {}) : {};
   const mode = OM_MODES.indexOf(p.mode) !== -1 ? p.mode : (OM_MODES.indexOf(was.mode) !== -1 ? was.mode : 'drag');
   const clock = OM_CLOCKS.indexOf(Number(p.turnClock)) !== -1 ? Number(p.turnClock) : (OM_CLOCKS.indexOf(Number(was.turnClock)) !== -1 ? Number(was.turnClock) : 0);
+  // «ش-ا-ي-ب»: a lobby switch, on by default (an older phone sends no `word`: on). The letters go on
+  // across play again; a game from the hub (`start`) starts them over, and so does the next game
+  // once someone has spelt the whole word (the evening's match is over).
+  const word = typeof p.word === 'boolean' ? p.word : (action === 'playAgain' ? was.word !== false : true);
+  const keepLetters = word && action === 'playAgain' && prev.letters && !prev.shayeb;
   const order = shuffled(room.players.map(pl => pl.id));
   room.secrets = {};
   room.shared = {
-    settings: { mode: mode, turnClock: clock },
+    settings: { mode: mode, turnClock: clock, word: word },
+    letters: keepLetters ? Object.assign({}, prev.letters) : {},
+    shayeb: null,
     order: order,
     roster: order.slice(),
     // How many times each has been left holding الشايب, across play again.
@@ -236,6 +245,12 @@ const omGameOver = (room, why) => {
   s.ended = loser ? 'lost' : 'left';
   if (loser) {
     s.losses[loser] = (s.losses[loser] || 0) + 1;
+    if (s.settings && s.settings.word) {
+      s.letters = s.letters || {};
+      s.letters[loser] = Math.min(OM_WORD_LEN, (s.letters[loser] || 0) + 1);
+      s.newLetter = loser;
+      if (s.letters[loser] >= OM_WORD_LEN) s.shayeb = { pid: loser, name: roomPlayerName(room, loser) };
+    }
     // Only now is a hand shown: الشايب, turned over in the loser's hand.
     s.reveal = { pid: loser, cards: omHand(room, loser).map(c => c.c) };
   }

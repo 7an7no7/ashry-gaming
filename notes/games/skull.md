@@ -154,6 +154,19 @@ catalog, the help); the rules are named `skull` / `SKULL_`, the page's code
 
 **The end's podium (the audit of 6 Oct 2026)**: won by bets it is the bets podium; won as the last one in (or by everyone else leaving) the winner stands first, the rest by bets (`pcPlacesPodium`). The last-5-seconds tick while laying sounds only on a phone still in with discs.
 
+## The ideas of 7 Oct 2026, second batch (the owner's picks): built
+
+- **925 «Heartbeat flips»** (no extra rule asked). During the flips the TV zooms a little on the piles that can
+  be turned next and a heartbeat plays, faster as the flowers still needed shrink; one beat of silence before the
+  last flip.
+  - TV only, no rule changed (`JS_RoomSkull.html`): `sklBeatSync` from the TV's `after` - the next piles
+    (`sklBeatTargets`: the bidder's own first, then every other pile with a disc still down) get `.is-next` (the
+    pile zooms ×1.14, and beats with the heart), `«💓 فاضل N»` on the table (`sklBeatLeftHtml`, `skl_left_n`);
+    the beat (`FX.sklBeat`, a soft lub-dub) every 1.1 s with 4+ to go, 0.9 s at 3, 0.68 s at 2, and at 1 it stops
+    («🤫 فاضل ١», silence until the last flip). Stopped by any phase change, leaving the TV, `onRoomClocksReset`.
+    Styles beside `skl-turn` (Style_Rooms).
+  - Chosen: the TV only (the room's one voice); the phones are unchanged.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

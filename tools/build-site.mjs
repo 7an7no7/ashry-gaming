@@ -132,10 +132,13 @@ const RUNTIME = `<script>
       // ?install=1 is the "open in Safari" link from the icon banner: the
       // page opens straight onto the add-to-home-screen steps.
       window.OPEN_INSTALL = /[?&]install=1/.test(location.search);
+      // ?open= is a shortcut on the app's icon (manifest.webmanifest, 7 Oct 2026):
+      // join, daily or tonight, opened by initializeApp (JS_Core.html).
+      window.OPEN_SHORTCUT = (location.search.match(/[?&]open=(join|daily|tonight)\\b/) || [])[1] || '';
 
       // A join link has done its job once read; leaving ?room= in the address
-      // would send a reload straight back to the join screen. The same for ?install=.
-      if (/[?&](room|install|crew)=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
+      // would send a reload straight back to the join screen. The same for ?install= and ?open=.
+      if (/[?&](room|install|crew|open)=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
       // /s/CODE («الشلة»'s link) opened as the app itself: back to the app's own address.
       if (/\\/s\\/[A-Za-z]{6}\\/?$/.test(location.pathname)) history.replaceState(null, '', location.pathname.replace(/s\\/[A-Za-z]{6}\\/?$/, '') + location.hash);
       // /r/CODE opened as the app itself (an older offline copy answers it): back to the app's own address.
@@ -360,11 +363,12 @@ await writeFile(path.join(out, 'sw.js'), SW, 'utf8');
   console.log(`docs/og/: ${og.files} files, ${(og.bytes / 1024).toFixed(0)} KB` + (og.skipped.length ? ` (the app's picture for ${og.skipped.join(', ')})` : ''));
 }
 
-// The manifest is written by hand, but its icon addresses carry the version.
+// The manifest is written by hand, but its icon addresses carry the version
+// (the shortcuts' icons too: a long press on the app's icon, 7 Oct 2026).
 const manifestPath = path.join(out, 'manifest.webmanifest');
 if (existsSync(manifestPath)) {
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-  (manifest.icons || []).forEach((icon) => { icon.src = icon.src.replace(/\?v=\d+$/, '') + V; });
+  (manifest.icons || []).concat(...(manifest.shortcuts || []).map((s) => s.icons || [])).forEach((icon) => { icon.src = icon.src.replace(/\?v=\d+$/, '') + V; });
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 }
 // GitHub Pages runs Jekyll otherwise, which skips files and slows the build.

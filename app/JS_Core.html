@@ -1111,16 +1111,55 @@
         // Just opened (it was hidden): its rows rise under the spring (JS_Motion.html).
         if (/(^|\s)hidden(\s|$)/.test(r.oldValue || '') && typeof motionRiseModal === 'function') motionRiseModal(overlay);
       });
+      syncModalInert();
       navSoon();   // back closes an open popup (an entry of its own)
     });
-    document.querySelectorAll('.modal-overlay').forEach(el => {
+    modalWatch = (el) => {
       if (el.parentElement !== document.body) document.body.appendChild(el);
       tintOnOpen.observe(el, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
-      // Said as a dialog to a screen reader (no focus trap: the owner's call, 30 Sep 2026).
+      // Said as a dialog to a screen reader.
       const content = el.querySelector('.modal-content');
       if (content) { content.setAttribute('role', 'dialog'); content.setAttribute('aria-modal', 'true'); }
       labelModal(el);
-    });
+    };
+    document.querySelectorAll('.modal-overlay').forEach(modalWatch);
+  }
+  /** Hoists and watches a popup added after start-up (a game's chunk brings its own). */
+  let modalWatch = () => {};
+
+  /* A popup shuts the page behind it (the owner's pick C3, 7 Oct 2026, in place of
+     the 30 Sep call of no focus trap): while one is open the shell is `inert`, so
+     Tab on a laptop hosting a room stays in the popup and VoiceOver reads only it;
+     of popups stacked (a confirm over Settings) only the top one is live. Focus
+     goes to the popup when it opens and back to what opened it when the last one
+     closes. Worked out from the page each time, never kept: a stale `inert` would
+     leave the whole app dead to taps, so closeModal and closeAllModals run it too. */
+  let modalOpener = null;
+  function syncModalInert() {
+    const shell = document.querySelector('.shell');
+    if (!shell) return;
+    const open = [...document.querySelectorAll('.modal-overlay:not(.hidden)')];
+    const top = open.length ? topModal() : null;
+    if (top && !shell.inert) {
+      const a = document.activeElement;
+      modalOpener = a && a !== document.body && !top.contains(a) ? a : null;
+    }
+    shell.inert = !!top;
+    open.forEach(o => { o.inert = o !== top; });
+    document.querySelectorAll('.modal-overlay.hidden').forEach(o => { if (o.inert) o.inert = false; });
+    if (top) {
+      if (!top.contains(document.activeElement)) {
+        const content = top.querySelector('.modal-content') || top;
+        if (!content.hasAttribute('tabindex')) content.setAttribute('tabindex', '-1');
+        try { content.focus({ preventScroll: true }); } catch (e) {}
+      }
+    } else if (modalOpener) {
+      const back = modalOpener;
+      modalOpener = null;
+      if (back.isConnected && back.offsetParent !== null && (document.activeElement === document.body || !document.activeElement)) {
+        try { back.focus({ preventScroll: true }); } catch (e) {}
+      }
+    }
   }
 
   /** A popup is named by its title: some are filled in when they open (the exit sheet),
@@ -1506,6 +1545,18 @@
     // The "open in Safari" link from that banner lands on the install steps.
     if ((window.OPEN_INSTALL || /[?&]install=1/.test(location.search)) && typeof showInstallHelp === 'function') {
         setTimeout(showInstallHelp, 700);
+    }
+    // A shortcut on the app's icon (a long press: «ادخل غرفة», «تحدي اليوم»,
+    // «الليلة دي؟»; manifest.webmanifest, the owner's pick F1 of 7 Oct 2026). The
+    // build reads ?open= and takes it off the address; the preview has no build
+    // script, so the address is read here too.
+    const shortcut = window.OPEN_SHORTCUT || (location.search.match(/[?&]open=(join|daily|tonight)\b/) || [])[1] || '';
+    if (shortcut) {
+        setTimeout(() => {
+            if (shortcut === 'join' && typeof roomOpenJoin === 'function') roomOpenJoin('');
+            else if (shortcut === 'daily') setView('setup-daily');
+            else if (shortcut === 'tonight' && typeof tonightOpen === 'function') { setView('menu'); tonightOpen(); }
+        }, 700);
     }
 
     
@@ -3492,6 +3543,7 @@
 
   function closeAllModals() {
       document.querySelectorAll('.modal-overlay').forEach(el => { modalExitGhost(el); el.classList.add('hidden'); });
+      syncModalInert();
       resumeClocksAfterSheet();
       // setView() closes everything, so the help nav item has to be released
       // here too or it stays lit after navigating away.
@@ -3508,6 +3560,7 @@
     }
     const el = document.getElementById(id);
     if (el) { modalExitGhost(el); el.classList.add('hidden'); }
+    syncModalInert();
     if (id === 'exit-modal' || id === 'help-modal') resumeClocksAfterSheet();
     // ربع قرد's swap cancelled: its turn clock was paused for it (openSwitchModal).
     if ((id === 'switch-modal' || id === 'switch-confirm-modal') && typeof monkeySwapClosed === 'function') setTimeout(monkeySwapClosed, 0);

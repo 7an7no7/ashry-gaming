@@ -243,4 +243,46 @@ function lzBootFail(id) {
     }
   } catch (e) {}
 }
+/* ----------------------------------------------------------------------------
+   Fetched on the touch (the owner's pick B3, 7 Oct 2026). A card asks for its
+   chunk on the tap, which fires when the finger lifts; the 100-300 ms between
+   press and release is most of the wait on a first open over mobile data. So a
+   finger going down on a card (or a mouse resting on one for a moment) starts
+   the download - a plain fetch, which only fills the cache: nothing runs until
+   the tap's door inserts the script, so a touch that turns into a scroll costs
+   a download and nothing else. A build that has installed its offline copy
+   already holds every chunk (the worker fetches them all), and then this does
+   nothing that costs anything.
+   ------------------------------------------------------------------------- */
+var lzPrefetched = {};
+function lzPrefetch(ids) {
+  if (!LZ || typeof fetch !== 'function') return;
+  lzClosure(ids).forEach(function (id) {
+    if (lz.loaded[id] || lz.loading[id] || lzPrefetched[id] || !LZ.chunks[id]) return;
+    lzPrefetched[id] = true;
+    try {
+      fetch(LZ.base + LZ.chunks[id].f, { priority: 'low', credentials: 'same-origin' })
+        .catch(function () { delete lzPrefetched[id]; });
+    } catch (e) { delete lzPrefetched[id]; }
+  });
+}
+/** The chunks a pressed element would open: a card of the home, «الليلة دي؟»'s pick, a room's game tile. */
+function lzChunksOfPress(el) {
+  var hit = el && el.closest && el.closest('[onclick]');
+  var call = hit && hit.getAttribute('onclick') || '';
+  var m = call.match(/^(catalogOpen|catalogQuickStart|tonightGo|roomPickGame)\('([\w-]+)'/);
+  if (!m) return [];
+  return m[1] === 'roomPickGame' ? lzChunksOfRoom(m[2]) : lzChunksOfGame(m[2]);
+}
+(function () {
+  if (!LZ) return;
+  document.addEventListener('pointerdown', function (e) { lzPrefetch(lzChunksOfPress(e.target)); }, { capture: true, passive: true });
+  var hoverTimer = null;
+  document.addEventListener('pointerover', function (e) {
+    if (e.pointerType !== 'mouse') return;
+    clearTimeout(hoverTimer);
+    var ids = lzChunksOfPress(e.target);
+    if (ids.length) hoverTimer = setTimeout(function () { lzPrefetch(ids); }, 150);
+  }, { passive: true });
+})();
 </script>

@@ -3,7 +3,7 @@
  * robot that says when something broke"). The workflow runs four things, each into a file in
  * WEEKLY_DIR, and this reads them and writes WEEKLY_DIR/report.md in plain words:
  *
- *   robots.log    npm run test:live (rooms-worker/): the robot players against the live rooms server
+ *   robots.log    npm run test:live:full (rooms-worker/): the robot players against the live rooms server
  *   robots.json   its --failed-out: the segments still failing after a second run, and the flaky ones
  *   live.log      npm run check:live: both addresses serve the build in master, the rooms server runs its rules
  *   songs.log     npm run check:songs -- --play: دندنها's songs all still play, Apple's saved addresses current
@@ -55,7 +55,7 @@ const block = (lines) => '```\n' + clip(lines).join('\n') + '\n```';
   if (outcome === 'success') sections.push(`### ✓ The robot players on the live rooms server\n\n${total || 'All passed.'}${flakyNote}`);
   else {
     problems.push(ran(outcome) ? 'the robot players failed on the live rooms server' : 'the robot players did not run');
-    sections.push(`### ✗ The robot players on the live rooms server (\`cd rooms-worker && npm run test:live\`)\n\n` +
+    sections.push(`### ✗ The robot players on the live rooms server (\`cd rooms-worker && npm run test:live:full\`)\n\n` +
       (ran(outcome) ? `${total || 'The run ended without its count.'}\n\n${failedList.length ? block(failedList) + '\n\nThese failed twice (the second time played alone).' : block(log.trim().split('\n').slice(-15))}` : 'Did not run (an earlier step of the workflow failed).') +
       flakyNote);
   }

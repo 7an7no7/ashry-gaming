@@ -330,9 +330,10 @@ const PACK_API = new Set(['/pack/create', '/pack/get', '/pack/answer', '/pack/sa
    never the body. Limited per address like /create: a person sends a few times and
    reads a few times; a script trying codes (32^6 of them) gets nowhere at 60 tries
    in 10 minutes. */
-// A phone sends once per tap: 4 an hour per address, and every address together has a daily
-// budget kept in one MoveStore (spend, move.js), so storage and writes stay bounded (audit 7 Oct 2026, S2).
-const movePutAllowed = limiter(4, 60 * 60 * 1000);
+// A phone sends once per tap: 12 good sends an hour per address (a refused shape or size doesn't
+// count; the robots send a few each run), and every address together has a daily budget kept in
+// one MoveStore (spend, move.js), so storage and writes stay bounded (audit 7 Oct 2026, S2).
+const movePutAllowed = limiter(12, 60 * 60 * 1000);
 const moveGetAllowed = limiter(60, 10 * 60 * 1000);
 const moveStub = (env, code) => env.MOVES.get(env.MOVES.idFromName('move:' + code));
 const MOVE_API = new Set(['/move/put', '/move/get', '/move/drop']);
@@ -365,11 +366,11 @@ const moveShapeOk = (data) => {
 async function handleMove(env, request, path, body) {
   if (!env.MOVES) return { ok: false, error: 'server' };
   if (path === '/move/put') {
-    if (!movePutAllowed(request)) return { ok: false, error: 'busy' };
     if (!moveShapeOk(body.data)) return { ok: false, error: 'bad' };
     const text = JSON.stringify(body.data);
     const bytes = new TextEncoder().encode(text).length;
     if (bytes > MOVE_MAX_BYTES) return { ok: false, error: 'too_big' };
+    if (!movePutAllowed(request)) return { ok: false, error: 'busy' };
     const budget = await env.MOVES.get(env.MOVES.idFromName('move-budget')).spend(bytes);
     if (!budget || !budget.ok) return { ok: false, error: 'busy' };
     const key = randomOf('abcdefghijkmnopqrstuvwxyz23456789', 24);

@@ -314,7 +314,11 @@ npm run check        # content + i18n
 - `npm test` in `rooms-worker/` (with `npm run dev` running) plays every room
   game with robot players, in segments side by side: turns, votes, scores, that secrets never reach the
   wrong phone, reconnects, the server's clocks and the shared prompt memory.
-  `npm run test:live` runs the same against the deployed server.
+  `npm run test:live:full` runs the same against the deployed server (about 10
+  minutes); `npm run test:live` is the short check after a rooms deploy (7 Oct
+  2026, about 2 minutes: a smoke set plus the segments of what changed since
+  origin/master, `rooms-worker/test/live-smoke.mjs`). How much to test for a
+  change is in CLAUDE.md, step 4.
 - `npm run test:rules` in `rooms-worker/` checks the trivia scoring and question
   count straight against `RoomGames.js`, no server needed, and then runs the
   **leak check** (`test/leaks.mjs`, about a second): every room game is played
@@ -395,7 +399,7 @@ npm run check        # content + i18n
   deal that never brings up what it checks) makes the ✗ mean nothing, so such
   a test is made to wait for its case.
 - **The weekly check and the monthly plays** (7 Oct 2026, `notes/tests-docs.md`):
-  `.github/workflows/weekly-check.yml` (Mondays) runs `test:live`, `check:live`,
+  `.github/workflows/weekly-check.yml` (Mondays) runs `test:live:full`, `check:live`,
   `check:songs -- --play` and reads the week's new errors from phones, and
   opens, updates or closes the issue labelled `weekly-check`;
   `monthly-plays.yml` (the 1st) opens «What was played in YYYY-MM»

@@ -123,4 +123,4 @@ Chrome and Safari decide by themselves, Firefox asks in its own bar.
 Trap met: `wrangler dev` did not reload after `node build.mjs` rewrote
 `generated/rules.js` (the old cap answered); restart it after a rebuild.
 
-Limits (audit 7 Oct 2026, S2/S5): /move/put is 4 an hour per address, and every address together has a daily budget of 1000 sends or 200 MB (one MoveStore, `move-budget`, `spend` in rooms-worker/src/move.js), answered `busy`; bodies are read with a running byte cap (`readCapped`), so a body with no Content-Length is cut off at the limit.
+Limits (audit 7 Oct 2026, S2/S5): /move/put is 12 good sends an hour per address (a refused shape or size does not count), and every address together has a daily budget of 1000 sends or 200 MB (one MoveStore, `move-budget`, `spend` in rooms-worker/src/move.js), answered `busy`; bodies are read with a running byte cap (`readCapped`), so a body with no Content-Length is cut off at the limit.

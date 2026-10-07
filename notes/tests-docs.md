@@ -168,7 +168,7 @@ time*). The times are expected, not measured: the first runs on GitHub will say.
 
 Looks only at what is live, about 10 minutes:
 
-1. `npm run test:live -- --retry --failed-out=robots.json` in `rooms-worker/` (the robots
+1. `npm run test:live:full -- --retry --failed-out=robots.json` in `rooms-worker/` (the robots
    against the live rooms server; a segment that passes only the second time is a note in
    the report, not a failure);
 2. `npm run check:live` in `tools/` (both addresses serve the build in master, the rooms

@@ -67,8 +67,27 @@ each game's full spec and how it is built is in `notes/games/<id>.md`, the log i
    declared twice, or used and never declared). Must pass.
 4. Touched anything rooms run (`Games.js`, `RoomGames.js`, any `Room*.js`, any word list the server
    bundles - the `FILES` in `rooms-worker/build.mjs` - or `rooms-worker/src/`)?
-   `cd rooms-worker && npm run test:rules`, then, with `npm run dev` running,
-   `npm test`. Every check must pass.
+   `cd rooms-worker && npm run test:rules` (about a minute, the leak check
+   included: always). The robots (`npm test`, with `npm run dev` running) go by
+   the size of the change below. Every check must pass.
+
+   **How much to test** (the owner, 7 Oct 2026: a release took 25-30 minutes of
+   tests because the long suites ran three times - here, on the live server,
+   and on GitHub). The tests cost no Claude tokens, only time; read only their
+   last lines. Screenshots and browser clicks do cost tokens: look in the
+   browser where something is *seen* to change.
+   - **Notes, docs, comments only:** `npm run check`. Nothing else.
+   - **Small** (one game or screen, a text, a look, a rule): `check`,
+     `test:rules` if step 4 applies, then `cd tools && npm run test:changed`
+     (only the robot segments and screen-test parts those files need), and the
+     browser look for what is seen. A few minutes.
+   - **Medium** (a few games, a shared helper): the same, then release, and let
+     GitHub's run after the push (robots and screen test, about 10 minutes, on
+     GitHub's machines) be the full check; a ✗ there is fixed in a new push.
+   - **Big release** (an audit's fixes, a new game, the room engine:
+     `RoomGames.js`, `rooms/JS_Room*.html`, `rooms-worker/src/`): the full
+     `npm test` and `npm run test:ui` here before releasing, one after the
+     other, never together (see 5).
 5. **The screen test**: with `npm run dev` running in `rooms-worker/`,
    `cd tools && npm run test:ui` (every screen at three sizes, every room game on
    five phones and a TV, the offline copy and its updates; about 4 minutes in
@@ -93,7 +112,14 @@ each game's full spec and how it is built is in `notes/games/<id>.md`, the log i
    rule needs its text in `GAME_RULES`, `HELP_ENTRIES` and `HELP_FOR_VIEW`.
 6. `cd tools && npm run build:site`.
 7. If step 4 applied: `cd rooms-worker && npm run deploy`, wait about a minute
-   (a deploy restarts every room), then `npm run test:live`. Always:
+   (a deploy restarts every room), then `npm run test:live` - before the push,
+   so it knows what changed since the last release: the short live check
+   (about 2 minutes: errors, the move code, the core room games, a leaver, a
+   host away, faces, the crew, plus the segments of the games changed since
+   origin/master; `-- --dry` shows them). It proves the deploy works; the full
+   robots already ran here or run on GitHub. `npm run test:live:full` (about
+   10 minutes) only for a big release or a problem seen live; the weekly check
+   runs it every Monday. Always:
    `cd tools && npm run deploy:site` - the app's second address on Cloudflare
    (https://play.3ashry.workers.dev), the same `docs/`; it restarts
    nothing.
@@ -126,5 +152,6 @@ cd rooms-worker && npm run dev      # local rooms server on :8787
 cd rooms-worker && npm test         # robot players, every room game, 4 segments at a time (needs npm run dev)
 cd rooms-worker && npm run test:rules  # trivia scoring, no server needed
 cd rooms-worker && npm run deploy   # publish the rooms server (build the site first)
-cd rooms-worker && npm run test:live
+cd rooms-worker && npm run test:live       # short check after a rooms deploy (~2 min; -- --dry: which segments)
+cd rooms-worker && npm run test:live:full  # every robot against the live server (~10 min; big releases, the weekly check)
 ```

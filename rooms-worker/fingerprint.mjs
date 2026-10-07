@@ -34,5 +34,9 @@ export async function rulesFingerprint(files) {
   for (const f of (await readdir(path.join(here, 'src'))).filter((x) => x.endsWith('.js')).sort()) {
     await add('src/' + f, path.join(here, 'src', f));
   }
+  // The bundle's prelude and exports live in build.mjs and the bindings in
+  // wrangler.toml: a change to either alone also needs a deploy.
+  await add('build.mjs', path.join(here, 'build.mjs'));
+  await add('wrangler.toml', path.join(here, 'wrangler.toml'));
   return hash.digest('hex').slice(0, 16);
 }

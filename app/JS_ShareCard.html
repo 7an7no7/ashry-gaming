@@ -168,7 +168,12 @@ async function drawShareCard(o) {
         font('900', rowFont + 4);
         ctx.fillStyle = c.token;
         ctx.textAlign = rtl ? 'left' : 'right';
+        // A number is drawn left to right, as on the board card: in an Arabic
+        // line -12 came out as «12-». A value with words keeps the line's direction.
+        const numeric = /^[-+]?[\d.,/:\s]+$/.test(String(value));
+        if (numeric) ctx.direction = 'ltr';
         ctx.fillText(shareCardFit(ctx, value, 260), rtl ? pad : SHARE_CARD.w - pad, y);
+        if (numeric) ctx.direction = rtl ? 'rtl' : 'ltr';
       }
     });
   }

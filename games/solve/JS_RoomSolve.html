@@ -71,7 +71,7 @@ function svLobbyFields(kind, o) {
   const race = o.mode === 'race';
   const extra = {
     wordle: race ? svSeg(svT('sv_wordle_len'), kind, 'len', SV_WORDLE_LENGTHS.map(n => [n, String(n)]), o.len, svT('sv_wordle_len_hint')) : '',
-    guessnum: svSeg(svT('sv_num_range'), kind, 'max', SV_NUM_RANGES.map(n => [n, '1 - ' + n]), o.max, svT('sv_num_range_hint')),
+    guessnum: svSeg(svT('sv_num_range'), kind, 'max', SV_NUM_RANGES.map(n => [n, '\u2066' + '1 - ' + n + '\u2069']), o.max, svT('sv_num_range_hint')),
     flags: svSeg(svT('flags_mode'), kind, 'clue', [['flag', svT('flags_mode_flag')], ['far', svT('flags_mode_far')]], o.clue) +
       (race ? svSeg(svT('solo_level'), kind, 'level', [['easy', svT('flags_lvl_easy')], ['hard', svT('flags_lvl_hard')]], o.level) : ''),
     emoji: ''
@@ -142,6 +142,20 @@ async function svSend(action, payload, form) {
   }
 }
 
+/**
+ * A guess this board already made: the server ignores it without an error (no try is spent), so the
+ * phone says so here instead of a tap that does nothing. `same` compares one of the board's rows.
+ */
+function svTriedBefore(same, el) {
+  const st = Room.state;
+  const rows = (st && st.you && st.you.board && st.you.board.g) || [];
+  if (!rows.some(same)) return false;
+  if (el && !motionOff()) { el.classList.remove('animate-shake'); void el.offsetWidth; el.classList.add('animate-shake'); setTimeout(() => el.classList.remove('animate-shake'), 600); }
+  showToast(svT('sv_already_tried'), 'info');
+  haptic('medium');
+  return true;
+}
+
 /* --- خمن الكلمة -------------------------------------------------------------------------- */
 
 const SV_WORDLE_CLS = { c: 'correct', p: 'present', a: 'absent' };
@@ -207,6 +221,7 @@ function svWordleKey(key) {
       return;
     }
     const text = d.text;
+    if (svTriedBefore(r => r.w === svWordleFold(text), row)) return;
     d.text = '';
     haptic('light');
     svSend('guess', { text: text, round: svRound(s) }).then(ok => { if (!ok) { d.text = text; svWordlePaintDraft(); } });
@@ -518,6 +533,7 @@ function svNumGuess(form) {
   const input = form.querySelector('input[name="n"]');
   const n = Number(String(input ? input.value : '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).trim());
   if (svNumProblem(n, s.pub.max)) { showToast(svT('sv_num_bad', { max: s.pub.max })); haptic('heavy'); return; }
+  if (svTriedBefore(r => r.n === n, form)) return;
   haptic('light');
   svSend('guess', { n: n, round: svRound(s) });
 }
@@ -527,6 +543,9 @@ function svEmojiGuess(form) {
   const input = form.querySelector('input[name="t"]');
   const text = String(input ? input.value : '').trim();
   if (!text) return;
+  // The server's own test: the cleaned guess, folded as a clue is.
+  const said = normaliseClue(svClean(text).slice(0, SV_EMOJI_GUESS_MAX));
+  if (svTriedBefore(r => normaliseClue(r.t) === said, form)) return;
   haptic('light');
   svSend('guess', { text: text, round: svRound(s) });
 }

@@ -82,3 +82,4 @@ instead of a chip per player - the names still waiting were the roles still deci
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.
+- 6 Oct 2026 (the audit): someone who leaves during the day vote is taken off the ballot, and whoever voted for them votes again (the result used to say the table sent nobody out).

@@ -168,6 +168,8 @@ frame waits for the token to land marks `bankFx.pending` and greys the last fram
   `room._bank.quietAt` (stamped in `bankRoomAfter`). Before, once the host was away, anyone could
   play anyone's turn.
 
+**Trades (the audit of 6 Oct 2026)**: each jail-card chip is its own (`bankTradeCard(side, k)`), so both decks' cards can go in one offer; in a room an offer the server refuses reopens the panel as it was composed (the table's `offerSeq` didn't move).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

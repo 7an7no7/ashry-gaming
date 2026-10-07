@@ -187,6 +187,8 @@ with every right choice: a member could read the quiz's answers before the night
 - In the lobbies (`packSourceFieldHtml`) nothing changes: a crew quiz opened once is on
   the phone, so it is in the list.
 
+**Unsaved edits are kept (the audit of 6 Oct 2026)**: `packOpenByCode` opens the author's own quiz or word pack as it is on the phone while it is `dirty`, instead of fetching the server's copy over it (from الشلة's list, the crew list or a typed code).
+
 ## Tests
 
 - `rules.mjs` "packs" (40 checks): every validation rule, the code pattern, trivia with a

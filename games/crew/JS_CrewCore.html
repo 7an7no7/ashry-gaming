@@ -383,13 +383,16 @@ function crewModal(html) {
   el.classList.remove('hidden');
 }
 
-/** The lobby's line: which crew the night is for (the host changes it), and «انضم» for a guest. */
+/** The lobby's line: which crew the night is for (the host changes it, or a member when a screen hosts), and «انضم» for a guest. */
 function crewLobbyHtml(state) {
   const t = TRANSLATIONS[appState.lang] || {};
   if (!state || state.youAreScreen) return '';
   const crew = state.crew;
   const mine = crew && crewEntry(crew.code);
-  if (state.youAreHost) {
+  // A TV or laptop hosting the room has no crews of its own: a member phone sets
+  // it for the room instead (the server takes setCrew from a seated player then).
+  const hostIsScreen = (state.screens || []).some(x => x.id === state.hostId);
+  if (state.youAreHost || (hostIsScreen && crewList().length)) {
     const have = crewList().length;
     if (!crew && !have) return '';
     return `

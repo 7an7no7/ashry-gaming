@@ -9,7 +9,7 @@
    ========================================================================= */
 
 const trivia = {
-  picked: null,      // { q: question index, choice } — what this phone tapped
+  picked: null,      // { deal, q: question index, choice } — what this phone tapped
   clock: null,
   clockKey: null,    // the deadline the running clock belongs to
   fired: false       // that deadline has already been acted on
@@ -141,7 +141,8 @@ function triviaFrame(state, t, iAnswered) {
     </div>`;
 
   if (s.phase === 'answering') {
-    const mine = (trivia.picked && trivia.picked.q === s.qIndex) ? trivia.picked.choice : null;
+    // The same question number in another game is another question: the pick carries its deal.
+    const mine = (trivia.picked && trivia.picked.q === s.qIndex && trivia.picked.deal === roomDealKey(state)) ? trivia.picked.choice : null;
     const present = state.players.map(p => p.id);
     const expected = (s.roster || []).filter(id => present.indexOf(id) !== -1).length;
     return header + `
@@ -237,7 +238,7 @@ function triviaRevealRun(root, state) {
 function chooseTriviaAnswer(choice) {
   const s = Room.state && Room.state.shared;
   if (!s || s.phase !== 'answering') return;
-  trivia.picked = { q: s.qIndex, choice: choice };
+  trivia.picked = { deal: roomDealKey(Room.state), q: s.qIndex, choice: choice };
   // Lock the buttons now: a second tap on another choice before the answer is
   // back would otherwise look like it changed the answer.
   document.querySelectorAll('#view-room-trivia .trivia-choice').forEach((b, i) => {

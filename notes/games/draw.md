@@ -110,3 +110,4 @@ has the category and never the word.
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.
+- 6 Oct 2026 (the audit): «لعبة أخرى» in the middle of a round of ارسم وخمّن or الفنان المزيف banks the running scores on the night (`NIGHT_BOARD_FROM_SCORES`), not everyone level.

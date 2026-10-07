@@ -41,7 +41,8 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
       play and the rest watch (no computer players then).
     - **A leaver's board is played on by a hard computer player** for the
       rest of that game (`s.subs`, said on every screen), named after them
-      with 🤖; it stays for play again like any computer player.
+      with 🤖 (the name itself plain; one 🤖 badge on the screens); it stays for play again like any computer player.
+      The host's «play for» isn't offered on a stuck board (no move, nothing to drop).
     - **Play again turns the partners round**: the first of the line keeps
       their place and the other three move on one, so three games in a row
       are the three pairings; with more than four, whoever watched plays

@@ -26,6 +26,16 @@ const stopRoom = {
 /** The round a sheet belongs to: the deal id when the server sends one, so a restarted game never matches an old round. */
 const stopRoundKey = (state) => roomDealKey(state, state && state.shared ? state.shared.round : '');
 
+/** This round's draft, from the tab's own storage after a reload (iOS drops a tab
+    in the background): the boxes come back filled, and a round closing sends them. */
+function stopRoomDraftFor(key) {
+  if (stopRoom.draft.key === key) return;
+  try {
+    const d = JSON.parse(sessionStorage.getItem('ashryStopDraft') || 'null');
+    if (d && d.key === key && d.answers && typeof d.answers === 'object') stopRoom.draft = { key: key, answers: d.answers };
+  } catch (e) {}
+}
+
 /** The answer boxes on screen for this round only: a hidden screen can still hold last round's. */
 function stopRoomInputs(key) {
   const form = document.querySelector('#view-room-stop .stop-room-form');
@@ -147,7 +157,8 @@ ROOM_GAMES.stop = {
 
     if (s.phase === 'writing' && s.endsAt) startStopRoomClock(s); else stopStopRoomClock();
     if (rebuilt && s.phase === 'writing' && !iSubmitted) {
-      // A rebuild mid-round (a new host, the language) puts back what was typed.
+      // A rebuild mid-round (a new host, the language, a reload) puts back what was typed.
+      stopRoomDraftFor(roundKey);
       if (stopRoom.draft.key === roundKey) {
         el.querySelectorAll('.stop-room-input').forEach(inp => {
           const v = stopRoom.draft.answers[inp.dataset.cat];
@@ -317,6 +328,7 @@ function stopRoomTyped() {
   let left = 0;
   let firstLeft = null;
   const key = stopRoundKey(Room.state);
+  stopRoomDraftFor(key);
   if (stopRoom.draft.key !== key) stopRoom.draft = { key: key, answers: {} };
   stopRoomInputs(key).forEach(inp => {
     stopRoom.draft.answers[inp.dataset.cat] = inp.value;
@@ -331,6 +343,7 @@ function stopRoomTyped() {
     }
     if (!fits) { left++; if (!firstLeft) firstLeft = inp; }
   });
+  try { sessionStorage.setItem('ashryStopDraft', JSON.stringify(stopRoom.draft)); } catch (e) {}
   const btn = document.getElementById('stop-room-stop');
   if (btn) {
     btn.classList.toggle('is-locked', left > 0);
@@ -372,6 +385,7 @@ function submitStopRoom(stop) {
   }
   // The boxes when they are on screen, else what was typed into them before
   // the round closed (the screen may be rebuilt, or not showing at all).
+  stopRoomDraftFor(roundKey);
   const answers = stopRoom.draft.key === roundKey ? Object.assign({}, stopRoom.draft.answers) : {};
   stopRoomInputs(roundKey).forEach(inp => { answers[inp.dataset.cat] = inp.value; });
   stopRoom.sentFor = roundKey;

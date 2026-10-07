@@ -2663,7 +2663,10 @@ function mg3Play(id, sim, off, opts) {
   const settle = (ball, quiet) => {
     if (!ball || !ball.play) return;
     if (quiet) ball.play.onEnd = null;
-    mg3StepBall(ball, performance.now() + 1e7, 0);
+    // Run to the end by moving its start back, never by a clock in the future: the time a cup,
+    // the flag or a portal is stamped with must be today's, or a sink and a bounce never finish.
+    ball.play.off = GOLF.MAX_T + 2;
+    mg3StepBall(ball, performance.now(), 0);
   };
   // This ball's own roll is replaced by the one starting now, so it ends without its banner,
   // sounds and confetti: the phone's own putt that the clock or the host's «putt for» beat
@@ -3791,7 +3794,10 @@ function mgHostButtons(state) {
     if (!b || b.done || pid === Room.me) return;
     if (s.settings.mode === 'turns' && s.turn !== pid) return;
     const p = (state.players || []).find(x => x.id === pid);
-    const waiting = mgServerNow() - (b.restAt || 0);
+    // In turns the wait counts from the turn's start (the last roll anyone ended), not from this
+    // player's own last roll a whole round ago, or the button is up the moment their turn comes.
+    const since = s.settings.mode === 'turns' ? Math.max(0, ...Object.values(s.balls).map(x => (x && x.restAt) || 0)) : (b.restAt || 0);
+    const waiting = mgServerNow() - since;
     if (!p || !p.online || waiting > 30000) out.push(['⛳ ' + mgT('mg_play_for', { name: p ? p.name : '' }), `roomAct('playFor', { target: '${jsStringAttr(pid)}', hole: ${Number(s.hole) || 0}, n: ${Number(b.n) || 0} })`]);
   });
   return out.slice(0, 3);

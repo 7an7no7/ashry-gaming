@@ -258,14 +258,15 @@ const hmLevelFits = (item, level) => {
 /**
  * The race's deal filter for a category and a level: the entries of the category that fit the
  * level, or the whole category when too few do (a list of names at Easy), or null for «من كل حاجة»
- * at Normal (the whole pool, as before).
+ * at Normal (the whole pool, as before). Too few is under 10, the longest race: fewer and a
+ * 10-word game would deal the same word twice.
  */
 const hmDealFilter = (pool, cat, level) => {
   const k = hmCatKey(cat);
   const inCat = (x) => k === 'all' || x.k === k;
   const both = (x) => inCat(x) && hmLevelFits(x, level);
   if (k === 'all' && hmLevelOf(level) === 'normal') return null;
-  if (pool.filter(both).length >= 4) return both;
+  if (pool.filter(both).length >= 10) return both;   // 10 = the longest race (HM_ROUNDS)
   return k === 'all' ? null : inCat;
 };
 

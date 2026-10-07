@@ -710,7 +710,10 @@ function chessLegalMoves(g) {
 function chessFind(p, mv, legal) {
   if (!mv) return 0;
   const from = typeof mv.from === 'number' ? mv.from : chessSq(mv.from);
-  const to = typeof mv.to === 'number' ? mv.to : chessSq(mv.to);
+  let to = typeof mv.to === 'number' ? mv.to : chessSq(mv.to);
+  // A move that carries its record form (uci) is read through it: a 960 castle where the king
+  // moves one square is written as the king taking its rook, and its from/to alone is the king step.
+  if (!mv.hq && typeof mv.uci === 'string' && /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(mv.uci) && chessSq(mv.uci.slice(0, 2)) === from) to = chessSq(mv.uci.slice(2, 4));
   if (from < 0 || to < 0) return 0;
   const want = CHESS_LETTERS.indexOf(String(mv.promo || '').toLowerCase().slice(0, 1));
   const list = legal || chessLegalPos(p);
@@ -1135,9 +1138,10 @@ function chessBestMove(g, opts) {
   const root = chessLegalPos(p).concat(extra);
   if (!root.length) return null;
   const out = (m) => {
-    const mv = { from: chessSqName(chessMFrom(m)), to: chessSqName(chessMTo(m)), promo: chessPromoLetter(chessMPromo(m)) };
-    if (m & CHESS_HQ_BIT) mv.hq = true;
-    return mv;
+    if (m & CHESS_HQ_BIT) return { from: chessSqName(chessMFrom(m)), to: chessSqName(chessMTo(m)), promo: chessPromoLetter(chessMPromo(m)), hq: true };
+    // A 960 castle where the king moves one square goes as the king taking its rook (chessUciOf), as
+    // the record writes it: its from/to alone is the plain king step, and a room's move keeps only from/to.
+    return chessFromUci(chessUciOf(p, m));
   };
   if (root.length === 1) return out(root[0]);
   if (L.blunder && rnd() < L.blunder) return out(root[Math.floor(rnd() * root.length)]);
@@ -1454,13 +1458,13 @@ function chessAnalyse(g, opts) {
   const pv = [];
   res.pv.forEach(m => {
     const legal = chessLegalPos(p);
-    pv.push({ from: chessSqName(chessMFrom(m)), to: chessSqName(chessMTo(m)), promo: chessPromoLetter(chessMPromo(m)), san: chessSanPos(p, m, legal) });
+    pv.push({ from: chessSqName(chessMFrom(m)), to: chessSqName(chessMTo(m)), promo: chessPromoLetter(chessMPromo(m)), san: chessSanPos(p, m, legal), uci: chessUciOf(p, m) });
     chessDo(p, m);
   });
   for (let i = 0; i < res.pv.length; i++) chessUndo(p);
   const first = pv[0] || null;
   const out = {
-    over: false, move: first ? { from: first.from, to: first.to, promo: first.promo } : null, san: first ? first.san : '',
+    over: false, move: first ? { from: first.from, to: first.to, promo: first.promo, uci: first.uci } : null, san: first ? first.san : '',
     score: res.score, mate: chessMateIn(res.score), pv: pv, depth: res.depth
   };
   if (numLines > 1) {
@@ -1474,7 +1478,7 @@ function chessAnalyse(g, opts) {
       const promo = chessPromoLetter(chessMPromo(m));
       const san = chessSanPos(p, m, legalAll);
       return {
-        move: { from, to, promo },
+        move: { from, to, promo, uci: chessUciOf(p, m) },
         from: from,
         to: to,
         promo: promo,
@@ -1756,7 +1760,9 @@ function chessIsSacrifice(gBefore, mv, scoreAfter) {
  * scoreAfter (for the side that moved), mate }.
  */
 function chessJudge(gBefore, played, before, after, opts) {
-  const same = before.move && before.move.from === played.from && before.move.to === played.to && (before.move.promo || '') === (played.promo || '');
+  // A 960 castle and the king step to the same square share from/to: their uci tells them apart.
+  const same = before.move && before.move.from === played.from && before.move.to === played.to && (before.move.promo || '') === (played.promo || '')
+    && (!before.move.uci || !played.uci || before.move.uci === played.uci);
   let bestScore = before.score;
   // After the move it is the other side's turn: their score, turned round.
   let playedScore = after.over ? (after.mated ? CHESS_MATE - 1 : 0) : -after.score;
@@ -1827,7 +1833,8 @@ function chessReviewBegin(record) {
     const mv = chessFromUci(u);
     const info = chessPlay(g, mv);
     if (!info) return true;
-    moves.push(mv.hq ? { from: info.from, to: info.to, promo: info.promo, hq: true } : { from: info.from, to: info.to, promo: info.promo });
+    // uci kept beside from/to: a 960 castle where the king moves one square replays as a castle, not a king step.
+    moves.push(mv.hq ? { from: info.from, to: info.to, promo: info.promo, hq: true } : { from: info.from, to: info.to, promo: info.promo, uci: info.uci });
     sans.push(info.san + (mv.hq ? CHESS_HQ_MARK : ''));
     positions.push(chessCloneGame(g));
     return false;

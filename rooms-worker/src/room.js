@@ -12,7 +12,7 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, bumperJoined, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, missionJoined, missionPlayerLeft, HUM_SONGS } from '../generated/rules.js';
+import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, bumperRelaying, bumperJoined, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, missionJoined, missionPlayerLeft, HUM_SONGS, roomGameIsOff } from '../generated/rules.js';
 import { roomView } from './view.js';
 
 const MAX_PLAYERS = 12;
@@ -58,6 +58,14 @@ const SILENT_ACTIONS = new Set(['ink', 'missionSeen', 'bzClock']);
 // Moves that change only the mover's own slice (حرب السفن's draft: the fleet being arranged, sent on
 // every drag): answered to that phone alone when nobody else's view changed (the audit of 1 Oct 2026).
 const SELF_ACTIONS = new Set(['draft']);
+// Moves one phone may make in MOVE_WINDOW_MS (a quick move, a stroke or a cheer, counts
+// against the bigger number). Far above any person's play - 100 moves a second for 5 s - and
+// above the robot tests, which play a whole أونو round as fast as the server answers; a phone
+// past it gets a "slow down" instead of a save: one socket in a loop used to be a write per
+// message, against the free plan's daily writes (the audit of 7 Oct 2026).
+const MOVE_WINDOW_MS = 5000;
+const MOVE_LIMIT = 500;
+const MOVE_LIMIT_QUICK = 1000;
 // Quick actions whose game has a clock that moves with them: the alarm is still
 // set for these (the dark room's joystick: its traps and goal come with the walk).
 const QUICK_WITH_ALARM = new Set(['stick']);
@@ -226,17 +234,25 @@ export class Room extends DurableObject {
     if (online.has(hostId)) {
       const polled = this.polled.get(hostId);
       if (polled && now - polled < ONLINE_WINDOW_MS) return null;
-      if (!room.game || room.phase === 'lobby') return null;
+      if (!this.gameOn()) return null;
       const heard = this.heardAt(hostId);
       return heard !== null && now - heard >= HOST_QUIET_MS ? heard : null;
     }
     return (room.lastSeen && room.lastSeen[hostId]) || this.heardAt(hostId) || null;
   }
 
+  /**
+   * A game is on, or برنامج السهرة is running: its standings card between games and its
+   * next game waiting for Start move on with the program's buttons, which stand-ins get too.
+   */
+  gameOn(room = this.room) {
+    return !!((room.game && room.phase !== 'lobby') || (room.program && room.program.phase !== 'final'));
+  }
+
   /** True once the host has been away HOST_STAND_IN_MS: anyone may move the game on (requireHost). */
   hostAway(online = this.onlineIds(), now = Date.now()) {
     // Only while a game is on: the hub and the lobby are the host's (choosing, settings).
-    if (!this.room || !this.room.game || this.room.phase === 'lobby') return false;
+    if (!this.room || !this.gameOn()) return false;
     const since = this.hostAwaySince(online, now);
     return since !== null && now - since >= HOST_STAND_IN_MS;
   }
@@ -324,7 +340,7 @@ export class Room extends DurableObject {
    * is never kept in the room. A night already sent to another crew is taken back from it.
    */
   async setCrew(pid, payload, ws) {
-    if (this.room.hostId !== pid) return { ok: false, error: 'دي للمضيف بس' };
+    if (!this.mayCrew(pid)) return { ok: false, error: 'دي للمضيف بس' };
     if (this.room.game && this.room.phase !== 'lobby') return { ok: false, error: 'غيّر الشلة بين الألعاب' };
     const code = payload.code ? crewCleanCode(payload.code) : '';
     if (payload.code && !code) return { ok: false, error: 'كود الشلة مش صحيح' };
@@ -337,7 +353,7 @@ export class Room extends DurableObject {
     // The call let other messages in: look at the room as it is now.
     await this.load();
     const room = this.room;
-    if (!room || room.hostId !== pid) return { ok: false, error: 'دي للمضيف بس' };
+    if (!room || !this.mayCrew(pid)) return { ok: false, error: 'دي للمضيف بس' };
     const old = room.crew;
     if (old && old.code !== code && room.crewNight) {
       const stub = this.crewStub(old.code);
@@ -358,6 +374,17 @@ export class Room extends DurableObject {
     if (room.crew) this.recordCrew().catch(() => {});
     if (!ws) this.polled.set(pid, Date.now());
     return { ok: true, state: this.project(pid, this.onlineIds()) };
+  }
+
+  /**
+   * Who may open the night «للشلة»: the host, or - when the host is a screen (a TV has no
+   * crew key) - anyone seated at the table.
+   */
+  mayCrew(pid) {
+    const room = this.room;
+    if (room.hostId === pid) return true;
+    const hostIsScreen = (room.screens || []).some((x) => x.id === room.hostId);
+    return hostIsScreen && room.players.some((p) => p.id === pid && !p.bot);
   }
 
   /** A phone in the room says which member of the room's crew it is (its crew key, checked). */
@@ -441,7 +468,7 @@ export class Room extends DurableObject {
     const now = Date.now();
     const idleAt = room.updatedAt + IDLE_MS;
     const cleanup = idleAt > now ? idleAt : Math.min(room.updatedAt + ABANDONED_MS, now + IDLE_RECHECK_MS);
-    const times = [deadline, extra, cleanup].filter((t) => typeof t === 'number');
+    const times = [deadline, extra, cleanup].filter((t) => Number.isFinite(t));
     const soonest = Math.max(Math.min(...times), now + ALARM_FLOOR_MS);
     const current = replace ? null : await this.ctx.storage.getAlarm();
     if (current === null || soonest < current - 250) await this.ctx.storage.setAlarm(soonest);
@@ -560,7 +587,7 @@ export class Room extends DurableObject {
     // With a game on, sooner: a locked phone missing its pings lets stand-ins in.
     if (online.has(this.room.hostId)) {
       const heard = this.heardAt(this.room.hostId);
-      const quiet = this.room.game && this.room.phase !== 'lobby' ? HOST_QUIET_MS : SOCKET_SILENT_MS;
+      const quiet = this.gameOn() ? HOST_QUIET_MS : SOCKET_SILENT_MS;
       if (heard !== null) {
         soonest(Math.max(heard + SOCKET_SILENT_MS + 1000, now + 5000));
         if (heard + quiet + 1000 > now) soonest(heard + quiet + 1000);
@@ -606,7 +633,8 @@ export class Room extends DurableObject {
       code,
       version: 1,
       // Optional: a room with no game sits in the hub until the host picks one.
-      game: ROOM_GAME_IDS.indexOf(game) !== -1 ? game : null,
+      // A page loaded before a game was switched off still offers it: the hub then.
+      game: ROOM_GAME_IDS.indexOf(game) !== -1 && !roomGameIsOff(game) ? game : null,
       phase: 'lobby',
       hostId,
       // A room opened from a TV has that screen as its host and no players yet.
@@ -675,6 +703,17 @@ export class Room extends DurableObject {
     return { ok: true, playerId: pid, key, state: this.project(pid, this.onlineIds()) };
   }
 
+  /** True when this phone has made more moves than MOVE_LIMIT allows in the window (never a computer player). */
+  tooFast(pid, action) {
+    if (this.room.players.some((p) => p.id === pid && p.bot)) return false;
+    const now = Date.now();
+    this.moveRate = this.moveRate || new Map();
+    const r = this.moveRate.get(pid);
+    if (!r || now - r.since > MOVE_WINDOW_MS) { this.moveRate.set(pid, { n: 1, since: now }); return false; }
+    r.n++;
+    return r.n > (QUICK_ACTIONS.has(action) ? MOVE_LIMIT_QUICK : MOVE_LIMIT);
+  }
+
   /** A move. `ws` is the socket it came in on, if any. */
   async act(pid, key, rawAction, rawPayload, ws) {
     await this.load();
@@ -683,6 +722,7 @@ export class Room extends DurableObject {
 
     const action = String(rawAction || '');
     const payload = rawPayload && typeof rawPayload === 'object' ? rawPayload : {};
+    if (this.tooFast(pid, action)) return { ok: false, error: 'على مهلك شوية' };
     const memory = DEAL_ACTIONS.has(action) ? await this.readMemory() : null;
     // A quiz or word pack chosen in the lobby (payload.pack): loaded here, for this one move.
     // برنامج السهرة's skip from the standings deals its next game, with the pack its options name.
@@ -768,7 +808,7 @@ export class Room extends DurableObject {
     }
     // The host's move while a game is on: look again when their socket would
     // count as quiet (HOST_QUIET_MS), so a phone locked mid-game lets stand-ins in.
-    const watchHost = pid === next.hostId && next.game && next.phase !== 'lobby';
+    const watchHost = pid === next.hostId && this.gameOn(next);
     if (!quick || QUICK_WITH_ALARM.has(action)) await this.scheduleAlarm(watchHost ? Date.now() + HOST_QUIET_MS + 1000 : undefined);
 
     // New strokes go out as just the strokes: resending a whole drawing to every

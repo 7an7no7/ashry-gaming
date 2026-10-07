@@ -221,7 +221,12 @@ function playArchive(id, day, sure) {
   if (!g || !soloG) return;
   // Today is the real daily, never practice: the archive dealt today's puzzle as a
   // board that records nothing, and "again" replayed it before the real go.
-  if (day >= soloRealToday()) { playDaily(id); return; }
+  // Today's already done: say so (playDaily would return without a word).
+  if (day >= soloRealToday()) {
+    if (soloDailyResult(id)) { showToast((TRANSLATIONS[appState.lang] || {}).daily_done_today || '', 'info'); return; }
+    playDaily(id);
+    return;
+  }
   if (typeof catalogOff === 'function' && catalogOff(id)) { gameOffToast(); return; }
   soloHubReturn = false;
   const epoch = soloEpochs[id] || 0;

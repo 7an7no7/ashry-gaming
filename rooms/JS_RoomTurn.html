@@ -123,7 +123,8 @@ function roomTurnOf(state) {
     case 'chameleon':
       return s.phase === 'guess' && s.chameleonId === me ? 'turn_guess' : null;
     case 'mafia':
-      return s.phase === 'night' && has(s.alive) && !has(s.acted) ? 'turn_night' : null;
+      // Who has tapped is no longer shared (only a count): this phone's own pick says it.
+      return s.phase === 'night' && has(s.alive) && !(state.you && state.you.pick) ? 'turn_night' : null;
     case 'mind':
       // In العقل it is always your turn: anyone holding a card may play it.
       return s.phase === 'play' && ((s.held || {})[me] || 0) > 0 ? 'turn_up' : null;

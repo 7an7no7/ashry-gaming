@@ -36,6 +36,11 @@ function herdBoard(s) {
   return (s.board || []).map(p => Object.assign({}, p, { name: p.id === s.sheepId ? `${p.name} 🐑` : p.name }));
 }
 
+/** The podium's board: whoever holds the sheep can't win, so they stand on no step. */
+function herdPodiumBoard(s) {
+  return herdBoard(s).filter(p => p.id !== s.sheepId);
+}
+
 function herdGroupsHtml(s, t, opts) {
   const o = opts || {};
   return `<div class="herd-groups">${(s.groups || []).map(g => {
@@ -176,7 +181,7 @@ ROOM_GAMES.herd = {
     const fresh = renderRoomFrame(el, ['herd-over', state.youAreHost, appState.lang, JSON.stringify(s.scores || {})].join('|'), () => `
       <div class="card card--accent" style="text-align:center">
         <p class="sheet__subtitle">🏆 ${escapeHTML((s.winners || []).join(' · '))}</p>
-        ${renderPodium(state, herdBoard(s)) || ''}
+        ${renderPodium(state, herdPodiumBoard(s)) || ''}
         ${s.sheepId ? `<p class="field__hint">🐑 ${escapeHTML((t.herd_sheep_has || '').replace('{name}', s.sheepName || ''))}</p>` : ''}
       </div>
       ${herdGroupsHtml(s, t)}
@@ -268,7 +273,7 @@ TV_GAMES.herd = {
     }
     return `<div class="tv-vote">
       <div class="tv-title tv-center-text">🏆 ${escapeHTML((s.winners || []).join(' · '))}</div>
-      <div class="tv-scale">${renderPodium(state, herdBoard(s))}${renderScoreboard(herdBoard(s))}</div>
+      <div class="tv-scale">${renderPodium(state, herdPodiumBoard(s))}${renderScoreboard(herdBoard(s))}</div>
       ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.herd.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}</div>`;
   },
   after(state, rebuilt) {

@@ -515,7 +515,8 @@ const exactTimeout = (room, now) => {
   if (s.phase === 'ready') {
     if (now < s.goAt) return false;
     exactGo(room);
-    return true;
+    // An alarm late past the window too closes it in this pass (a deadline left due rests the room 30 s).
+    if (s.phase !== 'go' || now < s.closeAt) return true;
   }
   if (s.phase === 'go') {
     if (now < s.closeAt) return false;

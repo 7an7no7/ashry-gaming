@@ -5897,11 +5897,24 @@ async function battleshipSeg() {
     await all(bsBots, (s) => s.shared.phase === 'place' && s.shared.seats[0] === watcher.pid && s.shared.seats[1] === first.pid,
               'battleship: the next in line sits down against the winner, and fires first');
     check(!second.state.you || second.state.you.fleet === undefined, 'battleship: the one who lost holds no fleet any more');
-    // The host plays for a quiet phone: placing, then a shot at random.
+    // The host plays for a quiet phone: never while that phone is here and has just been dealt,
+    check((await H.act('skipTurn', { seq: H.state.shared.turnSeq })).ok === false, 'battleship: "play for" waits while the player is here and playing');
+    // and once it has gone away: placing, then a shot at random.
+    const quietOne = [watcher, first].find((b) => b !== H);
+    const here = bsBots.filter((b) => b !== quietOne);
+    if (H.state.shared.seats.includes(H.pid)) await H.must('place', { fleet: H.state.you.fleet });
+    quietOne.close();
+    await H.waitFor((s) => s.players.find((p) => p.id === quietOne.pid).online === false, 'battleship: the quiet phone shows as away', 15000);
     await H.must('skipTurn', { seq: H.state.shared.turnSeq });
-    await all(bsBots, (s) => s.shared.phase === 'play', 'battleship: the host\'s "play for" sails both fleets as they are');
-    await H.must('skipTurn', { seq: H.state.shared.turnSeq });
-    await all(bsBots, (s) => s.shared.shots === 1, 'battleship: and fires one shot at random for the player up');
+    await all(here, (s) => s.shared.phase === 'play', 'battleship: the host\'s "play for" sails both fleets as they are');
+    {
+      const s = H.state.shared;
+      if (s.seats[s.turn] === quietOne.pid) await H.must('skipTurn', { seq: s.turnSeq });
+      else await H.must('fire', { cell: s.seas[1 - s.turn].grid.findIndex((v) => v === 0), seq: s.turnSeq });
+    }
+    await all(here, (s) => s.shared.shots === 1, 'battleship: and fires one shot at random for the player up');
+    await quietOne.connect();
+    await quietOne.waitFor((s) => s.shared.shots === 1, 'battleship: the quiet phone comes back to the game', 5000);
     // «الرادار»: whoever is up sweeps a 3 x 3 instead of firing; the count reaches their phone and the TV only.
     {
       const s = H.state.shared;

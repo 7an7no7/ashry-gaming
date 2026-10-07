@@ -197,7 +197,14 @@ function gameOffToast() {
 /** The catalog game a screen belongs to, when that game is switched off (setView sends it home). */
 function gameOffForView(viewId) {
   if (typeof DISABLED_GAMES === 'undefined' || !DISABLED_GAMES.length || !viewId || typeof GAME_CATALOG === 'undefined') return null;
-  const g = GAME_CATALOG.find(x => x.setup === viewId) || (typeof exitGameOf === 'function' ? exitGameOf(viewId) : null);
+  // exitGameOf has no game for the tools and the screens without an exit (the quiz
+  // maker, the score keepers, the spinner, the chess clock): find those by the setup
+  // above them or by their help entry, or a reload would open them while switched off.
+  const up = ((typeof VIEW_META !== 'undefined' && VIEW_META[viewId]) || {}).up || '';
+  // Never a room's screen: a room already playing a game switched off plays it to its end.
+  const helpId = typeof HELP_FOR_VIEW !== 'undefined' && viewId.indexOf('room-') !== 0 ? HELP_FOR_VIEW[viewId] : null;
+  const g = GAME_CATALOG.find(x => x.setup === viewId) || GAME_CATALOG.find(x => x.setup && x.setup === up)
+    || (helpId && GAME_CATALOG.find(x => x.id === helpId)) || (typeof exitGameOf === 'function' ? exitGameOf(viewId) : null);
   return g && catalogOff(g.id) ? g : null;
 }
 

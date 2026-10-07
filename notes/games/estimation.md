@@ -164,3 +164,4 @@ signature it was drawn with, `|hideTrickNo` included, so it really holds.
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.
+- 6 Oct 2026 (the audit): a player who leaves mid-game is the one counted as having played on the night, not the computer player in their seat (`s.standIns`, read by `nightPlayedIds`).

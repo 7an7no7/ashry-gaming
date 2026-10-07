@@ -52,6 +52,16 @@
    ========================================================================= */
 const BS_GRACE_MS = 1500;       // the server's clock acts this long after the phones'
 const BS_PLACE_SECS = 90;
+const BS_QUIET_MS = 40000;      // the phones offer «اضرب بالنيابة» after this long on one step (bsHostRow)
+
+/** When the table last saw this step begin (the phones' turnSince): kept in room._bs, keyed on the step. */
+const bsMarkQuiet = (room) => {
+  const s = room.shared || {};
+  const g = room._bs;
+  if (!g) return;
+  const key = (s.round || 0) + '|' + (s.turnSeq || 0);
+  if (g.quietKey !== key) { g.quietKey = key; g.quietAt = Date.now(); }
+};
 
 const bsSeatOf = (s, pid) => (s.seats || []).indexOf(pid);
 
@@ -202,7 +212,13 @@ const bsNewRoomGame = (room, playerId, payload) => {
   room.shared.board = scoreboardOf(room);
 };
 
+/** Every move, then when its step began (bsMarkQuiet), for the host's «اضرب بالنيابة». */
 const battleshipAction = (room, playerId, action, payload) => {
+  bsActionRules(room, playerId, action, payload);
+  bsMarkQuiet(room);
+};
+
+const bsActionRules = (room, playerId, action, payload) => {
   const p = payload || {};
   // A knockout tournament (RoomTournament.js) runs these same rules, one board per match.
   if (tourAction(room, playerId, action, payload, 'battleship')) return;
@@ -224,6 +240,13 @@ const battleshipAction = (room, playerId, action, payload) => {
   if (action === 'skipTurn') {
     requireMoveOn(room, playerId);
     if ((s.phase !== 'play' && s.phase !== 'place') || staleTap(p, 'seq', s.turnSeq)) return;
+    // «اضرب بالنيابة» is for a phone that went quiet - gone, or BS_QUIET_MS on one step - as the
+    // phones draw it (bsHostRow), checked here too, as بنك الحظ does. Who is connected comes from
+    // room.js for this one move (`_online`); without it, nobody counts as here.
+    const waiting = s.phase === 'place' ? (s.seats || []).filter((id, k) => !s.ready[k]) : [s.seats[s.turn]];
+    const online = Array.isArray(room._online) ? room._online : [];
+    bsMarkQuiet(room);
+    if (waiting.every(id => online.indexOf(id) !== -1) && Date.now() - (room._bs.quietAt || 0) < BS_QUIET_MS) throw new Error('استنى شوية: لسه بيلعب دوره');
     bsAuto(room);
     return;
   }
@@ -294,6 +317,7 @@ const bsTimeout = (room, now) => {
   const s = room.shared || {};
   if ((s.phase !== 'play' && s.phase !== 'place') || !s.endsAt || now < s.endsAt + BS_GRACE_MS) return false;
   bsAuto(room);
+  bsMarkQuiet(room);
   return true;
 };
 

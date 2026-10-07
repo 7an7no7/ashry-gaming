@@ -14,6 +14,9 @@ board once every turn is played. The relay lives in the game's own slice
 of `appState` (`appState.charades.relay`), the options (`teamOpts`: mode,
 names, turns) too, painted back onto the setup screen by
 `paintSetupOptions`. ثلاث جولات already split into teams on its own.
+A reload on the handover card or the final board comes back to it
+(`restoreCharadesSummary` / `restoreDescribeSummary`); only a turn under way
+(`turnLive`) goes back to the setup with «انتهت الجولة» (the audit of 6 Oct 2026).
 
 ### Who asks whom (the ask director)
 
@@ -45,11 +48,14 @@ scored press can be taken back (the audit of 17 Sep 2026):
   running score by the room rules.
 - كلمة واحدة: 5, 10 or 13 rounds (`#justone-rounds`), an undo of the verdict,
   and a final score; its old confirm popup and timer are gone, which is what
-  used to leave it stuck.
+  used to leave it stuck. A reload comes back (`restoreView`): the verdict or
+  the final score as they were, a round mid-way dealt again with a fresh word
+  for the same guesser, the round and score kept (the audit of 6 Oct 2026).
 - ربع قرد: the board is saved before every move that can cost a quarter, so
   the winner popup offers "عكس الحكم" and "back to the board" - the verdict
   that decides the game can still be overruled. خلصت الكلمة has a ↶ for ✅
-  and ⏭; بدون كلام and أوصف لي clear their undo stack at every turn (team B
+  and ⏭ (the ✅ that empties a round's deck too: `roundUndo`, from the next
+  ready card or the finale, until the next turn judges a card); بدون كلام and أوصف لي clear their undo stack at every turn (team B
   could take back team A's card and score it).
 - A relay match or a دوري المعرفة board left unfinished shows "continue" on
   its setup, and a new one asks before replacing it (`relayBegin`,

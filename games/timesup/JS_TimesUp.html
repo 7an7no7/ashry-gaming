@@ -718,7 +718,10 @@ const timesUpState = {
   turnClock: null,
   currentCard: "",
   turnProcessing: false,
-  judged: []
+  judged: [],
+  // The ✅ that emptied a round's deck, kept until the next turn judges a card:
+  // the round ends at once on it, so the turn's own stack can't take it back.
+  roundUndo: null
 };
 
 function setupTimesUp() {
@@ -763,7 +766,7 @@ function restoreTimesUp() {
     scores: { 1: g.scores[1] || 0, 2: g.scores[2] || 0 }, teams: { 1: g.teams[1].slice(), 2: g.teams[2].slice() },
     activeTeam: g.activeTeam === 2 ? 2 : 1, activePlayerIndex: { 1: g.activePlayerIndex[1] || 0, 2: g.activePlayerIndex[2] || 0 },
     turnTimerSeconds: g.turnTimerSeconds || 40, carrySeconds: g.carrySeconds || 0,
-    turnClock: null, currentCard: '', turnProcessing: false, judged: []
+    turnClock: null, currentCard: '', turnProcessing: false, judged: [], roundUndo: null
   });
   setView('play-timesup');
   prepareTimesUpTurn();
@@ -802,6 +805,7 @@ function startTimesUpGame() {
   timesUpState.activePlayerIndex = { 1: 0, 2: 0 };
   timesUpState.turnProcessing = false;
   timesUpState.judged = [];
+  timesUpState.roundUndo = null;
 
   playSound('click');
   startTimesUpRound(1);
@@ -852,7 +856,61 @@ function prepareTimesUpTurn() {
     rule.textContent = ([t.timesup_r1, t.timesup_r2, t.timesup_r3][timesUpState.round - 1] || '')
       + (carry ? ' · ⏱️ ' + (t.timesup_carry || '').replace('{n}', carry) : '');
   }
+  paintTimesUpRoundUndo();
   timesUpSave();
+}
+
+/** The ↶ for the ✅ that ended the last round: on the next ready card and on the finale's sheet, while there is one. */
+function paintTimesUpRoundUndo() {
+  const t = TRANSLATIONS[appState.lang] || {};
+  const on = !!timesUpState.roundUndo;
+  const hosts = [
+    ['timesup-round-undo-btn', document.getElementById('timesup-turn-ready-card')],
+    ['timesup-final-undo-btn', document.querySelector('#timesup-result-modal .modal-actions')]
+  ];
+  hosts.forEach(([id, host]) => {
+    let btn = document.getElementById(id);
+    if (!btn && on && host) {
+      btn = document.createElement('button');
+      btn.id = id;
+      btn.type = 'button';
+      btn.className = 'btn btn--ghost';
+      btn.setAttribute('onclick', 'undoTimesUpRoundEnd()');
+      host.appendChild(btn);
+    }
+    if (!btn) return;
+    btn.textContent = '↶ ' + (t.undo_card || '');
+    btn.style.display = on ? '' : 'none';
+  });
+}
+
+/**
+ * Takes back the ✅ that emptied the deck: its point goes, the card is the
+ * round's last one again, and that clue giver's turn comes back on its ready
+ * card with the time they had left - from the next round's ready card, or from
+ * the finale after round 3.
+ */
+function undoTimesUpRoundEnd() {
+  const u = timesUpState.roundUndo;
+  if (!u) return false;
+  const t = TRANSLATIONS[appState.lang] || {};
+  timesUpState.roundUndo = null;
+  if (timesUpState.turnClock) timesUpState.turnClock.stop();
+  timesUpState.turnClock = null;
+  const modal = document.getElementById('timesup-result-modal');
+  if (modal && !modal.classList.contains('hidden')) closeModal('timesup-result-modal');
+  timesUpState.scores[u.team] = Math.max(0, (timesUpState.scores[u.team] || 0) - 1);
+  timesUpState.round = u.round;
+  timesUpState.currentRoundDeck = [u.card];
+  timesUpState.activeTeam = u.team;
+  timesUpState.activePlayerIndex = { 1: u.player[1], 2: u.player[2] };
+  timesUpState.carrySeconds = Math.max(1, u.left);
+  if (appState.currentView !== 'play-timesup') setView('play-timesup');
+  prepareTimesUpTurn();
+  playSound('tick');
+  haptic('light');
+  showToast(t.undo_done || '', 'success');
+  return true;
 }
 
 function beginTimesUpLiveTurn() {
@@ -932,6 +990,8 @@ function drawNextTimesUpCard() {
 function timesUpAction(action) {
   if (timesUpState.turnProcessing) return;
   if (!timesUpState.currentCard) return;
+  // A card judged in the new turn: the last round's ✅ stands now.
+  timesUpState.roundUndo = null;
 
   if (action === 'correct') {
     timesUpState.turnProcessing = true;
@@ -965,6 +1025,8 @@ function timesUpAction(action) {
 /** Puts the last card of this turn back on top: a ✅ gives its point back, a ⏭ comes off the bottom. */
 function undoTimesUpCard() {
   const t = TRANSLATIONS[appState.lang] || {};
+  // Nothing judged yet in this turn, straight after a round ended on a ✅: that ✅.
+  if (timesUpState.roundUndo && !timesUpState.judged.length) { undoTimesUpRoundEnd(); return; }
   const live = document.getElementById('timesup-turn-live-card');
   const running = !!(timesUpState.turnClock && timesUpState.turnClock.isRunning && timesUpState.turnClock.isRunning());
   const last = running && live && !live.classList.contains('hidden') ? timesUpState.judged.pop() : null;
@@ -991,6 +1053,7 @@ function undoTimesUpCard() {
 function endTimesUpTurn(timeRanOut) {
   if (timesUpState.turnClock) timesUpState.turnClock.stop();
   timesUpState.judged = [];
+  timesUpState.roundUndo = null;
 
   // Rotate player and switch team
   timesUpState.activePlayerIndex[timesUpState.activeTeam]++;
@@ -1004,6 +1067,12 @@ function endTimesUpTurn(timeRanOut) {
 function endTimesUpRound() {
   // Read the clock before stopping it: whoever emptied the deck keeps their time.
   const left = timesUpState.turnClock ? timesUpState.turnClock.value() : 0;
+  // The ✅ that emptied the deck, so ↶ can still take it back (O2).
+  const lastJ = timesUpState.judged[timesUpState.judged.length - 1];
+  timesUpState.roundUndo = lastJ && lastJ.action === 'correct'
+    ? { card: lastJ.card, team: timesUpState.activeTeam, round: timesUpState.round, left: left,
+        player: { 1: timesUpState.activePlayerIndex[1], 2: timesUpState.activePlayerIndex[2] } }
+    : null;
   if (timesUpState.turnClock) timesUpState.turnClock.stop();
   timesUpState.turnClock = null;
   timesUpState.judged = [];
@@ -1070,11 +1139,13 @@ function finishTimesUpGrandFinale() {
     </div>
   `;
 
+  paintTimesUpRoundUndo();
   modal.classList.remove('hidden');
 }
 
 function resetTimesUpPlay() {
   if (timesUpState.turnClock) timesUpState.turnClock.stop();
+  timesUpState.roundUndo = null;
   closeModal('timesup-result-modal');
   setupTimesUp();
 }

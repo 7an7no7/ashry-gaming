@@ -161,7 +161,8 @@ name and take everyone out or delete the crew. The manager's power is now a **ke
   (`crewAutoForRoom` after `Room.create`); the lobby shows «السهرة دي محسوبة لـ «X»
   ✏️» (the host's pick sheet) or «السهرة دي للشلة؟» to a host with crews; a guest
   sees the line with «انضم للشلة»; the hub's night board offers a guest «انضم لـ
-  «X»» once the night has points.
+  «X»» once the night has points. When a screen hosts the room, a member phone with
+  crews gets the host's line and sends `setCrew` itself (the audit of 6 Oct 2026).
 - Motion: the card rises in, the podium rises with the cheerers (`podium--rise`,
   once per state with `motionFirst`), numbers count up, cards pop in one after
   another, the tab's pane slides, confetti on a crew made or joined.

@@ -136,12 +136,17 @@ function dndSilent() {
   return dndSilentUrl;
 }
 
-/** Inside a tap: the element plays once (silence if no clip yet), which is what lets it play by itself later. */
-function dndUnlock() {
+/**
+ * Inside a tap: the element plays once (silence if no clip yet), which is what lets it play by itself later.
+ * `clipNow`: the caller plays the clip itself in this same tap (dndPlayTap), so no silence is needed. Any
+ * other tap plays the silence even when the clip is already loaded (a reload in the count-in): nothing
+ * would play in the tap, and iPhone would refuse the clock's play() later.
+ */
+function dndUnlock(clipNow) {
   const a = dndAudio();
   if (dnd.unlocked) return;
   dnd.unlocked = true;
-  if (dnd.blob && a.src === dnd.blob.url) return;   // the clip itself is about to play in this tap
+  if (clipNow && dnd.blob && a.src === dnd.blob.url) return;   // the clip itself is about to play in this tap
   try {
     a.src = dndSilent();
     const p = a.play();
@@ -217,8 +222,9 @@ function dndPlayTap() {
   if (!token) return;
   haptic('light');
   if (dnd.cur === 'manual' && dnd.audio && !dnd.audio.paused) { dndStopSound(); return; }
-  dndUnlock();
-  if (s.mode === 'listen' && s.replay !== 'full' && s.phase !== 'reveal') { dndPaintNow(); return; }   // only the clock plays these
+  const clockOnly = s.mode === 'listen' && s.replay !== 'full' && s.phase !== 'reveal';
+  dndUnlock(!clockOnly && !!dnd.blob && dnd.blob.token === token);
+  if (clockOnly) { dndPaintNow(); return; }   // only the clock plays these
   const a = dndAudio();
   const go = () => {
     if (dnd.unlocking) { dnd.unlocking.then(go); return; }

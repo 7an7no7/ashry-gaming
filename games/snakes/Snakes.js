@@ -603,14 +603,16 @@ const snakesCount = (g, key, pid) => {
   const lead = st.lead[key];
   if (!lead || st[key][pid] > lead.val) st.lead[key] = { pid: pid, val: st[key][pid] };
 };
-/** A piece going down `from` → `to` in one roll (a snake, a peel, a snake that moved onto him): the worst fall. */
-const snakesFallen = (g, pid, from, to) => {
+/** A piece going down `from` → `to` in one roll (a snake, a peel, a snake that moved onto him): the worst fall.
+    `kind` ('snake' or 'peel') is what the awards' replay draws. */
+const snakesFallen = (g, pid, from, to, kind) => {
   const st = g.stats;
   if (!st || !(from > to)) return;
-  if (!st.fall || from - to > st.fall.val) st.fall = { pid: pid, from: from, to: to, val: from - to };
+  const k = kind || 'snake';
+  if (!st.fall || from - to > st.fall.val) st.fall = { pid: pid, from: from, to: to, val: from - to, kind: k };
   // Each one's own worst too, so the award passes on when its holder leaves.
   st.falls = st.falls || {};
-  if (!st.falls[pid] || from - to > st.falls[pid].val) st.falls[pid] = { from: from, to: to, val: from - to };
+  if (!st.falls[pid] || from - to > st.falls[pid].val) st.falls[pid] = { from: from, to: to, val: from - to, kind: k };
 };
 /** Eaten by a snake (it lands on its head, or the snake moves onto it): counted, and its squares kept for the replay. */
 const snakesEaten = (g, pid, h, t) => {
@@ -646,7 +648,7 @@ const snakesAwards = (g) => {
   if (eaten && eaten.val >= 1) out.push({ k: 'eaten', pid: eaten.pid, val: eaten.val, eats: (st.eats[eaten.pid] || []).slice() });
   if (ladder) out.push({ k: 'ladder', pid: ladder.pid, val: ladder.val, from: ladder.from, to: ladder.to });
   if (sixes && sixes.val >= 2) out.push({ k: 'sixes', pid: sixes.pid, val: sixes.val });
-  if (fall) out.push({ k: 'fall', pid: fall.pid, val: fall.val, from: fall.from, to: fall.to });
+  if (fall) out.push({ k: 'fall', pid: fall.pid, val: fall.val, from: fall.from, to: fall.to, kind: fall.kind || 'snake' });
   const score = (a) => a.val / SNAKES_AWARD_CAP[a.k];
   return out.filter(a => g.seats.indexOf(a.pid) !== -1)
     .sort((a, b) => score(b) - score(a)).slice(0, SNAKES_AWARDS_MAX).reverse();
@@ -863,7 +865,7 @@ const snakesRoll = (g, pid, v, rnd, now) => {
     if (sk === 'charm') g.charm[mover] = true;
     else if (sk === 'again') extra = true;
     else if (sk === 'nap') { g.nap[mover] = true; napNow = true; }
-    else if (sk === 'peel') { to = Math.max(1, walk - SNAKES_PEEL_BACK); surp.to = to; snakesFallen(g, mover, walk, to); }
+    else if (sk === 'peel') { to = Math.max(1, walk - SNAKES_PEEL_BACK); surp.to = to; snakesFallen(g, mover, walk, to, 'peel'); }
     else if (sk === 'worker') {
       const d = snakesShuffle(SNAKES_WORKER_BY, rand).find(x => walk + x < 100 && !snakesSpecial(g.map, walk + x));
       if (d) { to = walk + d; surp.by = d; surp.to = to; } else surp.none = true;

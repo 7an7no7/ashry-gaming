@@ -452,7 +452,10 @@ goes through `ROOM_HELP_KEY` in `JS_Utils.html` (*Traps*).
     files (`g.rooks`, `[wK, wQ, bK, bQ]`, standard `[7, 0, 7, 0]`) through
     `chessFromFen` / `chessPos` / `chessCloneGame` / `chessFen` (X-FEN),
     castling to g/c with the rook to f/d, a castling move also accepted as
-    "the king takes its own rook" (`chessFind`); `chess960Start(n)`
+    "the king takes its own rook" (`chessFind`; since the fixes of 7 Oct 2026 the
+    app's engine sends a one-square 960 castle in that form, and a move carrying
+    `uci` - the review's, the coach's, `chessAnalyse`'s - is read through it, so
+    it never replays as the king step); `chess960Start(n)`
     (Scharnagl numbering, 518 is the standard start) and `chess960Random`;
     Chess960 perft positions in `rules.mjs`. **Several lines**:
     `chessAnalyse(g, { lines: n })` returns `lines`, the top n root moves with

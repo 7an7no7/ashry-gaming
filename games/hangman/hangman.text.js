@@ -233,7 +233,7 @@ gameText({
                 <li><b>مساعدات</b>، كل واحدة مرة في الكلمة: «اكشف حرف» بيوريك حرف من الكلمة، و«شيل ٣ حروف غلط» بيطفّي 3 زراير مش في الكلمة. كل مساعدة بتشيل <b>3 نقط</b> من الكلمة لو حلّيتها.</li>
                 <li>اللي بيكتب يقدر يدّي لحد <b>3 تلميحات</b>: الأول باين من الأول، التاني بيفتح عند الغلطة التانية، والتالت عند الرابعة.</li>
                 <li><b>🔥 ورا بعض</b>: الكلمة التانية اللي تحلها ورا بعض +2، التالتة +4… لحد +10. أول كلمة ماتحلهاش العدّ يرجع من الأول.</li>
-                <li>لما الكلمة تتحل الراجل بيهرب بطريقة من 8 (منطاد، توكتوك، العيلة تشدّه…)، ولما الغلطات تخلص بيحصل له حاجة تضحّك من 8 (طبق فول، جردل مية، لقلق…). عمرها ما بتتكرر مرتين ورا بعض.</li>
+                <li>لما الكلمة تتحل الراجل بيهرب بطريقة من 8 (منطاد، توكتوك، العيلة تشدّه…)، ولما الغلطات تخلص بيحصل له حاجة تضحّك من 8 (طبق فول، جردل مية، طماطم من الجمهور…). عمرها ما بتتكرر مرتين ورا بعض.</li>
                 <li>في العربي كل حرف زرار واحد: <b>ا</b> بتفتح أ إ آ، و<b>ه</b> بتفتح ة، و<b>ي</b> بتفتح ى، والعكس كمان: لو الكلمة كلها اتكتبت بـ أ أو ا، الاتنين واحد. الكلمة بتبان زي ما اتكتبت بالظبط.</li>
             </ol>
             <p class="help-sub">📱 لاتنين على موبايل</p>
@@ -262,7 +262,7 @@ gameText({
                 <li><b>Lifelines</b>, each once a word: «Show a letter» shows one letter of the word, and «Remove 3 wrong» greys out 3 keys that aren't in it. Each one used takes <b>3 points</b> off that word if you solve it.</li>
                 <li>The writer can give up to <b>3 hints</b>: the first shows from the start, the second opens on your 2nd miss and the third on your 4th.</li>
                 <li><b>🔥 In a row</b>: your 2nd word solved in a row +2, the 3rd +4… up to +10. A word you don't solve starts it over.</li>
-                <li>When the word is solved the man escapes one of 8 ways (a balloon, a tuk-tuk, the family pulls him free…); when the misses run out something funny happens to him, one of 8 (a plate of beans, a bucket of water, a stork…). Never the same one twice in a row.</li>
+                <li>When the word is solved the man escapes one of 8 ways (a balloon, a tuk-tuk, the family pulls him free…); when the misses run out something funny happens to him, one of 8 (a plate of beans, a bucket of water, tomatoes from the crowd…). Never the same one twice in a row.</li>
                 <li>In Arabic each letter is one key: <b>ا</b> opens أ إ آ, <b>ه</b> opens ة and <b>ي</b> opens ى, and the other way round: a whole word typed with أ or with ا is the same word. The word shows exactly as it was typed.</li>
             </ol>
             <p class="help-sub">📱 Two on one phone</p>

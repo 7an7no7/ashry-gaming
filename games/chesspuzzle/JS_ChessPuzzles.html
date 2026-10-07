@@ -544,7 +544,13 @@ function chPzStartDaily() {
   }
   if (soloDailyResume('chesspuzzle')) return;
   // Played once: today's is done (a past day from the archive is played there, soloArchiveDay set).
-  if (!soloArchiveDay && soloDailyResult('chesspuzzle')) { showToast(chT('daily_done_today'), 'info'); return; }
+  if (!soloArchiveDay && soloDailyResult('chesspuzzle')) {
+    // Refused: the streak puzzle stays on the board, so the copy put aside above is forgotten
+    // (kept, it came back later as a puzzle to solve twice).
+    if (s0.mode === 'streak' && s0.streak) s0.streak.saved = null;
+    showToast(chT('daily_done_today'), 'info');
+    return;
+  }
   const go = () => {
     const p = chPzDailyPuzzle();
     if (p) chPzBegin({ mode: 'daily', p: chPzCopy(p), daily: soloToday() });
@@ -667,6 +673,8 @@ function chPzStreakDeal(s) {
   if (!p) { chPzStreakFinish(s); return; }
   st.seen.push(p.id);
   s.streakRecent = (s.streakRecent || []).concat(p.id).slice(-CHPZ_RECENT);
+  // A new puzzle of the run: anything put aside before it is behind the run now.
+  st.saved = null;
   chPzBegin({ mode: 'streak', p: chPzCopy(p) });
 }
 

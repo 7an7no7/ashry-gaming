@@ -111,6 +111,7 @@ const clearGameState = (room) => {
   room._impWords = null;
   room._impScores = null;
   room._waScores = null;
+  room._restartNight = null;
   room._spyLoc = null;
   room._spyIds = null;
   room._bombStart = null;
@@ -646,8 +647,18 @@ const applyRoomAction = (room, playerId, action, payload) => {
   if (action === 'backToHub') {
     requireHost(room, playerId);
     const had = room.game;
-    // The night's table, taken from the game's own board before it is cleared.
-    if (had) bankNightPoints(room, (room.shared || {}).board);
+    // A finished round the host took back to the game's lobby («لعبة جديدة», restart): its board
+    // waited server-side (the lobby shows none), and is the one banked if no round followed it.
+    const restarted = room._restartNight;
+    room._restartNight = null;
+    if (had && restarted && restarted.game === had && room.phase === 'lobby' && !(room.shared || {}).board) {
+      room.shared = Object.assign({}, room.shared, { board: restarted.board, roster: restarted.roster },
+        restarted.winner ? { winner: restarted.winner } : {});   // أسماء الرموز: its sides are placed by the winner
+    }
+    // The night's table, taken from the game's own board before it is cleared. ارسم وخمّن and
+    // الفنان المزيف keep a board only at a round's result: left mid-round, their running scores.
+    const sh = room.shared || {};
+    if (had) bankNightPoints(room, sh.board || (NIGHT_BOARD_FROM_SCORES[had] && sh.scores ? scoreboardOf(room) : undefined));
     if (had) settlePredictions(room);
     clearGameState(room);
     room.game = null;
@@ -994,6 +1005,9 @@ function settlePredictions(room, boardOf) {
    ---------------------------------------------------------------------------- */
 const NIGHT_PLACES = [5, 3, 2];
 const NIGHT_PLAYED = 1;   // everyone else on the board
+// Games whose shared.board is set only at a round's result: left mid-round, the night ranks
+// their running scores (scoreboardOf) instead of everyone level.
+const NIGHT_BOARD_FROM_SCORES = { drawguess: true, fakeartist: true };
 
 /* Every board is the roster's (the audit of 1 Oct 2026). Many boards are built from
    room.players, so someone who joined after the deal and only watched was on them with 0:
@@ -1008,7 +1022,10 @@ const nightPlayedIds = (room) => {
   const flat = (x) => (Array.isArray(x) ? x.reduce((a, y) => a.concat(flat(y)), []) : (typeof x === 'string' ? [x] : []));
   let ids = null;
   if (s.tour && Array.isArray(s.tour.entrants) && s.tour.entrants.length) ids = s.tour.entrants;
-  else if (Array.isArray(s.seats) && flat(s.seats).length) ids = flat(s.seats);
+  // Winner stays (the duels' seats): everyone who sat this session, not only the pair seated now.
+  else if (Array.isArray(s.sat) && s.sat.length) ids = s.sat;
+  // إستميشن's computer player in a leaver's seat (s.standIns): the leaver played, the bot didn't.
+  else if (Array.isArray(s.seats) && flat(s.seats).length) ids = flat(s.seats).map(id => (s.standIns && s.standIns[id]) || id);
   else if (Array.isArray(s.teams) && flat(s.teams).length) ids = flat(s.teams);
   // أسماء الرموز keeps its sides as { pid: { team, role } }: someone on neither side only watched.
   else if (s.teams && typeof s.teams === 'object' && !Array.isArray(s.teams) && Object.keys(s.teams).length) ids = Object.keys(s.teams);
@@ -1084,7 +1101,8 @@ const nightPlacesOf = (room, board, cut) => {
   const p = room.program || {};
   // Who played: what the game keeps, else who was in the program's game, else the room (a board
   // banked with no game in the room - the secret mission's - is its own list of who played).
-  const played = nightPlayedIds(room) || (Array.isArray(p.present) ? p.present.slice()
+  // A program's people only for the program's game: the mission ends with no game in the room.
+  const played = nightPlayedIds(room) || (game && Array.isArray(p.present) ? p.present.slice()
     : (game ? (room.players || []).map(x => x.id) : (board || []).filter(r => r && r.id).map(r => r.id)));
   if (game && NIGHT_NO_PLACES[game] && NIGHT_NO_PLACES[game](room)) return { coop: true, rows: [] };
   if (game && PROGRAM_COOP[game]) return { coop: true, rows: played.map(id => ({ id, place: 1 })) };
@@ -1698,6 +1716,8 @@ const gamePlayerLeft = (room, playerId, name) => {
       if ((room.phase === 'reveal' || room.phase === 'discuss' || room.phase === 'voting') && impostorsGone(room._impSpies)) {
         s.impostorLeft = true;
         finishImposter(room, 'revealed', null);
+        // Named from here: they are no longer in the room for the result's line to look up.
+        room.shared.impostorLeftName = name || '';
         return;
       }
       if (room.phase === 'voting' && voteClosed()) resolveImposterVote(room);
@@ -1709,6 +1729,8 @@ const gamePlayerLeft = (room, playerId, name) => {
       if (s.phase !== 'guess' && s.phase !== 'results' && impostorsGone([room._chamId])) {
         s.impostorLeft = true;
         finishChameleon(room, 'revealed', null);
+        // Named from here: they are no longer in the room for the result's line to look up.
+        room.shared.impostorLeftName = name || '';
         return;
       }
       if (s.phase === 'voting' && voteClosed()) resolveChameleonVote(room);
@@ -1718,6 +1740,8 @@ const gamePlayerLeft = (room, playerId, name) => {
       if (s.phase !== 'guess' && s.phase !== 'results' && impostorsGone(room._spyIds)) {
         s.impostorLeft = true;
         finishSpyfall(room, 'revealed', null, null);
+        // Named from here: they are no longer in the room for the result's line to look up.
+        room.shared.impostorLeftName = name || '';
         return;
       }
       if (s.phase === 'voting' && voteClosed()) resolveSpyfallVote(room);
@@ -1973,6 +1997,13 @@ const mafiaPlayerLeft = (room, playerId, name) => {
   }
   if (mafiaCheckEnd(room)) return;
   if (s.phase === 'night' && mafiaAlive(room).every(id => (room._mafiaActed || []).indexOf(id) !== -1)) { mafiaEndNight(room); return; }
+  // The day vote: someone who left is no longer a choice, and whoever voted for them votes again
+  // (their ballot would be wasted, and the result would say the table sent nobody out).
+  if (s.phase === 'voting' && s.vote && s.vote.phase === 'voting') {
+    s.vote.options = s.vote.options.filter(o => o.id !== playerId);
+    const b = room._ballots || {};
+    Object.keys(b).forEach(pid => { if (b[pid] === playerId) { delete b[pid]; s.vote.voted = s.vote.voted.filter(x => x !== pid); } });
+  }
   if (s.phase === 'voting' && voteDropPlayer(room, playerId)) { mafiaResolveVote(room); return; }
   mafiaWriteSecrets(room);
 };

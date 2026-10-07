@@ -222,6 +222,9 @@ const bowlPlayerLeft = (room, playerId) => {
   const wasUp = s.turn && s.turn.pid === playerId;
   const next = wasUp ? bowlNextUp(s, playerId) : null;
   s.order = s.order.filter(id => id !== playerId);
+  // Off the roster too: the night reads who played from it, and a leaver kept there shared
+  // the first place whenever the rest tied or one bowler was left.
+  if (Array.isArray(s.roster)) s.roster = s.roster.filter(id => id !== playerId);
   delete s.cards[playerId];
   delete s.scores[playerId];
   if (wasUp) {

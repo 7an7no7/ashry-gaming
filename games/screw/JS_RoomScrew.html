@@ -1068,7 +1068,8 @@ function skrAct(btn, action, extra) {
 /** Something to draw: the deck, or - unless sudden death is on - the pile under its top card. */
 function skrCanDraw(s) {
   if ((Number(s.deckCount) || 0) > 0) return true;
-  return !((s.settings || {}).suddenDeath) && (s.pile || []).length > 1;
+  // A spent thief under the top doesn't go back into the deck, so it doesn't count.
+  return !((s.settings || {}).suddenDeath) && (s.pile || []).slice(0, -1).filter(c => !(s.thiefSpent && c === 'thief')).length > 0;
 }
 
 function skrCallScrew() {
@@ -2058,7 +2059,7 @@ function skrPodiumRows(state) {
 function skrTeamScoresLine(state) {
   const s = state.shared || {};
   if (!Array.isArray(s.teams) || !s.teams.length || !s.teamScores) return '';
-  return '🤝 ' + s.teams.map((team, i) => skrTeamLabel(i) + ' ' + (Number(s.teamScores[SKR_TEAM_KEYS[i]]) || 0)).join(' · ');
+  return '🤝 ' + s.teams.map((team, i) => skrTeamLabel(i) + ' ⁦' + (Number(s.teamScores[SKR_TEAM_KEYS[i]]) || 0) + '⁩').join(' · ');
 }
 
 function skrStandingsHtml(state) {
@@ -2077,7 +2078,7 @@ function skrStandingsHtml(state) {
         <div class="status-row ${top(p) ? 'status-row--turn' : ''}" data-pid="${escapeHTML(String(p.id))}" data-score="${Number(p.score) || 0}">
           <div class="status-row__body"><div class="status-row__name">${top(p) ? '👑 ' : ''}${skrTeamDot(s, p.id)}${escapeHTML(p.name || '')}${p.id === Room.me ? ` <span class="badge">${escapeHTML((TRANSLATIONS[appState.lang] || {}).vote_you || '')}</span>` : ''}</div></div>
           ${typeof round[p.id] === 'number' ? `<span class="badge"><bdi dir="ltr">${skrSigned(round[p.id])}</bdi></span>` : ''}
-          <span class="badge badge--accent" data-count>${Number(p.score) || 0}</span>
+          <span class="badge badge--accent" data-count dir="ltr">${Number(p.score) || 0}</span>
         </div>`).join('')}
     </div>`;
 }
@@ -2286,7 +2287,7 @@ function skrRevealHtml(state, opts) {
     lines.push('🤝 ' + s.teams.map((team, i) => {
       const key = SKR_TEAM_KEYS[i];
       const sum = typeof totals[key] === 'number' ? totals[key] : (team || []).reduce((acc, pid) => acc + skrHandSum(r, pid), 0);
-      return skrTeamLabel(i) + ': ' + sum + (typeof round[key] === 'number' ? ' (⁦' + skrSigned(round[key]) + '⁩)' : '');
+      return skrTeamLabel(i) + ': ⁦' + sum + '⁩' + (typeof round[key] === 'number' ? ' (⁦' + skrSigned(round[key]) + '⁩)' : '');
     }).join(' · '));
   }
   return `${thief.html}<div class="skr-reveal ${o.tv ? 'skr-reveal--tv' : ''} ${animate ? 'is-revealing' : ''}" style="--late:${animate ? flipsEnd : 0}ms" ${animate ? `data-reveal-ms="${flipsEnd + 900}" data-skr-count-at="${flipsEnd}"` : ''}>${rows.join('')}</div>
@@ -3946,7 +3947,7 @@ function skrTvChips(state) {
   const winners = s.phase === 'gameover' && Array.isArray(s.winners) ? s.winners : null;
   const top = (r) => (winners ? winners.indexOf(r.id) !== -1 : r.score === rows[0].score);
   const teams = skrTeamScoresLine(state);
-  return `<div class="tv-strip-inline">${teams ? `<span class="tv-chip">${escapeHTML(teams)}</span>` : ''}${rows.map(r => `<span class="tv-chip ${top(r) ? 'is-done' : ''}">${top(r) ? '👑 ' : ''}${skrTeamDot(s, r.id)}${escapeHTML(r.name || '')} <b class="tv-chip__score">${r.score}</b>${typeof round[r.id] === 'number' ? ` <small><bdi dir="ltr">${skrSigned(round[r.id])}</bdi></small>` : ''}</span>`).join('')}</div>`;
+  return `<div class="tv-strip-inline">${teams ? `<span class="tv-chip">${escapeHTML(teams)}</span>` : ''}${rows.map(r => `<span class="tv-chip ${top(r) ? 'is-done' : ''}">${top(r) ? '👑 ' : ''}${skrTeamDot(s, r.id)}${escapeHTML(r.name || '')} <b class="tv-chip__score" dir="ltr">${r.score}</b>${typeof round[r.id] === 'number' ? ` <small><bdi dir="ltr">${skrSigned(round[r.id])}</bdi></small>` : ''}</span>`).join('')}</div>`;
 }
 
 function skrTvTable(state, t) {

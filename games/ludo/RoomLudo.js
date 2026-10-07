@@ -99,9 +99,12 @@ const ludoBoard = (room) => {
   const wins = s.wins || {};
   const places = s.places || [];
   const placeOf = (id) => (places.indexOf(id) === -1 ? null : places.indexOf(id) + 1);
+  // Someone who got home and then left keeps their place on it (ludoPlayerLeft keeps their seat),
+  // with the name the board already had for them.
+  const nameOf = (id) => roomPlayerName(room, id) || ((s.board || []).find(r => r && r.id === id) || {}).name || '';
   return (s.seats || [])
-    .filter(id => room.players.some(p => p.id === id))
-    .map(id => ({ id: id, name: roomPlayerName(room, id), score: wins[id] || 0, tie: placeOf(id) }))
+    .filter(id => room.players.some(p => p.id === id) || places.indexOf(id) !== -1)
+    .map(id => ({ id: id, name: nameOf(id), score: wins[id] || 0, tie: placeOf(id) }))
     .sort((a, b) => (b.score - a.score) || ((a.tie || 99) - (b.tie || 99)));
 };
 

@@ -250,6 +250,93 @@ function analyse(code, name) {
  * first, as on the page). Returns the plan: the shell's files, the chunks in the
  * order they must run, and the maps the page asks.
  */
+/* Two kinds of call the checks in plan() can't place by the screen: shell code calling a
+   chunk's function (it runs from any screen), and a popup's buttons (popups are moved under
+   <body> and open over any screen). Each one on the page on 7 Oct 2026 was checked by hand -
+   behind a typeof, a door (lzRun / lzWait), or reached only once its chunk has run (a restore
+   after lzBootWrite, a popup its own game opens). A new one fails the build: put it behind a
+   door (lzRun(chunk, fn)), or check it the same way and add it here. File > names, popup id > names. */
+export const SHELL_USES_OK = {
+  JS_Memory: 'memoryState restoreMemory',
+  JS_Monkey: 'stopTimer renderMonkeyBoard monkeyState startTimer updateTimerUI checkWinCondition runStartMonkey liarButton penaltyAndPass nextTurn',
+  JS_Imposter: 'stopImposterTimer showRevealStep renderImposterBoard updateImposterTimerUI imp1Restore renderSpyCategories startImposterGame finalizeImposterGame',
+  JS_TriviaBoard: 'renderTriviaBoard showTriviaCell closeTriviaCell triviaStarted resumeTriviaBoard',
+  JS_Connections: 'paintConnectLevel restoreConnections setupConnections connState startConnections',
+  JS_Crew: 'renderCrew crewOpenJoin crewOpenCreate',
+  JS_Screw: 'renderScrewBoard runStartScrew',
+  JS_Domino: 'renderDominoBoard dominoOrderReturn paintDominoTeamsLine finalizeDominoTeams dominoPlayAgain',
+  JS_Tournament: 'renderBracket',
+  JS_Teams: 'paintTeams paintTeamsSplit getSelectedPlayers',
+  JS_Wordle: 'renderWordleBoard renderKeyboard startWordleGame',
+  JS_GuessNumber: 'renderGuessNumHistory',
+  JS_QuizMaker: 'qmRestore qmOpenSheet qmPaintHub',
+  JS_Charades: 'restoreCharadesSummary renderCharadesDropdown startCharades charadesResumeMatch',
+  JS_DescribeIt: 'restoreDescribeSummary startDescribeGame describeResumeMatch',
+  JS_JustOne: 'nextJoRound joPaintResult startJustOneGame',
+  JS_Emoji: 'restoreEmoji startEmojiGame',
+  JS_Proverbs: 'restoreProverbs startProverbsGame',
+  JS_FiveSeconds: 'restoreFiveSeconds startFiveGame',
+  JS_Bomb: 'restoreBomb startBombRound',
+  JS_Stop: 'restoreStop startStopGame stopLetterPool',
+  JS_XO: 'restoreXO',
+  JS_Chooser: 'openChooser',
+  JS_Chameleon: 'renderChameleonCategories startChameleonGame',
+  JS_Chess: 'chLocal chCoachDismissed chState chContinue',
+  JS_Spyfall: 'startSpyfallGame',
+  JS_Bank: 'bankState bankContinue',
+  JS_Ludo: 'ludoState ludoContinue',
+  JS_Snakes: 'snkState snakesContinue',
+  JS_Connect4: 'c4State c4Continue',
+  JS_Dots: 'dotsState dotsContinue',
+  JS_Battleship: 'bsPhoneState bsPhoneContinue',
+  JS_Bowling: 'bowlSoloState bowlingContinue',
+  JS_MiniGolf: 'mgSoloLive mgSoloState mgContinue startMiniGolf',
+  JS_2048: 'g2048State',
+  JS_RoomMission: 'missionLobbyHtml missionOpenSetup missionSync missionTvSig missionTvBoardHtml',
+  JS_RoomProgram: 'progOpenBuilder progPaintPill progInterlude progRender progTvSig progTvFrame progTvAfter',
+  JS_WhoAmI: 'WHOAMI_DB matchCategoryKey',
+  JS_RoomCodenames: 'cnClockText CN_TEAM_LABEL CN_UNLIMITED CN_COVER cnLog refreshCodenamesHostTools CN_CONFETTI',
+  JS_RoomTrivia: 'triviaRevealPlan startTriviaClock stopTriviaClock triviaRevealRun',
+  JS_RoomDraw: 'drawHintHtml resetDrawSurface bindDrawSurface paintStrokes paintGuessList startDrawClock stopDrawClock',
+  JS_RoomFakeArtist: 'faOnline faDot faName faSkipTurnCall faResultLine faFakeName fakeArt bindFakeArtistCanvas paintFakeArtist',
+  JS_RoomBuzzer: 'bzFinishHtml bzGapHtml bzUndoHtml bzQuizHtml',
+  JS_StopBus: 'stopBusSceneHtml stopBusRoomPax stopBusLeftHtml stopBusLeftNames stopBusMem stopBusSyncPax stopBusWhenDriving',
+  JS_RoomStop: 'stopRoundKey stopUnknownCount stopReviewTable startStopRoomClock stopStopRoomClock',
+  JS_Flags: 'startFlags',
+  JS_QuizStreak: 'startStreak',
+  JS_Pinpoint: 'startPinpoint',
+  JS_WordSearch: 'startStrands',
+  JS_WordWheel: 'startWordWheel',
+  JS_Sudoku: 'startSudoku',
+  JS_Queens: 'startQueens',
+  JS_Tango: 'startTango',
+  JS_Nonogram: 'startNonogram',
+  JS_Mines: 'startMines',
+  JS_ChessPuzzles: 'chPzStartDaily',
+  JS_RoomVoteChess: 'vcMyTeam',
+  JS_RoomTournament: 'tourTurnOf',
+  JS_RoomSolve: 'roomSolveTurn',
+  JS_ChessReview: 'chDrawBoardCanvas',
+};
+export const POPUP_USES_OK = {
+  'imp1-guess-modal': 'imp1Guess',
+  'imposter-result-modal': 'startImposterGame',
+  'mission-modal': 'missionCloseModal',
+  'prog-modal': 'progCloseBuilder',
+  'ch-warn-modal': 'chCoachTakeBack chCoachPlayAnyway',
+  'password-modal': 'verifyCategoryPassword',
+  'domino-input-modal': 'submitDominoManual',
+  'domino-mode-modal': 'setDominoMode dominoTeamsOrder',
+  'skill-modal': 'generateFairTeams',
+  'stop-result-modal': 'replayStop setupStop',
+  'memory-result-modal': 'replayMemory setupMemory',
+  'chameleon-result-modal': 'resetChameleonPlay',
+  'spyfall-spy-guess-modal': 'spy1CancelGuess',
+  'spyfall-result-modal': 'resetSpyfallPlay',
+  'timesup-result-modal': 'resetTimesUpPlay',
+  'tb-question-modal': 'toggleTriviaTimer',
+};
+
 export function plan({ sources, order, controller, roomGameIds }) {
   const shellSet = new Set([...SHELL_FILES, ...SHELL_LISTS]);
   const fileChunk = new Map();
@@ -366,6 +453,24 @@ export function plan({ sources, order, controller, roomGameIds }) {
   });
   if (handlerProblems.length) throw new Error(`lazy-split: a screen's button calls code its chunk doesn't load:\n  ${[...new Set(handlerProblems)].join('\n  ')}`);
 
+  // Shell code and popups calling a chunk's function: only the ones checked (SHELL_USES_OK, POPUP_USES_OK).
+  const listed = (o) => new Set(Object.entries(o).flatMap(([k, v]) => v.split(' ').map((n) => `${k}>${n}`)));
+  const shellOk = listed(SHELL_USES_OK), popupOk = listed(POPUP_USES_OK);
+  const unchecked = [];
+  for (const [f, set] of Object.entries(shellUses)) for (const n of set) if (!shellOk.has(`${f}>${n}`)) unchecked.push(`shell code calls ${n} (${f}, chunk ${fileChunk.get(f)})`);
+  marks.forEach((m, i) => {
+    if (m[1]) return;
+    const tag = controller.slice(controller.lastIndexOf('<', m.index), controller.indexOf('>', m.index) + 1);
+    const pid = (/\bid="([^"]+)"/.exec(tag) || [, '?'])[1];
+    const block = controller.slice(m.index, i + 1 < marks.length ? marks[i + 1].index : controller.length);
+    for (const h of block.matchAll(/\bon[a-z]+="([^"]*)"/g)) for (const fn of h[1].matchAll(/([A-Za-z_$][\w$]*)\s*\(/g)) {
+      const by = declaredBy.get(fn[1]) || [];
+      if (!by.length || by.some((g) => shellSet.has(g))) continue;
+      if (!popupOk.has(`${pid}>${fn[1]}`)) unchecked.push(`popup ${pid} calls ${fn[1]} (${by.join(', ')})`);
+    }
+  });
+  if (unchecked.length) throw new Error(`lazy-split: a call from the shell or a popup into a chunk that may not be loaded (put it behind lzRun, or check it and add it to SHELL_USES_OK / POPUP_USES_OK):\n  ${[...new Set(unchecked)].join('\n  ')}`);
+
   // Room games: its screen's chunk, and every chunk that registers it.
   const rooms = {};
   for (const g of roomGameIds) {
@@ -404,7 +509,10 @@ export function plan({ sources, order, controller, roomGameIds }) {
 
 /** The code of a chunk: its files' scripts, one after another, in the page's order. */
 export function chunkCode(chunk, sources, banner) {
-  return chunk.files.map((f) => {
+  // First a name of the chunk's own: a second copy of the file (a retry after a timeout,
+  // JS_Lazy.html lzLoadOne, racing the first) declares it again, and the browser refuses
+  // the whole script before running any of it - so a chunk never runs twice.
+  return `const __lzOnce_${chunk.id.replace(/[^\w$]/g, '_')} = 1;\n` + chunk.files.map((f) => {
     const src = sources.get(f);
     const parts = /\.js$/.test(f) ? [src] : [...src.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
     return parts.map((p) => (banner ? `/* ==== ${f} ==== */\n` : '') + p.replace(/\s+$/, '') + '\n;').join('\n');

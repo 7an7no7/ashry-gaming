@@ -40,7 +40,8 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
       list** (there nearly every move is as good as the best: "find a better
       first move" is no puzzle) - the review's button still offers them.
     - A free puzzle (or the daily) dealt in the middle of a streak puts the
-      streak's puzzle aside, and "continue" brings it back.
+      streak's puzzle aside, and "continue" brings it back (a daily refused as
+      done today puts nothing aside, and dealing the run's next puzzle forgets it).
 
 ### ألغاز شطرنج
 

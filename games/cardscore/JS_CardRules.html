@@ -48,6 +48,20 @@ CS_GAMES.trix = {
   owner: (s) => Math.floor(s.rounds.length / CS_GAMES.trix.per(s)) % 4,
   roundLabel: (s) => `👑 ${s.seats[CS_GAMES.trix.owner(s)].name}`,
   goalText: (s, t) => (t.cs_trix_goal || '').replace('{n}', s.rounds.length).replace('{m}', CS_GAMES.trix.per(s) * 4),
+  /**
+   * The contracts the kingdom of the round being typed has played, in the
+   * whole game and not only before it: the round at the view's length is the
+   * one on the card (a new one, or an earlier one being fixed), so it is left
+   * out. Fixing round 1 used to see no rounds at all and offer a contract
+   * round 3 had already played.
+   */
+  playedIn(s) {
+    const full = csState('trix');
+    const per = CS_GAMES.trix.per(s);
+    const at = s.rounds.length;
+    const kingdom = Math.floor(at / per);
+    return full.rounds.filter((r, n) => n !== at && r && r.input && Math.floor(n / per) === kingdom).map(r => r.input.contract);
+  },
   /** The taker, the doubler and, when they are one person, who led the trick. */
   cardHtml(s, t, key, title) {
     const seats = csSeatItems(s);
@@ -71,8 +85,7 @@ CS_GAMES.trix = {
     const g = CS_GAMES.trix;
     const per = g.per(s);
     const owner = g.owner(s);
-    const kingdom = Math.floor(s.rounds.length / per);
-    const played = s.rounds.filter((r, n) => Math.floor(n / per) === kingdom).map(r => r.input.contract);
+    const played = g.playedIn(s);
     const left = TRIX_CONTRACTS[s.opts.game].filter(c => played.indexOf(c) === -1);
     const contract = csDraft(s, 'pick-contract', left[0]);
     const king = () => g.cardHtml(s, t, 'k', t.cs_trix_card_king || 'K♥');
@@ -120,6 +133,8 @@ CS_GAMES.trix = {
   check(input, s, t) {
     const bad = (card) => card.taker === null || (card.doubler !== '' && String(card.doubler) === String(card.taker) && card.led === null);
     if (!input.contract) return t.cs_trix_pick_contract;
+    // A kingdom plays each contract once (a fixed round could repeat one).
+    if (CS_GAMES.trix.playedIn(s).indexOf(input.contract) !== -1) return t.cs_trix_pick_contract;
     if (input.king && bad(input.king)) return t.cs_trix_need_king;
     if (input.queens && input.queens.some(bad)) return t.cs_trix_need_queens;
     if (input.diamonds && csSum(input.diamonds) !== 13) return (t.cs_need_13 || '').replace('{n}', csSum(input.diamonds));
@@ -236,8 +251,10 @@ CS_GAMES.tarneeb = {
   },
   ended(s, totals) {
     if (s.opts.mode === 'fortyone') {
-      const last = s.rounds[s.rounds.length - 1];
-      if (last && last.win !== undefined && last.win !== null) { s.winTeam = last.win; return true; }
+      // A made 13 in any round wins, not only in the last one: an earlier
+      // round fixed into a 13 used to leave the game going.
+      const won = s.rounds.find(r => r && r.win !== undefined && r.win !== null);
+      if (won) { s.winTeam = won.win; return true; }
       const team = [0, 1].find(tm => s.seats.some((seat, i) => seat.team === tm && totals[i] >= 41 && s.seats.some((p, j) => j !== i && p.team === tm && totals[j] > 0)));
       if (team !== undefined) { s.winTeam = team; return true; }
       return false;

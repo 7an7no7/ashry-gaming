@@ -208,7 +208,9 @@ const Room = (() => {
     if (!offlineTimer) {
       offlineTimer = setTimeout(() => {
         offlineTimer = null;
-        if (session && !connected()) { setSyncing(true); roomNetNotice(true); }
+        // A poll that answered lately means the room is moving over HTTP: a
+        // socket that keeps failing (a proxy that blocks them) isn't "offline".
+        if (session && !connected() && Date.now() - heardAt > POLL_MS * 2) { setSyncing(true); roomNetNotice(true); }
       }, OFFLINE_NOTICE_MS);
     }
     scheduleReconnect();
@@ -995,6 +997,18 @@ let roomCreateScreenOnce = false;
 
 /** Entry point from a game's setup screen: "play on separate phones". */
 async function roomCreateFor(gameId) {
+  // Already in a room: the bar's raised «افتح غرفة» (and a setup's) used to make
+  // a new room at once, leaving the table in the old one with no host (UI pass,
+  // 7 Oct 2026). Ask, and leave the old room properly so the host passes on.
+  const inRoom = Room.state && Room.state.code;
+  if (inRoom) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    showConfirmModal(String(t.room_new_leaves || '').replace('{code}', inRoom), async () => {
+      await Room.leave();
+      roomCreateFor(gameId);
+    });
+    return;
+  }
   if (roomCreateScreenOnce) {
     roomCreateScreenOnce = false;
     try {
@@ -1377,8 +1391,11 @@ async function roomStartGame() {
     // Too few people in: the line under Start already says how many more, so point at
     // it (a blocked Start's way) rather than a toast. The server still decides: trivia,
     // the emoji riddles and the proverbs start with one.
+    // Only while that line is on show: a phone that became the screen keeps the
+    // hidden lobby's old count, and a shake there says nothing.
     const needEl = document.getElementById('room-start-need');
-    if (needEl && Number(needEl.dataset.short || 0) > 0 && typeof blockStartAt === 'function') blockStartAt(needEl);
+    const onLobby = !(Room.state && Room.state.youAreScreen) && appState.currentView === 'room-lobby';
+    if (onLobby && needEl && Number(needEl.dataset.short || 0) > 0 && typeof blockStartAt === 'function') blockStartAt(needEl);
     else showToast(err.message || roomErrText('start'), 'error');
   }
 }

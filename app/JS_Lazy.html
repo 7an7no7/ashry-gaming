@@ -18,7 +18,7 @@
    (lzBootWrite, at the end of the body), so nothing waits for it.
    ========================================================================= */
 var LZ = window.LZ_MANIFEST || null;
-var lz = { loaded: {}, loading: {}, pending: {}, from: {}, boot: {}, tags: {}, busy: 0, barTimer: null, fail: null };
+var lz = { loaded: {}, loading: {}, pending: {}, from: {}, boot: {}, tags: {}, stale: {}, busy: 0, barTimer: null, fail: null };
 var LZ_TIMEOUT_MS = 15000;
 function lzView() { try { return appState.currentView; } catch (e) { return null; } }
 
@@ -40,32 +40,50 @@ function lzChunksOfRoom(g) { return (LZ && g && LZ.rooms[g]) || []; }
 /** A card of the home: its setup screen's chunk, and the chunk its `open` calls (a tool). */
 function lzChunksOfGame(id) { return (LZ && id && LZ.games[id]) || []; }
 
+function lzInsert(id, retry) {
+  var s = lz.tags[id] = document.createElement('script');
+  s.src = LZ.base + LZ.chunks[id].f;
+  // Inserted scripts run in the order they were inserted: a chunk after what it needs.
+  // A retry runs as soon as it arrives instead - in that order it would wait behind the
+  // stuck script it replaces - and is inserted only once what it needs has run.
+  s.async = !!retry;
+  s.addEventListener('load', function () { lz.loaded[id] = true; if (lz.tags[id] === s) delete lz.tags[id]; });
+  s.addEventListener('error', function () { if (lz.tags[id] === s) delete lz.tags[id]; s.remove(); });
+  document.body.appendChild(s);
+  return s;
+}
+function lzWatch(id, s) {
+  return new Promise(function (resolve, reject) {
+    // A connection that takes the request and sends nothing fires neither load nor
+    // error: after LZ_TIMEOUT_MS the door gives up and shows «حاول تاني», and the
+    // next try asks again with a new script rather than waiting on this one.
+    var timer = setTimeout(function () {
+      if (lz.loaded[id]) { resolve(); return; }   // an earlier try's script ran meanwhile
+      lz.stale[id] = true;
+      if (lz.tags[id] === s) delete lz.tags[id];
+      reject(new Error('chunk timeout ' + id));
+    }, LZ_TIMEOUT_MS);
+    s.addEventListener('load', function () { clearTimeout(timer); resolve(); });
+    s.addEventListener('error', function () { clearTimeout(timer); reject(new Error('chunk ' + id)); });
+  });
+}
 function lzLoadOne(id) {
   if (lz.loaded[id]) return Promise.resolve();
   if (lz.loading[id]) return lz.loading[id];
-  // A script still on its way from an earlier try is waited for again, never
-  // inserted twice (a chunk run twice throws on its own `const`s).
+  // A script still on its way from an earlier try is waited for again. One that timed
+  // out may still arrive and run while a new one is fetched: the build starts every
+  // chunk with a `const` of its own (chunkCode, tools/lazy-split.mjs), so whichever
+  // copy comes second is refused by the browser before any of it runs.
   var s = lz.tags[id];
-  if (!s) {
-    s = lz.tags[id] = document.createElement('script');
-    s.src = LZ.base + LZ.chunks[id].f;
-    // Inserted scripts run in the order they were inserted: a chunk after what it needs.
-    s.async = false;
-    s.addEventListener('load', function () { lz.loaded[id] = true; delete lz.tags[id]; });
-    s.addEventListener('error', function () { delete lz.tags[id]; s.remove(); });
-    document.body.appendChild(s);
-  }
-  var p = new Promise(function (resolve, reject) {
-    // A connection that takes the request and sends nothing fires neither load nor
-    // error: after LZ_TIMEOUT_MS the door gives up and shows «حاول تاني».
-    var timer = setTimeout(function () {
-      if (lz.loading[id] === p) delete lz.loading[id];
-      reject(new Error('chunk timeout ' + id));
-    }, LZ_TIMEOUT_MS);
-    s.addEventListener('load', function () { clearTimeout(timer); if (lz.loading[id] === p) delete lz.loading[id]; resolve(); });
-    s.addEventListener('error', function () { clearTimeout(timer); if (lz.loading[id] === p) delete lz.loading[id]; reject(new Error('chunk ' + id)); });
-  });
+  var p = s ? lzWatch(id, s)
+    : !lz.stale[id] ? lzWatch(id, lzInsert(id, false))
+    : Promise.all((LZ.chunks[id].d || []).map(lzLoadOne)).then(function () {
+        if (lz.loaded[id]) return;
+        return lzWatch(id, lz.tags[id] || lzInsert(id, true));
+      });
   lz.loading[id] = p;
+  p.then(function () { if (lz.loading[id] === p) delete lz.loading[id]; },
+         function () { if (lz.loading[id] === p) delete lz.loading[id]; });
   return p;
 }
 /** Loads the chunks (and what they need); resolves once they have run. */

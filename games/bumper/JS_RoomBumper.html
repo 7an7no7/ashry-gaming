@@ -1507,6 +1507,9 @@ function bmpTvStart(state, rebuilt) {
   if (!g.tick) g.tick = setInterval(() => {
     const st = Room.state;
     if (bmp.tv !== g || !st || st.game !== 'bumper' || !st.youAreScreen || (st.shared || {}).phase !== 'play') return;
+    // A hidden tab draws no frames, so nothing turns the engine down: off until it shows again
+    // (the next frame builds it anew).
+    if (document.hidden) bmpEngineOff();
     bmpTvSave(g);
     if (g.ball) { bmpBallTick(g, st, bmpServerNow()); return; }      // the ball's score is the server's: no report
     if ((bmpServerNow() >= st.shared.endsAt || g.done) && !g.reported) bmpTvReport(st);
@@ -1598,7 +1601,14 @@ function bmpTvHear(d) {
     return;
   }
   if (!car) return;
-  if (d.k === 'i') { car.input = d; car.inAt = now; car.rate.push(now); return; }
+  if (d.k === 'i') {
+    // Only finite numbers, held to the stick's range: a doctored phone's 1e308 turned its heading
+    // to Infinity, and the NaN it made spread through the knocks to every car on the rink.
+    const num = (v) => (typeof v === 'number' && isFinite(v) ? Math.max(-100, Math.min(100, v)) : undefined);
+    const x = num(d.x), y = num(d.y), pad = x !== undefined && y !== undefined;
+    car.input = { k: 'i', x: pad ? x : undefined, y: pad ? y : undefined, s: num(d.s), g: num(d.g) };
+    car.inAt = now; car.rate.push(now); return;
+  }
   if (d.k === 'b') { bmpTvBoost(car); return; }
   if (d.k === 'hn') bmpTvHorn(car);
 }
@@ -1724,7 +1734,10 @@ function bmpTvCheckDone(state) {
   const g = bmp.tv;
   if (g.done || !bmpLastStanding(g.st)) return;
   const cars = Object.values(g.cars);
-  if (cars.length < 2) return;
+  // One car alone from the start is a drive on its own (no end but the clock); one left after
+  // someone went is the last one standing, or the round ran to its 3-minute cap.
+  g.peak = Math.max(g.peak || 0, cars.length);
+  if (cars.length < 2 && g.peak < 2) return;
   const inGame = cars.filter(c => g.st.mode === 'balloons' ? !c.ghost : !c.out);
   if (inGame.length <= 1) {
     if (!g.doneAt) g.doneAt = Date.now() + 1400;

@@ -443,6 +443,8 @@ ROOM_RULES.laser = {
       const t = laserDealTeams(activeRoster(room, s.roster), s.nTeams);
       s.roster.forEach(id => { if (t[id] === undefined) t[id] = s.teams[id]; });
       s.teams = t;
+      // Mates were for the old teams: laserHide shares them again for these.
+      Object.keys(room.secrets || {}).forEach(id => { if (room.secrets[id]) delete room.secrets[id].mates; });
       return;
     }
     if (action === 'go') {
@@ -511,6 +513,9 @@ ROOM_RULES.laser = {
     if (!s.phase || s.phase === 'gameover') return;
     if (s.phase === 'reveal') return;   // the reveal plays out; its end counts who is still here
     if (laserSettle(room)) return;
+    // Mates are shared while hiding only: on the teams screen a shuffle can still change the
+    // teams, and mates built now would hand a phone an opponent's starting spot.
+    if (s.phase !== 'hide') return;
     laserShareMates(room);
     laserCheckReady(room);
   }

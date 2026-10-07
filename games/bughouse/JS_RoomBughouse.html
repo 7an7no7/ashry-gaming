@@ -158,7 +158,7 @@ function bhPlayerHtml(state, b, side, opts) {
   return `<div class="bh-player ${turn ? 'is-turn' : ''} ${away ? 'is-away' : ''} bh-team--${bhTeamOf(k)}" data-bh-seat="${k}">
       <div class="bh-player__row">
         <span class="ch-mark ${side ? 'is-dark' : 'is-light'}" aria-hidden="true">${chPieceSvg(6 | (side ? 8 : 0))}</span>
-        <span class="bh-player__name">${bot ? '<span aria-hidden="true">🤖</span> ' : ''}${escapeHTML(s.names[k] || '')}${you}</span>
+        <span class="bh-player__name">${bot && !sub ? '<span aria-hidden="true">🤖</span> ' : ''}${escapeHTML(s.names[k] || '')}${you}</span>
         ${sub ? `<span class="bh-sub" title="${escapeHTML(chT('bh_sub', { name: s.subs[k] }))}">🤖</span>` : ''}
         <b class="ch-clock metric bh-clock" data-bh-clock="${b}:${side}"></b>
       </div>
@@ -524,6 +524,8 @@ function bhHostRow(state, tv) {
     const id = s.seats[k];
     const p = (state.players || []).find(x => x.id === id);
     if (!p || p.bot || id === Room.me) return;
+    // A stuck side (no move, nothing to drop) has nothing to play: the server's skipTurn does nothing there.
+    if (chessBugStatus(bd.g).stuck) return;
     const key = [roomDealKey(state), s.round, b, bd.moves].join('|');
     if (bhLocal.turnSince[b] === undefined || bhLocal.turnSince[b].key !== key) bhLocal.turnSince[b] = { key: key, at: Date.now() };
     const wait = 40000 - (Date.now() - bhLocal.turnSince[b].at);

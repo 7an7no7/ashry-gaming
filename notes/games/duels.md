@@ -369,3 +369,4 @@ Tests: `rules.mjs` "xo big" (the rules, the phone's player, a room, the forced m
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.
+- 6 Oct 2026 (the audit): winner stays banks the night for everyone who sat down this session (`s.sat`, kept by `duelSeatNext` for every duel on the duels' seats - خمّن مين, حرب السفن and شطرنج too), not only the pair seated when the room moves on.

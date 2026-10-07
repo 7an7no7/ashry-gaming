@@ -409,7 +409,7 @@ const hbPlayerLeft = (room, playerId, name) => {
   }
   const seat = hbSeatOf(s, playerId);
   if (!seat || s.phase !== 'play') { if (s.board) s.board = scoreboardOf(room); return; }
-  const bot = { id: newBotId(), name: uniqueBotName(room, '🤖 ' + (name || s.names[playerId] || '')), bot: 'easy' };
+  const bot = { id: newBotId(), name: uniqueBotName(room, name || s.names[playerId] || ''), bot: 'easy' };
   room.players.push(bot);
   s.teams[seat.team][seat.role] = bot.id;
   s.names[bot.id] = bot.name;

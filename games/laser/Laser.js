@@ -106,16 +106,24 @@ const laserFit = (A, x, y) => {
   if (fallen.length) {
     const t = laserTileAt(map, p.x, p.y);
     if (!t || fallen.indexOf(t.i) !== -1) {
-      // The nearest point of a tile still standing, pulled toward its middle.
-      let best = null, bd = Infinity;
+      // The nearest point of a tile still standing, pulled toward its middle - kept on the map
+      // first, and only if it still stands on that floor: a tile by the wall has its middle off
+      // the map, and the map's edge pulled the point back onto the fallen tile beside it.
+      let best = null, bd = Infinity, near = null, nd = Infinity;
       laserTiles(map).forEach(s => {
         if (fallen.indexOf(s.i) !== -1) return;
         const vx = p.x - s.x, vy = p.y - s.y, l = Math.hypot(vx, vy), reach = LASER_TILE * 0.7;
+        if (l < nd) { nd = l; near = s; }
         const c = l > reach ? { x: s.x + vx / l * reach, y: s.y + vy / l * reach } : { x: p.x, y: p.y };
-        const dd = Math.hypot(c.x - p.x, c.y - p.y);
-        if (dd < bd) { bd = dd; best = c; }
+        const cc = laserClampMap(map, k, c.x, c.y);
+        const dd = Math.hypot(cc.x - p.x, cc.y - p.y);
+        if (dd >= bd) return;
+        const tt = laserTileAt(map, cc.x, cc.y);
+        if (!tt || fallen.indexOf(tt.i) !== -1) return;
+        bd = dd; best = cc;
       });
-      if (best) p = laserClampMap(map, k, best.x, best.y);
+      if (best) p = best;
+      else if (near) p = laserClampMap(map, k, near.x, near.y);
     }
   }
   for (let n = 0; n < 2; n++) {

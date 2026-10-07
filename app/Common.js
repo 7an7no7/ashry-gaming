@@ -60,5 +60,7 @@ function roomGameIsOver(r) {
   const phases = [r.phase, s.phase];
   if (phases.some(p => p === 'gameover' || p === 'over')) return true;
   if (s.tour && s.tour.phase === 'over') return true;
+  // أتوبيس كومبليت ends its last round on 'done'.
+  if (r.game === 'stop' && s.phase === 'done') return true;
   return !!AUDIENCE_ONE_ROUND[r.game] && phases.some(p => p === 'result' || p === 'results');
 }

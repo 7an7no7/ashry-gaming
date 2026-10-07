@@ -1203,6 +1203,9 @@ ROOM_GAMES.guesswho = {
     // The answer bubble and the guess's drum roll, before the frame: the reveal under it waits for the roll.
     gwMoments(state, duelRoomLoud(state));
     const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#view-room-guesswho .gw-typed');
+    // Where the caret was, so the redraw puts it back there (a fix in the middle of the question).
+    let typedSel = null;
+    if (typing && document.activeElement.tagName === 'INPUT') { try { typedSel = [document.activeElement.selectionStart, document.activeElement.selectionEnd]; } catch (e) {} }
     let falls = [];
     const rebuilt = renderRoomFrame(el, sig, () => {
       const clock = s.endsAt && (s.phase === 'play' || s.phase === 'pick') ? `<span class="badge badge--accent" data-gw-clock></span>` : '';
@@ -1262,7 +1265,11 @@ ROOM_GAMES.guesswho = {
     // A question half typed keeps its place when the board is redrawn under it.
     if (rebuilt && typing && gwLocal.panel === 'typed') {
       const input = el.querySelector('.gw-typed input');
-      if (input) { input.focus(); try { input.setSelectionRange(input.value.length, input.value.length); } catch (e) {} }
+      if (input) {
+        input.focus();
+        const end = input.value.length;
+        try { input.setSelectionRange(typedSel ? Math.min(typedSel[0], end) : end, typedSel ? Math.min(typedSel[1], end) : end); } catch (e) {}
+      }
     }
     const host = el.querySelector('[data-gw-host]');
     if (host) { const html = gwHostRow(state); if (host._html !== html) { host.innerHTML = html; host._html = html; } }

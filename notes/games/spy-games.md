@@ -133,3 +133,4 @@ optional; an older phone's list is keyed on its length).
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.
+- 6 Oct 2026 (the audit): the hidden player leaving names them in the result line (`shared.impostorLeftName`); «لعبة جديدة» (restart) after a finished round keeps its board server-side (`room._restartNight`), so going back to the hub from the lobby still banks it on the night (من أنا؟ the same).

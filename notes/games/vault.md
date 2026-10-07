@@ -151,6 +151,8 @@ brass padlock).
   «الكل» as a set with a leaver, the night), `tools/validate-content.js` (300 notebooks and 2,100
   safes sound), `MAP` in `tools/test-changed.mjs`.
 
+- **«الكل» after people leave** (the audit of 6 Oct 2026): when a lock kind lands on every phone left (3 of 9: a dial each), `vaultDealHolders` swaps one of its locks with another phone's lock of another kind, so someone without it reads its page; only if no swap helps does the phone holding the fewest of it get the page.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

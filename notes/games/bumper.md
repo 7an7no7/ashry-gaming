@@ -244,3 +244,5 @@ tuned by `threeGfxTuner` (JS_Three.html, the shell, shared by بولينج, مي
 under 45 a second it steps to ratio 1.25 with plain 1024 shadows, and if still slow to ratio 1
 with no shadows. The level lasts the page's life, so the next 3D screen starts there; every
 `setPixelRatio` (a resize too) asks `threeGfxRatio()`.
+
+**The audit of 7 Oct 2026.** A latecomer the TV gave a car and reported (balloons, points, the ring) joins the round's roster in `bumperEnd`, so the board, the night and the program count them. `goal` and `finish` count from the lead screen only (the first online by id, as `bmpIsLead`; `room._onlineScreens`) or the host. A balloons or «آخر واحد» round that drops to one car after someone leaves ends as last one standing (`g.peak`: a drive that started alone still runs to its clock). The TV holds every phone's steering to finite numbers in the stick's range (`bmpTvHear`), and turns the engine off while its tab is hidden.

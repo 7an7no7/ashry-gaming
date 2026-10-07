@@ -912,7 +912,9 @@ const AWARD_AFTER_PODIUM_MS = 1900;
 function renderAward(icon, label, winner, delay, countHtml) {
   if (!winner || !winner.name) return '';
   const at = Math.max(0, Number(delay) || 0);
-  const show = motionFirst(['award', label, winner.id, winner.n].join('|'));
+  // The deal is in the key: the same title won again with the same count in the next game still rises.
+  const deal = typeof Room !== 'undefined' && Room.state && typeof roomDealKey === 'function' ? roomDealKey(Room.state) : '';
+  const show = motionFirst(['award', deal, label, winner.id, winner.n].join('|'));
   return '<div class="award' + (show ? ' award--in" data-reveal-ms="' + (at + 520) + '"' : '"') +
            ' style="--at:' + at + 'ms">' +
            '<span class="award__icon" aria-hidden="true">' + icon + '</span>' +
@@ -1477,7 +1479,9 @@ function stageReveal(key, state) {
     },
     board(html, ms) {
       if (!on || !html) return html || '';
-      return html.replace('class="section scoreboard"', `class="section scoreboard" data-seen="1" data-rv-board="${mark(ms)}" data-rv="in" style="--rv-at:${Math.round(ms)}ms"`);
+      // renderScoreboard's class list carries more after "scoreboard" (a space, or
+      // scoreboard--grid), so match the start of it and keep the rest.
+      return html.replace(/class="section scoreboard\b([^"]*)"/, (m, rest) => `class="section scoreboard${rest}" data-seen="1" data-rv-board="${mark(ms)}" data-rv="in" style="--rv-at:${Math.round(ms)}ms"`);
     },
     end(extra) { return on ? ` data-reveal-ms="${Math.round(last + (extra === undefined ? 600 : extra))}"` : ''; },
     last: () => last

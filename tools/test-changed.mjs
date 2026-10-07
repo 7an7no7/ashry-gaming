@@ -21,6 +21,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { readPage, plan as lazyPlan } from './lazy-split.mjs';
 
 const here = fileURLToPath(new URL('./', import.meta.url));
 const root = path.join(here, '..');
@@ -164,6 +165,29 @@ for (const path0 of changed) {
   if (hit.fixes) plan.fixes = true;
   if ((hit.ui || []).some((g) => ['hangman', 'guesswho', 'chess', 'battleship'].includes(g))) plan.fixes = true;
   plan.why.push(`${f}: ${[(hit.robots || []).length ? 'robots ' + hit.robots.join(',') : '', (hit.ui || []).length ? 'rooms ' + hit.ui.join(',') : '', hit.screens ? 'screens' : '', hit.site ? 'site' : ''].filter(Boolean).join('; ') || 'checks only'}`);
+}
+// A page file's helpers are called from other games' chunks too (duelOnce from ludo, golf and the
+// race; JS_Cards from أونو): every room game whose chunks reach a changed file's chunk gets its
+// screen test, through the chunk graph the build itself makes (tools/lazy-split.mjs).
+if (!plan.all) {
+  try {
+    const lp = lazyPlan(await readPage(root, fs.promises.readFile, path));
+    const byId = Object.fromEntries(lp.chunks.map((c) => [c.id, c]));
+    const reach = (id, s = new Set()) => { if (s.has(id)) return s; s.add(id); (byId[id]?.deps || []).forEach((d) => reach(d, s)); return s; };
+    const chunkOf = {};
+    for (const c of lp.chunks) for (const f of c.files) chunkOf[/\.js$/.test(f) ? f : f + '.html'] = c.id;
+    for (const p0 of changed) {
+      const f = p0.split('/').pop();
+      const ch = SOURCE.test(p0) ? chunkOf[f] : null;
+      if (!ch) continue;
+      const more = Object.entries(lp.rooms).filter(([g, cs]) => !plan.ui.has(g) && cs.some((c) => reach(c).has(ch))).map(([g]) => g);
+      if (!more.length) continue;
+      more.forEach((g) => plan.ui.add(g));
+      plan.why.push(`${f}: its chunk (${ch}) is loaded by rooms ${more.join(',')}`);
+    }
+  } catch (e) {
+    console.log(`(the chunk graph couldn't be read: ${e.message}; a changed page file runs only its own games' rooms)`);
+  }
 }
 if (plan.all) plan.rules = true;
 

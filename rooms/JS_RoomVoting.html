@@ -265,7 +265,7 @@ ROOM_GAMES.wouldyou = {
     const t = TRANSLATIONS[appState.lang];
     const v = state.shared.vote;
 
-    renderRoomFrame(el, ['wyr', state.shared.dealId, state.shared.round, v.phase, v.voted.length, state.youAreHost, appState.lang].join('|'), () => `
+    renderRoomFrame(el, ['wyr', state.shared.dealId, state.shared.round, v.phase, v.voted.length, v.eligible.length, state.youAreHost, appState.lang].join('|'), () => `
       <div class="card" style="text-align:center">
         <div class="eyebrow">${t.round || 'جولة'} ${state.shared.round}</div>
         <div class="card__title" style="margin-bottom:0">${t.setup_wouldyou || 'لو خيروك'}</div>
@@ -290,7 +290,7 @@ ROOM_GAMES.mostlikely = {
     const t = TRANSLATIONS[appState.lang];
     const v = state.shared.vote;
 
-    renderRoomFrame(el, ['mlt', state.shared.dealId, state.shared.round, v.phase, v.voted.length, state.youAreHost, appState.lang].join('|'), () => `
+    renderRoomFrame(el, ['mlt', state.shared.dealId, state.shared.round, v.phase, v.voted.length, v.eligible.length, state.youAreHost, appState.lang].join('|'), () => `
       <div class="card" style="text-align:center">
         <div class="eyebrow">${t.round || 'جولة'} ${state.shared.round}</div>
         <div class="prompt-text">${escapeHTML(state.shared.prompt || '')}</div>
@@ -349,7 +349,7 @@ ROOM_GAMES.fibbage = {
     }
 
     if (s.phase === 'voting' || (s.vote && s.vote.phase === 'voting')) {
-      renderRoomFrame(el, ['fibvote', s.dealId, s.round, s.vote.voted.length, state.youAreHost].join('|'),
+      renderRoomFrame(el, ['fibvote', s.dealId, s.round, s.vote.voted.length, (s.vote.eligible || []).length, state.youAreHost].join('|'),
                       () => question + renderBallot(state) + renderRoomPlayerStrip(state));
       refreshRoomPlayerStrip(el, state);
       return;

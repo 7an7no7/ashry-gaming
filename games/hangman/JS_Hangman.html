@@ -342,10 +342,13 @@ function hmWriteFormHtml(submit, placeholderName, o) {
  * hint), so a redraw for someone else's letter or a join doesn't wipe it: the
  * frame is rebuilt with innerHTML whenever anyone's progress changes.
  */
+/* The form a field is in, by kind: its className is no key, since a refused word shakes it (animate-shake for 0.6 s). */
+const hmTypingFormKey = (f) => (f.classList.contains('hm-whole') ? 'whole' : 'write');
+
 function hmKeepTyping(el) {
   const kept = [];
   el.querySelectorAll('form.hm-whole input, form.hm-write input').forEach(inp => {
-    const key = inp.form.className + '|' + inp.name;
+    const key = hmTypingFormKey(inp.form) + '|' + inp.name;
     const focused = document.activeElement === inp;
     if (!inp.value && !focused) return;
     let sel = null;
@@ -357,7 +360,7 @@ function hmKeepTyping(el) {
 
 function hmRestoreTyping(el, kept) {
   kept.forEach(k => {
-    const inp = [...el.querySelectorAll('form.hm-whole input, form.hm-write input')].find(i => i.form.className + '|' + i.name === k.key);
+    const inp = [...el.querySelectorAll('form.hm-whole input, form.hm-write input')].find(i => hmTypingFormKey(i.form) + '|' + i.name === k.key);
     if (!inp) return;
     inp.value = k.value;
     // A 2nd or 3rd hint half typed: its fold stays open.
@@ -930,8 +933,10 @@ function hmTickClock(state) {
 function hmHostButtons(state) {
   const s = state.shared || {};
   if (!roomCanMoveOn(state)) return [];
-  // The writer is in the key: skipping one gives the next the whole 40 s.
-  const key = [state.code, s.round, s.phase, s.setter || '', s.captain || ''].join('|');
+  // The writer is in the key: skipping one gives the next the whole 40 s. So is the team board's
+  // progress: a captain who is tapping letters (or a lifeline) is not a quiet phone.
+  const tb = s.tb || {};
+  const key = [state.code, s.round, s.phase, s.setter || '', s.captain || '', (tb.g || []).length, (tb.miss || []).length, (tb.x || []).length, tb.lr ? 1 : 0, tb.lx ? 1 : 0].join('|');
   if (hmRoom.sinceKey !== key) {
     hmRoom.sinceKey = key; hmRoom.since = Date.now();
     if (s.phase === 'writing' || (hmTeamsOn(s) && s.phase === 'guessing')) roomQuietRedraw(hmRoom, 'hangman'); else roomQuietStop(hmRoom);

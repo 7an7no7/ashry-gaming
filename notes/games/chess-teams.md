@@ -38,7 +38,7 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
       start**, named by the host's phone in its language; more than four people
       and the rest watch. **Play again swaps the roles and the colours.** A
       seated player who leaves mid-game: **a computer player (easy) takes the
-      seat** («🤖 منى») so the other three can finish. Either member resigns
+      seat** («🤖 منى»: the name stays plain, the screens add the 🤖) so the other three can finish. Either member resigns
       for the team. The host's "play for" plays as an easy computer player. A
       Brain with one kind that can move has it named for them, and a Hand with
       one legal move of the named kind has it played - unless it ends the game.

@@ -192,6 +192,13 @@ const scoreHerd = (room) => {
     const rest = s.board.filter(p => p.id !== s.sheepId && s.roster.indexOf(p.id) !== -1);
     const restTop = rest.length ? rest[0].score : 0;
     s.winners = (winners.length ? winners.filter(p => p.score === best) : rest.filter(p => p.score === restTop)).map(p => p.name);
+    // Nobody holding the sheep can win: whoever has it goes last on the board, so the
+    // night, الشلة and «مين هيكسب؟» (which read the board's order) never put them first.
+    // `tie` keeps them apart from a row of the same score (boardRowKey).
+    if (s.sheepId) {
+      s.board = s.board.filter(p => p.id !== s.sheepId)
+        .concat(s.board.filter(p => p.id === s.sheepId).map(p => Object.assign({}, p, { tie: 'sheep' })));
+    }
     s.phase = 'gameover';
     room.phase = 'gameover';
     return;

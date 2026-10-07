@@ -113,6 +113,8 @@ section, the way the duels are built:
   of dice and 1.5 s more, `LUDO_ROLLOFF_ROUND_MS` / `LUDO_ROLLOFF_TAIL_MS`, the same timing as
   `ludoRollOffPanel`); until then the phones show the turn's full time.
 
+**A player who got home and then left keeps their place on the board** (the audit of 6 Oct 2026): `ludoBoard` keeps a seat that is in `places`, with the name the board had, so the night banks the winner who left as the winner.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -197,6 +197,8 @@ emoji room (`room-emoji`), whose third way is the quiz.
   line («مستنيين كلمة …») at 5.5vmin, and a big chip for everyone else in the order
   (a ✓ on any the state says is done). `svTvSig` carries the players while setting.
 
+- **A guess already tried** (the audit of 6 Oct 2026): the server ignores it as before; the phone says «جربتها قبل كده» and shakes the row or the form (`svTriedBefore`, Wordle, the number, the emoji riddle) instead of a tap that did nothing. The host's ranges for خمّن الرقم are held left to right («1 - 50» in Arabic too). Play again after a «خماسي السهرة» whose puzzle was switched off since draws the line-up again from the puzzles still on.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

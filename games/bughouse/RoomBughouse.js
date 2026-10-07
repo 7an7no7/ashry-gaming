@@ -279,7 +279,7 @@ function bughousePlayerLeft(room, playerId, name) {
   if (!s || !Array.isArray(s.seats)) return;
   const seat = s.seats.indexOf(playerId);
   if (s.phase === 'play' && seat !== -1) {
-    const bot = { id: newBotId(), name: uniqueBotName(room, (name || s.names[seat] || '') + ' 🤖'), bot: 'hard' };
+    const bot = { id: newBotId(), name: uniqueBotName(room, name || s.names[seat] || ''), bot: 'hard' };
     room.players.push(bot);
     s.seats[seat] = bot.id;
     s.names[seat] = bot.name;

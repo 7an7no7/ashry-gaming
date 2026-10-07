@@ -240,11 +240,11 @@ function chSfResult(job) {
       const x = job.info[k];
       const m = chSfPv(job.g, x.pv, 1)[0];
       if (!m) return;
-      const u = m.from + m.to + (m.promo || '');
+      const u = m.uci || (m.from + m.to + (m.promo || ''));
       const had = byMove.get(u);
       if (had && had.depth >= x.depth) return;
       const sc = chSfScore(x);
-      byMove.set(u, { move: { from: m.from, to: m.to, promo: m.promo }, from: m.from, to: m.to, promo: m.promo, san: m.san, score: sc, mate: chessMateIn(sc), depth: x.depth, k: k });
+      byMove.set(u, { move: { from: m.from, to: m.to, promo: m.promo, uci: m.uci }, from: m.from, to: m.to, promo: m.promo, san: m.san, score: sc, mate: chessMateIn(sc), depth: x.depth, k: k });
     });
     out.lines = [...byMove.values()].sort((a, b) => b.score - a.score || a.k - b.k);
   }

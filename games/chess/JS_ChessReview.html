@@ -705,8 +705,10 @@ function chReviewPaint(fresh, justDone) {
         ${whyRun ? chReviewWhyHtml(whyRun) : ''}
       </div>`;
   }
-  if (typeof chOpeningMatch === 'function' && !rv.variant && (!rv.start || rv.start === CHESS_START_FEN)) {
-    const fullTheory = chOpeningMatch(rv.sans, { start: rv.start, variant: rv.variant });
+  // The game's start and variant are the record's (chessReviewBegin's result has neither): no standard
+  // opening names in a 960 or set-up game.
+  if (typeof chOpeningMatch === 'function' && !rec.variant && (!rec.start || rec.start === CHESS_START_FEN)) {
+    const fullTheory = chOpeningMatch(rv.sans, { start: rec.start, variant: rec.variant });
     if (fullTheory && rv.sans.length >= fullTheory.outOfTheoryPly && k === fullTheory.outOfTheoryPly - 1) {
       note += `<p class="field__hint ch-rv-theory">📖 ${escapeHTML(chT('ch_out_of_theory', { n: fullTheory.outOfTheoryPly }))}</p>`;
     }
@@ -726,7 +728,7 @@ function chReviewPaint(fresh, justDone) {
       `<span class="ch-counts__k">${chClassDot(kind)} ${escapeHTML(chT('ch_cls_' + kind))}</span><b class="metric">${count(0, kind)}</b><b class="metric">${count(1, kind)}</b>`).join('')}</div>`;
   }
   body += chShareRowHtml(rec.id);
-  body += chMovesHtml(rv.sans, { current: chRv.ply - 1, marks: res ? res.moves.map(m => m.cls) : null, onClick: 'chReviewGoMove', start: rv.start, variant: rv.variant });
+  body += chMovesHtml(rv.sans, { current: chRv.ply - 1, marks: res ? res.moves.map(m => m.cls) : null, onClick: 'chReviewGoMove', start: rec.start, variant: rec.variant, opening: rec.variant !== 'hq' });
   body += `<div class="duel-actions"><button type="button" class="btn btn--ghost btn--sm" onclick="chReviewExit()">${escapeHTML(chT('exit'))}</button></div>`;
   chSetHtml(el, '[data-ch-rvbody]', body);
   // The current move kept in sight inside the list (never by scrolling the page away from the board).

@@ -186,6 +186,8 @@ the TV block of الكراسي; `TV_GAMES.chairs.frame`, `mchOverHtml(state, s, 
   (`CHAIRS_DJ_TRAP_MS`), counted for this game only; a tie for «أحلى دي جي» names everyone level.
 - **Everyone sees who the DJ is** (🎧 in the head, the TV's eyebrow and list) - nothing of when.
 
+- **A late alarm** (the audit of 6 Oct 2026): a fake pause handled after its own end is skipped (its deadline would stay due and rest the room 30 s), and the secret stop is stamped when the server publishes it (`chairsStop(room, now)`), so a late alarm never shortens the 3 s to sit.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

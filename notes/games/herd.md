@@ -17,6 +17,9 @@ then `score`: the single biggest group of two or more gets a point each, a tie
 for biggest scores nobody, and if exactly one player stands alone they take
 the sheep (`sheepId`) from whoever had it. Nobody holding the sheep can win:
 the first to the host's target (5, 8 or 10, `ashryHerdOpts`) without it wins.
+At the game's end whoever holds it goes last on `shared.board` (with `tie: 'sheep'`),
+so the night, الشلة and «مين هيكسب؟» never place them first, and they stand on no
+podium step (`herdPodiumBoard`; the audit of 6 Oct 2026).
 
 The room's send button is the standard one (1 Oct 2026): `btn btn--primary btn--send`
 with «إرسال» beside the field, as in ارسم وخمّن (it was a ✓ square).

@@ -1629,9 +1629,27 @@ function golfSpeedFor(h, ax, ay, bx, by) {
  * The phone's putt for a player whose clock ran out (or the host's "play for"):
  * gently toward the cup - straight at it when nothing is in the way, else at the
  * farthest-along point in sight - with only as much as it needs to get there.
+ * The putt is played out first (the rules are the same everywhere, so the server
+ * and every phone agree): a moving piece the straight line can't see, a sliding
+ * door or a wheel, can send it back where it lay putt after putt, so a putt that
+ * gets the ball nowhere tries a few other ways on and keeps the one that ends
+ * nearest the cup.
  */
 function golfAutoShot(h, at, t0) {
   const f = golfField(h), c = GOLF_CELL;
+  const when = Math.max(0, Math.round(Number(t0) || 0));
+  // Rolls from `at` toward (tx, ty) and stops there (`over` past it), `more` times the speed it needs.
+  const shotTo = (tx, ty, over, more) => {
+    const dx = tx - at[0], dy = ty - at[1];
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const reach = Math.min(d + over, 12);
+    const v = Math.min(10, (more || 1) * golfSpeedFor(h, at[0], at[1], at[0] + dx / d * reach, at[1] + dy / d * reach));
+    return {
+      dx: Math.round(dx / d * 1000), dy: Math.round(dy / d * 1000),
+      power: Math.max(40, Math.min(700, Math.round(v / GOLF.MAX_SPEED * 1000))),
+      t0: when
+    };
+  };
   let tx = h.cup[0], ty = h.cup[1], toCup = golfClearLine(h, at[0], at[1], tx, ty);
   if (!toCup) {
     let best = golfDistance(h, at[0], at[1]), found = false;
@@ -1646,17 +1664,56 @@ function golfAutoShot(h, at, t0) {
     }
     if (!found) { tx = h.cup[0]; ty = h.cup[1]; }
   }
-  const dx = tx - at[0], dy = ty - at[1];
-  const d = Math.sqrt(dx * dx + dy * dy) || 1;
   // Just past the cup (a putt that dies at the rim drops), just to a point on the way.
-  const over = toCup ? 0.6 : 0;
-  const reach = Math.min(d + over, 12);
-  const v = Math.min(10, golfSpeedFor(h, at[0], at[1], at[0] + dx / d * reach, at[1] + dy / d * reach));
-  return {
-    dx: Math.round(dx / d * 1000), dy: Math.round(dy / d * 1000),
-    power: Math.max(40, Math.min(700, Math.round(v / GOLF.MAX_SPEED * 1000))),
-    t0: Math.max(0, Math.round(Number(t0) || 0))
+  const shot = shotTo(tx, ty, toCup ? 0.6 : 0);
+  const d0 = golfDistance(h, at[0], at[1]);
+  if (!isFinite(d0)) return shot;
+  // How far from the cup a putt leaves the ball (-1 in it, Infinity in the water: back where it lay).
+  const after = (sh) => {
+    const r = golfPutt(h, at, sh);
+    return r.end === 'cup' ? -1 : r.end === 'water' ? Infinity : golfDistance(h, r.at[0], r.at[1]);
   };
+  let pick = shot, left = after(shot);
+  if (left < d0 - 0.3) return shot;
+  // The other ways on: the same line harder and softer (a door shut as it gets there now may
+  // be open then), and in each of twelve directions the farthest-along point in sight within
+  // reach, at its own speed and a little harder. The first that gets the ball well on is kept.
+  const tries = [1.35, 0.75, 1.7, 0.55].map(m => shotTo(tx, ty, toCup ? 0.6 : 0, m));
+  // `upTo`: how far from the cup the points may be - nearer than here, or, when every way on
+  // ends in the water (a spot at the water's edge), anywhere dry a little back as well, the
+  // nearest first in each direction (`near`): a short putt off the edge.
+  const aims = (upTo, near) => {
+    const cells = [], out = [];
+    for (let j = 0; j < f.rows; j++) for (let i = 0; i < f.cols; i++) {
+      const k = j * f.cols + i;
+      if (!f.open[k] || !(f.dist[k] < upTo)) continue;
+      const x = f.x0 + (i + 0.5) * c, y = f.y0 + (j + 0.5) * c;
+      const ex = x - at[0], ey = y - at[1], e2 = ex * ex + ey * ey;
+      if (e2 > 100 || e2 < 0.5) continue;
+      cells.push([near ? e2 : f.dist[k], k, x, y, Math.floor((Math.atan2(ey, ex) + Math.PI) / (Math.PI * 2) * 12) % 12]);
+    }
+    cells.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    const sector = new Array(12).fill(false);
+    let looked = 0;
+    for (let n = 0; n < cells.length && looked < 240; n++) {
+      const q = cells[n];
+      if (sector[q[4]]) continue;
+      looked++;
+      if (!golfClearLine(h, at[0], at[1], q[2], q[3])) continue;
+      sector[q[4]] = true;
+      out.push(shotTo(q[2], q[3], 0), shotTo(q[2], q[3], 0, 1.4));
+    }
+    return out;
+  };
+  const play = (list) => {
+    for (let n = 0; n < list.length && !(left < d0 - 1); n++) {
+      const d = after(list[n]);
+      if (d < left - 0.05) { left = d; pick = list[n]; }
+    }
+  };
+  play(tries.concat(aims(d0 - 0.5)));
+  if (!isFinite(left)) play(aims(d0 + 3, true));
+  return pick;
 }
 
 /** A hole's score in words: 'ace', 'albatross', 'eagle', 'birdie', 'par', 'bogey', 'double', 'more'. */

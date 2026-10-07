@@ -35,6 +35,9 @@ no longer passes its check against the game before it (كونكان: someone bro
 back under 101 has no points typed there, or the winner is now out), it opens
 for fixing next with «صلّح الجولة N كمان» (`csStaleRound`) instead of scoring
 the gap as 0. سكرو's table card refuses a thief holder who is the finisher.
+تريكس's contract picker and check read the kingdom's rounds in the whole game
+(`playedIn`), so a fixed round can't repeat a contract a later round played;
+طرنيب ٤١ ends on a made 13 in any round, a fixed earlier one too (audit of 6 Oct 2026).
 Totals count up from what each row showed before the round (a team row sums
 two seats). Upright it is one column; sideways and on wide screens the totals
 and history sit beside the round card (`.cs-layout`). All of it is restored

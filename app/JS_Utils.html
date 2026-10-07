@@ -1220,7 +1220,10 @@ function setupMoreToggled(el) {
                        TRANSLATIONS[appState.lang].reorder_save);
   }
   function openSwitchModal(monkeyRow, monkeyName) {
-    stopTimer(); 
+    // Paused, not stopped: a swap cancelled (either popup, back, Escape) gives the
+    // turn its clock back (monkeySwapClosed); a swap made starts a fresh one.
+    switchData.pausedClock = null;
+    if (timerInterval && timerInterval.isRunning()) { timerInterval.pause(); switchData.pausedClock = timerInterval; }
     switchData.monkeyRow = monkeyRow;
     switchData.monkeyName = monkeyName;
     const list = document.getElementById('switch-targets-list');
@@ -1270,6 +1273,14 @@ function setupMoreToggled(el) {
         renderMonkeyBoard();
         startTimer(); 
     }
+  }
+  // Either swap popup closed: once neither is open, the clock paused for it runs on -
+  // unless executeSwitch has started a new one, or the table paused it meanwhile.
+  function monkeySwapClosed() {
+    if (!document.getElementById('switch-modal').classList.contains('hidden') || !document.getElementById('switch-confirm-modal').classList.contains('hidden')) return;
+    const c = switchData.pausedClock;
+    switchData.pausedClock = null;
+    if (c && c === timerInterval && !isPaused) c.resume();
   }
   function toggleAddPlayerModal() {
     const listContainer = document.getElementById('midgame-existing-list');
@@ -1425,6 +1436,10 @@ function toggleResults() {
     const msg = appState.lang === 'ar' ? 'متأكد إنك عايز تمسح كل البيانات وتبدأ من الأول؟' : 'Are you sure you want to reset all data and start over?';
 
     showConfirmModal(msg, () => {
+        // 0. Leave the screen the proper way first, while appState still says which it
+        // is: its leave hooks run (chains no clock covers, sensors) and the
+        // screen-on lock is let go. After the reset currentView is already 'menu'.
+        if (appState.currentView !== 'menu') setView('menu');
         // 1. Stop all running timers - the general timer too, which clearAllIntervals
         // leaves running on purpose (it rings from any screen) and would ring later.
         const gen = appState.timers && appState.timers.general;

@@ -88,6 +88,8 @@ const whoAmIAction = (room, playerId, action, payload) => {
   if (action === 'restart') {
     requireHost(room, playerId);
     room._waScores = (s && s.scores) || room._waScores || {};
+    // A finished round's board waits for the night, server-side (backToHub in RoomGames.js banks it).
+    if (room.phase === 'result' && s && s.board) room._restartNight = { game: room.game, board: s.board, roster: s.roster || null };
     room.phase = 'lobby';
     room.secrets = {};
     room.shared = { scores: room._waScores };

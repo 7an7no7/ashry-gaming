@@ -403,7 +403,7 @@ function bankTradeHtml(c) {
   };
   const cardChip = (side, pid) => (g.cards[pid] || []).map((d, k) => {
     const on = (tr[side].cards || []).length > k;
-    return `<button type="button" class="bank-tchip ${on ? 'is-on' : ''}" onclick="bankTradeCard('${side}')" aria-pressed="${on}">🎟️ ${escapeHTML(bankT('bank_jail_card'))}</button>`;
+    return `<button type="button" class="bank-tchip ${on ? 'is-on' : ''}" onclick="bankTradeCard('${side}', ${k})" aria-pressed="${on}">🎟️ ${escapeHTML(bankT('bank_jail_card'))}</button>`;
   }).join('');
   const cashIn = (side, pid) => `<label class="bank-tcash"><span>${escapeHTML(bankT('bank_cash'))}</span>
       <input type="number" inputmode="numeric" min="0" max="${g.cash[pid] || 0}" step="10" value="${tr[side].cash || ''}" placeholder="0" data-bank-trade-cash="${side}" oninput="bankTradeCash('${side}', this.value)"></label>`;
@@ -561,9 +561,12 @@ function bankTradeToggle(side, i) {
   haptic('light');
   bankRepaint();
 }
-function bankTradeCard(side) {
+function bankTradeCard(side, k) {
+  // Chip k lights while more than k cards are offered: tapping it offers up to it, or takes it back
+  // with the ones after it (a player may hold both decks' cards).
   const s = bankUi.trade[side];
-  s.cards = s.cards.length ? [] : ['?'];
+  k = Number(k) || 0;
+  s.cards = s.cards.length > k ? s.cards.slice(0, k) : new Array(k + 1).fill('?');
   bankRepaint();
 }
 function bankTradeCash(side, v) { bankUi.trade[side].cash = Math.max(0, Math.floor(Number(v) || 0)); }
@@ -572,7 +575,7 @@ function bankSendOffer() {
   const g = bankCurrentGame();
   if (!g) return;
   const tr = bankUi.trade;
-  const cardsOf = (pid, want) => want.length ? (g.cards[pid] || []).slice(0, 1) : [];
+  const cardsOf = (pid, want) => (g.cards[pid] || []).slice(0, want.length);
   const me = bankCurrentMe();
   const payload = {
     to: tr.to,
@@ -582,12 +585,25 @@ function bankSendOffer() {
   // Close the panel before sending, so a game against the phone (which paints
   // straight away) draws the table without it.
   const saved = JSON.parse(JSON.stringify(tr));
+  const seqWas = Number(g.offerSeq) || 0;
   bankUi.panel = null;
   bankResetTrade();
-  bankDo('offer', payload);
-  // Against the phone a refused offer leaves none waiting: give back what was
-  // composed, so the player can fix it instead of starting over.
-  if (appState.currentView === 'play-bank') {
+  const sent = bankDo('offer', payload);
+  // A refused offer leaves none waiting: give back what was composed, so the
+  // player can fix it instead of starting over. In a room roomAct resolves the
+  // same way refused or not, so the table's offer count says which it was (an offer
+  // taken counts one, even when a computer player has already answered it).
+  if (appState.currentView !== 'play-bank') {
+    // (Nothing comes back when the same offer is already on its way: leave that one to land.)
+    if (sent && typeof sent.then === 'function') sent.then(() => {
+      const g2 = bankCurrentGame();
+      if (g2 && (Number(g2.offerSeq) || 0) === seqWas && !bankUi.panel) {
+        bankUi.trade = saved;
+        bankUi.panel = 'trade';
+        bankRepaint();
+      }
+    });
+  } else {
     const g2 = bankState().g;
     if (!(g2 && g2.offer && g2.offer.from === 'me')) {
       bankUi.trade = saved;
@@ -606,8 +622,8 @@ function bankCurrentMe() { return appState.currentView === 'play-bank' ? 'me' : 
 
 /** A button on the board or in the bar: the game against the phone, or the room. */
 function bankDo(action, payload) {
-  if (appState.currentView === 'play-bank') bankLocalDo(action, payload || {});
-  else if (typeof bankRoomDo === 'function') bankRoomDo(action, payload || {});
+  if (appState.currentView === 'play-bank') return bankLocalDo(action, payload || {});
+  if (typeof bankRoomDo === 'function') return bankRoomDo(action, payload || {});
 }
 
 /* --- the motion ------------------------------------------------------------------------------------ */

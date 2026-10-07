@@ -674,6 +674,8 @@ function charadesRunTurn() {
     // A turn's take-backs are its own: the last team's cards stay theirs.
     appState.charades.judged = [];
     appState.charades.sum = null;
+    // A turn under way can't come back after a reload (its clock isn't kept).
+    appState.charades.turnLive = true;
     saveToLocal();
 
     const playing = document.getElementById('charades-ui-playing');
@@ -717,6 +719,7 @@ function startCharadesGame(time) {
 
 /** The card between team turns: whose turn, hand the phone over. */
 function charadesShowRelay() {
+    appState.charades.turnLive = false;
     const t = TRANSLATIONS[appState.lang];
     document.getElementById('charades-ui-playing').classList.add('hidden');
     document.getElementById('charades-ui-result').classList.add('hidden');
@@ -823,6 +826,7 @@ function finishCharadesGame() {
     appState.charades.judged = [];
     appState.charades.score = cards.filter(c => c.ok).length;
     appState.charades.sum = { cards: cards, relay: relayPlaying(appState.charades), at: Date.now() };
+    appState.charades.turnLive = false;
     saveToLocal();
 
     playSound('alarm');
@@ -887,10 +891,21 @@ if (typeof onLeaveScreen === 'function') onLeaveScreen((from) => {
     charadesSumSettle();
 });
 
-/** A reload on the turn's list comes back to it (a turn under way is lost, as before). */
+/**
+ * A reload on the turn's list comes back to it (a turn under way is lost, as before);
+ * in team mode so do the card between turns and the final board.
+ */
 function restoreCharadesSummary() {
-    if (!appState.charades.sum) return false;
-    charadesShowSummary();
+    const c = appState.charades;
+    if (c.sum) { charadesShowSummary(); return true; }
+    if (c.turnLive || relayOptsOf(c).mode !== 'teams' || !c.relay) return false;
+    if (!c.relay.last) { if (c.relay.phase !== 'handover') return false; charadesShowRelay(); return true; }
+    const t = TRANSLATIONS[appState.lang];
+    document.getElementById('charades-ui-playing').classList.add('hidden');
+    document.getElementById('charades-ui-result').classList.add('hidden');
+    const box = document.getElementById('charades-ui-relay');
+    box.classList.remove('hidden');
+    box.innerHTML = relaySummaryHtml(c, t, c.relay.phase === 'done' ? 'startCharades()' : 'charadesRunTurn()', "setView('setup-charades')");
     return true;
 }
 </script>

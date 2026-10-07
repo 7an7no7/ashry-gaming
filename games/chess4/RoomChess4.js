@@ -353,7 +353,9 @@ const chess4PlayerLeft = (room, playerId, name) => {
   s.seats[seat] = bot.id;
   s.replaced[seat] = true;
   chess4Log(s, { k: 'bot', seat: seat });
-  s.turnSeq = (s.turnSeq || 0) + 1;
+  // Only when the leaver was up (the computer's turn starts now): off-turn, a bump would drop the
+  // move the player who is up has in flight.
+  if (s.g.turn === seat) s.turnSeq = (s.turnSeq || 0) + 1;
   s.board = chess4Board(room);
 };
 

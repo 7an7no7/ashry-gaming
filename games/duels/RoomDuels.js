@@ -220,6 +220,9 @@ const duelSeatNext = (room) => {
   const next = duelNextOf(room.players, s);   // Duels.js: the phones show the same
   if (!next) throw new Error('تحتاج لاعبين على الأقل');
   const seats = next.seats, line = next.line;
+  // Everyone who has sat down this session (winner stays): the night banks them all, not
+  // only the pair at the table when the room moves on (nightPlayedIds).
+  s.sat = (s.sat || []).concat(Array.isArray(s.seats) ? s.seats : [], seats).filter((id, i, a) => id && a.indexOf(id) === i);
   s.seats = seats;
   s.seatNames = seats.map(id => roomPlayerName(room, id));
   s.line = line;

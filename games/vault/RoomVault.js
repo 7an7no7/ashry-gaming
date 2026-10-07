@@ -262,6 +262,27 @@ const vaultDealHolders = (room, key) => {
     const present = kinds.filter((k, i) => kinds.indexOf(k) === i);
     const covered = {};
     const own = (id) => holders[id].locks.map(i => kinds[i]);
+    // After people leave, a kind can land on every phone (3 left of 9: a dial each), and a holder
+    // never reads its own kind's page, so nobody could. Swap one of its locks for another kind's
+    // lock on another phone, keeping a swap only when it leaves fewer such kinds.
+    const onAll = () => ids.length > 1 ? present.filter(k => ids.every(id => own(id).indexOf(k) !== -1)).length : 0;
+    for (let pass = 0; pass < kinds.length && onAll(); pass++) {
+      const before = onAll();
+      const k = present.find(q => ids.every(id => own(id).indexOf(q) !== -1));
+      let done = false;
+      ids.forEach(x => ids.forEach(y => {
+        if (done || x === y) return;
+        const lx = holders[x].locks, ly = holders[y].locks;
+        const a = lx.findIndex(i => kinds[i] === k);
+        ly.forEach((j, b) => {
+          if (done || a === -1 || kinds[j] === k) return;
+          const i = lx[a];
+          lx[a] = j; ly[b] = i;
+          if (onAll() < before) done = true; else { lx[a] = i; ly[b] = j; }
+        });
+      }));
+      if (!done) break;
+    }
     ids.forEach((id, n) => {
       const mine = own(id);
       // The lock after mine first (so the pages go round the table), then any kind still uncovered, then any not mine.
@@ -273,7 +294,9 @@ const vaultDealHolders = (room, key) => {
     // A kind nobody reads yet (someone left): to whoever doesn't hold that lock, as a second page.
     present.forEach((k) => {
       if (covered[k]) return;
-      const id = ids.find(x => own(x).indexOf(k) === -1);
+      // Every phone holds one (no swap could help): the phone with the fewest of it reads it, or no one could.
+      const id = ids.find(x => own(x).indexOf(k) === -1) ||
+        ids.slice().sort((x, y) => own(x).filter(q => q === k).length - own(y).filter(q => q === k).length)[0];
       if (id) { holders[id].pages.push(k); covered[k] = true; }
     });
   } else {

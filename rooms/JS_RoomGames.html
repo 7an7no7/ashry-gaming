@@ -197,6 +197,8 @@ async function submitJustOneClue() {
   const input = document.getElementById('jo-clue');
   const clue = (input.value || '').trim();
   if (!clue) return showToast(TRANSLATIONS[appState.lang].jo_need_clue || 'اكتب تلميح', 'error');
+  // One word, as on one phone; the server refuses it too.
+  if (/\s/.test(clue)) return showToast(appState.lang === 'ar' ? 'كلمة واحدة بس!' : 'One word only!', 'error');
   await roomAct('submitClue', { clue: clue });
 }
 
@@ -279,7 +281,7 @@ ROOM_GAMES.whoami = {
     }
 
     const others = (state.you && state.you.others) || [];
-    renderRoomFrame(el, ['wa-play', s.dealId, guessed.join(','), myPlace, state.youAreHost, appState.lang].join('|'), () => `
+    renderRoomFrame(el, ['wa-play', s.dealId, guessed.join(','), expected.length, others.length, myPlace, state.youAreHost, appState.lang].join('|'), () => `
       <div class="card" style="text-align:center">
         <div class="role-card ${myPlace !== -1 ? 'role-card--done' : ''}">
           <div class="role-card__label">${t.whoami_you || 'هويتك'}</div>

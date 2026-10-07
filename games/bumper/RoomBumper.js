@@ -253,9 +253,14 @@ const bumperAction = (room, playerId, action, payload) => {
   if (!s || room.phase !== 'play') throw new Error('اللعبة لم تبدأ بعد');
 
   const ball = s.settings && s.settings.mode === 'ball';
+  // A goal or the round's result counts from the lead screen only - the first one online by id,
+  // the page's bmpIsLead, the one the rink runs on - or the host: a second screen that sent
+  // its own made-up scores used to be taken at its word (room.js names the screens online).
+  const fromLead = room.hostId === playerId || (isRoomScreen(room, playerId) &&
+    (Array.isArray(room._onlineScreens) ? room._onlineScreens : (room.screens || []).map(x => x.id)).slice().sort()[0] === playerId);
   if (action === 'goal') {
     // «كورة التصادم»: the TV's word on a goal, numbered (n) so a resent one counts once.
-    if (!isRoomScreen(room, playerId) && room.hostId !== playerId) return;
+    if (!fromLead) return;
     if (!ball || s.phase !== 'play' || staleTap(payload, 'round', s.round)) return;
     if (Number(payload && payload.n) !== s.goals.length + 1 || Date.now() < s.startAt) return;
     const side = payload.side;
@@ -273,7 +278,7 @@ const bumperAction = (room, playerId, action, payload) => {
   if (action === 'finish') {
     // The TV's word on the round. Only a screen (or the host, for a screen that is a player's laptop).
     if (ball) return;                                               // the ball's score is the server's own
-    if (!isRoomScreen(room, playerId) && room.hostId !== playerId) return;
+    if (!fromLead) return;
     if (s.phase !== 'play' || staleTap(payload, 'round', s.round)) return;
     const early = payload && payload.done && bumperLastStanding(s.settings);
     if (!early && Date.now() < s.endsAt - 2000) return;             // a round on a clock ends on its clock
@@ -331,6 +336,9 @@ const bumperEnd = (room, scores) => {
   } else {
     rows.forEach((r, i) => { r.place = i && rows[i - 1].score === r.score && rows[i - 1].taken === r.taken ? rows[i - 1].place : i + 1; });
   }
+  // A latecomer the TV gave a car and reported drove this round: onto the roster, so the board,
+  // the night and the program count them (the ball mode adds them as they join).
+  rows.forEach(r => { if (r.rep && s.roster.indexOf(r.id) === -1 && room.players.some(p => p.id === r.id && !p.bot)) s.roster.push(r.id); });
   rows.forEach(r => { delete r.rep; });
   s.results = rows;
   s.reported = !!scores;

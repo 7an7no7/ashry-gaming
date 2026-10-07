@@ -220,6 +220,12 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
   الخزنة's endless levels stay off both tables (its owner's spec: "nothing on the night's board",
   `NIGHT_NO_PLACES`).
 - `PROGRAM_PLACE_POINTS` / `PROGRAM_PLAYED_POINTS` are the night's `NIGHT_PLACES` / `NIGHT_PLAYED`.
+- The audit of 6 Oct 2026: «لعبة أخرى» between games does nothing (a double tap dealt the next
+  game); a family quiz on the buzzer ends with its last question (`quiz.done`); a game gone from
+  the list in a deploy is skipped like a switched-off one; a leaver's name is kept even before
+  their first banked game; سكرو's صاحب صاحبه, الدومينو in teams and شطرنج الأربعة in teams have
+  `PROGRAM_TEAMS` entries (the losing side second); and stand-ins get the program's ⏸ / ⏭ between
+  games and while a game waits for Start (`gameOn` in room.js).
 
 ## Tests (30 Sep 2026, a local rooms server on :8793)
 

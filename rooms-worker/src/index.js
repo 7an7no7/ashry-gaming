@@ -236,6 +236,9 @@ const crewPeekAllowed = limiter(120, 10 * 60 * 1000);
 // A member's page and moves: far above a household (every phone opening the page, the rooms'
 // lists asking again now and then), and a script trying keys can't keep a crew busy.
 const crewUseAllowed = limiter(600, 10 * 60 * 1000);
+// Joining by code, so the 4-letter codes can't be swept one after another. Far above a
+// household's phones and the robot tests' joins from one address; per instance, a brake.
+const joinAllowed = limiter(600, 10 * 60 * 1000);
 const PACK_KINDS = ['quiz', 'words'];
 const packStub = (env, code) => env.PACKS.get(env.PACKS.idFromName('pack:' + code));
 
@@ -398,6 +401,9 @@ export default {
       if (url.pathname === '/create' && !createAllowed(request)) {
         return json({ ok: false, error: 'فتحت غرف كتير في وقت قصير، استنى شوية وجرب تاني' }, 429);
       }
+      if (url.pathname === '/join' && !joinAllowed(request)) {
+        return json({ ok: false, error: 'جرّبت أكواد كتير، استنى شوية وجرب تاني' }, 429);
+      }
       try {
         return json(await handle(env, url.pathname, body));
       } catch (err) {
@@ -521,6 +527,18 @@ export default {
         const list = await log.list();
         list.sort((a, b) => b.n - a.n);
         return json(list);
+      } catch (err) {
+        return json({ ok: false, error: 'unavailable' }, 500);
+      }
+    }
+
+    // The «في غلطة؟» log stops taking new texts once full: DELETE empties it once read.
+    if (url.pathname === '/reports' && request.method === 'DELETE') {
+      const auth = request.headers.get('Authorization') || '';
+      if (!env.ADMIN_KEY || auth !== `Bearer ${env.ADMIN_KEY}`) return new Response('not found', { status: 404 });
+      try {
+        await env.WORDS.get(env.WORDS.idFromName('reports')).clear();
+        return json({ ok: true });
       } catch (err) {
         return json({ ok: false, error: 'unavailable' }, 500);
       }

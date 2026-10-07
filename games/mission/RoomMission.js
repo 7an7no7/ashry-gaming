@@ -119,7 +119,7 @@ const missionFill = (room) => {
     const f = h.of[id];
     if (f && (f.to === id || ids.indexOf(f.to) === -1)) {
       const to = missionPickTarget(room, id, f.to);
-      if (to) { f.to = to; f.asked = false; room.mission.fileSeq = (room.mission.fileSeq || 0) + 1; f.n = room.mission.fileSeq; }
+      if (to) { f.to = to; f.asked = false; f.shown = false; room.mission.fileSeq = (room.mission.fileSeq || 0) + 1; f.n = room.mission.fileSeq; }
       else delete h.of[id];
     }
   });

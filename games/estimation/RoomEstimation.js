@@ -466,6 +466,8 @@ const estPlayerLeft = (room, playerId, name) => {
   room.players.push(bot);
   s.seats[k] = bot.id;
   s.names[bot.id] = bot.name;
+  // The night counts the leaver as having played, not the computer player in their seat (nightPlayedIds).
+  s.standIns = Object.assign({}, s.standIns, { [bot.id]: playerId });
   s.roster = (s.roster || []).concat([bot.id]);
   if (s.turn && s.turn.k === k) s.turn.pid = bot.id;
   estEvent(room, 'took', { k: k, name: name || s.names[playerId] || '' });

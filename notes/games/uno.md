@@ -229,6 +229,8 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
 - Nobody may catch their own partner (the server refuses, the button is hidden for them).
 - The team names are an animal and a number (🦁 فريق 1 …), not colours, so they never read as an Uno colour.
 
+**«مين هيكسب؟» in one round (the audit of 6 Oct 2026)** is settled on the game just played: `ROOM_RESULT_BOARDS.uno` puts `shared.winners` first and the rest after, not the evening's wins on the board (the night still ranks the board). The أونو! button stays in the colour and partner pickers, so it can be said with the wild or the 7.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

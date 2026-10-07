@@ -148,6 +148,8 @@ and a hand on the table).
   (`--only=exact`: four phones and a watcher on a live server, a right order
   and wrong ones to the end, play again with a latecomer, a leave mid-order).
 
+- **A late alarm** (the audit of 6 Oct 2026): `exactTimeout` that opens the window after its `closeAt` closes it in the same pass, so the verdict never waits the room's 30 s rest.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

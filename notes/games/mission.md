@@ -126,6 +126,8 @@ says it in its own language.
   (`missionPlayerLeft`, beside `roomPlayerLeft`, also with no game on).
 - `DEAL_ACTIONS` (room.js) has `missionSet`, `missionAnswer`, `missionSwap`,
   `missionCatch`, `becomePlayer`. No clocks: the waits are compared when a tap comes.
+- A file re-aimed after its target leaves starts unseen (`shown` false too), and the mission's
+  night is banked among its own rows even while برنامج السهرة runs (the audit of 6 Oct 2026).
 
 ### The page (`JS_RoomMission.html`, the chunk `mission` with `Missions.js`)
 

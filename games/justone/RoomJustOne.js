@@ -63,6 +63,8 @@ const justOneAction = (room, playerId, action, payload) => {
 
     const clue = String(payload.clue || '').trim().slice(0, 24);
     if (!clue) throw new Error('اكتب تلميحاً');
+    // One word, as the game's name says (the one-phone game refuses a space too).
+    if (/\s/.test(clue)) throw new Error('كلمة واحدة بس!');
     // The word itself would be shown to the guesser; the one-phone game refuses it too.
     if (normaliseClue(clue) === normaliseClue(room._joWord || '')) throw new Error('التلميح مينفعش يكون الكلمة نفسها');
 

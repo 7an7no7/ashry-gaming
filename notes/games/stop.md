@@ -110,6 +110,10 @@ keeps the letters on which every chosen category's dictionary has at least
 (`dealStopLetter`, its own memory key per set of categories when the list is
 narrowed) and the one-phone game (`nextStopLetter`) deal from it.
 
+In rooms, what a phone has typed this round is also kept in the tab's `sessionStorage`
+(`ashryStopDraft`, keyed on the deal and round), so a reload mid-round brings the boxes
+back filled and a round closing sends them (the audit of 6 Oct 2026).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -198,7 +198,7 @@ function renderImposterVoting(el, state, t) {
   stopRoomDiscussClock();
   const v = state.shared.vote || {};
   const undercover = !!(state.shared && state.shared.undercover);
-  renderRoomFrame(el, 'voting|' + (v.voted || []).length + '|' + state.youAreHost + '|' + undercover + '|' + appState.lang, () => `
+  renderRoomFrame(el, 'voting|' + (v.voted || []).length + '/' + (v.eligible || []).length + '|' + state.youAreHost + '|' + undercover + '|' + appState.lang, () => `
     <div class="card card--tight">
       <div class="eyebrow">${escapeHTML(undercover ? (t.imp_und_accuse || '') : (t.accuse_player || ''))}</div>
       ${renderBallot(state, { ownLabel: t.vote_you })}
@@ -236,7 +236,8 @@ function imposterOutcomeLine(s, t) {
   if (s.outcome === 'escaped') return (under ? (t.imp_und_escaped || '') : (t.imp_escaped || '')).replace('{name}', names);
   if (s.outcome === 'stole') return (under ? (t.imp_und_stole || '') : (t.imp_stole || '')).replace('{name}', names);
   if (s.outcome === 'caught') return (under ? (t.imp_und_caught || '') : (t.imp_caught || '')).replace('{name}', names);
-  if (s.impostorLeft) return (t.room_impostor_left || '').replace('{name}', names);
+  // The server keeps the leaver's name (impostorLeftName): they are off the roster by then.
+  if (s.impostorLeft) return (t.room_impostor_left || '').replace('{name}', s.impostorLeftName || names);
   return under ? (t.imp_und_revealed || '') : (t.imp_revealed || '');
 }
 

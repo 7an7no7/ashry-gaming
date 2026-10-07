@@ -114,7 +114,8 @@ rules are named `chess4` / `CHESS4_` and the page's code `ch4`.
   first move of each player free), `last`, `log` (the last 80: `mv` with the
   SAN, the squares, what was taken, the points, the castling rook, `auto`;
   `out`, `pass`, `mate`, `lost`, `bot`, `start`, `over`, each numbered), `turnSeq`
-  (every move carries it as `seq`: a stale tap is dropped), `wins` and
+  (every move carries it as `seq`: a stale tap is dropped; a computer player taking a
+  leaver's seat raises it only when that seat is up), `wins` and
   `board`. `skipTurn` (host) plays an easy move marked `auto: 'host'`;
   `resign`; `chess4Deadline` / `chess4Timeout` the flag; `chess4PlayerLeft`
   (FFA out; teams: a hard bot under the leaver's name takes the seat,

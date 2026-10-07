@@ -337,6 +337,9 @@ const snakesPlayerLeft = (room, playerId, name) => {
   if (!s || !Array.isArray(s.seats) || s.seats.indexOf(playerId) === -1) return;
   if (s.phase === 'gameover') return;
   if (s.places.indexOf(playerId) !== -1) {
+    // Home already: they keep their place - and their name, for the podium, the strip and the
+    // awards, which read names from the room's players (they drew «…» once the player was gone).
+    if (name) { s.names = s.names || {}; s.names[playerId] = name; }
     // Home already: they keep their place. In a team they no longer roll for the others.
     if (Array.isArray(s.teams) && (s.gone || []).indexOf(playerId) === -1) {
       s.gone = (s.gone || []).concat([playerId]);

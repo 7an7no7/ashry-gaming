@@ -76,6 +76,10 @@ host. It is in both signatures now and drawn as a band: «خلص الوقت: ر�
 تعدّيه؟» on the host's phone and TV, «خلص الوقت» on the rest. And `flip` clears
 `shared.newMonkey` when the quarter it takes back was the one that made the monkey.
 
+One phone: «بدّل» pauses the turn clock and a cancelled swap gives it back
+(`monkeySwapClosed`); a reload mid-turn starts the turn's clock again with its full
+time (the audit of 6 Oct 2026).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

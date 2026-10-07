@@ -11,7 +11,7 @@
      is set. Its own script, ES5, so an error in the big script below can't stop it. */
   (function () {
     var sent = {}, count = 0, MAX = 10;
-    var NOISE = /ResizeObserver loop|^Script error\.?$|Failed to fetch|Load failed|NetworkError|The (network|Internet) connection|AbortError|The operation was aborted|Network request failed|Importing a module script failed/i;
+    var NOISE = /ResizeObserver loop|^Script error\.?$|Failed to fetch|Load failed|NetworkError|The (network|Internet) connection|AbortError|The operation was aborted|Network request failed|Importing a module script failed|__lzOnce_/i;
     var FOREIGN = /(chrome|moz|safari|safari-web)-extension:|webkit-masked-url:|^about:|^blob:/;
     function page(u) { try { return new URL(u, location.href).origin === location.origin; } catch (e) { return false; } }
     // The first frame of our own page in a stack: "fn@index:1234:56".
@@ -352,7 +352,10 @@
     const style = document.createElement('style');
     style.id = 'motion-off-style';
     style.textContent = apply.map(b => Array.from(b.rule.cssRules).map(r => r.cssText).join(' ')).join(' ');
-    document.head.appendChild(style);
+    // At the end of <body>, after the app's own stylesheets (they are in <body> too):
+    // in <head> every copied rule without !important lost to the base rule of the
+    // same weight, so «مقفولة» hid what the device's reduced motion keeps on screen.
+    (document.body || document.head).appendChild(style);
   }
 
   function cycleMotionPref() {
@@ -1253,8 +1256,9 @@
     let told = false;
     let controlled = hadController;
     navigator.serviceWorker.addEventListener('controllerchange', async () => {
-      // Settings → تحديث البيانات asked for the new build: it is here, so switch now.
-      if (appUpdateAsked) { reloadApp(); return; }
+      // Settings → تحديث البيانات asked for the new build: it is here, so switch now -
+      // unless a game or a room has been opened since, when the note below says so.
+      if (appUpdateAsked) { if (appUpdateSafeView()) { reloadApp(); return; } controlled = true; }
       // A first visit's first worker taking over is not news - but from then on the
       // page is controlled, and a later build taking over is.
       if (!controlled) { controlled = true; return; }
@@ -1319,6 +1323,8 @@
 
   // Waiting for a quiet moment: every few seconds, and when the app goes to the background.
   function appUpdateWatch() {
+    if (appUpdateWatch.on) return;   // one watch, however many paths ask for it
+    appUpdateWatch.on = true;
     const tick = setInterval(() => { if (appUpdateQuiet()) { clearInterval(tick); reloadApp(); } }, 3000);
     // Gone to the background on a screen that loses nothing: back to the new build.
     document.addEventListener('visibilitychange', () => {
@@ -1524,8 +1530,9 @@
     if (!reg.installing && !reg.waiting) { reloadApp(); return; }
     const t = TRANSLATIONS[appState.lang] || {};
     if (typeof showToast === 'function') showToast(t.update_downloading || 'بنزّل النسخة الجديدة…', 'info');
-    // A download that never ends (the network went) still gets a reload.
-    setTimeout(reloadApp, 120000);
+    // A download that never ends (the network went) still gets a reload - on a screen
+    // that loses nothing, or once the phone is back on one.
+    setTimeout(() => { if (appUpdateSafeView()) reloadApp(); else appUpdateWatch(); }, 120000);
   }
 
   /* --- Settings → الإصدار: when this copy was published, and whether it is the latest --- */
@@ -1571,8 +1578,16 @@
     } catch (e) { latest = null; }
     if (!latest) { set('offline'); return; }
     if (latest <= String(window.BUILD_ID)) { set('latest'); return; }
+    // A worker still installing (or waiting) is the new build on its way, not here yet.
+    let reg = null;
+    try { reg = await navigator.serviceWorker.getRegistration(); } catch (e) {}
+    if (reg && (reg.installing || reg.waiting)) { set('downloading'); return; }
+    // Its cache is opened before anything is fetched, and stays after a failed install:
+    // here means the install's last word, which it writes once everything has arrived.
     let here = false;
-    try { here = (await caches.keys()).indexOf('ashry-' + latest) !== -1; } catch (e) {}
+    try {
+      if ((await caches.keys()).indexOf('ashry-' + latest) !== -1) here = !!(await (await caches.open('ashry-' + latest)).match('./.installed'));
+    } catch (e) {}
     if (here) { set('ready'); return; }
     set('downloading');
     try { const reg = await navigator.serviceWorker.getRegistration(); if (reg) reg.update(); } catch (e) {}
@@ -1823,7 +1838,9 @@
         else if (typeof VIEW_RESTORE[appState.currentView] === 'function') VIEW_RESTORE[appState.currentView]();
         else if (appState.currentView === 'play-screw') renderScrewBoard();
         else if (appState.currentView === 'play-monkey') {
-            renderMonkeyBoard(); updateTimerUI();
+            renderMonkeyBoard();
+            // Mid-turn the clock isn't saved: the turn starts again with its full time.
+            if (monkeyState().phase === 'play') startTimer(); else updateTimerUI();
             // A game that had ended: its result comes back (initializeApp closes
             // every popup after this, hence the tick), with its play-again.
             if (appState.monkey && appState.monkey.phase === 'done') {
@@ -1923,8 +1940,22 @@
             if (!(typeof restoreDescribeSummary === 'function' && restoreDescribeSummary()))
                 setTimeout(() => { setView('setup-describe'); toastRoundLost(); }, 50);
         }
+        // كلمة واحدة has no clock: the game (players, guesser, round, score) is in
+        // appState.justone. A round being judged or the final score comes back as it
+        // was; the clues typed mid-round aren't saved, so that round is dealt again
+        // with a fresh word for the same guesser.
         else if (appState.currentView === 'play-justone') {
-            setTimeout(() => { setView('setup-justone'); toastRoundLost(); }, 50);
+            const jo = appState.justone || {};
+            if ((jo.players || []).length >= 3 && jo.round && typeof nextJoRound === 'function') {
+                setTimeout(() => {
+                    if (appState.currentView !== 'play-justone') return;
+                    if (['result', 'judged', 'final'].indexOf(jo.phase) !== -1) {
+                        ['pass', 'write', 'guess', 'check'].forEach(p => document.getElementById('jo-phase-' + p).classList.add('hidden'));
+                        document.getElementById('jo-phase-result').classList.remove('hidden');
+                        joPaintResult();
+                    } else nextJoRound();
+                }, 0);
+            } else setTimeout(() => { setView('setup-justone'); toastRoundLost(); }, 50);
         }
         // The pass-the-phone deals live in module variables, not appState, so a
         // reload has no deal to show - and the reveal screens hold the secrets.
@@ -3478,6 +3509,8 @@
     const el = document.getElementById(id);
     if (el) { modalExitGhost(el); el.classList.add('hidden'); }
     if (id === 'exit-modal' || id === 'help-modal') resumeClocksAfterSheet();
+    // ربع قرد's swap cancelled: its turn clock was paused for it (openSwitchModal).
+    if ((id === 'switch-modal' || id === 'switch-confirm-modal') && typeof monkeySwapClosed === 'function') setTimeout(monkeySwapClosed, 0);
     // The coach's blunder warning closed some other way than its own buttons
     // (the phone's back, the edge swipe): the game would stay frozen on the
     // warning. The buttons clear `pending` right after closing it, so wait a

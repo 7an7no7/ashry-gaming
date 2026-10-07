@@ -456,8 +456,16 @@ const svNewGame = (room, playerId, kind, payload, again) => {
   const settings = svOptions(kind, again ? prev.settings : payload, prev.settings, room);
   // «خماسي السهرة» (RoomRace.js): the line-up every phone saw in the lobby - or, on play again, the
   // last game's - makes every round a different puzzle; the rounds are its length, round 1 its first.
-  const lineup = SOLVE_KINDS[kind].race && typeof svRaceLineupOk === 'function'
+  let lineup = SOLVE_KINDS[kind].race && typeof svRaceLineupOk === 'function'
     ? svRaceLineupOk(again ? (prev.settings || {}).lineup : prev.lineup) : null;
+  // Play again after a line-up with a puzzle switched off since: draw it again from the puzzles
+  // still on, never the last round's puzzle in every round (it may be the one switched off).
+  if (!lineup && again && prev.race && Array.isArray((prev.settings || {}).lineup) && typeof svRaceLineupDraw === 'function') {
+    const n = prev.settings.lineup.length;
+    const drawn = svRaceLineupDraw(room, prev.settings.lineup, n);
+    lineup = drawn.length === n ? drawn : null;
+    if (!lineup) kind = room.game;   // too few puzzles left on: the room's own puzzle
+  }
   if (lineup) { settings.lineup = lineup; settings.rounds = lineup.length; kind = lineup[0]; }
   room.shared = {
     solve: kind,

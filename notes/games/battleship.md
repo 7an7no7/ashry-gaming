@@ -242,6 +242,8 @@ Decided here (open to change):
 - **The radar button is on your turn only**, and a reload keeps what was swept (both sides) - the
   radar stays used.
 
+**The server checks «play for» too (the audit of 6 Oct 2026).** `skipTurn` is refused («استنى شوية») while everyone it would play for is connected and their step began under 40 s ago (`BS_QUIET_MS`, `room._bs.quietAt`, stamped by `bsMarkQuiet` after every move and timeout), as بنك الحظ does.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

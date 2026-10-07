@@ -1207,7 +1207,10 @@ function laserFirstSight(state) {
   const key = roomDealKey(state, 'laser-seen');
   if (lsr.seen.has(key)) return;
   lsr.seen.add(key);
-  if ((state.shared || {}).phase !== 'gameover') return;
+  // Back mid-hiding (a reload, a late join): this round's card has been and gone already.
+  const s0 = state.shared || {};
+  if (s0.phase === 'hide' && s0.round >= 2) motionFirst(roomDealKey(state, 'laser-card' + s0.round));
+  if (s0.phase !== 'gameover') return;
   lsr.replayed.add(roomDealKey(state, 'replay'));
   motionFirst(roomDealKey(state, 'laser-confetti'));
 }

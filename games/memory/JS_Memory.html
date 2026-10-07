@@ -290,7 +290,12 @@ function restoreMemory() {
   if (!m.cards || !m.cards.length) return false;
   if (m.phase === 'play') {
     if (typeof soloResume === 'function') soloResume(m);
-    if (m.flipped.length >= 2) m.flipped = [];
+    // Two up is a miss whose pause the reload cut short: the turn passes as memoryCloseMiss would.
+    if (m.flipped.length >= 2) {
+      m.flipped = [];
+      if (m.mode === 'duo') m.turn = 1 - m.turn;
+      saveToLocal();
+    }
     paintMemory();
     memoryArmClock();
     return true;

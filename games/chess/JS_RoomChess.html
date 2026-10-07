@@ -533,7 +533,8 @@ function chRoomRender(state, still) {
     chRoomKeepGame(state);
     side.push(duelRoomOverHtml(state, t));
     if (bd.hq && bd.hq.end) side.push(chHqEndHtml(bd.hq.end, duelRoomNames(state)));
-    side.push(`<button type="button" class="btn btn--secondary" onclick="chOpenRoomReview(duelRoomState())">📊 ${escapeHTML(chT('ch_review'))}</button>`);
+    // A game that ended before its first move is kept nowhere: no review to open.
+    if ((bd.hist || []).length) side.push(`<button type="button" class="btn btn--secondary" onclick="chOpenRoomReview(duelRoomState())">📊 ${escapeHTML(chT('ch_review'))}</button>`);
     if (seat !== -1) side.push(chShareRowHtml(chRoomGameKey(state)));
   }
   const rSet = s.settings || {};

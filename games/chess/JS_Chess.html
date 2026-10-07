@@ -3484,6 +3484,8 @@ function chCoachJudge(before, beforeLost, info, beforeClk, beforeHq) {
 function chCoachVerdict(s, before, beforeLost, info, beforeClk, beforeHq, pre, after) {
   const mv = { from: info.from, to: info.to, promo: info.promo || '' };
   if (info.hq && info.hq.reveal) mv.hq = true;
+  // As the record writes it: a 960 castle where the king moves one square is judged as the castle, not a king step.
+  else if (info.uci) mv.uci = info.uci;
   const verdict = chessJudge(before, mv, pre, after, { nodes: CH_COACH_NODES, ms: 900 });
   // Still in a known opening: "book", as the review says it (no warning, nothing graded).
   const theory = typeof chOpeningMatch === 'function' && !chHqOf(s) ? chOpeningMatch(s.sans, { start: s.start || (s.practice ? 'practice' : ''), variant: s.gameVariant }) : null;
@@ -3879,7 +3881,7 @@ function chLocalBarHtml(s, hint) {
   if (s.phase === 'done') {
     return `<div class="btn-row">
         <button type="button" class="btn btn--primary btn--lg" onclick="chNextGame()">${escapeHTML(chT('duel_next_game'))}</button>
-        <button type="button" class="btn btn--secondary" onclick="chOpenLastReview()">📊 ${escapeHTML(chT('ch_review'))}</button>
+        ${(s.hist || []).length ? `<button type="button" class="btn btn--secondary" onclick="chOpenLastReview()">📊 ${escapeHTML(chT('ch_review'))}</button>` : ''}
       </div>${!s.practice && typeof chShareRowHtml === 'function' ? chShareRowHtml('local|' + s.gameId) : ''}`;
   }
   if (chHqPicking(s)) {

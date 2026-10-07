@@ -304,10 +304,17 @@ const unoTeamResult = (room) => {
   return [].concat(first.length ? [[].concat.apply([], first)] : [], rest.length ? [[].concat.apply([], rest)] : []);
 };
 
-/** «مين هيكسب؟» on a game of pairs: the pairs in their places; otherwise the board, as before. */
+/** «مين هيكسب؟» on a game of pairs: the pairs in their places. One round: this game's winner
+    first - the board is the evening's wins, and the guess was about the game just played.
+    Otherwise (rounds) the board, as before. */
 ROOM_RESULT_BOARDS.uno = (room) => {
   const teams = unoTeamResult(room);
-  return teams ? roomResultRows(room, teams) : ((room.shared || {}).board || null);
+  if (teams) return roomResultRows(room, teams);
+  const s = room.shared || {};
+  if (s.phase === 'gameover' && s.settings && s.settings.length !== 'rounds' && Array.isArray(s.winners)) {
+    return roomResultRows(room, [s.winners, unoSeated(room)]);
+  }
+  return s.board || null;
 };
 
 /** Teams with someone still at the table. */

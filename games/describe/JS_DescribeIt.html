@@ -1774,6 +1774,8 @@ function describeRunTurn() {
     // A turn's take-backs are its own: the last team's cards stay theirs.
     appState.describe.judged = [];
     appState.describe.sum = null;
+    // A turn under way can't come back after a reload (its clock isn't kept).
+    appState.describe.turnLive = true;
     saveToLocal();
 
     // UI RESET: Show Game, Hide Result
@@ -1794,6 +1796,7 @@ function describeRunTurn() {
 
 /** The card between team turns: whose turn, hand the phone over. */
 function describeShowRelay() {
+    appState.describe.turnLive = false;
     const t = TRANSLATIONS[appState.lang];
     document.getElementById('desc-ui-playing').classList.add('hidden');
     document.getElementById('desc-ui-result').classList.add('hidden');
@@ -1914,6 +1917,7 @@ function finishDescribeGame() {
     appState.describe.judged = [];
     appState.describe.score = cards.filter(c => c.ok).length;
     appState.describe.sum = { cards: cards, relay: relayPlaying(appState.describe), at: Date.now() };
+    appState.describe.turnLive = false;
     saveToLocal();
 
     playSound('alarm');
@@ -1975,10 +1979,21 @@ if (typeof onLeaveScreen === 'function') onLeaveScreen((from) => {
     describeSumSettle();
 });
 
-/** A reload on the turn's list comes back to it (a turn under way is lost, as before). */
+/**
+ * A reload on the turn's list comes back to it (a turn under way is lost, as before);
+ * in team mode so do the card between turns and the final board.
+ */
 function restoreDescribeSummary() {
-    if (!appState.describe.sum) return false;
-    describeShowSummary();
+    const d = appState.describe;
+    if (d.sum) { describeShowSummary(); return true; }
+    if (d.turnLive || relayOptsOf(d).mode !== 'teams' || !d.relay) return false;
+    if (!d.relay.last) { if (d.relay.phase !== 'handover') return false; describeShowRelay(); return true; }
+    const t = TRANSLATIONS[appState.lang];
+    document.getElementById('desc-ui-playing').classList.add('hidden');
+    document.getElementById('desc-ui-result').classList.add('hidden');
+    const box = document.getElementById('desc-ui-relay');
+    box.classList.remove('hidden');
+    box.innerHTML = relaySummaryHtml(d, t, d.relay.phase === 'done' ? 'startDescribeGame()' : 'describeRunTurn()', "setView('setup-describe')");
     return true;
 }
 

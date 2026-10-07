@@ -198,3 +198,5 @@ tuned by `threeGfxTuner` (JS_Three.html, the shell, shared by بولينج, مي
 under 45 a second it steps to ratio 1.25 with plain 1024 shadows, and if still slow to ratio 1
 with no shadows. The level lasts the page's life, so the next 3D screen starts there; every
 `setPixelRatio` (a resize too) asks `threeGfxRatio()`.
+
+**The audit of 7 Oct 2026.** A bowler who leaves goes off `shared.roster` too, so the night no longer gives them the shared first place when the rest tie or one bowler is left.

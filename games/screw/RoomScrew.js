@@ -789,7 +789,7 @@ const screwSwapCards = (a, b) => {
  */
 const screwFromDeck = (room) => {
   const g = room._screw;
-  if (!g.deck.length && g.pile.length > 1 && !room.shared.settings.suddenDeath) {
+  if (!g.deck.length && screwRefill(g) > 0 && !room.shared.settings.suddenDeath) {
     const top = g.pile.pop();
     // A thief spent on a steal is out for the round: it doesn't go back into the deck.
     g.deck = shuffled(g.thiefSpent ? g.pile.filter(c => c !== 'thief') : g.pile);
@@ -846,10 +846,13 @@ const screwSteal = (room, mine) => {
   screwTurnDone(room);
 };
 
+/** How many cards an empty deck would get back from the pile: all but its top, less a spent thief. */
+const screwRefill = (g) => g.pile.slice(0, -1).filter(c => !(g.thiefSpent && c === 'thief')).length;
+
 /** Nothing can be drawn this turn: the deck is empty and can't be made again from the pile. */
 const screwCantDraw = (room) => {
   const g = room._screw;
-  return !g.deck.length && (!!room.shared.settings.suddenDeath || g.pile.length <= 1);
+  return !g.deck.length && (!!room.shared.settings.suddenDeath || screwRefill(g) === 0);
 };
 
 /**

@@ -1654,10 +1654,13 @@ Two shapes:
   reload comes back to **the current turn's ready card**, not the middle of its
   clock: the cards already guessed stay guessed and scored, the time that was
   left is not kept - as بدون كلام's relay comes back to its handover card.
-- **Not restorable** (Charades, Describe It, Just One, Who Am I, the reaction
-  test): these are timed, and the remaining time is not persisted. Resuming would
-  be a lie, so the branch returns to that game's setup screen and calls
-  `toastRoundLost()` to say why.
+- **Not restorable** (a turn under way in Charades and Describe It, Who Am I, the
+  reaction test): these are timed, and the remaining time is not persisted. Resuming
+  would be a lie, so the branch returns to that game's setup screen and calls
+  `toastRoundLost()` to say why. Between turns they do come back (7 Oct 2026): the
+  team mode's handover card and final board (`turnLive` says a turn is running), and
+  كلمة واحدة, untimed since its timer went, comes back to its verdict or final score,
+  a round in progress dealt again for the same guesser.
 
 When adding a timed game, prefer persisting a deadline (`Date.now() + ms`) over a
 remaining-seconds count — then it becomes restorable for free. The trivia board

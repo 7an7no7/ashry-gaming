@@ -74,13 +74,19 @@ function autoNextLoop() {
   setTimeout(autoNextPaint, 0);
 }
 
+function autoNextVisibleSlots() {
+  return [...document.querySelectorAll('[data-an-slot]')].filter(el => el.getClientRects().length);
+}
+
 /** Fills every slot on the page from the room as it is now; stops when there is none. */
 function autoNextPaint() {
-  const slots = [...document.querySelectorAll('[data-an-slot]')];
+  // Only the slots on show: a room screen left behind keeps its markup, and
+  // the loop used to run for the rest of the session on its hidden slot.
+  const slots = autoNextVisibleSlots();
   const state = typeof Room !== 'undefined' ? Room.state : null;
   const s = state && state.shared;
-  if (!slots.length || !s) {
-    if (!slots.length && autoNextFx.timer) { clearInterval(autoNextFx.timer); autoNextFx.timer = null; }
+  if (!slots.length || !s || !('nextFor' in s)) {
+    if (autoNextFx.timer) { clearInterval(autoNextFx.timer); autoNextFx.timer = null; }
     return;
   }
   const t = TRANSLATIONS[appState.lang] || {};
@@ -138,5 +144,8 @@ function autoNextPause() {
 }
 
 // A new state (a pause, the host away or back) is painted at once, not on the next tick.
-if (typeof Room !== 'undefined' && Room.onChange) Room.onChange(() => setTimeout(autoNextPaint, 0));
+if (typeof Room !== 'undefined' && Room.onChange) Room.onChange(() => setTimeout(() => {
+  // A slot drawn while its screen was still hidden comes on show here: start the loop again.
+  if (autoNextVisibleSlots().length) autoNextLoop(); else autoNextPaint();
+}, 0));
 </script>

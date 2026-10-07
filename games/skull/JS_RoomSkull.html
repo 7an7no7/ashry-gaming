@@ -539,6 +539,9 @@ function sklOverHtml(state, tv) {
     : s.why === 'left' ? pcT('skl_over_left', { name: pcName(state, w) }) : pcT('skl_over_wins', { name: pcName(state, w) });
   const bets = sklBetsBoard(state);
   const guesses = sklGuessBoard(state);
+  // Won as the last one in (or everyone else left): the winner stands first, whatever their bets.
+  const podium = s.why === 'wins' || !w ? renderPodium(state, bets)
+    : pcPlacesPodium(state, [w].concat(bets.filter(r => r.id !== w).map(r => r.id)), 'skl-over');
   const host = state.youAreHost
     ? (tv ? `<div class="tv-actions">${tvBtn(t.play_again || '', "sklAct(this, 'playAgain')")}${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}</div>`
       : `<div class="btn-stack"><button type="button" class="btn btn--go btn--lg" onclick="sklAct(this, 'playAgain')">${escapeHTML(t.play_again || '')}</button>
@@ -549,7 +552,7 @@ function sklOverHtml(state, tv) {
         <div class="skl-won__icon" aria-hidden="true">${w ? sklDiscHtml(sklFlowerOf(s, w), sklCol(s, w)) : '🌸'}</div>
         <div class="card__title">${escapeHTML(title)}</div>
       </div>
-      ${renderPodium(state, bets)}
+      ${podium}
       ${guesses.some(r => r.score > 0) ? renderScoreboard(guesses, pcT('skl_guesses_board')) : ''}
       ${(s.board || []).some(r => r.score > 0) ? renderScoreboard(s.board || [], pcT('skl_wins_board')) : ''}
       ${tv ? '' : roomShareBtnHtml(state, s.board || [])}
@@ -788,7 +791,10 @@ function sklTick(state) {
     // The last five seconds tick on the phone it's waiting for, and on the TV.
     if (ss.endsAt && ['place', 'add', 'bid', 'flip', 'lose'].indexOf(ss.phase) !== -1) {
       const left = Math.ceil((ss.endsAt - roomServerNow()) / 1000);
-      const mine = st.youAreScreen || (ss.phase === 'place' ? (ss.placed || []).indexOf(Room.me) === -1 : sklUp(ss) === Room.me);
+      // Laying: only a phone still in with discs, not one knocked out or watching.
+      const mine = st.youAreScreen || (ss.phase === 'place'
+        ? sklInGame(st) && sklAlive(ss, Room.me) && (ss.placed || []).indexOf(Room.me) === -1
+        : sklUp(ss) === Room.me);
       if (left > 0 && left <= 5 && left !== lastTick && mine) { lastTick = left; playSound('tick'); }
     }
   }, 250);

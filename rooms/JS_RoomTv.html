@@ -361,9 +361,16 @@ window.addEventListener('resize', () => {
 function tvLobbySig(state) {
   return [
     state.code,
-    state.players.map(p => p.id + ':' + p.name + ':' + (p.bot || '')).join(','),
+    // Presence too: a face on the stage is drawn away while its phone is.
+    state.players.map(p => p.id + ':' + p.name + ':' + (p.bot || '') + ':' + (p.online === false ? '0' : '1')).join(','),
     state.game || '',
     (state.screens || []).length,
+    // A hosting TV draws the game's options, which the setters keep on this
+    // device and save without a state change: their markup is part of the frame.
+    (() => {
+      const g = state.youAreHost && state.game ? ROOM_GAMES[state.game] : null;
+      try { return g ? (g.lobbyTop ? g.lobbyTop(state, true) : '') + (g.lobbyOptions ? g.lobbyOptions(state) : '') : ''; } catch (e) { return ''; }
+    })(),
     JSON.stringify(state.shared || {}),
     // The night's table changes as games are banked, and it is drawn in the lobby.
     JSON.stringify(state.night || {}),
@@ -852,7 +859,7 @@ TV_GAMES.fakeartist = {
   sig(state) {
     const s = state.shared;
     // The drawer's presence is in it: the host's skip appears when that phone goes.
-    return [s.round, s.turnIndex, s.phase, (s.strokes || []).length, s.vote ? s.vote.voted.length : '',
+    return [s.round, s.turnIndex, s.phase, (s.strokes || []).length, s.vote ? s.vote.voted.length + '/' + (s.vote.eligible || []).length : '',
             s.phase === 'drawing' ? faOnline(state, s.currentDrawerId) : ''].join('|');
   },
 
@@ -985,7 +992,7 @@ function tvNextFooter(state, t, label) {
 }
 
 TV_GAMES.wouldyou = {
-  sig: (state) => [state.shared.round, state.shared.vote.phase, state.shared.vote.voted.length].join('|'),
+  sig: (state) => [state.shared.round, state.shared.vote.phase, state.shared.vote.voted.length, (state.shared.vote.eligible || []).length].join('|'),
   frame(state, t) {
     const s = state.shared;
     const v = s.vote;
@@ -1006,7 +1013,7 @@ TV_GAMES.wouldyou = {
 };
 
 TV_GAMES.mostlikely = {
-  sig: (state) => [state.shared.round, state.shared.vote.phase, state.shared.vote.voted.length].join('|'),
+  sig: (state) => [state.shared.round, state.shared.vote.phase, state.shared.vote.voted.length, (state.shared.vote.eligible || []).length].join('|'),
   frame(state, t) {
     const s = state.shared;
     const v = s.vote;
@@ -1025,7 +1032,7 @@ TV_GAMES.mostlikely = {
 TV_GAMES.fibbage = {
   sig(state) {
     const s = state.shared;
-    return [s.round, s.phase, (s.submitted || []).length, s.vote ? s.vote.phase + s.vote.voted.length : '', tvPresent(state)].join('|');
+    return [s.round, s.phase, (s.submitted || []).length, s.vote ? s.vote.phase + s.vote.voted.length + '/' + (s.vote.eligible || []).length : '', tvPresent(state)].join('|');
   },
   frame(state, t) {
     const s = state.shared;
@@ -1065,7 +1072,7 @@ TV_GAMES.fibbage = {
 /* --- الجاسوس · كلمة واحدة · من أنا؟ ------------------------------------------------ */
 
 TV_GAMES.imposter = {
-  sig: (state) => [state.phase, (state.shared.spies || []).join(','), state.shared.outcome, (state.shared.vote && state.shared.vote.voted || []).length, JSON.stringify(state.shared.scores || {}), state.shared.undercover, state.shared.firstId, state.shared.endsAt || 0].join('|'),
+  sig: (state) => [state.phase, (state.shared.spies || []).join(','), state.shared.outcome, (state.shared.vote && state.shared.vote.voted || []).length, (state.shared.vote && state.shared.vote.eligible || []).length, JSON.stringify(state.shared.scores || {}), state.shared.undercover, state.shared.firstId, state.shared.endsAt || 0].join('|'),
   frame(state, t) {
     const s = state.shared;
     const undercover = !!s.undercover;

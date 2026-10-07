@@ -154,7 +154,7 @@ function spyfallFrame(state, t) {
       ${renderRoomPlayerStrip(state)}`;
   }
   const won = s.outcome === 'caught';
-  const line = s.impostorLeft ? (t.room_impostor_left || '') : s.outcome === 'escaped' ? (t.spy_escaped || '') : s.outcome === 'stole' ? (t.spy_stole || '') : (t.spy_caught || '');
+  const line = s.impostorLeft ? (t.room_impostor_left || '').replace('{name}', s.impostorLeftName || '{name}') : s.outcome === 'escaped' ? (t.spy_escaped || '') : s.outcome === 'stole' ? (t.spy_stole || '') : (t.spy_caught || '');
   const revealKey = ['spy', roomDealKey(state, s.round), s.outcome, s.location].join('|');
   // The vote as bars first, the spy's own rising last and lit; the card and the spy wait for it.
   const bars = roomSpyVoteBars(state, s.spyIds || [], 'phone');
@@ -268,7 +268,7 @@ TV_GAMES.spyfall = {
         <div class="tv-spy-reveal ${cover.cls}" ${cover.attrs} style="--cover-at:${cover.at}ms">${cover.cover}<div class="tv-question">🕵️ ${escapeHTML(s.guesserName || '')} · ${t.spy_guessing || ''}</div></div>${places}
         ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.fa_skip_guess, "roomAct('skipGuess')", 'ghost')}</div>`)}</div>`;
     }
-    const line = s.impostorLeft ? (t.room_impostor_left || '') : s.outcome === 'escaped' ? (t.spy_escaped || '') : s.outcome === 'stole' ? (t.spy_stole || '') : (t.spy_caught || '');
+    const line = s.impostorLeft ? (t.room_impostor_left || '').replace('{name}', s.impostorLeftName || '{name}') : s.outcome === 'escaped' ? (t.spy_escaped || '') : s.outcome === 'stole' ? (t.spy_stole || '') : (t.spy_caught || '');
     const revealKey = ['spy', roomDealKey(state, s.round), s.outcome, s.location].join('|');
     // The vote as bars first, the spy's own rising last; then the line turns over and he plays it.
     const bars = roomSpyVoteBars(state, s.spyIds || [], 'tv');

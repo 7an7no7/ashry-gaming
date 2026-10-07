@@ -78,7 +78,8 @@ const programGameOver = (room) => {
     case 'stop': return s.phase === 'done';
     case 'telephone': return s.phase === 'done';
     case 'bomb': return s.phase === 'boom' && (s.round || 1) >= cap;
-    case 'buzzer': return (s.round || 1) > cap;
+    // A family quiz on the buzzer ends with its last question (its round goes up twice a right answer).
+    case 'buzzer': return s.quiz ? !!s.quiz.done : (s.round || 1) > cap;
     case 'justone': return room.phase === 'result' && (s.round || 1) >= cap;
     case 'drawguess': {
       const turns = Math.min(cap, Math.max(1, (s.roster || room.players).length));
@@ -117,6 +118,33 @@ const PROGRAM_TEAMS = {
     const r = s.result;
     if (!r || !Array.isArray(r.winners) || !Array.isArray(s.seats)) return null;
     return [r.winners.slice(), s.seats.filter(id => r.winners.indexOf(id) === -1)];
+  },
+  // سكرو's صاحب صاحبه: the winning side (lowest total), then the other; level sides share first.
+  screw: (room) => {
+    const s = room.shared || {};
+    if (s.phase !== 'gameover' || !Array.isArray(s.teams) || !Array.isArray(s.winnerTeams)) return null;
+    const won = (i) => s.winnerTeams.indexOf(SKREW_TEAM_KEYS[i]) !== -1;
+    const flat = (pick) => s.teams.reduce((a, t, i) => (pick(i) ? a.concat(t) : a), []);
+    const w = flat(won), l = flat(i => !won(i));
+    return l.length ? [w, l] : [w];
+  },
+  // الدومينو in teams: the side that reached the target, then the other (null each for themselves).
+  domino: (room) => {
+    const s = room.shared || {};
+    if (s.phase !== 'gameover' || !Array.isArray(s.teams)) return null;
+    const k = DOMINO_TEAM_KEYS.indexOf(s.winner);
+    if (k === -1) return null;
+    return [s.teams[k].slice(), (s.teams[1 - k] || []).slice()];
+  },
+  // شطرنج الأربعة in teams: red + yellow against blue + green (null in FFA); a draw puts all four first.
+  chess4: (room) => {
+    const s = room.shared || {};
+    const g = s.g;
+    if (!g || !g.over || g.mode !== 'teams' || !g.result || !Array.isArray(s.seats)) return null;
+    const side = (k) => CHESS4_SEATS.filter(t => chess4Team(t) === k).map(t => s.seats[t]).filter(Boolean);
+    const team = g.result.team;
+    if (team !== 0 && team !== 1) return [side(0).concat(side(1))];
+    return [side(team), side(1 - team)];
   }
 };
 const programTwoTeams = (room) => {
@@ -213,7 +241,9 @@ const programDealNext = (room) => {
   p.gained = null;
   p.waitWhy = null;
   const id = p.games[next].id;
-  if (roomGameIsOff(id)) {   // switched off since the program was set: skipped
+  // Switched off since the program was set, or gone from the list in a deploy (a program
+  // outlives one, in the room's storage): skipped, or its clock would throw every 30 s.
+  if (roomGameIsOff(id) || ROOM_GAME_IDS.indexOf(id) === -1) {
     p.done.push({ id, coop: true, cut: true, skipped: true, places: [] });
     programBump(room, 'between', PROGRAM_BETWEEN_MS);
     return;
@@ -472,6 +502,8 @@ const programGuard = (room, playerId, action, payload) => {
   }
   if (action === 'backToHub') {
     requireHost(room, playerId);
+    // Already between games (a double tap on «لعبة أخرى»): nothing more, or it would deal the next game.
+    if (p.phase === 'between' || !room.game) return true;
     return programAction(room, playerId, 'programSkip', { seq: p.seq });
   }
   if (action === 'chooseGame') throw new Error('البرنامج شغال: اللعبة الجاية بتيجي لوحدها');
@@ -673,6 +705,7 @@ const programAwards = (room, table) => {
 const programPlayerLeft = (room, playerId, name) => {
   const p = room.program;
   if (!p) return;
-  if (name && p.table[playerId]) p.names[playerId] = p.names[playerId] || name;
+  // Kept for anyone, not only a row already on the table: a game they played may still be banked.
+  if (name) p.names[playerId] = p.names[playerId] || name;
   programSync(room);
 };

@@ -344,12 +344,15 @@ const chairsTimeout = (room, now) => {
       chairsDjLost(room, now);
       moved = true;
     }
-    if (now >= h.stopAt) { chairsStop(room, h.stopAt); return true; }
-    const fake = h.fakes.find(f => f > (h.fakeAt || 0));
-    if (fake && now >= fake) {
+    // Stamped when it is published, not when it was planned: a late alarm must not eat the sit window.
+    if (now >= h.stopAt) { chairsStop(room, now); return true; }
+    let fake = h.fakes.find(f => f > (h.fakeAt || 0));
+    while (fake && now >= fake) {
       h.fakeAt = fake;
-      s.pause = { at: fake, until: fake + CHAIRS_FAKE_MS };
-      return true;
+      if (now < fake + CHAIRS_FAKE_MS) { s.pause = { at: fake, until: fake + CHAIRS_FAKE_MS }; return true; }
+      // Handled too late to show (its pause is over already): skip it, or its deadline stays due and the room rests 30 s.
+      moved = true;
+      fake = h.fakes.find(f => f > h.fakeAt);
     }
     return moved;
   }

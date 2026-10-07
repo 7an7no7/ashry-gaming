@@ -14,6 +14,7 @@ import { readFile, writeFile, mkdir, readdir, rm, copyFile } from 'node:fs/promi
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { transform } from 'esbuild';
@@ -207,7 +208,21 @@ try {
   const was = JSON.parse(await readFile(listPath, 'utf8'));
   history = [was.files || []].concat(was.history || []).slice(0, KEEP_BUILDS - 1);
 } catch (e) {}
-const before = [...new Set(history.flat())];
+// And the build that is committed (the one GitHub Pages serves): however many builds run
+// before the next push, its files stay - put back from git if they were already deleted.
+// Only for docs/: a build into SITE_OUT (the screen test, CI) is nobody's live copy.
+let published = [];
+if (!process.env.SITE_OUT) {
+  try {
+    published = JSON.parse(execFileSync('git', ['show', 'HEAD:docs/g/files.json'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })).files || [];
+  } catch (e) { published = []; }
+  for (const f of published) {
+    const p = path.join(gDir, f);
+    if (existsSync(p) || !/^[\w.-]+$/.test(f)) continue;
+    try { await writeFile(p, execFileSync('git', ['show', 'HEAD:docs/g/' + f], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 })); } catch (e) {}
+  }
+}
+const before = [...new Set(history.flat().concat(published))];
 const nowFiles = built.chunks.map((c) => c.file);
 for (const c of built.chunks) {
   const p = path.join(gDir, c.file);
@@ -274,6 +289,9 @@ self.addEventListener('install', (event) => {
     }).then(() => c.addAll(SHELL.map(fresh)))
   ).then(() => caches.open(CHUNKS)).then((g) => Promise.all(GAME_FILES.map((f) =>
     g.match(f).then((hit) => hit || fetch(f).then((res) => { if (!res.ok) throw new Error(f + ' ' + res.status); return g.put(f, res); })))))
+  // Everything is here: say so in the build's cache. The cache itself is opened before
+  // anything is fetched, so Settings → الإصدار asks for this, not for the cache.
+  .then(() => caches.open(CACHE)).then((c) => c.put('./.installed', new Response('1')))
   .then(() => self.skipWaiting()));
 });
 

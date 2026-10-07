@@ -152,6 +152,8 @@ catalog, the help); the rules are named `skull` / `SKULL_`, the page's code
   «مين هيكسب؟» count the game just played (`ROOM_RESULT_BOARDS.skull`, `NIGHT_FROM_RESULT` in
   RoomGames.js): the winner, then those still in by bets won this game, then those out of discs.
 
+**The end's podium (the audit of 6 Oct 2026)**: won by bets it is the bets podium; won as the last one in (or by everyone else leaving) the winner stands first, the rest by bets (`pcPlacesPodium`). The last-5-seconds tick while laying sounds only on a phone still in with discs.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

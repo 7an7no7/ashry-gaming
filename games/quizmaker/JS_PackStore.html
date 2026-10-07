@@ -131,6 +131,11 @@ async function packFetch(code, key) {
  */
 async function packOpenByCode(code) {
   const mineBefore = packQuizByCode(code);
+  // The author's own pack with changes not saved yet: open it as it is on the phone - the
+  // server's copy would overwrite those changes.
+  if (mineBefore && packIsMine(mineBefore) && mineBefore.dirty) return { kind: 'quiz', id: mineBefore.id };
+  const wl = packWordsLocal();
+  if (wl && wl.code && wl.code === packCode(code) && packIsMine(wl) && wl.dirty) return { kind: 'words', id: 'words' };
   const got = await packFetch(code, mineBefore && mineBefore.key);
   const now = Date.now();
   if (got.kind === 'quiz') {

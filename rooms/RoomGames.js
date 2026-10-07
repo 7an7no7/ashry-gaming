@@ -642,7 +642,11 @@ const applyRoomAction = (room, playerId, action, payload) => {
       throw new Error('الاسم مستخدم بالفعل في هذه الغرفة');
     }
     room.screens = room.screens.filter(s => s.id !== playerId);
-    room.players.push({ id: playerId, name: name });
+    const seat = { id: playerId, name: name };
+    // Its face (1282) when it sent a good one; a bad one is dropped, as on join.
+    const face = faceClean(payload && payload.face);
+    if (face) seat.face = face;
+    room.players.push(seat);
     missionFill(room);   // المهمة السرية: dealt in
     return;
   }
@@ -658,6 +662,14 @@ const applyRoomAction = (room, playerId, action, payload) => {
     if (!name) throw new Error('اكتب اسمك أولاً');
     if (room.players.some(p => p.id !== playerId && sameRoomName(p.name, name))) {
       throw new Error('الاسم ده مستخدم في الغرفة، اختار اسم تاني');
+    }
+    // «اعمل وشك» (1282): the face made in the same sheet, checked digit by digit against its
+    // parts (faceClean, Faces.js); '' goes back to the initial, anything else is refused.
+    // An old phone sends no face at all, and keeps the one it has.
+    if (payload && payload.face !== undefined) {
+      const face = faceClean(payload.face);
+      if (face === null) throw new Error('الوش ده مش مظبوط');
+      if (face) me.face = face; else delete me.face;
     }
     me.name = name;
     missionFill(room);   // المهمة السرية keeps the names it tells the story with

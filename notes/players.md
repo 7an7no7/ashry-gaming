@@ -63,3 +63,10 @@ picker's head (`openActiveOrder`, the reorder sheet with context
 order before every round, and الدومينو's four in teams say who is with whom
 in the question itself (`paintDominoTeamsLine`: the first two against the
 last two), with «↕ رتّب الفرق» there.
+
+## The looks of 7 Oct 2026, second sheet (the owner's picks): built
+
+- **1282 ب «اعمل وشك»**: the name sheet is also where a player makes a face (the hair, the skin,
+  the clothes, glasses, a hijab, a cap…, or 🎲), kept beside the name in `localStorage.ashryFace`
+  and shown in rooms wherever the initial was. The whole of it is in `notes/rooms.md` (the same
+  heading).

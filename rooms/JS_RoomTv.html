@@ -92,7 +92,7 @@ async function roomBecomePlayer() {
   const name = await promptForName();
   if (!name) return;
   roomName.set(name);
-  roomAct('becomePlayer', { name: name });
+  roomAct('becomePlayer', { name: name, face: roomFace.get() });
 }
 
 function toggleTvFullscreen() {
@@ -286,7 +286,7 @@ function tvStrip(state, t) {
   const chips = state.players.map(p => `
     <span class="tv-chip ${p.online ? '' : 'is-away'}${lobbyPop && motionFirst('tvchip|' + state.code + '|' + p.id) ? ' is-new' : ''}"${p.online ? '' : ` title="${escapeHTML(t.room_away || '')}"`}>
       <span class="presence-dot ${p.online ? 'is-online' : ''}" aria-hidden="true"></span>
-      <span class="tv-chip__name">${roomNameHtml(state, p)}</span>
+      ${p.bot ? '' : roomFaceChip(p.id)}<span class="tv-chip__name">${roomNameHtml(state, p)}</span>
       ${board ? `<b class="tv-chip__score" dir="ltr">${scores[p.id] || 0}</b>` : ''}
       ${roomKickButton(state, p)}
     </span>`).join('');
@@ -412,7 +412,9 @@ function tvLobbySig(state) {
   return [
     state.code,
     // Presence too: a face on the stage is drawn away while its phone is.
-    state.players.map(p => p.id + ':' + p.name + ':' + (p.bot || '') + ':' + (p.online === false ? '0' : '1')).join(','),
+    state.players.map(p => p.id + ':' + p.name + ':' + (p.bot || '') + ':' + (p.online === false ? '0' : '1') + ':' + (p.face || '')).join(','),
+    // The faces drawn once their chunk is here (1282): the frame before had the initials.
+    typeof faceSvg === 'function',
     state.game || '',
     (state.screens || []).length,
     // A hosting TV draws the game's options, which the setters keep on this
@@ -480,6 +482,11 @@ function tvFaceAccent(id) {
   for (const ch of String(id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return TV_FACE_ACCENTS[h % TV_FACE_ACCENTS.length];
 }
+/** A face on the stage: the player's drawn face (1282), else 🤖 or the initial on its colour. */
+function tvLobbyAvatarHtml(p) {
+  const face = p.bot ? '' : roomFaceHtml(p.face);
+  return `<span class="tv-lobby__avatar${face ? ' has-face' : ''}" aria-hidden="true">${face || (p.bot ? '🤖' : escapeHTML(Array.from(String(p.name || '?').trim())[0] || '?'))}</span>`;
+}
 /* Faces new in this draw (tvLobby counts them, renderRoomTv pops once for them),
    and the rooms this TV has drawn a lobby for: the first draw pops nothing. */
 let tvStageNew = 0;
@@ -522,7 +529,7 @@ function tvIdleTableHtml(state, t) {
       <section class="tv-show__table" aria-hidden="true">
         <h2 class="tv-h">🌙 ${escapeHTML(t.room_night_title || '')}</h2>
         <ol class="tv-show__rank">${rows.map((r, i) => `
-          <li class="tv-show__row${r.left ? ' is-left' : ''}"><span class="tv-show__place" aria-hidden="true">${medals[i] || `<span class="metric">${i + 1}</span>`}</span><bdi class="tv-show__who">${escapeHTML(r.name)}${r.left ? ` (${escapeHTML(t.room_night_left || '')})` : ''}</bdi><b class="tv-show__pts metric">${r.score}</b></li>`).join('')}</ol>
+          <li class="tv-show__row${r.left ? ' is-left' : ''}"><span class="tv-show__place" aria-hidden="true">${medals[i] || `<span class="metric">${i + 1}</span>`}</span><bdi class="tv-show__who">${r.left ? '' : roomFaceChip(r.id)}${escapeHTML(r.name)}${r.left ? ` (${escapeHTML(t.room_night_left || '')})` : ''}</bdi><b class="tv-show__pts metric">${r.score}</b></li>`).join('')}</ol>
       </section>`;
 }
 
@@ -601,7 +608,7 @@ function tvLobby(state, t) {
       if (fresh) tvStageNew++;
       return `
         <div class="tv-lobby__player${fresh ? ' is-new' : ''}${p.online === false ? ' is-away' : ''}" data-accent="${tvFaceAccent(p.id)}">
-          <span class="tv-lobby__avatar" aria-hidden="true">${p.bot ? '🤖' : escapeHTML(Array.from(String(p.name || '?').trim())[0] || '?')}</span>
+          ${tvLobbyAvatarHtml(p)}
           <span class="tv-lobby__name"><bdi>${escapeHTML(p.name)}</bdi>${typeof crewCrownHtml === 'function' ? crewCrownHtml(state, p.id) : ''}</span>
         </div>`;
     };

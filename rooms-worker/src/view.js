@@ -23,6 +23,12 @@ const nightLeftNames = (room) => {
   return out;
 };
 
+/** A player's view with their face (1282) when they made one; old rooms and bots have none. */
+const withFace = (p, view) => {
+  if (p.face && !p.bot) view.face = p.face;
+  return view;
+};
+
 export const roomView = (room, pid, online, extra) => {
   const screens = room.screens || [];
   const isScreen = screens.some((s) => s.id === pid);
@@ -37,7 +43,8 @@ export const roomView = (room, pid, online, extra) => {
     // may press the host's "move on" buttons: every phone and screen shows them.
     hostAway: !!(extra && extra.hostAway),
     // A computer player (`bot`: its level) is always here: it has no phone to lose.
-    players: room.players.map((p) => (p.bot
+    // A person's drawn face (1282, `face`: checked when it came in) goes to everyone: it is public.
+    players: room.players.map((p) => withFace(p, p.bot
       ? { id: p.id, name: p.name, online: true, bot: p.bot }
       : (online.has(p.id) || !(room.lastSeen && room.lastSeen[p.id])
         ? { id: p.id, name: p.name, online: online.has(p.id) }

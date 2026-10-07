@@ -273,6 +273,15 @@ Picked from the ideas page of 2 Oct 2026 (https://claude.ai/artifact/7Mhgw1ePSi3
   - Tests: `rules.mjs` («guesswho best question»: counted on the turn's end with a face put back up taken off,
     «غلطت», published at the end, cleared for the next game).
 
+## The looks of 7 Oct 2026, second sheet (the owner's picks): built
+
+- **1282 ب «اعمل وشك»** (the room's, not this game's: `notes/rooms.md`): every player can make a face like
+  this game's. So the drawing moved out of this chunk: `gwFaceSvg`, `gwMix`, `gwColour`, `gwHas`, `gwUid`
+  and the colours (`GW_SKIN`, `GW_HAIR_COL`, `GW_EYE_COL`, `GW_COLOUR_HEX`, `GW_BACK`) are in
+  `rooms/JS_Faces.html`, the chunk `faces`, which this chunk (and الشاهد's) now loads first - the build
+  works the dependency out. `gwFaceSvg(x, bg, opts)` gained `opts.flat` (flat colours, no ids, no
+  patterns: the same face is the same markup) and `opts.box` (the viewBox); this game calls it as before.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

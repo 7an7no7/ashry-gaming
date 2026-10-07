@@ -432,14 +432,14 @@ const Room = (() => {
 
     /** `screen`: this device shows the room on a big screen instead of playing in it. */
     async create(name, gameId, screen) {
-      const res = await request('/create', { name: name, game: gameId || null, screen: !!screen });
+      const res = await request('/create', { name: name, game: gameId || null, screen: !!screen, face: screen ? '' : roomFace.get() });
       if (!res.ok) throw roomError(res.error || roomErrText('create'));
       adoptSession(res, gameId);
       return res;
     },
 
     async join(code, name, screen) {
-      const res = await request('/join', { code: String(code || '').trim().toUpperCase(), name: name, screen: !!screen });
+      const res = await request('/join', { code: String(code || '').trim().toUpperCase(), name: name, screen: !!screen, face: screen ? '' : roomFace.get() });
       if (!res.ok) {
         const err = roomError(res.error || roomErrText('join'));
         // «ده أنا» (1278): who has the name, and whether that seat's phone is away (room.js join).
@@ -950,9 +950,53 @@ function roomBotControlsHtml(state, tv) {
  * A lobby row's avatar: the name's first letter on the screen's accent (or an
  * emoji for a computer player or a screen), with the presence dot on its corner.
  */
-function lobbyAvatarHtml(name, online, emoji) {
+function lobbyAvatarHtml(name, online, emoji, p) {
   const letter = emoji || escapeHTML(Array.from(String(name || '?').trim())[0] || '?');
-  return `<span class="lobby-avatar${emoji ? ' lobby-avatar--emoji' : ''}" aria-hidden="true">${letter}<span class="presence-dot ${online ? 'is-online' : ''}"></span></span>`;
+  // «اعمل وشك» (1282): a player's drawn face in place of the letter, once the faces have come.
+  const face = !emoji && p ? roomFaceHtml(p.face) : '';
+  return `<span class="lobby-avatar${emoji ? ' lobby-avatar--emoji' : ''}${face ? ' has-face' + roomFaceNew(p) : ''}" aria-hidden="true">${face || letter}<span class="presence-dot ${online ? 'is-online' : ''}"></span></span>`;
+}
+
+/* «اعمل وشك» (the looks of 7 Oct 2026, 1282): a player's drawn face, a string of digits made in
+   the name sheet (rooms/Faces.js), kept on this phone (ashryFace) and sent on create, join,
+   rename and becomePlayer; the server checks it and keeps it on the player. The drawing is in the
+   chunk 'faces' (JS_Faces.html): the first face in a room asks for it, and the room is drawn
+   again once it is here; until then, and for anyone who made no face, the initial stands. */
+const roomFace = {
+  get() { try { return localStorage.getItem('ashryFace') || ''; } catch (e) { return ''; } },
+  set(v) { try { if (v) localStorage.setItem('ashryFace', v); else localStorage.removeItem('ashryFace'); } catch (e) {} }
+};
+let roomFacesAsked = false;
+/** A face as an <svg> (tiny: a chip's, the head only), or '' - no face, or the faces not here yet. */
+function roomFaceHtml(face, tiny) {
+  if (!face) return '';
+  if (typeof faceSvg === 'function') return faceSvg(face, tiny);
+  if (!roomFacesAsked && typeof lzEnsure === 'function') {
+    roomFacesAsked = true;
+    lzEnsure(['faces']).then(() => {
+      if (typeof Room !== 'undefined' && Room.state && typeof onRoomView === 'function' && onRoomView()) routeRoomState(Room.state);
+    }, () => { roomFacesAsked = false; });
+  }
+  return '';
+}
+/** The face of a player in this room, by id (or by name, for a chip that only has the name). */
+function roomFaceOf(id, name) {
+  const st = typeof Room !== 'undefined' ? Room.state : null;
+  if (!st || !st.players) return '';
+  const p = st.players.find(x => id ? x.id === id : (name && !x.bot && samePlayer(x.name, name)));
+  return (p && p.face) || '';
+}
+/** A small round face before a name (a chip, a board's row), or '' for none. */
+function roomFaceChip(id, name) {
+  const h = roomFaceHtml(roomFaceOf(id, name), true);
+  return h ? `<span class="room-face" aria-hidden="true">${h}</span>` : '';
+}
+/* A face changed since this phone last drew it lands with a small pop (never the first sight). */
+const roomFaceSeen = {};
+function roomFaceNew(p) {
+  const was = roomFaceSeen[p.id];
+  roomFaceSeen[p.id] = p.face || '';
+  return was !== undefined && was !== (p.face || '') && !motionOff() ? ' is-face-new' : '';
 }
 
 /** A computer player's row in the lobby: always here; the host can change its level or take it out. */
@@ -1148,8 +1192,11 @@ function roomJoinEditName() {
 }
 
 /** «أنت: منى ✏️», the name a phone plays under, a tap from being changed. */
-function roomMeHtml(t, name) {
-  return `<span class="lobby-me__label">${escapeHTML(t.room_you_are || '')}</span>` +
+function roomMeHtml(t, name, face) {
+  // «اعمل وشك» (1282): the face beside it, so the button says it is the place to change it too.
+  const f = roomFaceHtml(face, true);
+  return (f ? `<span class="room-face" aria-hidden="true">${f}</span>` : '') +
+    `<span class="lobby-me__label">${escapeHTML(t.room_you_are || '')}</span>` +
     ` <bdi class="lobby-me__name">${escapeHTML(name || '')}</bdi> <span class="lobby-me__edit" aria-hidden="true">✏️</span>`;
 }
 
@@ -1160,9 +1207,11 @@ async function roomRenameMe() {
   const state = Room.state;
   const me = state && (state.players || []).find(p => p.id === Room.me);
   if (!me) { roomName.set(name); return; }
-  if (me.name === name) { roomName.set(name); return; }
+  // The face made in the same sheet goes with the name (1282); an unchanged pair sends nothing.
+  const face = roomFace.get();
+  if (me.name === name && (me.face || '') === face) { roomName.set(name); return; }
   try {
-    await Room.act('rename', { name: name });
+    await Room.act('rename', { name: name, face: face });
     roomName.set(name);
     haptic('light');
   } catch (err) {
@@ -1705,7 +1754,7 @@ function renderRoomLobby(state, opts) {
     const youLabel = appState.lang === 'ar' ? 'أنت' : 'You';
     list.innerHTML = state.players.map(p => p.bot ? roomBotRowHtml(state, p, joined.indexOf(p.id) !== -1) : `
       <div class="status-row lobby-row ${p.online ? '' : 'status-row--out'} ${joined.indexOf(p.id) !== -1 ? 'status-row--new' : ''} ${p.id === state.hostId ? 'is-host' : ''}">
-        ${lobbyAvatarHtml(p.name, p.online)}
+        ${lobbyAvatarHtml(p.name, p.online, null, p)}
         <div class="status-row__body">
           <div class="status-row__name">${roomNameHtml(state, p)}</div>
         </div>
@@ -1798,7 +1847,7 @@ function renderRoomLobby(state, opts) {
   if (meBtn) {
     meBtn.classList.toggle('hidden', !mine);
     if (mine) {
-      const html = roomMeHtml(TRANSLATIONS[appState.lang] || {}, mine.name);
+      const html = roomMeHtml(TRANSLATIONS[appState.lang] || {}, mine.name, mine.face);
       if (meBtn.dataset.sig !== html) { meBtn.innerHTML = html; meBtn.dataset.sig = html; }
     }
   }
@@ -3026,6 +3075,8 @@ function promptForName() {
     if (!input || !modal) { resolve(''); return; }
 
     input.value = roomName.get();
+    // «اعمل وشك» (1282): the face maker under the name, from the chunk 'faces'.
+    if (typeof lzEnsure === 'function') lzEnsure(['faces']).then(() => { if (typeof facePickerPaint === 'function' && !modal.classList.contains('hidden')) facePickerPaint(); }, () => {});
     modal.classList.remove('hidden');
     setTimeout(() => { input.focus(); input.select(); }, 320);
   });
@@ -3035,6 +3086,9 @@ function submitNameModal() {
   const input = document.getElementById('name-modal-input');
   const value = (input.value || '').trim().slice(0, 24);
   if (!value) { showToast(TRANSLATIONS[appState.lang].name_needed || 'اكتب اسمك', 'error'); return; }
+  // The face the maker ends on is kept with the name (null: the maker never showed, nothing changes).
+  const face = typeof facePickerTake === 'function' ? facePickerTake() : null;
+  if (face !== null) roomFace.set(face);
   closeModal('name-modal');
   const done = nameModalResolve;
   nameModalResolve = null;

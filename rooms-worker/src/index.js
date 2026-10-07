@@ -419,7 +419,7 @@ async function handle(env, path, body) {
     // Codes are short, so a live one may already hold the name; try another.
     for (let attempt = 0; attempt < 8; attempt++) {
       const code = randomCode();
-      const res = await roomStub(env, code).create(code, body.name, body.game, !!body.screen, body.test === true);
+      const res = await roomStub(env, code).create(code, body.name, body.game, !!body.screen, body.test === true, body.face);
       if (!res.taken) return res;
     }
     return { ok: false, error: 'معرفناش نفتح الغرفة، جرّب تاني' };
@@ -432,7 +432,7 @@ async function handle(env, path, body) {
     return path === '/poll' || path === '/leave' ? { ok: true, gone: true } : { ok: false, error: 'ROOM_NOT_FOUND' };
   }
   const room = roomStub(env, code);
-  if (path === '/join') return room.join(body.name, !!body.screen);
+  if (path === '/join') return room.join(body.name, !!body.screen, body.face);
   if (path === '/claim') return room.claim(body);
   if (path === '/act') return room.act(pid, key, body.action, body.payload);
   if (path === '/poll') return room.poll(pid, key, body.v);

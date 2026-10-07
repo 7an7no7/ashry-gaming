@@ -83,6 +83,18 @@ gameText({
       mafia_night_pick: "اختار اسم. اللي بيعمله اختيارك مكتوب في كارتك.",
       mafia_night_picked: "اختيارك اتسجل.",
       mafia_last_save: "مش {name} تاني الليلة دي",
+      mafia_tale_title: "حكاية الليالي",
+      mafia_tale_replay: "من الأول",
+      mafia_day_n: "النهار {n}",
+      mafia_tale_mafia: "المافيا ({by}) اختارت {name}…",
+      mafia_tale_mafia_none: "المافيا ما اختارتش حد الليلة دي",
+      mafia_tale_save: "الدكتور ({by}) حمى {name}",
+      mafia_tale_check_yes: "المحقق ({by}) سأل عن {name}: مافيا",
+      mafia_tale_check_no: "المحقق ({by}) سأل عن {name}: مش مافيا",
+      mafia_tale_close: "كانت قريبة!",
+      mafia_tale_out: "برّه اللعبة",
+      mafia_tale_yes: "مافيا ✓",
+      mafia_tale_no: "مش مافيا",
     },
     en: {
       mafia_lobby_hint: "Everyone sees their role on their own phone. The app narrates: night, day and the votes.",
@@ -164,6 +176,18 @@ gameText({
       mafia_night_pick: "Tap a name. What it does is on your card.",
       mafia_night_picked: "Your pick is in.",
       mafia_last_save: "Not {name} again tonight",
+      mafia_tale_title: "The story of the nights",
+      mafia_tale_replay: "From the start",
+      mafia_day_n: "Day {n}",
+      mafia_tale_mafia: "The Mafia ({by}) chose {name}…",
+      mafia_tale_mafia_none: "The Mafia chose nobody that night",
+      mafia_tale_save: "The Doctor ({by}) protected {name}",
+      mafia_tale_check_yes: "The Detective ({by}) checked {name}: Mafia",
+      mafia_tale_check_no: "The Detective ({by}) checked {name}: not Mafia",
+      mafia_tale_close: "That was close!",
+      mafia_tale_out: "Out",
+      mafia_tale_yes: "Mafia ✓",
+      mafia_tale_no: "Not Mafia",
     }
   },
   rules: {
@@ -182,6 +206,7 @@ gameText({
                 <li><b>بأدوار</b>: <b>🩺 الدكتور</b> يحمي حد كل ليلة (مش نفس الشخص ليلتين ورا بعض). <b>🔍 المحقق</b> يكشف حد ويعرف لوحده هو مافيا ولا لأ. <b>💼 المحامي</b> (من 6 لاعبين) مع المافيا: يعرفهم وهم مايعرفوهوش، ويدافع عنهم كأنه مواطن. المحقق بيشوفه مش مافيا.</li>
                 <li>اللي بيخرج يظهر <b>مواطن</b>، إلا المافيا بتظهر مافيا. المضيف يقدر يفعّل كشف الدور الحقيقي.</li>
                 <li>اللي بيخرج <b>يتفرج على كل حاجة</b>: دور كل واحد واختيارات الليل وهي بتحصل، وهو ساكت (مايصوّتش ومايكتبش في الشات). المضيف يقدر يقفلها.</li>
+                <li>في الآخر <b>📖 حكاية الليالي</b>: اللعبة تتحكي تاني ليلة ليلة، المافيا اختارت مين، الدكتور حمى مين، المحقق سأل عن مين، وتصويت كل نهار. دوس على أي ليلة أو نهار تشوفه تاني.</li>
             </ul>`,
     },
     en: {
@@ -199,6 +224,7 @@ gameText({
                 <li><b>Roles</b>: <b>🩺 the Doctor</b> protects someone each night (not the same person twice running). <b>🔍 the Detective</b> checks someone and alone learns if they are Mafia. <b>💼 the Lawyer</b> (from 6 players) is on the Mafia's side: knows them, unknown to them, and defends them as a citizen would. The Detective sees the Lawyer as not Mafia.</li>
                 <li>Whoever leaves shows as a <b>Citizen</b>, except the Mafia, who show as Mafia. The host can switch on showing real roles.</li>
                 <li>Whoever is out <b>sees everything</b>: every role and the night's picks as they happen, silent (no vote, no chat). The host can switch it off.</li>
+                <li>At the end, <b>📖 the story of the nights</b> tells the game again night by night: whom the Mafia chose, whom the Doctor protected, whom the Detective checked, and each day's vote. Tap any night or day to see it again.</li>
             </ul>`,
     }
   }

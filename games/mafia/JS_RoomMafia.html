@@ -535,6 +535,7 @@ ROOM_GAMES.mafia = {
           <div class="card__title">${escapeHTML(s.winner === 'town' ? (t.mafia_town_wins || '') : (t.mafia_mafia_wins || ''))}</div>
           ${mine ? `<p class="sheet__subtitle">${escapeHTML(iWon ? (t.mafia_you_won || '') : (t.mafia_you_lost || ''))}</p>` : ''}
         </div>
+        ${mafiaTaleHtml(state, t, endRev.st.on ? endRev.winAt + 700 : 0, '', endRev.st.at(endRev.winAt + 700, 'pop'))}
         <div class="card card--tight"${endRev.st.end(400)}>
           <div class="eyebrow">${escapeHTML(t.mafia_everyone_was || '')}</div>
           ${endRev.rows}
@@ -553,6 +554,7 @@ ROOM_GAMES.mafia = {
     refreshMafiaSecret(el, state, t);
     refreshMafiaSpectate(el, state, t);
     if (s.phase === 'gameover' && rebuilt) mafiaEndRun(el, state);
+    if (s.phase === 'gameover') mafiaTaleRun(el, state);
     const acted = el.querySelector('[data-mafia-acted]');
     if (acted) acted.textContent = `${mafiaActedCount(s)}/${(s.alive || []).length}`;
     if ((s.phase === 'night' || s.phase === 'day') && s.endsAt) mafiaTickClock(s); else mafiaStopClock();
@@ -660,8 +662,54 @@ const MAFIA_CSS = `
 @keyframes mafiaLate { from { opacity: 0; transform: translateY(0.6vmin); } to { opacity: 1; transform: none; } }
 .mafia-st__news.is-in { animation: mafiaNewsIn .6s cubic-bezier(.2,1.3,.4,1) both; }
 @keyframes mafiaNewsIn { from { opacity: 0; transform: translateY(-2vmin) scale(.96); } to { opacity: 1; transform: none; } }
+/* «حكاية الليالي» (537): a painted night (a painted day for the vote), the same in both themes. */
+.mafia-tale { container-type: inline-size; position: relative; display: grid; gap: var(--sp-2); padding: var(--sp-3) var(--sp-3) var(--sp-4); border-radius: 20px; color: #fff; overflow: hidden; background: radial-gradient(ellipse at 50% 30%, #2a1d52, #0b0a1e 75%); }
+.mafia-tale.is-day { background: radial-gradient(ellipse at 50% 20%, #5a6fa8, #22244a 80%); }
+.mafia-tale__head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.mafia-tale__title { font-weight: 900; font-size: 1rem; }
+.mafia-tale__again { min-width: 40px; min-height: 40px; border-radius: 999px; border: 0; background: rgba(255,255,255,.12); color: #fff; font-size: 1.1rem; font-weight: 900; cursor: pointer; }
+.mafia-tale__chaps { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 6px; }
+.mafia-tale__chaps i { font-style: normal; opacity: .5; }
+.mafia-tale__chap { min-height: 32px; padding: 2px 12px; border: 0; border-radius: 999px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.62); font: inherit; font-weight: 800; font-size: .8rem; cursor: pointer; }
+.mafia-tale__chap.is-done { color: #fff; }
+.mafia-tale__chap.is-on { background: #fbbf24; color: #241500; }
+.mafia-tale__line { justify-self: center; max-width: 100%; padding: 6px 14px; border-radius: 14px; background: rgba(12,10,28,.8); box-shadow: 0 0 0 1px rgba(255,255,255,.14); font-weight: 900; font-size: .95rem; line-height: 1.45; text-align: center; min-height: 2.3em; }
+.mafia-tale__stage { position: relative; --dot: min(var(--tale-dot, 64px), 14vh, calc(100cqw / var(--n) * .62)); padding-top: calc(var(--dot) * 1.5 + 6px); }
+.mafia-tale__svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.mafia-tale__svg path { fill: none; stroke-width: 3; stroke-linecap: round; opacity: .9; }
+.mafia-tale__svg path.is-new { animation: mafiaTaleArc .5s ease-out both; }
+@keyframes mafiaTaleArc { from { opacity: 0; } to { opacity: .9; } }
+.mafia-tale__row { display: flex; justify-content: space-around; align-items: flex-start; }
+.mafia-tale__face { position: relative; flex: 1 1 0; min-width: 0; display: grid; justify-items: center; gap: 1px; text-align: center; }
+.mafia-tale__dot { position: relative; width: var(--dot); height: var(--dot); border-radius: 50%; display: grid; place-items: center; background: var(--c); color: #fff; font-weight: 900; font-size: calc(var(--dot) * .44); line-height: 1; border: max(2px, calc(var(--dot) * .04)) solid #fff; box-shadow: 0 6px 16px rgba(0,0,0,.4); transition: filter .5s, opacity .5s; }
+.mafia-tale__role { position: absolute; top: calc(var(--dot) * .64); inset-inline-end: calc(50% - var(--dot) * .72); width: calc(var(--dot) * .42); height: calc(var(--dot) * .42); border-radius: 50%; display: grid; place-items: center; background: #1a1530; border: 2px solid #fff; font-size: calc(var(--dot) * .22); }
+.mafia-tale__name { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 900; font-size: clamp(.62rem, calc(var(--dot) * .3), 1.6rem); margin-top: 3px; }
+.mafia-tale__face small { font-size: clamp(.55rem, calc(var(--dot) * .22), 1.1rem); opacity: .75; font-weight: 700; }
+.mafia-tale__face.is-out .mafia-tale__dot { filter: grayscale(1); opacity: .5; }
+.mafia-tale__face.is-out .mafia-tale__name { opacity: .6; }
+.mafia-tale__ring { position: absolute; inset: calc(var(--dot) * -.16); border-radius: 50%; border: max(3px, calc(var(--dot) * .07)) solid #4ade80; font-style: normal; opacity: 0; pointer-events: none; }
+.mafia-tale__ring b { position: absolute; top: -12%; inset-inline-start: 72%; font-size: calc(var(--dot) * .34); line-height: 1; }
+.mafia-tale__ring.is-on { opacity: 1; }
+.mafia-tale__bar { position: absolute; bottom: calc(100% + 4px); left: 50%; width: calc(var(--dot) * .64); height: max(1.5em, calc(var(--dot) * 1.35 * var(--v, 0))); transform: translateX(-50%); transform-origin: 50% 100%; border-radius: 8px 8px 3px 3px; background: linear-gradient(#f87171, #b91c1c); display: none; justify-items: center; align-content: start; padding-top: 2px; font-size: calc(var(--dot) * .3); }
+.mafia-tale__bar.is-on { display: grid; }
+.mafia-tale__bar b { font-weight: 900; }
+.mafia-tale__tags { display: grid; justify-items: center; gap: 2px; min-height: 1.5em; margin-top: 2px; }
+.mafia-tale__tag { padding: 1px 8px; border-radius: 999px; font-weight: 900; font-size: clamp(.55rem, calc(var(--dot) * .22), 1.1rem); white-space: nowrap; color: #fff; }
+.mafia-tale__tag.is-ok { background: #15803d; }
+.mafia-tale__tag.is-bad { background: #dc2626; }
+.mafia-tale__fly { position: absolute; left: 0; top: 0; font-size: calc(var(--dot) * .42); line-height: 1; pointer-events: none; }
+/* On the TV the tale takes the stage once the roles have turned over (the scores stay in the strip). */
+.mafia-tv-end { position: relative; }
+.mafia-tv-end.has-tale { min-height: 66vmin; }
+.mafia-tale--tv { position: absolute; inset: 0; z-index: 2; --tale-dot: 10vmin; gap: 1.4vmin; padding: 2vmin 3vmin; align-content: start; border-radius: var(--tv-r, 1.4vmin); }
+.mafia-tale--tv .mafia-tale__title { font-size: var(--tv-md); }
+.mafia-tale--tv .mafia-tale__chap { font-size: var(--tv-sm); padding: .3vmin 2vmin; min-height: 4.4vmin; }
+.mafia-tale--tv .mafia-tale__line { font-size: var(--tv-md); padding: 1vmin 3vmin; border-radius: 2vmin; }
+.mafia-tale--tv .mafia-tale__again { min-width: 6vmin; min-height: 6vmin; font-size: var(--tv-md); }
+.mafia-tale--tv .mafia-tale__stage { --dot: min(var(--tale-dot), calc(100cqw / var(--n) * .62)); }
+
 @media (prefers-reduced-motion: reduce) {
-  .mafia-st__glow.is-going, .mafia-st__leaf.is-swing, .mafia-st__tail, .mafia-st__star, .mafia-st__late.is-late, .mafia-st__news.is-in { animation: none; }
+  .mafia-st__glow.is-going, .mafia-st__leaf.is-swing, .mafia-st__tail, .mafia-st__star, .mafia-st__late.is-late, .mafia-st__news.is-in, .mafia-tale__svg path.is-new { animation: none; }
 }
 `;
 function mafiaStyleOn() {
@@ -833,6 +881,224 @@ function mafiaStreetDayHtml(state, t, peopleHtml, actionsHtml) {
     </div>`;
 }
 
+/* --- «حكاية الليالي» (idea 537, look A «صف الوشوش», the owner's pick of 7 Oct 2026) ------
+   After the roles have turned over, the game is told again a chapter at a time: everyone's
+   face in one row with their role under it, and the night's moves flying between the faces -
+   the Mafia's 🎯 from each of them to their pick, the Doctor's ring, the Detective's 🔍 and
+   its answer - then the day's vote as a column over each face. The story is the server's
+   (shared.story, sent only once the game is over); the chapters on top jump to any of them.
+   One player per page (mafiaTale); a redraw carries on where it was, never replays. */
+const MAFIA_TALE_COLS = ['#2563eb', '#e5383b', '#16a34a', '#f59e0b', '#7c3aed', '#be123c', '#0ea5a4', '#db2777', '#0891b2', '#65a30d', '#ea580c', '#4f46e5'];
+const MAFIA_TALE_MS = 2600;
+const mafiaTale = { key: '', beat: 0, timer: null, el: null, ro: null, story: [], beats: [], roles: [] };
+
+/** The beats of a story: a night is the Mafia, then the save and the check when there were any; a day is its vote. */
+function mafiaTaleBeats(story) {
+  const out = [];
+  (story || []).forEach((c, ch) => {
+    if (c.k === 'd') { out.push({ ch, kind: 'vote' }); return; }
+    out.push({ ch, kind: 'mafia' });
+    if (c.save) out.push({ ch, kind: 'save' });
+    if (c.check) out.push({ ch, kind: 'check' });
+  });
+  return out;
+}
+
+/** The tale's markup: the chapters, the line, the row of faces (the frame draws it, mafiaTaleRun plays it). */
+function mafiaTaleHtml(state, t, startMs, cls, attrs) {
+  const s = state.shared;
+  const story = s.story || [];
+  if (!story.length) return '';
+  const roles = s.roles || [];
+  const chaps = story.map((c, i) => `${i ? '<i aria-hidden="true">›</i>' : ''}<button type="button" class="mafia-tale__chap" onclick="mafiaTaleGo(${i})">${escapeHTML(((c.k === 'd' ? t.mafia_day_n : t.mafia_night_n) || '').replace('{n}', c.n))}</button>`).join('');
+  const faces = roles.map((r, i) => `<div class="mafia-tale__face" data-id="${escapeHTML(r.id)}" style="--c:${MAFIA_TALE_COLS[i % MAFIA_TALE_COLS.length]}">
+      <span class="mafia-tale__dot">${escapeHTML(Array.from(String(r.name || '?').trim())[0] || '?')}<i class="mafia-tale__ring" aria-hidden="true"><b>🛡️</b></i></span><span class="mafia-tale__bar"><b></b></span>
+      <span class="mafia-tale__role" aria-hidden="true">${MAFIA_ICONS[r.role] || ''}</span>
+      <bdi class="mafia-tale__name">${escapeHTML(r.name)}</bdi><small>${escapeHTML(t['mafia_role_' + r.role] || '')}</small>
+      <span class="mafia-tale__tags"></span></div>`).join('');
+  return `<div class="mafia-tale ${cls || ''}" data-mafia-tale data-tale-at="${Math.round(startMs || 0)}"${attrs || ''}>
+      <div class="mafia-tale__head"><span class="mafia-tale__title">📖 ${escapeHTML(t.mafia_tale_title || '')}</span>
+        <button type="button" class="mafia-tale__again" onclick="mafiaTaleGo(0)" aria-label="${escapeHTML(t.mafia_tale_replay || '')}" title="${escapeHTML(t.mafia_tale_replay || '')}">↻</button></div>
+      <div class="mafia-tale__chaps">${chaps}</div>
+      <div class="mafia-tale__line" aria-live="polite"></div>
+      <div class="mafia-tale__stage" style="--n:${Math.max(roles.length, 5)}"><svg class="mafia-tale__svg" aria-hidden="true"></svg><div class="mafia-tale__row">${faces}</div></div>
+    </div>`;
+}
+
+/** Plays the tale in root (after a frame is drawn): a new game from the first beat at its moment, a redraw where it was. */
+function mafiaTaleRun(root, state) {
+  const el = root && root.querySelector('[data-mafia-tale]:not([data-armed])');
+  if (!el) return;
+  el.dataset.armed = '1';
+  const T = mafiaTale;
+  const key = [roomDealKey(state), state.youAreScreen ? 'tv' : 'ph'].join('|');
+  T.el = el;
+  T.story = state.shared.story || [];
+  T.roles = state.shared.roles || [];
+  T.beats = mafiaTaleBeats(T.story);
+  if (T.ro) T.ro.disconnect();
+  T.ro = null;
+  if (typeof ResizeObserver === 'function') {
+    let w = 0;
+    T.ro = new ResizeObserver(() => {
+      const nw = el.clientWidth;
+      if (!nw || nw === w) return;
+      const first = !w;
+      w = nw;
+      if (!first) mafiaTalePaint(false);
+    });
+    T.ro.observe(el);
+  }
+  if (T.key === key) { mafiaTalePaint(false); return; }
+  T.key = key;
+  T.beat = 0;
+  clearTimeout(T.timer);
+  mafiaTalePaint(false);
+  T.timer = setTimeout(() => { mafiaTalePaint(true); mafiaTaleNext(); }, Number(el.dataset.taleAt) || 0);
+}
+
+/** The next beat after a while, until the last. */
+function mafiaTaleNext() {
+  const T = mafiaTale;
+  clearTimeout(T.timer);
+  if (T.beat >= T.beats.length - 1) return;
+  T.timer = setTimeout(() => {
+    if (!T.el || !T.el.isConnected) return;
+    T.beat++;
+    mafiaTalePaint(true);
+    mafiaTaleNext();
+  }, MAFIA_TALE_MS);
+}
+
+/** A chapter tapped (or ↻): from its first beat, and on from there. */
+function mafiaTaleGo(ch) {
+  const T = mafiaTale;
+  const i = T.beats.findIndex(b => b.ch === ch);
+  if (i === -1 || !T.el) return;
+  T.beat = i;
+  mafiaTalePaint(true);
+  mafiaTaleNext();
+}
+
+function mafiaTaleStop() {
+  clearTimeout(mafiaTale.timer);
+  if (mafiaTale.ro) mafiaTale.ro.disconnect();
+  mafiaTale.ro = null;
+  mafiaTale.key = '';
+}
+onRoomClocksReset(mafiaTaleStop);
+
+/** Draws the current beat: its chapter so far, the newest move with motion when fresh. */
+function mafiaTalePaint(fresh) {
+  const T = mafiaTale;
+  const el = T.el;
+  const b = T.beats[T.beat];
+  if (!el || !el.isConnected || !b) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  const c = T.story[b.ch];
+  const move = fresh && !motionOff();
+  const nameOf = (id) => (T.roles.find(r => r.id === id) || {}).name || '…';
+  // "{role} ({by}) did … {name}": the brackets go when nobody is known to have done it.
+  const fill = (key, by, id) => (t[key] || '').replace(by ? '{by}' : ' ({by})', by ? nameOf(by) : '').replace('{name}', nameOf(id));
+  const upTo = T.beats.filter((x, k) => x.ch === b.ch && k <= T.beat).map(x => x.kind);
+  const has = (kind) => upTo.indexOf(kind) !== -1;
+  el.classList.toggle('is-day', c.k === 'd');
+  el.querySelectorAll('.mafia-tale__chap').forEach((ch, i) => {
+    ch.classList.toggle('is-on', i === b.ch);
+    ch.classList.toggle('is-done', i < b.ch);
+  });
+  let line = '';
+  if (b.kind === 'mafia') {
+    const by = (c.kills || []).map(k => k.by).filter((x, i, a) => a.indexOf(x) === i).map(nameOf).join(appState.lang === 'en' ? ' and ' : ' و');
+    line = '🌙 ' + ((c.kills || []).length ? (t.mafia_tale_mafia || '').replace('{by}', by).replace('{name}', nameOf(c.target || c.kills[0].to)) : (t.mafia_tale_mafia_none || ''));
+  } else if (b.kind === 'save') line = '🩺 ' + fill('mafia_tale_save', c.doc, c.save);
+  else if (b.kind === 'check') line = '🔍 ' + fill(c.check.mafia ? 'mafia_tale_check_yes' : 'mafia_tale_check_no', c.check.by, c.check.id);
+  else {
+    const counts = (c.votes || []).slice().sort((x, y) => y.n - x.n)
+      .map(v => (v.id === 'nobody' ? '🤷 ' + (t.mafia_nobody || '') : nameOf(v.id)) + ' ' + v.n).join(appState.lang === 'en' ? ', ' : '، ');
+    const verdict = (c.out ? (t.mafia_out_voted || '').replace('{name}', nameOf(c.out)) : (c.tie ? t.mafia_news_tie : t.mafia_news_nobody)) || '';
+    line = '🗳️ ' + (counts ? counts + ' · ' : '') + verdict;
+  }
+  const lineEl = el.querySelector('.mafia-tale__line');
+  lineEl.textContent = line;
+  if (move) lineEl.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: 'ease-out' });
+  // Who is out: gone before this chapter, or gone in it once its moment has come
+  // (the night's with the Doctor's beat when there is one, else with the Mafia's).
+  const outShown = c.out && (c.k === 'd' || !c.save || has('save')) ? c.out : null;
+  const outBeat = c.k === 'd' ? 'vote' : (c.save ? 'save' : 'mafia');
+  const maxVotes = Math.max(1, ...(c.votes || []).map(v => v.n));
+  el.querySelectorAll('.mafia-tale__face').forEach(f => {
+    const id = f.dataset.id;
+    f.classList.toggle('is-out', (c.alive || []).indexOf(id) === -1 || id === outShown);
+    const tags = [];
+    if (c.k === 'n' && has('save') && id === c.save && c.save === c.target) tags.push(['ok', t.mafia_tale_close, b.kind === 'save']);
+    if (id === outShown) tags.push(['bad', t.mafia_tale_out, b.kind === outBeat]);
+    if (c.k === 'n' && has('check') && c.check && id === c.check.id) tags.push([c.check.mafia ? 'bad' : 'ok', c.check.mafia ? t.mafia_tale_yes : t.mafia_tale_no, b.kind === 'check']);
+    const holder = f.querySelector('.mafia-tale__tags');
+    holder.innerHTML = tags.map(([k, txt]) => `<span class="mafia-tale__tag is-${k}">${escapeHTML(txt || '')}</span>`).join('');
+    if (move) [...holder.children].forEach((tag, i) => {
+      if (tags[i][2]) tag.animate([{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: 800, easing: 'cubic-bezier(.2,1.4,.4,1)', fill: 'backwards' });
+    });
+    // The Doctor's ring.
+    const ring = f.querySelector('.mafia-tale__ring');
+    const ringOn = c.k === 'n' && has('save') && id === c.save;
+    ring.classList.toggle('is-on', ringOn);
+    if (ringOn && move && b.kind === 'save') ring.animate([{ opacity: 0, transform: 'scale(1.6)' }, { opacity: 1, transform: 'none' }], { duration: 520, easing: 'cubic-bezier(.2,1.3,.4,1)' });
+    // The day's column over the face.
+    const bar = f.querySelector('.mafia-tale__bar');
+    const v = c.k === 'd' ? (c.votes || []).find(x => x.id === id) : null;
+    bar.classList.toggle('is-on', !!v);
+    bar.style.setProperty('--v', v ? (v.n / maxVotes).toFixed(3) : '0');
+    bar.querySelector('b').textContent = v ? v.n : '';
+    if (v && move) bar.animate([{ transform: 'translateX(-50%) scaleY(0)' }, { transform: 'translateX(-50%) scaleY(1)' }], { duration: 700, delay: 150, easing: 'cubic-bezier(.2,1.1,.4,1)', fill: 'backwards' });
+  });
+  mafiaTaleArcs(el, c, b, upTo, move);
+}
+
+/** The flights between the faces, drawn over the row: the Mafia's 🎯, the Detective's 🔍. */
+function mafiaTaleArcs(el, c, b, upTo, move) {
+  const stage = el.querySelector('.mafia-tale__stage');
+  const svg = stage.querySelector('.mafia-tale__svg');
+  stage.querySelectorAll('.mafia-tale__fly').forEach(x => x.remove());
+  svg.innerHTML = '';
+  if (c.k !== 'n') return;
+  svg.setAttribute('viewBox', `0 0 ${stage.clientWidth} ${stage.clientHeight}`);
+  // Measured from the layout (offsets), not the screen: the tale may still be springing in.
+  const at = (id) => {
+    const f = [...stage.querySelectorAll('.mafia-tale__face')].find(x => x.dataset.id === id);
+    const d = f && f.querySelector('.mafia-tale__dot');
+    return d ? { x: f.offsetLeft + d.offsetLeft + d.offsetWidth / 2, y: f.offsetTop + d.offsetTop } : null;
+  };
+  const flights = [];
+  if (upTo.indexOf('mafia') !== -1) (c.kills || []).forEach((k, i) => flights.push({ a: k.by, z: k.to, col: '#f87171', dash: '2 10', icon: '🎯', lift: 1 - i * 0.2, fresh: b.kind === 'mafia', delay: i * 180 }));
+  if (upTo.indexOf('check') !== -1 && c.check && c.check.by) flights.push({ a: c.check.by, z: c.check.id, col: '#fde047', dash: '12 9', icon: '🔍', lift: 0.7, fresh: b.kind === 'check', delay: 0 });
+  let paths = '';
+  flights.forEach(fl => {
+    const p = at(fl.a), q = at(fl.z);
+    if (!p || !q) return;
+    const h = Math.min(Math.max(12, p.y - 6), 14 + Math.abs(q.x - p.x) * 0.32) * fl.lift;
+    const x1 = p.x, y1 = p.y - 2, x2 = q.x, y2 = q.y - 2, cx = (x1 + x2) / 2, cy = Math.min(y1, y2) - 2 * h;
+    fl.pt = (u) => [(1 - u) * (1 - u) * x1 + 2 * (1 - u) * u * cx + u * u * x2, (1 - u) * (1 - u) * y1 + 2 * (1 - u) * u * cy + u * u * y2];
+    paths += `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}" stroke="${fl.col}" stroke-dasharray="${fl.dash}"${fl.fresh && move ? ` class="is-new" style="animation-delay:${fl.delay}ms"` : ''}/>`;
+  });
+  svg.innerHTML = paths;
+  flights.forEach(fl => {
+    if (!fl.pt) return;
+    const icon = document.createElement('span');
+    icon.className = 'mafia-tale__fly';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = fl.icon;
+    const spot = (u) => { const [x, y] = fl.pt(u); return `translate(${x.toFixed(1)}px, ${(y - 2).toFixed(1)}px) translate(-50%, -85%)`; };
+    icon.style.transform = spot(1);
+    stage.appendChild(icon);
+    if (fl.fresh && move) {
+      const frames = [];
+      for (let k = 0; k <= 12; k++) frames.push({ transform: spot(k / 12), opacity: k ? 1 : 0 });
+      icon.animate(frames, { duration: 900, delay: fl.delay, easing: 'cubic-bezier(.45,0,.3,1)', fill: 'backwards' });
+    }
+  });
+}
+
 /* --- the TV ------------------------------------------------------------------ */
 TV_GAMES.mafia = {
   sig: (state) => {
@@ -880,14 +1146,16 @@ TV_GAMES.mafia = {
     const endRev = mafiaEndReveal(state, t, true);
     return `<div class="tv-vote"${endRev.st.end(400)}>
       <div class="tv-title tv-center-text"${endRev.st.at(endRev.winAt, 'pop')}>${s.winner === 'town' ? '🏙️ ' + escapeHTML(t.mafia_town_wins || '') : '🕴️ ' + escapeHTML(t.mafia_mafia_wins || '')}</div>
-      <div class="mafia-final-grid">${endRev.rows}</div>
+      <div class="mafia-tv-end${(s.story || []).length ? ' has-tale' : ''}"><div class="mafia-final-grid">${endRev.rows}</div>
       <div class="tv-scale">${endRev.st.board(renderScoreboard(s.board), endRev.winAt + 500)}</div>
+      ${mafiaTaleHtml(state, t, endRev.st.on ? endRev.winAt + 2200 : 0, 'mafia-tale--tv', endRev.st.at(endRev.winAt + 2200, 'in'))}</div>
       ${host(tvBtn(t.play_again, "roomAct('playAgain', ROOM_GAMES.mafia.startPayload())") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}</div>`;
   },
   after(state, rebuilt) {
     const s = state.shared;
     const view = document.getElementById('view-room-tv');
     if (rebuilt && s.phase === 'gameover') mafiaEndRun(view, state);
+    if (s.phase === 'gameover') mafiaTaleRun(view, state);
     if (rebuilt && s.phase === 'dayResult') stageRun(view, state);
     if ((s.phase === 'night' || s.phase === 'day') && s.endsAt) mafiaTickClock(s); else mafiaStopClock();
     // The big screen is the table's own voice, so it is the one that reads.

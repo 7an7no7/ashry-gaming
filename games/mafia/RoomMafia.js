@@ -73,7 +73,7 @@ const mafiaAction = (room, playerId, action, payload) => {
     const outSee = opts.outSee === undefined ? prev.outSee !== false : !!opts.outSee;
     const roster = room.players.map(p => p.id);
     const roles = shuffled(mafiaRoles(n, mode));
-    room._mafia = { roles: {}, lastSave: null, night: null };
+    room._mafia = { roles: {}, lastSave: null, night: null, story: [] };
     roster.forEach((id, i) => { room._mafia.roles[id] = roles[i]; });
     room.shared = {
       mode: mode,
@@ -262,6 +262,7 @@ const mafiaEndNight = (room) => {
   const top = Object.keys(tally).reduce((mx, id) => Math.max(mx, tally[id]), 0);
   const leaders = Object.keys(tally).filter(id => tally[id] === top && top > 0);
   const target = leaders.length ? leaders[Math.floor(Math.random() * leaders.length)] : null;
+  const startAlive = s.alive.slice();
   m.lastSave = night.save || null;
   if (target && night.save === target) {
     s.news = { kind: 'saved' };
@@ -271,6 +272,7 @@ const mafiaEndNight = (room) => {
   } else {
     s.news = { kind: 'quiet' };
   }
+  mafiaStoryNight(room, night, living, target, startAlive);
   m.night = null;
   room._mafiaActed = []; s.actedN = 0; delete s.acted;
   if (mafiaCheckEnd(room)) return;
@@ -279,6 +281,26 @@ const mafiaEndNight = (room) => {
   s.phase = 'day';
   room.phase = 'day';
   mafiaWriteSecrets(room);
+};
+
+/**
+ * 537 (the owner's pick of 7 Oct 2026, look A «صف الوشوش»): each night is kept for the story told at
+ * the end - every Mafia pick (by, of, living), the target, the Doctor's save, the Detective's check
+ * and whoever went out - on the server only (room._mafia), until mafiaCheckEnd copies it to shared.story.
+ */
+const mafiaStoryNight = (room, night, living, target, startAlive) => {
+  const m = room._mafia;
+  if (!m.story) return;
+  const s = room.shared;
+  const roleIn = (role) => startAlive.find(id => m.roles[id] === role) || null;
+  m.story.push({
+    k: 'n', n: s.night, alive: startAlive,
+    kills: Object.keys(night.kills).filter(by => living.indexOf(by) !== -1 && living.indexOf(night.kills[by]) !== -1).map(by => ({ by: by, to: night.kills[by] })),
+    target: target,
+    save: night.save || null, doc: night.save ? roleIn('doctor') : null,
+    check: night.checked ? { by: roleIn('detective'), id: night.checked, mafia: m.roles[night.checked] === 'mafia' } : null,
+    out: s.news && s.news.kind === 'out' ? s.news.id : null
+  });
 };
 
 const mafiaRemove = (room, id) => {
@@ -305,6 +327,11 @@ const mafiaResolveVote = (room) => {
   const top = results.reduce((mx, r) => Math.max(mx, r.count), 0);
   const leaders = results.filter(r => top > 0 && r.count === top);
   const chosen = leaders.length === 1 && leaders[0].id !== MAFIA_SKIP ? leaders[0].id : null;
+  // 537: the day's counts go into the story told at the end.
+  if (room._mafia.story) {
+    room._mafia.story.push({ k: 'd', n: s.day, alive: s.alive.slice(), out: chosen && s.alive.indexOf(chosen) !== -1 ? chosen : null, tie: leaders.length > 1,
+      votes: results.filter(r => r.count > 0).map(r => ({ id: r.id, n: r.count })) });
+  }
   if (chosen && s.alive.indexOf(chosen) !== -1) {
     mafiaRemove(room, chosen);
     s.news = { kind: 'voted', id: chosen, name: roomPlayerName(room, chosen), role: mafiaShownRole(room, chosen) };
@@ -335,6 +362,8 @@ const mafiaCheckEnd = (room) => {
   // Someone who left is no longer in the room; their name is kept on the list of those out.
   const nameOf = (id) => roomPlayerName(room, id) || ((s.out || []).find(o => o.id === id) || {}).name || '';
   s.roles = s.roster.map(id => ({ id: id, name: nameOf(id), role: m.roles[id], alive: alive.indexOf(id) !== -1 }));
+  // 537 «حكاية الليالي»: the nights and days told again, only now that the game is over.
+  s.story = (m.story || []).slice();
   s.roster.forEach(id => {
     const role = m.roles[id];
     const onMafiaSide = role === 'mafia' || role === 'lawyer';

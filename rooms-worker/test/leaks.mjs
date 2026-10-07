@@ -572,6 +572,9 @@ const PROBES = {
     const lawyer = Object.keys(m.roles).find((id) => m.roles[id] === 'lawyer');
     return [
       probe('the roles stay hidden until the end', live, (view) => (hasKey(view.shared, 'roles') ? 'shared.roles' : null)),
+      // 537 «حكاية الليالي»: the nights' picks and saves are told only once the game is over.
+      probe('the story of the nights stays on the server until the end', live, (view) =>
+        (hasKey(view.shared, 'story') ? 'shared.story' : view.you && hasKey(view.you, 'story') ? 'you.story' : null)),
       probe('each phone holds its own role, and only the mafia and the lawyer hold the mafia list', live, (view, pid) => {
         const you = view.you;
         if (!you) return null;

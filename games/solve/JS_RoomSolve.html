@@ -294,7 +294,7 @@ function svCountrySuggest(input, onpick, flags) {
 function svCountrySearchHtml(onpick, flags) {
   return `<div class="sv-country">
       <input type="text" autocomplete="off" autocorrect="off" spellcheck="false" dir="auto" placeholder="${escapeHTML(svT('flags_type'))}" aria-label="${escapeHTML(svT('flags_type'))}"
-        oninput="svCountrySuggest(this, '${onpick}', ${flags ? 'true' : 'false'})"
+        oninput="svCountrySuggest(this, '${onpick}', ${flags ? 'true' : 'false'})" onfocus="if (typeof fmapFieldUp === 'function') fmapFieldUp(this)"
         onkeydown="if (event.key === 'Enter') { event.preventDefault(); const b = this.closest('.sv-country').querySelector('.flags-chip'); if (b) b.click(); }">
       <div class="flags-suggest"></div>
     </div>`;
@@ -343,12 +343,37 @@ function svFlagsSet(btn) {
 
 /* --- the forms a setter fills ---------------------------------------------------------------- */
 
+/**
+ * 1195 (the owner's picks of 7 Oct 2026): the setter's word goes through Wordle's soft dictionary
+ * (JS_Wordle.html, wordleDictKnows: the app's word lists, plurals and «ال» counted). A word it
+ * doesn't know is asked about once - «مش في قاموسنا — متأكد؟» - and the same word sent again goes:
+ * a name or a word of the family's still plays (the 23 Sep decision stays: nothing is refused).
+ * Until the dictionary's chunks are here every word goes straight through.
+ */
+function svWordleKnown(text) {
+  const folded = svWordleFold(text);
+  const lang = svWordleAlpha(folded) === 'en' ? 'en' : 'ar';
+  if (typeof wordleDictKnows !== 'function') { svWordleWarmDict(); return true; }
+  return wordleDictKnows(lang, folded) !== false;
+}
+
+/** Fetches the dictionary early, while the setter is still thinking of a word. */
+function svWordleWarmDict() {
+  if (typeof wordleDictKnows === 'function') { wordleDictionary('ar'); return; }
+  if (svRoom.dictAsked || typeof lzEnsure !== 'function') return;
+  svRoom.dictAsked = true;
+  lzEnsure(['wordle']).then(() => { if (typeof wordleDictionary === 'function') wordleDictionary('ar'); }).catch(() => { svRoom.dictAsked = false; });
+}
+
 function svWordleSet(form) {
   const s = ((Room.state || {}).shared) || {};
   const input = form.querySelector('input[name="w"]');
   const text = input ? input.value : '';
   const p = svWordleProblem(text);
   if (p) { svFormError(form, svT(p === 'length' ? 'sv_wordle_bad_len' : 'sv_wordle_bad_letters')); return; }
+  const folded = svWordleFold(text);
+  if (svRoom.unsure !== folded && !svWordleKnown(text)) { svRoom.unsure = folded; svFormError(form, svT('sv_wordle_not_dict')); return; }
+  svRoom.unsure = '';
   svFormError(form, '');
   haptic('medium');
   svSend('setSecret', { word: text, round: svRound(s) }, form);
@@ -519,7 +544,7 @@ function svBoardHtml(kind, state, fx) {
           ${h.cont ? fmapHintHtml(h.cont, contFresh) : ''}${hints.length ? `<span class="flags-hints">${hints.join(' · ')}</span>` : ''}
         </div>
         ${on ? svCountrySearchHtml('svFlagsGuess', s.pub.clue !== 'flag') : ''}
-        <div class="flags-guesses fmap-card">${map}${fmapSumHtml(b.g, right, lang)}</div>
+        <div class="flags-guesses fmap-card">${map}${fmapSumHtml(b.g, right, lang)}${on ? fmapNextHintHtml(b.g.length, svFlagHintsAt(s.pub.clue), s.maxTries || 0, !!fx.fresh) : ''}</div>
       </div>`;
   }
   return `<div class="sv-board sv-board--emoji">
@@ -569,30 +594,75 @@ function svBoardFx(state) {
 
 /* --- what the table sees of every board, and the end of a round ------------------------------ */
 
-function svProgressHtml(kind, state, tv) {
+/**
+ * Everyone's progress. `watch` (1196, the owner's picks of 7 Oct 2026) is the setter's own phone
+ * while the others solve: bigger cards, each a small board - the Wordle colours row by row with the
+ * rows still to go, a dot a try for the others - and a card pops when its board moves (a try, a
+ * solve). Only what the table may already see (s.progress); the setter knows the secret anyway.
+ */
+function svProgressHtml(kind, state, tv, watch) {
   const s = state.shared;
   const prog = s.progress || {};
   const ids = Object.keys(prog);
   if (!ids.length) return '';
+  const deal = [state.code, s.dealId, s.round].join('|');
+  if (watch && svRoom.watchKey !== deal) { svRoom.watchKey = deal; svRoom.watchSeen = {}; }
   const rows = ids.map(id => {
     const p = prog[id];
+    let moved = false;
+    if (watch) {
+      const now = p.n + ':' + p.state;
+      moved = svRoom.watchSeen[id] !== undefined && svRoom.watchSeen[id] !== now && !motionOff();
+      svRoom.watchSeen[id] = now;
+    }
     const st = p.state === 'won' ? ('✅ ' + (typeof p.at === 'number' ? svT('hm_place', { n: p.at + 1 }) : svT('sv_state_won')))
       : (p.state === 'lost' ? svT('sv_state_lost') : svT('hm_state_play'));
     let extra = '';
     if (kind === 'wordle') {
-      // The colours in the order the word is read, as on the player's own grid.
-      extra = `<div class="sv-mini" dir="${s.pub && s.pub.alpha === 'en' ? 'ltr' : 'rtl'}" style="--cols:${(s.pub && s.pub.len) || 5}">${(p.rows || []).map(r => Array.from(r).map(c => `<i class="is-${c}"></i>`).join('')).join('')}</div>`;
+      // The colours in the order the word is read, as on the player's own grid; the setter's
+      // view keeps the rows still to go as empty cells, so each card is a little grid.
+      const len = (s.pub && s.pub.len) || 5;
+      const left = watch ? Math.max(0, (s.maxTries || 0) - (p.rows || []).length) : 0;
+      extra = `<div class="sv-mini" dir="${s.pub && s.pub.alpha === 'en' ? 'ltr' : 'rtl'}" style="--cols:${len}">${(p.rows || []).map(r => Array.from(r).map(c => `<i class="is-${c}"></i>`).join('')).join('')}${'<i class="is-e"></i>'.repeat(left * len)}</div>`;
     } else if (kind === 'flags' && p.best) {
       extra = `<div class="sv-best"><span style="--p:${p.best / 100}"></span></div><span class="sv-row__sub metric">${p.best}%</span>`;
     }
-    return `<div class="sv-row is-${p.state} ${id === Room.me ? 'is-me' : ''}">
+    if (watch && kind !== 'wordle' && s.maxTries) {
+      extra += `<span class="sv-pips" aria-hidden="true">${Array.from({ length: s.maxTries }, (_, i) => `<i class="${i < p.n ? (p.state === 'won' && i === p.n - 1 ? 'is-won' : 'is-on') : ''}"></i>`).join('')}</span>`;
+    }
+    return `<div class="sv-row is-${p.state} ${id === Room.me ? 'is-me' : ''} ${moved ? 'is-moved' : ''}">
         <span class="sv-row__who">${escapeHTML(svName(state, id))}</span>
         ${extra}
         <span class="sv-row__sub">${escapeHTML(svT('sv_tries', { n: p.n, m: s.maxTries || 0 }))}</span>
         <span class="sv-row__st">${escapeHTML(st)}</span>
       </div>`;
   }).join('');
-  return `<div class="sv-rows ${tv ? 'sv-rows--tv' : ''}">${rows}</div>`;
+  return `<div class="sv-rows ${tv ? 'sv-rows--tv' : ''} ${watch ? 'sv-rows--watch' : ''}">${rows}</div>`;
+}
+
+/**
+ * 1197: the result card says who sets next, before «اللي بعده» (phone and TV), so they are ready.
+ * Worked out as the server's next deal does (svNextSetter): the order with anyone new at its end,
+ * one on from setterAt. Nothing on the last round, or in a race.
+ */
+function svNextSetterOf(state) {
+  const s = state.shared || {};
+  if (!s.setter || s.phase !== 'result' || !(Number(s.round) < Number(s.rounds))) return null;
+  const here = (state.players || []).map(p => p.id);
+  const order = (s.order || []).filter(id => here.indexOf(id) !== -1);
+  here.forEach(id => { if (order.indexOf(id) === -1) order.push(id); });
+  if (!order.length) return null;
+  return order[((typeof s.setterAt === 'number' ? s.setterAt : -1) + 1) % order.length];
+}
+
+function svNextSetterHtml(kind, state, tv) {
+  const id = svNextSetterOf(state);
+  if (!id) return '';
+  const verb = kind === 'guessnum' || kind === 'flags' ? 'pick' : 'write';
+  const me = !tv && id === Room.me;
+  const line = me ? svT('sv_next_setter_you_' + verb) : svT('sv_next_setter_' + verb, { name: svName(state, id) || '' });
+  const pop = motionFirst(['sv-next', state.code, (state.shared || {}).dealId, (state.shared || {}).round, tv ? 'tv' : 'p'].join('|'));
+  return `<p class="sv-next ${tv ? 'sv-next--tv' : ''} ${me ? 'is-me' : ''} ${pop ? 'is-in' : ''}" role="status"><span aria-hidden="true">✍️</span> ${escapeHTML(line)}</p>`;
 }
 
 /* خمّن الدولة's map in a room (idea 450). On a solver's phone its own guesses (svBoardHtml). The TV shows
@@ -631,7 +701,8 @@ function svFlagsEndMapHtml(state, tv) {
     return fmapHtml({ pins: pins, calls: true, glow: c.cont, anim: drop });
   }
   // Everyone's pins drop together, a beat apart, and the gold one after them.
-  const pins = svFlagsTablePins(state);
+  // 1183: the same country guessed by several fans out round its spot (more than eight: one pin, ×n).
+  const pins = fmapFanPins(svFlagsTablePins(state));
   const step = pins.length ? Math.min(SVF_PIN_STAGGER, SVF_PIN_STAGGER_MAX / pins.length) : 0;
   pins.forEach((p, i) => { p.fresh = drop; p.delay = i * step; });
   pins.push({ code: code, gold: true, fresh: drop, delay: pins.length * step });
@@ -729,7 +800,7 @@ function svPaintLive(el, kind, state) {
     const box = el.querySelector(sel);
     if (box && box._html !== html) { box.innerHTML = html; box._html = html; }
   };
-  put('[data-sv-progress]', svProgressHtml(kind, state, false));
+  put('[data-sv-progress]', svProgressHtml(kind, state, false, !!(state.you || {}).mine));
   put('[data-sv-host]', roomHostRow(svHostButtons(state)));
   const s = state.shared || {};
   if (s.phase === 'setting') put('[data-sv-board]', (s.board || []).some(p => p.score) ? renderScoreboard(s.board) : '');
@@ -742,7 +813,7 @@ function svSig(state) {
   const s = state.shared || {};
   const done = s.phase === 'result' || s.phase === 'gameover';
   return ['sv', s.solve, s.dealId || '', s.round, s.phase, s.setter || '', JSON.stringify(state.you || null),
-    done ? JSON.stringify(s.result || null) + JSON.stringify(s.board || []) : '',
+    done ? JSON.stringify(s.result || null) + JSON.stringify(s.board || []) + svNextSetterOf(state) : '',
     s.endsAt ? 'clock' : '', state.youAreHost, appState.lang].join('|');
 }
 
@@ -777,6 +848,7 @@ function svRender(kind, state) {
     if (s.phase === 'result') {
       return `<div class="sv-room">${head}
           ${svResultHtml(kind, state)}
+          ${svNextSetterHtml(kind, state, false)}
           ${renderScoreboard(s.board)}
           ${roomMoveOnHtml(state,
             `<button class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${svRound(s)} })">${escapeHTML(svT('sv_next_round'))}</button>`,
@@ -800,8 +872,11 @@ function svRender(kind, state) {
     const title = s.setter ? svT('sv_secret_of', { name: s.setterName || '' }) : svT('sv_race_title_' + kind);
     let mine;
     if (you.mine) {
+      // 1196: the setter watches the others' boards here, under the secret, with the time left.
       mine = `<div class="card sv-mine"><p class="eyebrow">${escapeHTML(svT('sv_your_secret'))}</p>${svSecretHtml(kind, you.mine, s)}
-          <p class="field__hint">${escapeHTML(svT('sv_you_watch'))}</p></div>`;
+          <p class="field__hint">${escapeHTML(svT('sv_you_watch'))}</p>
+          ${s.endsAt ? `<p class="sv-mine__left">${escapeHTML(svT('sv_they_finish_in'))} <b class="metric" data-sv-clock="mmss"></b></p>` : ''}</div>
+          <div data-sv-progress></div>`;
     } else if (you.board) {
       fx = svBoardFx(state);
       mine = `<p class="sv-title">${escapeHTML(title)}</p>${svBoardHtml(kind, state, fx)}`;
@@ -814,7 +889,7 @@ function svRender(kind, state) {
         <div class="sv-layout">
           <div class="sv-layout__board">${mine}</div>
           <div class="sv-layout__side">
-            <div data-sv-progress></div>
+            ${you.mine ? '' : '<div data-sv-progress></div>'}
             <div data-sv-host></div>
             ${renderRoomPlayerStrip(state)}
           </div>
@@ -822,6 +897,7 @@ function svRender(kind, state) {
       </div>`;
   });
   svPaintLive(el, kind, state);
+  if (kind === 'wordle' && s.phase === 'setting' && s.setter === Room.me) svWordleWarmDict();
   if (kind === 'flags' && typeof flagsEnsureFont === 'function') flagsEnsureFont();
   if (!rebuilt) return;
   svAfter(el, state, fx);
@@ -880,13 +956,13 @@ function svTvFrame(kind, state, t) {
     // The map beside the answer: everyone's pins, the continent, the answer's gold pin dropping.
     return `<div class="tv-trivia" data-accent="${accent}">${top}
         <div class="svf-tv"><div class="svf-tv__map">${svFlagsEndMapHtml(state, true)}</div>
-          <div class="svf-tv__side">${svResultHtml(kind, state, true)}</div></div>
+          <div class="svf-tv__side">${svResultHtml(kind, state, true)}${svNextSetterHtml(kind, state, true)}</div></div>
         ${moveOn([[svT('sv_next_round'), `roomAct('nextRound', { round: ${svRound(s)} })`]])}
       </div>`;
   }
   if (s.phase === 'result') {
     return `<div class="tv-trivia" data-accent="${accent}">${top}
-        <div class="tv-center sv-tv-result">${svResultHtml(kind, state, true)}</div>
+        <div class="tv-center sv-tv-result">${svResultHtml(kind, state, true)}${svNextSetterHtml(kind, state, true)}</div>
         ${moveOn([[svT('sv_next_round'), `roomAct('nextRound', { round: ${svRound(s)} })`]])}
       </div>`;
   }
@@ -925,7 +1001,7 @@ const SV_UI_ACCENTS = { wordle: 'green', guessnum: 'blue', flags: 'blue', emoji:
 function svTvSig(state) {
   const s = state.shared || {};
   return ['svtv', s.solve, s.dealId || '', s.round, s.phase, s.setter || '', JSON.stringify(s.progress || {}), JSON.stringify(s.result || null),
-    s.endsAt || '', JSON.stringify(s.board || []), state.youAreHost, !!state.hostAway, appState.lang,
+    s.endsAt || '', JSON.stringify(s.board || []), state.youAreHost, !!state.hostAway, appState.lang, svNextSetterOf(state) || '',
     // The waiting stage draws a chip for everyone at the table.
     s.phase === 'setting' ? (state.players || []).map(p => p.id + ':' + p.name).join(',') : ''].join('|');
 }

@@ -5839,6 +5839,47 @@ Date.now = duelTestClock;
     applyRoomAction(x, 'a', 'skipTurn', { round: 1, setter: quietW });
     check(nextW !== quietW && x.shared.setter === nextW && x.shared.phase === 'writing', 'audit3/hangman: a double tap on «skip the writer» skips one writer');
   }
+  {
+    // 1200 (the owner's picks of 7 Oct 2026): «اتكتبت غلط؟» - 5 s to take the word back, nobody guessing meanwhile.
+    const x = hm(['a', 'b', 'c'], { rounds: 3, clock: 60 });
+    const w = x.shared.setter;
+    const g = ['a', 'b', 'c'].filter((id) => id !== w);
+    applyRoomAction(x, w, 'setWord', { word: 'مدرسه', hints: ['مكان', 'فيه فصول'], round: 1, hold: true });
+    const xs = x.shared;
+    check(xs.phase === 'guessing' && xs.openAt === clock + 5000 && xs.endsAt === xs.openAt + 60000,
+      '1200/hangman: a word sent with the hold opens 5 s later, and its clock starts then');
+    applyRoomAction(x, g[0], 'guess', { letter: 'د', round: 1 });
+    applyRoomAction(x, g[0], 'reveal', { round: 1 });
+    check(!x.secrets[g[0]].g.length && !x.secrets[g[0]].lr && xs.progress[g[0]].n === 0, '1200/hangman: nobody guesses (nor a lifeline) while the word is on hold');
+    check(refused(() => applyRoomAction(x, g[0], 'takeBack', { round: 1 })), '1200/hangman: only the writer takes the word back');
+    clock += 2000;
+    applyRoomAction(x, w, 'takeBack', { round: 1 });
+    check(xs.phase === 'writing' && xs.setter === w && !xs.openAt && !xs.endsAt && !xs.len && !xs.cat && JSON.stringify(xs).indexOf('مدرس') === -1,
+      '1200/hangman: taken back - the writer writes again, nothing of the word left on the table');
+    check(x.secrets[w] && x.secrets[w].draft && x.secrets[w].draft.word === 'مدرسه' && x.secrets[w].draft.hints.join('|') === 'مكان|فيه فصول' &&
+      !x.secrets[g[0]] && !x.secrets[g[1]], '1200/hangman: the word and its hints go back into the form of the writer, on that phone only');
+    applyRoomAction(x, w, 'takeBack', { round: 1 });
+    check(xs.phase === 'writing', '1200/hangman: a second take-back does nothing');
+    applyRoomAction(x, w, 'setWord', { word: 'مدرسة', round: 1, hold: true });
+    clock += 5001;
+    applyRoomAction(x, g[0], 'guess', { letter: 'د', round: 1 });
+    check(x.secrets[g[0]].pattern[1] === 'د', '1200/hangman: after the 5 s the guessing is open');
+    clock += 500;
+    check(refused(() => applyRoomAction(x, w, 'takeBack', { round: 1 })) && xs.phase === 'guessing',
+      '1200/hangman: a board has moved: too late to take it back');
+    clock += 1000;
+    const y = hm(['a', 'b', 'c'], { rounds: 3 });
+    const wy = y.shared.setter;
+    applyRoomAction(y, wy, 'setWord', { word: 'مدرسة', round: 1, hold: true });
+    clock += 6500;
+    check(refused(() => applyRoomAction(y, wy, 'takeBack', { round: 1 })), '1200/hangman: after the 5 s (and the second\'s grace) it is too late');
+    const z = hm(['a', 'b', 'c'], { rounds: 3 });
+    const wz = z.shared.setter;
+    applyRoomAction(z, wz, 'setWord', { word: 'مدرسة', round: 1 });
+    const gz = ['a', 'b', 'c'].find((id) => id !== wz);
+    applyRoomAction(z, gz, 'guess', { letter: 'د', round: 1 });
+    check(!z.shared.openAt && z.secrets[gz].pattern[1] === 'د', '1200/hangman: an older page (no hold) plays at once, as before');
+  }
   // The writer leaves before writing: the next one writes.
   const w2 = s.setter;
   r.players = r.players.filter((p) => p.id !== w2);

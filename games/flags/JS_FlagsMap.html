@@ -49,8 +49,10 @@ const FMAP_LAND = {
 };
 const FMAP_SEA = 'M416 85l0-3 1-3 2-2 2-2 2 0 4 1 -2 1 2 2 4-1 -1-1 1-2 3-1 4 0 -2 2 -1 1 -2 1 2 1 3 1 2 1 3 4 -5 1 -6-1 -2-1 -4 0 -3 2 -5 0zM458 75l5-1 3 0 0 3 -3 2 -1 3 3 3 1 2 2 1 0 4 0 2 -6 0 -4-1 0-2 1-3 2-1 -3-2 -1-1 -2-2 -1-3 -1 0 2-2z';
 const FMAP_TEXT = {
-  ar: { best: 'أقرب لحد دلوقتي', far: 'بعيد', near: 'قريب', right: 'هي دي!', answer: 'الإجابة', map: 'الخريطة' },
-  en: { best: 'Closest so far', far: 'Far', near: 'Close', right: 'That\'s it!', answer: 'The answer', map: 'The map' }
+  ar: { best: 'أقرب لحد دلوقتي', far: 'بعيد', near: 'قريب', right: 'هي دي!', answer: 'الإجابة', map: 'الخريطة',
+    next1: 'بعد غلطة كمان: {what}', next2: 'بعد غلطتين: {what}', nextN: 'بعد {n} غلطات: {what}', cont: 'القارة', letter: 'أول حرف' },
+  en: { best: 'Closest so far', far: 'Far', near: 'Close', right: 'That\'s it!', answer: 'The answer', map: 'The map',
+    next1: 'One more miss: {what}', next2: 'Two more misses: {what}', nextN: '{n} more misses: {what}', cont: 'the continent', letter: 'the first letter' }
 };
 const fmapT = () => FMAP_TEXT[appState.lang === 'en' ? 'en' : 'ar'];
 
@@ -123,6 +125,10 @@ body.dark .fmap__land path.is-glow { fill: color-mix(in srgb, var(--accent) 75%,
 [dir="rtl"] .fmap-legend i { transform: scaleX(-1); }
 .fmap-hint { display: inline-flex; align-items: center; gap: 0.375rem; width: max-content; max-width: 100%; padding: 0.125rem 0.625rem; border: 1px solid var(--accent-border); border-radius: var(--r-full); background: var(--accent-soft); color: var(--accent-ink); font-size: var(--fs-sm); font-weight: 700; }
 .fmap-hint.is-new { animation: fmap-pop 400ms cubic-bezier(0.3, 1.5, 0.5, 1) both; }
+.fmap-next { margin: 0; color: var(--text-2); font-size: var(--fs-xs); font-weight: 700; text-align: center; }
+.fmap-next.is-new { animation: fmap-pop 400ms cubic-bezier(0.3, 1.5, 0.5, 1) both; }
+.fmap__pin--many b { box-shadow: 0 2px 5px -2px rgba(0, 0, 0, 0.5), inset 0 0 0 2px rgba(255, 255, 255, 0.8), 0 0 0 2px var(--fmap-gold); }
+.fmap__pin--many i { font-size: calc(var(--fmap-ps) * 0.42); }
 .svf-tv { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 26vw); gap: var(--tv-gap, 2vmin); align-items: center; width: 100%; }
 .svf-tv__side { display: flex; flex-direction: column; align-items: center; gap: var(--tv-gap, 2vmin); min-width: 0; }
 .svf-tv__side .sv-rows--tv { grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); width: 100%; }
@@ -130,6 +136,10 @@ body.dark .fmap__land path.is-glow { fill: color-mix(in srgb, var(--accent) 75%,
 .svf-tv .fmap__pin--win { --fmap-ps: 5.4vmin; }
 .svf-tv .fmap__ring { width: 2vmin; height: 2vmin; margin: -1vmin 0 0 -1vmin; border-width: 0.5vmin; }
 .svf-tv .fmap__map { border-radius: var(--tv-r, 1.5vmin); }
+.svf-tv .fmap__call { max-width: 30vmin; padding: 0.6vmin 1.4vmin; gap: 0.8vmin; border-width: 0.3vmin; border-radius: 1.2vmin; }
+.svf-tv .fmap__call .flag-emoji { font-size: 3.4vmin; }
+.svf-tv .fmap__call b { font-size: 2.2vmin; } .svf-tv .fmap__call small { font-size: 1.7vmin; }
+.svf-tv .fmap__pin { margin: var(--fy, 0px) 0 0 var(--fx, 0px); }
 .svf-tv .fmap-legend { font-size: 1.8vmin; } .svf-tv .fmap-legend i { width: 14vmin; height: 1.2vmin; }
 .svf-tv .sv-flag--big { font-size: 16vmin; }
 .svf-tv .sv-result--tv { width: 100%; }
@@ -176,13 +186,14 @@ function fmapHtml(o) {
     const c = flagCountry(p.code);
     if (!c) return '';
     const at = fmapAt(c);
-    const pos = `left:${at.x.toFixed(2)}%;top:${at.y.toFixed(2)}%` + (p.delay ? `;--pd:${p.delay.toFixed(2)}s` : '');
+    const pos = `left:${at.x.toFixed(2)}%;top:${at.y.toFixed(2)}%` + (p.delay ? `;--pd:${p.delay.toFixed(2)}s` : '')
+      + (p.fx || p.fy ? `;--fx:${p.fx}vmin;--fy:${p.fy}vmin` : '');
     const col = p.gold ? 'var(--fmap-gold)' : `var(--fmap-${p.step})`;
     const on = p.gold || p.step === 2 ? ';--on:var(--fmap-gold-ink)' : '';
     const html = p.gold
       ? `<span class="fmap__pin fmap__pin--win${p.fresh ? ' is-new' : ''}" style="${pos}"><b></b><i>★</i></span>` +
         (p.fresh && o.anim ? [0, 0.5, 1].map((d) => `<span class="fmap__ring" style="${pos};--d:${d}s"></span>`).join('') : '')
-      : `<span class="fmap__pin${p.fresh ? ' is-new' : ''}" style="${pos};--c:${col}${on}"><b></b><i>${escapeHTML(p.label || '')}</i></span>`;
+      : `<span class="fmap__pin${p.many ? ' fmap__pin--many' : ''}${p.fresh ? ' is-new' : ''}" style="${pos};--c:${col}${on}"><b></b><i>${escapeHTML(p.label || '')}</i></span>`;
     if (o.calls && p.call) {
       // The band on the pin's side, unless that one is already two ahead (each keeps its band as guesses come).
       let band = at.y < 50 ? 't' : 'b';
@@ -299,6 +310,76 @@ function fmapSumHtml(guesses, answer, lang) {
 function fmapHintHtml(cont, fresh) {
   const t = TRANSLATIONS[appState.lang] || {};
   return `<span class="fmap-hint${fresh && !motionOff() ? ' is-new' : ''}">🌍 ${escapeHTML(t['flags_cont_' + cont] || '')}</span>`;
+}
+
+/**
+ * 1181 (the owner's picks of 7 Oct 2026): the next hint announced under the guesses, so it comes as
+ * no surprise - «بعد غلطة كمان: القارة», then the first letter. From the first miss, while a hint
+ * is still to come before the last guess; `fresh` pops it in (a new guess). at: { cont, letter }.
+ */
+function fmapNextHintHtml(misses, at, max, fresh) {
+  const t = fmapT();
+  if (misses < 1) return '';
+  const next = misses < at.cont ? { at: at.cont, what: t.cont } : (misses < at.letter ? { at: at.letter, what: t.letter } : null);
+  if (!next || next.at >= max) return '';
+  const n = next.at - misses;
+  const line = (n === 1 ? t.next1 : n === 2 ? t.next2 : t.nextN).replace('{n}', n).replace('{what}', next.what);
+  return `<p class="fmap-next${fresh && !motionOff() ? ' is-new' : ''}">💡 ${escapeHTML(line)}</p>`;
+}
+
+/**
+ * 1182: on a phone the open keyboard hid the suggestions under the country field. When the field
+ * takes the focus on a touch screen, the screen scrolls so the field (its label, its suggestions)
+ * starts at the top: now, and again once the keyboard has opened (the visual viewport shrinks; iOS
+ * scrolls the page by itself as it opens). scrollToAction stays out of it: it leaves a focused field alone.
+ */
+function fmapFieldUp(input) {
+  if (!input || !window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return;
+  const main = document.getElementById('shell-main');
+  if (!main) return;
+  const go = () => {
+    if (document.activeElement !== input || !input.isConnected) return;
+    const box = input.closest('.flg-entry, .sv-country') || input;
+    const r = box.getBoundingClientRect(), m = main.getBoundingClientRect();
+    const top = main.scrollTop + r.top - m.top - 8;
+    if (Math.abs(top - main.scrollTop) > 4) main.scrollTo({ top: Math.max(0, top), behavior: motionOff() ? 'auto' : 'smooth' });
+  };
+  requestAnimationFrame(go);
+  setTimeout(go, 350);
+  const vv = window.visualViewport;
+  if (vv) {
+    const once = () => { vv.removeEventListener('resize', once); go(); };
+    vv.addEventListener('resize', once);
+    setTimeout(() => vv.removeEventListener('resize', once), 1500);
+  }
+}
+
+/**
+ * 1183: the TV's pins at the end of a round. Everyone who guessed the same country stood on one
+ * spot, and only the top letter showed: up to eight there now fan out round it (in vmin, the
+ * TV's own size); more than eight are one pin with how many (×9), a gold ring round it, coloured
+ * by the closest step among them.
+ */
+const FMAP_FAN_MAX = 8;
+function fmapFanPins(pins) {
+  const by = {};
+  const order = [];
+  pins.forEach((p) => { if (!by[p.code]) { by[p.code] = []; order.push(p.code); } by[p.code].push(p); });
+  const out = [];
+  order.forEach((code) => {
+    const group = by[code];
+    if (group.length > FMAP_FAN_MAX) {
+      const near = group.reduce((a, p) => Math.max(a, Number(p.step) || 0), 0);
+      out.push(Object.assign({}, group[0], { step: near, label: '×' + group.length, many: true }));
+      return;
+    }
+    const r = group.length > 1 ? (group.length > 4 ? 2.6 : 1.8) : 0;
+    group.forEach((p, i) => {
+      const a = (i / group.length) * Math.PI * 2 - Math.PI / 2;
+      out.push(r ? Object.assign({}, p, { fx: +(Math.cos(a) * r).toFixed(2), fy: +(Math.sin(a) * r).toFixed(2) }) : p);
+    });
+  });
+  return out;
 }
 
 /**

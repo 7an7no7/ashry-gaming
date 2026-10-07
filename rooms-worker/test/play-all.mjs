@@ -6307,6 +6307,13 @@ async function hangmanSeg() {
     const guessers = hmBots.filter((b) => b !== writer);
     check((await guessers[0].act('setWord', { word: 'مدرسة', round: 1 })).ok === false, 'hangman: only the writer writes');
     check((await writer.act('setWord', { word: 'مدرسة كبيرة في البلد', round: 1 })).ok === false, 'hangman: four words are a sentence, and refused');
+    // 1200: «اتكتبت غلط؟» - a word sent with the hold, taken back within the 5 s, comes back to its writer's form only.
+    await writer.must('setWord', { word: 'مدرستة', hint: 'مكان', round: 1, hold: true });
+    await all(hmBots, (s) => s.shared.phase === 'guessing' && !!s.shared.openAt, '1200/hangman: the word is on hold for 5 s on every phone');
+    await writer.must('takeBack', { round: 1 });
+    await all(hmBots, (s) => s.shared.phase === 'writing' && !s.shared.openAt && !s.shared.len, '1200/hangman: taken back, the writer writes again');
+    check(writer.state.you && writer.state.you.draft && writer.state.you.draft.word === 'مدرستة' && guessers.every((b) => !leaks(b, 'مدرستة')) && !leaks(S, 'مدرستة'),
+          '1200/hangman: the word taken back is in the writer\'s form, on no other phone nor the TV');
     await writer.must('setWord', { word: 'مدرسة', hint: 'مكان', round: 1 });
     await all(hmBots, (s) => s.shared.phase === 'guessing' && s.shared.len === 5 && s.shared.cat === 'مكان',
               'hangman: the word is out, five blanks and the writer\'s hint on every phone');

@@ -267,6 +267,14 @@ const SWEEP = `window.__uiCheck = function (root) {
   });
   return [...new Set(issues)].slice(0, 6);
 }; 1`;
+/* Every screen of the app, in the page's order: those in the page, and those that come with
+   their game's chunk (7 Oct 2026), whose place a comment keeps (<!--[lz:view-…]-->). */
+const ALL_VIEWS = `(() => { const out = [], w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT);
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    const id = n.nodeType === 8 ? ((/^\\[lz:view-([\\w-]+)\\]$/.exec(n.data) || [])[1]) : (n.id && n.id.indexOf('view-') === 0 ? n.id.slice(5) : null);
+    if (id && out.indexOf(id) === -1) out.push(id);
+  }
+  return out; })()`;
 const sweep = async (phone) => {
   await ev(phone, SWEEP);
   return ev(phone, `__uiCheck(document.getElementById('view-' + appState.currentView) || document.body)`);
@@ -301,7 +309,7 @@ if (ONLY.includes('screens')) {
         return found; })()`);
       check(caught && caught.some((x) => /off the screen/.test(x)) && caught.some((x) => /cut off/.test(x)), 'the layout check catches a control off the screen and a label cut off', JSON.stringify(caught));
     }
-    const views = await ev(phone, `[...document.querySelectorAll('[id^="view-"]')].map(v => v.id.slice(5)).filter(id => id.indexOf('room-') !== 0)`);
+    const views = (await ev(phone, ALL_VIEWS)).filter((id) => id.indexOf('room-') !== 0);
     for (const [lang, dark] of looks) {
       await setLook(phone, lang, dark);
       const bad = [];
@@ -342,7 +350,7 @@ if (ONLY.includes('screens')) {
     }
     // Every game started the way a player starts it: its setup screen's Start.
     if (w !== 667) {
-      const setups = await ev(phone, `[...document.querySelectorAll('[id^="view-setup-"]')].map(v => v.id.slice(5))`);
+      const setups = (await ev(phone, ALL_VIEWS)).filter((id) => id.indexOf('setup-') === 0);
       const bad = [], landed = [];
       await setLook(phone, 'ar', false);
       for (const id of setups) {

@@ -1061,27 +1061,7 @@
     if (root.getAttribute('lang') !== appState.lang) root.lang = appState.lang;
     if (root.getAttribute('dir') !== dir) root.dir = dir;
 
-    // Rewritten only where the text differs (a label code changed is still reset).
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-      const key = el.getAttribute('data-i18n');
-      if (t[key] && el.innerHTML !== t[key]) el.innerHTML = t[key];
-    });
-    
-    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
-      const key = el.getAttribute('data-i18n-ph');
-      if (!t[key]) return;
-      if (el.placeholder !== t[key]) el.placeholder = t[key];
-      // A field with no label of its own is named by its placeholder for a screen reader
-      // (the placeholder goes as soon as something is typed). One with a <label> keeps it.
-      if (!(el.labels && el.labels.length) && !el.hasAttribute('data-i18n-title') && el.getAttribute('aria-label') !== t[key]) el.setAttribute('aria-label', t[key]);
-    });
-    // An icon button says what it does in its tooltip and to a screen reader.
-    document.querySelectorAll('[data-i18n-title]').forEach(el => {
-      const key = el.getAttribute('data-i18n-title');
-      if (!t[key]) return;
-      if (el.title !== t[key]) el.title = t[key];
-      if (el.getAttribute('aria-label') !== t[key]) el.setAttribute('aria-label', t[key]);
-    });
+    translateIn(document);
 
     // The header shows the current screen's name, not the app name, so it is
     // owned by syncChrome rather than by the generic [data-i18n] sweep.
@@ -1095,15 +1075,66 @@
   }
   let homeRenderedLang = null;
 
+  /** The marked text of `root` (the page, or a game's screens as they come in) in the app's language. */
+  function translateIn(root) {
+    const t = TRANSLATIONS[appState.lang];
+    const all = (sel) => {
+      const list = Array.from(root.querySelectorAll(sel));
+      if (root !== document && root.matches && root.matches(sel)) list.unshift(root);
+      return list;
+    };
+    // Rewritten only where the text differs (a label code changed is still reset).
+    all('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (t[key] && el.innerHTML !== t[key]) el.innerHTML = t[key];
+    });
+
+    all('[data-i18n-ph]').forEach(el => {
+      const key = el.getAttribute('data-i18n-ph');
+      if (!t[key]) return;
+      if (el.placeholder !== t[key]) el.placeholder = t[key];
+      // A field with no label of its own is named by its placeholder for a screen reader
+      // (the placeholder goes as soon as something is typed). One with a <label> keeps it.
+      if (!(el.labels && el.labels.length) && !el.hasAttribute('data-i18n-title') && el.getAttribute('aria-label') !== t[key]) el.setAttribute('aria-label', t[key]);
+    });
+    // An icon button says what it does in its tooltip and to a screen reader.
+    all('[data-i18n-title]').forEach(el => {
+      const key = el.getAttribute('data-i18n-title');
+      if (!t[key]) return;
+      if (el.title !== t[key]) el.title = t[key];
+      if (el.getAttribute('aria-label') !== t[key]) el.setAttribute('aria-label', t[key]);
+    });
+  }
+
   /**
    * Popups belong to the page, not to the screen they are written next to. Most
    * sit inside <main> in Controller.html, and on iPhone a position:fixed element
    * inside that scrolling area is drawn inside it: the header and the bottom nav
    * covered the popup and its buttons. Moved under <body> once at start-up,
-   * every popup covers the whole screen.
+   * every popup covers the whole screen. A game's own popup that comes with its
+   * chunk (7 Oct 2026) has a comment in its place, <!--[lz-pop:id]-->: the
+   * comment moves with the others, so the popup comes in where it always was
+   * among them (a later one is drawn over an earlier one of the same layer).
    */
+  let modalTint = null;
   function hoistModals() {
-    const tintOnOpen = new MutationObserver(records => {
+    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT, {
+      acceptNode: (n) => (n.nodeType === 8 ? (/^\[lz-pop:/.test(n.data) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP)
+        : n.classList.contains('modal-overlay') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP)
+    });
+    const found = [];
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) found.push(n);
+    found.forEach(el => {
+      if (el.parentNode !== document.body) document.body.appendChild(el);
+      if (el.nodeType === 1) adoptModal(el);
+    });
+  }
+  /** A popup under <body> takes the screen's colour as it opens and is said as a dialog (once each). */
+  const modalsAdopted = new WeakSet();
+  function adoptModal(el) {
+    if (modalsAdopted.has(el)) return;
+    modalsAdopted.add(el);
+    if (!modalTint) modalTint = new MutationObserver(records => {
       records.forEach(r => {
         const overlay = r.target;
         if (overlay.classList.contains('hidden')) return;
@@ -1115,18 +1146,35 @@
       syncModalInert();
       navSoon();   // back closes an open popup (an entry of its own)
     });
-    modalWatch = (el) => {
-      if (el.parentElement !== document.body) document.body.appendChild(el);
-      tintOnOpen.observe(el, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
-      // Said as a dialog to a screen reader.
-      const content = el.querySelector('.modal-content');
-      if (content) { content.setAttribute('role', 'dialog'); content.setAttribute('aria-modal', 'true'); }
-      labelModal(el);
-    };
-    document.querySelectorAll('.modal-overlay').forEach(modalWatch);
+    modalTint.observe(el, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+    // Said as a dialog to a screen reader (and the page behind it inert while open: syncModalInert).
+    const content = el.querySelector('.modal-content');
+    if (content) { content.setAttribute('role', 'dialog'); content.setAttribute('aria-modal', 'true'); }
+    labelModal(el);
   }
-  /** Hoists and watches a popup added after start-up (a game's chunk brings its own). */
-  let modalWatch = () => {};
+
+  /**
+   * A game's screens and popups as its chunk puts them into the page (lzMarkup,
+   * JS_Lazy.html; the owner's B1, 7 Oct 2026): what the start-up does to the
+   * page's markup is done to them, so they are what they were when the page
+   * carried them all. Markup that comes before the start-up (lzBootWrite) is
+   * the start-up's.
+   */
+  let markupStarted = false;
+  function adoptMarkup(roots) {
+    if (!markupStarted) return;
+    roots.forEach(root => {
+      if (root.classList.contains('modal-overlay')) {
+        if (root.parentNode !== document.body) document.body.appendChild(root);
+        adoptModal(root);
+      }
+      root.querySelectorAll('[data-art-icon]').forEach(el => { el.innerHTML = iconHtml('art:' + el.getAttribute('data-art-icon')); });
+    });
+    stickySetupStarts();
+    if (typeof playExitRows === 'function') playExitRows();
+    roots.forEach(translateIn);
+    if (typeof renderSavedGroups === 'function' && roots.some(r => r.querySelector('.saved-groups-select'))) renderSavedGroups();
+  }
 
   /* A popup shuts the page behind it (the owner's pick C3, 7 Oct 2026, in place of
      the 30 Sep call of no focus trap): while one is open the shell is `inert`, so
@@ -1226,6 +1274,8 @@
 
    /* --- INITIALIZATION --- */
    document.addEventListener('DOMContentLoaded', function() {
+     // From here a game's screens that come with its chunk are adopted as they come.
+     markupStarted = true;
      hoistModals();
      initializeApp();
      registerServiceWorker();
@@ -3133,7 +3183,9 @@
       navSoon();
       return;
     }
-    const target = VIEW_META[landed] && document.getElementById('view-' + landed) ? landed : 'menu';
+    // A game's screen whose chunk hasn't come yet isn't in the page: setView brings it (7 Oct 2026).
+    const target = VIEW_META[landed] && (document.getElementById('view-' + landed) ||
+      (typeof lzChunksOfView === 'function' && lzChunksOfView(landed).length)) ? landed : 'menu';
     // A browser that animated the way back itself (Android's predictive back):
     // the screen doesn't slide in a second time. On an iPhone the app draws the
     // swipe (the edge handler above), so this stays false there.

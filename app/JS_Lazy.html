@@ -193,6 +193,58 @@ window.addEventListener('online', function () {
   lzRetry();
 });
 
+/* --- a game's screens come with its code ------------------------------------
+   The owner's B1, 7 Oct 2026: the page used to carry every game's screens (208
+   of them, 5,200 elements behind the home); now a chunk starts by putting its
+   own screens and popups into the page (the build writes lzMarkup([[id, html],
+   …]) before its code), each in the place a comment kept for it - so the page
+   is the page it always was once they are in, and every rule of the stylesheet
+   sees the same elements in the same order. What the start-up did to the
+   page's markup (translations, the setup's Start bar, the popups under <body>…)
+   is done to them as they come (adoptMarkup in JS_Core.html); markup that comes
+   before the start-up (a chunk written in by lzBootWrite) is left to it. */
+var lzMarks = null;
+function lzMarkFind(id) {
+  if (!lzMarks) {
+    lzMarks = {};
+    var walk = document.createTreeWalker(document.documentElement, NodeFilter.SHOW_COMMENT), n, m;
+    while ((n = walk.nextNode())) if ((m = /^\[lz(?:-pop)?:([\w-]+)\]$/.exec(n.data))) lzMarks[m[1]] = n;
+  }
+  return lzMarks[id] || null;
+}
+function lzMarkup(list) {
+  var added = [];
+  (list || []).forEach(function (pair) {
+    if (document.getElementById(pair[0])) return;
+    var tpl = document.createElement('template');
+    tpl.innerHTML = pair[1];
+    var el = tpl.content.firstElementChild;
+    if (!el) return;
+    var mark = lzMarkFind(pair[0]);
+    if (mark && mark.parentNode) mark.parentNode.replaceChild(tpl.content, mark);
+    else (document.getElementById('shell-main') || document.body).appendChild(tpl.content);
+    if (lzMarks) delete lzMarks[pair[0]];
+    added.push(el);
+  });
+  if (added.length && typeof adoptMarkup === 'function') adoptMarkup(added);
+}
+
+/* --- a game's styles come with its code --------------------------------------
+   The owner's B2, 7 Oct 2026: the rules of the stylesheet that the build can
+   prove are one game's alone (tools/css-split.mjs: they match only that game's
+   elements, and no rule they tie with comes after them) are taken out of the
+   page and put in by the chunk, first of all, at the end of <body> - after the
+   app's own sheets, as their place was. The motion setting reads every sheet
+   (applyMotionPref), so it looks again. */
+function lzStyle(id, css) {
+  if (document.querySelector('style[data-lz="' + id + '"]')) return;
+  var st = document.createElement('style');
+  st.setAttribute('data-lz', id);
+  st.textContent = css;
+  (document.body || document.head).appendChild(st);
+  if (typeof applyMotionPref === 'function' && typeof motionPref === 'function' && motionPref() !== 'auto') applyMotionPref();
+}
+
 /* --- a reload onto a game ---------------------------------------------------
    Written by the build at the very end of the body, after the shell's own
    scripts: the screen the phone is coming back to (and the game played last,

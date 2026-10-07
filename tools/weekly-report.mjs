@@ -4,6 +4,7 @@
  * WEEKLY_DIR, and this reads them and writes WEEKLY_DIR/report.md in plain words:
  *
  *   robots.log    npm run test:live (rooms-worker/): the robot players against the live rooms server
+ *   robots.json   its --failed-out: the segments still failing after a second run, and the flaky ones
  *   live.log      npm run check:live: both addresses serve the build in master, the rooms server runs its rules
  *   songs.log     npm run check:songs -- --play: دندنها's songs all still play, Apple's saved addresses current
  *   errors.json   node errors.mjs --json: the errors phones reported (only with the ASHRY_ADMIN_KEY secret)
@@ -43,12 +44,20 @@ const block = (lines) => '```\n' + clip(lines).join('\n') + '\n```';
   const log = read('robots.log');
   const total = (log.match(/^\d+ passed, \d+ failed.*$/m) || [''])[0];
   const failedList = ((log.split(/^failed:\s*$/m)[1]) || '').split('\n').filter((l) => /^ - /.test(l)).map((l) => l.slice(3));
-  if (outcome === 'success') sections.push(`### ✓ The robot players on the live rooms server\n\n${total || 'All passed.'}`);
+  // robots.json (play-all.mjs --retry --failed-out): a segment that failed once and passed when
+  // played again alone is not a failure, but it is said, so a flaky one stays in sight.
+  let second = { flaky: [], firstFailures: [] };
+  try { second = Object.assign(second, JSON.parse(read('robots.json') || '{}')); } catch (e) {}
+  const flakyNote = second.flaky.length
+    ? `\n\nNeeded a second run (failed once, then passed alone): **${second.flaky.join(', ')}**\n\n${block(second.firstFailures)}`
+    : '';
+  if (second.flaky.length) notes.push(`The robots' segment${second.flaky.length > 1 ? 's' : ''} ${second.flaky.join(', ')} failed once on the live server and passed when played again: flaky, worth a look if it keeps coming back.`);
+  if (outcome === 'success') sections.push(`### ✓ The robot players on the live rooms server\n\n${total || 'All passed.'}${flakyNote}`);
   else {
     problems.push(ran(outcome) ? 'the robot players failed on the live rooms server' : 'the robot players did not run');
     sections.push(`### ✗ The robot players on the live rooms server (\`cd rooms-worker && npm run test:live\`)\n\n` +
-      (ran(outcome) ? `${total || 'The run ended without its count.'}\n\n${failedList.length ? block(failedList) : block(log.trim().split('\n').slice(-15))}` : 'Did not run (an earlier step of the workflow failed).') +
-      '\n\nA check can fail once by chance over the internet: run it again on the PC before fixing anything.');
+      (ran(outcome) ? `${total || 'The run ended without its count.'}\n\n${failedList.length ? block(failedList) + '\n\nThese failed twice (the second time played alone).' : block(log.trim().split('\n').slice(-15))}` : 'Did not run (an earlier step of the workflow failed).') +
+      flakyNote);
   }
 }
 

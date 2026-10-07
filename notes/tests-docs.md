@@ -148,6 +148,16 @@ time*). The times are expected, not measured: the first runs on GitHub will say.
   picture of the phone or TV it last spoke to (`lastPhone`, set by `ev`), at most 30 a
   shard, named after the shard and the check. The workflow keeps them, the test's output
   and the rooms server's log as the run's artifacts (14 days): the run's page → Artifacts.
+- **A second run for what failed** (the coordinator's follow-up, same day): the jobs pass
+  `--retry`. `play-all.mjs --retry` plays each segment that failed once more, alone, after
+  the others; `test-ui-parallel.mjs --retry` runs each failed shard once more, alone. Only a
+  second failure fails the job, and the ones that needed it are printed («needed a second
+  run (failed once, then passed alone): …», with their first failures) and written on the
+  job's page (`GITHUB_STEP_SUMMARY`), so a flaky one stays in sight. `play-all.mjs
+  --failed-out=file` writes `{ failed, flaky, failures, firstFailures }` as JSON (the weekly
+  check reads it). Without the flags the output is as before. Checked with throwaway copies
+  of the two runners: a segment and a shard made to fail once passed the second time and
+  were named; a segment made to fail always failed the run.
 - Nothing else in the scripts assumed Windows: paths go through `path` and `os.tmpdir()`,
   and the Windows-only traps (`taskkill`, a `wrangler dev` left on its port, long storage
   paths) don't arise on a runner that is thrown away after the job.
@@ -156,7 +166,9 @@ time*). The times are expected, not measured: the first runs on GitHub will say.
 
 Looks only at what is live, about 10 minutes:
 
-1. `npm run test:live` in `rooms-worker/` (the robots against the live rooms server);
+1. `npm run test:live -- --retry --failed-out=robots.json` in `rooms-worker/` (the robots
+   against the live rooms server; a segment that passes only the second time is a note in
+   the report, not a failure);
 2. `npm run check:live` in `tools/` (both addresses serve the build in master, the rooms
    server runs its rules) - on GitHub its "docs/ built after the last source edit" compares
    the last commit times of docs/ and the sources (`GITHUB_ACTIONS`: a fresh checkout's

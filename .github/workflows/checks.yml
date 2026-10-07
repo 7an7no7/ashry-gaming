@@ -10,6 +10,9 @@
 #            local rooms server, in two jobs on two runners: the screens, fixes and offline copy;
 #            the room games, the program and the mission. About 8 minutes each.
 #
+# A robot segment or a screen-test shard that fails is run once more, alone (--retry), and
+# only a second failure fails the job; the ones that needed it are named on the job's page.
+#
 # The robots and the screen test came here on 7 Oct 2026 (the owner: on every push). They
 # run on separate runners, never in one job: their clocks get flaky on a busy machine
 # (GEMINI.md, Testing). Each uploads its output, the rooms server's log and, for the
@@ -84,7 +87,7 @@ jobs:
           JOBS: 4
         run: |
           set -o pipefail
-          npm test 2>&1 | tee "$RUNNER_TEMP/out/robots.log"
+          npm test -- --retry --failed-out="$RUNNER_TEMP/out/robots.json" 2>&1 | tee "$RUNNER_TEMP/out/robots.log"
 
       - name: Keep the output
         if: ${{ !cancelled() }}
@@ -147,7 +150,7 @@ jobs:
           export CHROME
           export UI_SHOTS="$RUNNER_TEMP/out/shots"
           echo "Chrome: $CHROME ($("$CHROME" --version))"
-          npm run test:ui 2>&1 | tee "$RUNNER_TEMP/out/screens.log"
+          npm run test:ui -- --retry 2>&1 | tee "$RUNNER_TEMP/out/screens.log"
 
       - name: Keep the output
         if: ${{ !cancelled() }}

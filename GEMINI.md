@@ -369,7 +369,10 @@ npm run check        # content + i18n
   (`.github/actions/rooms-server`: `npm run dev`, local workerd, no login),
   Chrome from the runner (`CHROME`, `CHROME_ARGS=--no-sandbox`), Noto Arabic
   and emoji fonts installed; their output, the server's log and a screenshot
-  at every failed screen check (`UI_SHOTS`) are the run's artifacts. About 10
+  at every failed screen check (`UI_SHOTS`) are the run's artifacts. A
+  failed robot segment or screen shard runs once more alone (`--retry`); only
+  a second failure fails the job, and the job's page names the ones that
+  needed it. About 10
   minutes for the lot, side by side (expected; measure on the first runs). A red ✗ on a commit on GitHub means one
   of them failed: open the run, fix it, and push again. GitHub runs after the
   push, so the PC's steps before a release stay as they are (CLAUDE.md, step

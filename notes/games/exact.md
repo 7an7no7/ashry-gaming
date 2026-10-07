@@ -150,6 +150,25 @@ and a hand on the table).
 
 - **A late alarm** (the audit of 6 Oct 2026): `exactTimeout` that opens the window after its `closeAt` closes it in the same pass, so the verdict never waits the room's 30 s rest.
 
+## The ideas of 7 Oct 2026 (the owner's picks): built
+
+- **820 الإيد الدهب** (no extra rule asked; built as described). `shared.streak`
+  counts each hand's right orders in a row ("right" as the clean hands count
+  it: not named in the verdict's `bad`); a mistake sets it to 0. At
+  `EXACT_GOLD_AT` (5) the hand wears a gold ring (`result.ringWon`), and loses
+  it on its next mistake (`result.ringLost`); `exactClose` does both. Chosen:
+  the +1 counts **while the ring is worn** - the board's score is the clean
+  hands plus 1 for a ring still on (`exactBoard`), so the night banks it only
+  if it is protected to the end, and a lost ring takes its +1 with it; a ring
+  kept past five is still one +1. On the table (phone and TV alike): a gold
+  band with a stone on the hand's ring finger (`.ex-gold` in `exHandSvg`,
+  `has-ring` on the seat, `exRingsPaint`), a gold glow round the hand; in the
+  reveal the rings stay as they were until the verdict's moments, then a new
+  one shines on with a «💍 إيد دهب!» bubble and a chime, a lost one slips off
+  (`exRingsMoment`). Leaving drops the streak.
+- Tests: `rules.mjs` ("Exactly 3": four in a row no ring, the fifth rings
+  every right hand, +1 while worn, a mistake takes one ring and its +1).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

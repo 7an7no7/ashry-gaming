@@ -11666,6 +11666,29 @@ Date.now = duelTestClock;
     check(threw(() => applyRoomAction(r, 'a', 'start', {})), 'exact: fewer than three is refused');
   }
   {
+    // «الإيد الدهب» (the ideas of 7 Oct 2026, 820): five right in a row, a gold ring (+1 on the night's
+    // clean hands while worn); a mistake takes it off.
+    const r = exRoom(['a', 'b', 'c', 'd']);
+    let res = null;
+    for (let k = 1; k <= 5; k++) {
+      if (k > 1) next(r);
+      force(r, { kind: 'count', n: 3, win: 3000 });
+      press(r, 'a', 100); press(r, 'b', 200); press(r, 'c', 300);
+      res = close(r);
+      if (k === 4) check(res.ok && !res.ringWon && r.shared.streak.a === 4, 'exact (820): four right in a row is no ring yet');
+    }
+    const row = (id) => r.shared.board.find((x) => x.id === id).score;
+    check(res.ok && (res.ringWon || []).sort().join() === 'a,b,c,d' && r.shared.streak.d === 5, 'exact (820): the fifth right order in a row puts a gold ring on every hand that was right');
+    check(row('a') === r.shared.clean.a + 1 && row('a') === 6, 'exact (820): a ring worn counts +1 on the night\'s clean hands');
+    next(r);
+    force(r, { kind: 'count', n: 3, win: 3000 });
+    press(r, 'a', 100); press(r, 'b', 200); press(r, 'c', 300); press(r, 'd', 500);
+    res = close(r);
+    check(!res.ok && (res.ringLost || []).join() === 'd' && r.shared.streak.d === 0 && r.shared.streak.a === 6 && !(res.ringWon || []).length,
+      'exact (820): a mistake takes the ring off that hand only');
+    check(row('d') === r.shared.clean.d && row('d') === 5 && row('a') === 7, 'exact (820): the ring lost, its +1 goes with it');
+  }
+  {
     const r = exRoom(['a', 'b', 'c', 'd']);
     const s = r.shared;
     check(r.phase === 'play' && s.phase === 'ready' && s.round === 1 && s.level === 1 && s.lives === 3 && s.order.kind === 'count' && s.order.n === 3,

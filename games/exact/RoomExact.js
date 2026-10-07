@@ -41,6 +41,7 @@ const EXACT_BAD_MS = 5400;       // a lost one's: the slap, the bee, the spill
 const EXACT_OVER_MS = 4200;      // the last spill before the end
 const EXACT_MAX_EVENTS = 60;     // taps a phone may send in one order
 const EXACT_REFILL_EVERY = 5;    // every 5th level cleared refills a spilt glass
+const EXACT_GOLD_AT = 5;         // «الإيد الدهب» (7 Oct 2026): a hand right this many orders in a row wears a gold ring (+1 while it does)
 const EXACT_SHAPES = ['star', 'circle', 'triangle', 'square'];
 const EXACT_TOL_MS = 150;        // a pulse beat's / a counter step's slack either side
 
@@ -92,10 +93,11 @@ const exactAction = (room, playerId, action, payload) => {
       seen: [],
       last: [],
       clean: {},
+      streak: {},
       phase: 'ready',
       board: []
     };
-    roster.forEach(id => { room.shared.clean[id] = 0; });
+    roster.forEach(id => { room.shared.clean[id] = 0; room.shared.streak[id] = 0; });
     room.shared.board = exactBoard(room);
     room.phase = 'play';
     exactDeal(room);
@@ -450,6 +452,16 @@ const exactClose = (room) => {
   res.livesBefore = s.lives;
   res.levelBefore = s.level;
   ids.forEach(id => { if (!res.bad[id]) s.clean[id] = (s.clean[id] || 0) + 1; });
+  // «الإيد الدهب»: right EXACT_GOLD_AT orders in a row puts a gold ring on the hand; a mistake takes it off.
+  s.streak = s.streak || {};
+  const won = [], lost = [];
+  ids.forEach(id => {
+    const was = s.streak[id] || 0;
+    if (res.bad[id]) { if (was >= EXACT_GOLD_AT) lost.push(id); s.streak[id] = 0; }
+    else { s.streak[id] = was + 1; if (s.streak[id] === EXACT_GOLD_AT) won.push(id); }
+  });
+  if (won.length) res.ringWon = won;
+  if (lost.length) res.ringLost = lost;
   if (res.ok) {
     s.level += 1;
     res.food = s.level - 2;                                            // the item this level puts on the table (0-based)
@@ -488,14 +500,15 @@ const exactGameOver = (room) => {
   s.board = exactBoard(room);
 };
 
-/** The night's board: each player's clean hands (orders they did right), best first. */
+/** The night's board: each player's clean hands (orders they did right), +1 for a gold ring still worn, best first. */
 const exactBoard = (room) => {
   const s = room.shared || {};
   const clean = s.clean || {};
+  const streak = s.streak || {};
   return (s.roster || [])
     .map(id => room.players.find(p => p.id === id))
     .filter(Boolean)
-    .map(p => ({ id: p.id, name: p.name, score: clean[p.id] || 0 }))
+    .map(p => ({ id: p.id, name: p.name, score: (clean[p.id] || 0) + ((streak[p.id] || 0) >= EXACT_GOLD_AT ? 1 : 0) }))
     .sort((a, b) => b.score - a.score);
 };
 
@@ -543,6 +556,7 @@ const exactPlayerLeft = (room, playerId) => {
   s.roster = s.roster.filter(id => id !== playerId);
   delete room.secrets[playerId];
   if (room._exact) { delete room._exact.ev[playerId]; delete room._exact.mine[playerId]; }
+  if (s.streak) delete s.streak[playerId];
   if (exactRoster(room).length < 2) { exactGameOver(room); return; }
   if (s.phase === 'ready' || s.phase === 'go') {
     // A new round number (a tap still on its way for the old order is stale), the same level.

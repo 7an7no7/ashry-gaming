@@ -138,6 +138,7 @@ gameText({
       ex_best_now: "أحسن رقم للأوضة: {n}",
       ex_record: "رقم جديد للأوضة! 🏆",
       ex_clean: "أثبت إيد",
+      ex_ring_won: "💍 إيد دهب!",
       ex_play_again: "العبوا تاني",
     },
     en: {
@@ -275,6 +276,7 @@ gameText({
       ex_best_now: "The room's best: {n}",
       ex_record: "A new record for the room! 🏆",
       ex_clean: "Steadiest hands",
+      ex_ring_won: "💍 Golden hand!",
       ex_play_again: "Play again",
     }
   },
@@ -301,6 +303,8 @@ gameText({
                 <li><b>شيلوا على العداد</b>: كل واحد يشيل إيده لما العداد يوصل رقمه؛ و<b>واحد ورا التاني</b>: ولا إيدين يتشالوا مع بعض.</li>
                 <li>الأوامر بتصعب مع المستوى: وقت أضيق، أرقام أكبر، وأمر جديد تقريبا كل مستوى.</li>
             </ul></details>
+            <p class="help-sub">💍 الإيد الدهب</p>
+            <p class="text-xs">الإيد اللي تصح 5 أوامر ورا بعض بيتحط في صباعها خاتم دهب على الترابيزة، ويقع أول ما تغلط. وهي لابساه بيتحسب لها +1 في «أثبت إيد» آخر السهرة: حافظ عليه!</p>
             <p class="help-sub">📺 على التلفزيون (اختياري)</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>الترابيزة كبيرة: الإيدين وهي بتنزل، الأمر، الكوبايات والأكل. من غير تلفزيون الترابيزة على كل موبايل، والصوت من موبايل المضيف.</li>
@@ -328,6 +332,8 @@ gameText({
                 <li><b>Lift on the counter</b>: lift your hand when the counter reaches your number; and <b>one by one</b>: no two hands up at once.</li>
                 <li>The orders get harder with the level: tighter timing, bigger numbers, and a new order almost every level.</li>
             </ul></details>
+            <p class="help-sub">💍 The golden hand</p>
+            <p class="text-xs">A hand right 5 orders in a row gets a gold ring on its finger on the table, and loses it at its first mistake. While it wears it, it counts +1 in «Steadiest hands» at the end of the night: protect it!</p>
             <p class="help-sub">📺 On the TV (optional)</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The table big: the hands coming down, the order, the glasses and the food. With no TV the table is on every phone, and the sound on the host's phone.</li>

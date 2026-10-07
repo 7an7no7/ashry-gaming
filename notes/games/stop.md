@@ -120,7 +120,8 @@ back filled and a round closing sends them (the audit of 6 Oct 2026).
   valid answer in that category (everyone else blank or marked wrong), only with 3+ players;
   otherwise 10 / 5 / 0 as before. Rooms (`RoomStop.js`): each cell keeps the host's 10 / 5 / 0 in
   `base`; `stopRecount(s)` (after `scoreStopRound` and every `adjust`) works out `pts` (20 when the
-  cell is the only one above 0 in its category and the round has 3+ rows; `solo: true`),
+  cell is the only one above 0 in its category and 3+ of the round's rows are people still in the room -
+  a leaver's row stays on the sheet but doesn't make the 3, audit of 7 Oct 2026, P2; `solo: true`),
   `roundTotals` and `badStop` from the bases, so a host tap can make or end a 20 anywhere in the
   column. `adjust` cycles the base (a phone sends the base it shows, `adjustStopRoom`); an older
   phone sending the 20 it was shown means 10. The review table marks a solo cell ⭐ (green, 20) and

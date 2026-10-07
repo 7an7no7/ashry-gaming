@@ -318,10 +318,9 @@ function bmpBodyOf(state, id) {
   const s = (state && state.shared) || {};
   const k = (s.bodies && s.bodies[id]) || (s.cars && s.cars[id]);
   if (BMP_BODIES.indexOf(k) !== -1) return k;
-  // A computer player in the lobby: the body the server will give it by its seat.
-  const players = ((state && state.players) || []).slice(0, 8);
-  const at = players.findIndex(p => p.id === id);
-  if (!s.bodies && at !== -1 && players[at].bot) return BMP_BODIES[1 + (at % (BMP_BODIES.length - 1))];
+  // A computer player in the lobby: the body the server will give it, by its id (audit 7 Oct 2026, X4).
+  const p = ((state && state.players) || []).find(x => x.id === id);
+  if (!s.bodies && p && p.bot) return BMP_BODIES[bumperBotBodyAt(id, BMP_BODIES.length)];
   return 'bumper';
 }
 /** A driver's colour in the lobby: the one the deal will give (the seat in the room's list). */
@@ -1053,7 +1052,7 @@ function bmpOverHtml(state, s, t, tv) {
     : `<div class="btn-row" style="margin-top:var(--sp-3)"><button class="btn btn--go" onclick="roomAct('playAgain', {})">▶ ${escapeHTML(t.bmp_again)}</button><button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game)}</button></div>`;
   return `<div class="bmp-over">
     <div class="eyebrow bmp-over__eyebrow" style="text-align:center">${escapeHTML(t.bmp_over)} · ${escapeHTML(bmpModeName(st, t))}</div>
-    ${head}<div class="bmp-over__podium">${s.reported ? renderPodium(state, podium) : ''}</div>
+    ${head}<div class="bmp-over__podium">${s.reported ? renderPodium(state, podium, { noScore: true }) : ''}</div>
     <div class="card card--tight bmp-rows">${rows}</div>${none}${host}</div>`;
 }
 

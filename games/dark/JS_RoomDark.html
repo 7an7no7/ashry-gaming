@@ -1003,7 +1003,9 @@ function dkOnEvent(state, el, e, role, voice) {
   const s = state.shared || {};
   const tomb = s.story === 'tomb';
   if (e.type === 'bump') {
-    dk.bumpAt = Date.now(); dk.bumpDir = e.d || '';
+    // The bump names the arrow pressed (the mover's echo keeps it); while dizzy the kid walked the
+    // other way, so the TV and the guides wobble toward the wall really hit (audit 7 Oct 2026, K1).
+    dk.bumpAt = Date.now(); dk.bumpDir = (role !== 'mover' && s.face) || e.d || '';
     if (role === 'mover') {
       dkFeedback(el, dkT('dk_bump', { obj: dkT('dk_obj_' + e.k) }), true);
       dkSound('bump'); haptic('medium');

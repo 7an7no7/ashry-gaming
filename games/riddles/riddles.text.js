@@ -28,7 +28,7 @@ gameText({
       quiz_who_got: "مين عرفها؟",
       quiz_close_other: "{name} قرّب",
       quiz_near: "قرّبت! جرّب تاني، بنص النقط",
-      quiz_choices_hint: "أو اختار من التلاتة، بنص النقط (الكتابة بالنقط كاملة)",
+      quiz_choices_hint: "أو اختار من التلاتة، بنص النقط (وكتابة اختيار منهم برضه بالنص)",
     },
     en: {
       quiz_count_label: "How many",
@@ -55,7 +55,7 @@ gameText({
       quiz_who_got: "Who got it?",
       quiz_close_other: "{name} is close",
       quiz_near: "Close! One more try, for half the points",
-      quiz_choices_hint: "Or pick one of the three, for half the points (typing still pays full)",
+      quiz_choices_hint: "Or pick one of the three, for half the points (typing one of them is half too)",
     }
   },
   rules: {
@@ -84,7 +84,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>المثل على كل موبايل وعلى التلفزيون و25 ثانية. كل واحد يكتب الكلمة مرة واحدة بس. الصح 10 نقاط وزيادة للأسرع، ولما الوقت يخلص الكلمة تظهر مع اللي كتبه كل واحد.</li>
                 <li><b>قرّبت؟</b> لو اللي كتبته قريب (حرف غلط مثلا) مش بيتحسب عليك: محاولة كمان بنص النقط.</li>
-                <li>بعد <b>12 ثانية</b> تنزل تلات اختيارات للي لسه ماجاوبش: الكلمة واتنين من أمثال تانية. الاختيار الصح بنص النقط، والغلط صفر ومافيش محاولة تانية. الكتابة لسه بالنقط كاملة.</li>
+                <li>بعد <b>12 ثانية</b> تنزل تلات اختيارات للي لسه ماجاوبش: الكلمة واتنين من أمثال تانية. الاختيار الصح بنص النقط، والغلط صفر ومافيش محاولة تانية. اللي يكتب الكلمة قبل ما الاختيارات تنزل ياخد النقط كاملة؛ بعدها كتابة اختيار منهم بنص النقط زي ما تدوس عليه.</li>
             </ul>`,
     },
     en: {
@@ -112,7 +112,7 @@ gameText({
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The proverb on every phone and the TV, with 25 seconds. Everyone types the word once. Right is 10 points plus a speed bonus, and when time is up the word shows with what everyone typed.</li>
                 <li><b>Close?</b> An answer that is nearly right (a letter off) is not spent: one more try, for half the points.</li>
-                <li>After <b>12 seconds</b> three choices come down for whoever hasn't answered: the word and two from other proverbs. A right pick is half the points; a wrong one is 0 and spends your answer. Typing still pays full.</li>
+                <li>After <b>12 seconds</b> three choices come down for whoever hasn't answered: the word and two from other proverbs. A right pick is half the points; a wrong one is 0 and spends your answer. Typing the word before the choices come down pays full; after, typing one of the choices is half, the same as tapping it.</li>
             </ul>`,
     }
   }

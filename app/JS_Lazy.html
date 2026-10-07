@@ -235,13 +235,24 @@ function lzMarkup(list) {
    elements, and no rule they tie with comes after them) are taken out of the
    page and put in by the chunk, first of all, at the end of <body> - after the
    app's own sheets, as their place was. The motion setting reads every sheet
-   (applyMotionPref), so it looks again. */
+   (applyMotionPref), so it looks again.
+   It goes before the first sheet game code added at run time (FACE_CSS and the
+   like, appended to <body> when their chunk ran; motion-off-style too): the
+   moved rules were in the page's stylesheet, above all of those, and a chunk
+   run later must not put them below (audit 7 Oct 2026, L2). The page's own
+   sheets are the ones already in it when this script runs. */
+var LZ_PAGE_SHEETS = Array.prototype.slice.call(document.getElementsByTagName('style'));
 function lzStyle(id, css) {
   if (document.querySelector('style[data-lz="' + id + '"]')) return;
   var st = document.createElement('style');
   st.setAttribute('data-lz', id);
   st.textContent = css;
-  (document.body || document.head).appendChild(st);
+  var host = document.body || document.head, before = null;
+  for (var i = 0; i < host.children.length && !before; i++) {
+    var el = host.children[i];
+    if (el.tagName === 'STYLE' && !el.hasAttribute('data-lz') && LZ_PAGE_SHEETS.indexOf(el) < 0) before = el;
+  }
+  host.insertBefore(st, before);
   if (typeof applyMotionPref === 'function' && typeof motionPref === 'function' && motionPref() !== 'auto') applyMotionPref();
 }
 

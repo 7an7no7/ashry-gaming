@@ -116,10 +116,17 @@ const MAP = [
   { files: /^(RoomRace\.js|JS_RoomRace\.html|SoloShared\.js|Sudoku\.js|Queens\.js|Tango\.js|Nonogram\.js|Mines\.js|Strands\.js|WordWheel\.js|Pinpoint\.js|QuizStreak\.js|ConnectionsWords\.js)$/, robots: ['race'], ui: RACE_GAMES, screens: true },
   { files: /^JS_(Sudoku|Queens|Tango|Nonogram|Mines|WordSearch|WordWheel|Pinpoint|QuizStreak|Connections|2048|Memory)\.html$/, ui: RACE_GAMES, screens: true },
   { files: /^(JS_RoomLaser\.html|RoomLaser\.js)$/, robots: ['laser'], ui: ['laser'] },   // Laser (tools/new-game.mjs)
+  // A player's drawn face (audit 7 Oct 2026, C2): the server checks it on every join (the faces robots,
+  // and the core segment's joins), every lobby and TV draws it (a core room, and the two games that
+  // show faces on their boards), and the face editor is a screen.
+  { files: /^(Faces\.js|JS_Faces\.html)$/, robots: ['faces', 'core'], ui: ['imposter', 'witness', 'guesswho'], screens: true },
   // The page's own screens and the offline copy.
   { files: /^JS_[A-Za-z0-9]+\.html$/, screens: true },
   { files: /^(site-worker\/|tools\/site\.config\.json$|tools\/(make-icons|make-og)\.mjs$)/, site: true },
   { files: /^tools\/(validate-content\.js|check-i18n\.js|check-css-vars\.js|check-songs\.mjs)$/ },
+  // Admin and CI-only scripts that build nothing the app or the server serves (audit 7 Oct 2026, C3):
+  // the checks only. (errors.mjs is above: the robots' err segment covers the endpoint it reads.)
+  { files: /^tools\/(ci-issue|weekly-report|plays|reports|compare-styles|check-live|check-names|stop-words|export-trivia-bank|prove-docs-split)\.mjs$/ },
   // The rules tests and the leak check themselves: npm run test:rules runs both (BUNDLED below).
   { files: /^rooms-worker\/test\/(rules|leaks)\.mjs$/ },
 ];

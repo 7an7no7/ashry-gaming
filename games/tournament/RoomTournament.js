@@ -62,7 +62,8 @@ const TOUR_POINTS = [3, 2, 1];  // the champion, the runner-up, each semi-finali
 const tourDuelKind = (kind) => ({
   options: (payload, prev) => DUEL_KINDS[kind].options(payload || {}, prev || {}),
   settingsOf: (s) => DUEL_KINDS[kind].options({}, s || {}),
-  deal: (v, settings) => { Object.assign(v.shared, settings); duelDeal(v, kind); },
+  // No think clock in a match (audit 7 Oct 2026, B2): a remembered one would only auto-move a gone seat.
+  deal: (v, settings) => { Object.assign(v.shared, settings, { think: 0 }); duelDeal(v, kind); },
   act: (v, pid, action, payload) => {
     if (action !== 'move') throw new Error('إجراء غير معروف');
     duelAction(v, pid, 'move', payload, kind);

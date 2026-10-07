@@ -242,7 +242,9 @@ Decided here (open to change, each in one place):
     none), `body` one of `BUMPER_BODIES` (`bumper`, `taxi`, `tuktuk`, `micro`, `cart`) or refused, only in
     the lobby or between rounds (`s.phase === 'over'`), into `shared.cars { pid: body }`. Every start / play
     again (the ball too) keeps `cars` (`bumperCars`, unknown bodies dropped) and deals `bodies { pid: body }`
-    (`bumperBodies`): the pick, the plain car for whoever didn't pick, a computer player a body by its seat.
+    (`bumperBodies`): the pick, the plain car for whoever didn't pick, a computer player a body by its id
+    (`bumperBotBodyAt` in `rooms/RoomShared.js`, read by the page's `bmpBodyOf` too, so the TV's lobby and the
+    deal agree in «كورة التصادم», where people are dealt first; the audit of 7 Oct 2026, X4; it was by its seat).
   - **The phone** (`JS_RoomBumper.html`): `lobbyTop` draws the garage (`bmpGarageHtml`) for every person in
     the lobby, and the result screen has it under the result. ‹ › (drawn chevrons: ‹ › mirror in Arabic) or
     a swipe on the car (`bmpCarSwipe`) flips it (`bmpCarStep`): each flip is the pick, sent at once and
@@ -268,6 +270,8 @@ Decided here (open to change, each in one place):
 ## The ideas of 7 Oct 2026, third batch (the owner's picks): built
 
 - **862 «إزاي أوصل التلفزيون؟»**: the game that can't start without a big screen says how to get one. The «no screen yet» line (the lobby, for the host and everyone, and a phone in a game whose screen left) carries a ghost button (`bmpNeedTvHtml`) that opens a centred note (`bmpTvWaysOpen`, a popup made on first use and adopted like the others): open the room's link on the big screen and pick «شاشة العرض», by a laptop on HDMI, a mirrored phone (AirPlay, Smart View / Cast) or a streaming stick's browser - the same three ways as the old-browser page. Words in `bumper.text.js` (`bmp_tvways_*`), styles in `Style_Rooms.html` (`.bmp-need__how`, `.bmp-tvways`).
+
+- **The podium has no numbers** (the audit of 7 Oct 2026, H2): its scores are made from places, so `bmpOverHtml` draws it with `renderPodium(…, { noScore: true })` (they read «٥ مرات»).
 
 ## History
 

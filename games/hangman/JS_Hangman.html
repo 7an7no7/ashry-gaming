@@ -1372,6 +1372,8 @@ ROOM_GAMES.hangman = {
     // 1200: a word taken back comes back into the writer's form, as it was written.
     // Once per take-back: a later redraw (someone joining) keeps what the writer has changed since.
     const draftKey = you.draft ? [state.code, s.dealId, s.round, you.draft.word].join('|') : '';
+    // Once the word is sent the draft is gone: forget its key, so taking the same word back again refills the form (audit 7 Oct 2026, O3).
+    if (!you.draft || s.phase !== 'writing') hmRoom.draftKey = '';
     if (rebuilt && s.phase === 'writing' && you.draft && hmRoom.draftKey !== draftKey) { hmRoom.draftKey = draftKey; hmFillDraft(el, you.draft); }
     hmHoldTick(state);
     refreshRoomPlayerStrip(el, state);

@@ -73,6 +73,8 @@ for another), maps them with `MAP` in `tools/test-changed.mjs`, prints the plan,
 | the party word lists, `JS_Room<party game>.html` | the `core` and `autonext` segments, the party room games |
 | a one-phone page file `JS_<X>.html` | the screens (and the race room games for the solo puzzles) |
 | `site-worker/`, the icons, `make-og.mjs` | the `site` part |
+| `Faces.js`, `JS_Faces.html` (a player's drawn face) | the `faces` and `core` segments, imposter / witness / guesswho rooms, the screens |
+| the admin and CI-only scripts (`ci-issue`, `weekly-report`, `plays`, `reports`, `compare-styles`, `check-live`, `check-names`, `stop-words`, `export-trivia-bank`, `prove-docs-split`) | the checks only (audit 7 Oct 2026, C3) |
 | the core (`RoomGames.js`, `rooms-worker/src/`, `JS_Core/Room/RoomTv/...`, `Controller.html`, `Style*.html`, the build and test scripts) or a file the map doesn't know | everything |
 
 The sudoku race tile is in `RACE_GAMES` with the other puzzles (it was the one room

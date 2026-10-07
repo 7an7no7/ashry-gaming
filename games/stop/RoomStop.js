@@ -156,7 +156,7 @@ const stopAction = (room, playerId, action, payload) => {
     const cellText = row[cat].text;
     row[cat].base = pts;
     row[cat].manual = true;
-    stopRecount(s);
+    stopRecount(s, room);
     // Logged once a cell: a host cycling it through 0 and back is one table's
     // one decision, not several.
     if ((cellWord === 'unknown' || cellWord === 'shared') && prevPts === 0 && pts > 0 && !row[cat].logged) {
@@ -238,7 +238,7 @@ const scoreStopRound = (room) => {
   });
   s.results = results;
   s.roundTotals = roundTotals;
-  stopRecount(s);
+  stopRecount(s, room);
   s.phase = 'review';
 };
 
@@ -254,10 +254,12 @@ const stopCellBase = (cell) => {
  * answer in its category), each row's total, and وقف غلط (the stopper loses
  * 10 when any word on their sheet ends at 0). Run after scoring and every tap.
  */
-const stopRecount = (s) => {
+const stopRecount = (s, room) => {
   const results = s.results || {};
   const rows = Object.keys(results);
-  const soloOn = rows.length >= STOP_SOLO_MIN;
+  // Only the people still in the room make the 3: a leaver's row stays on the sheet, but
+  // two left at the table is not a solo's 20 (audit 7 Oct 2026, P2).
+  const soloOn = (room ? activeRoster(room, rows) : rows).length >= STOP_SOLO_MIN;
   (s.cats || []).forEach(cat => {
     const valid = rows.filter(pid => results[pid][cat] && stopCellBase(results[pid][cat]) > 0);
     rows.forEach(pid => {

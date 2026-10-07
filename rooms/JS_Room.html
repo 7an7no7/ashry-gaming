@@ -1518,7 +1518,8 @@ async function roomClaimStart(code, name) {
     closeModal('room-sheet-modal');
     // The name is free after all (its seat left meanwhile): join as anyone would.
     if (String(err.raw || '') === 'CLAIM_NONE') { roomJoinFromForm(); return; }
-    showToast(err.message || roomErrText('join'), 'error');
+    // (audit 7 Oct 2026, R6) a room closed meanwhile reads as such, never the raw code.
+    showToast(String(err.raw || '') === 'ROOM_NOT_FOUND' ? roomErrText('notfound') : (err.message || roomErrText('join')), 'error');
     roomTakenOther(name);
     return;
   }
@@ -1555,7 +1556,7 @@ function roomClaimWait() {
       roomClaimLive = null;
       closeModal('room-sheet-modal');
       const t = TRANSLATIONS[appState.lang] || {};
-      showToast(raw === 'CLAIM_NO' ? (t.room_claim_no || '') : raw === 'CLAIM_GONE' ? (t.room_claim_gone || '') : (err.message || ''), 'error');
+      showToast(raw === 'CLAIM_NO' ? (t.room_claim_no || '') : raw === 'CLAIM_GONE' ? (t.room_claim_gone || '') : raw === 'ROOM_NOT_FOUND' ? roomErrText('notfound') : (err.message || roomErrText('join')), 'error');
       roomTakenOther(live.name);
       return;
     }
@@ -1582,18 +1583,23 @@ function roomClaimStop(tell) {
 }
 
 /* The host's side: «منى رجع؟ رجّعه مكانه» on the host's phone or the TV hosting the room, or on
-   any seated phone once the host has been away 20 s (the server checks again). One ask at a time,
+   any seated phone once the host has been away 20 s (the server checks again; then it takes two
+   seated people's yes, and a phone that said yes isn't asked again). One ask at a time,
    oldest first; «لأ» or «رجّعه» answers it (claimSeat), and an ask that lapsed or was taken back
    simply goes. Closed by hand, it isn't asked again (the asking phone's ask lapses in 3 minutes). */
 let roomClaimShown = '';
 let roomClaimLater = null;
 function roomClaimCanAnswer(state) {
   if (!state || !state.claims || !state.claims.length) return false;
-  if (state.youAreHost || state.hostAway) return true;
+  if (state.youAreHost) return true;
+  // A screen isn't seated, so the server refuses its answer; and a TV host's 20 s away is the
+  // server's own hostAway, so a phone doesn't ask early (audit 7 Oct 2026, R3).
+  if (state.youAreScreen) return false;
   const me = (state.players || []).find(p => p.id === Room.me);
   if (!me || me.bot) return false;
+  if (state.hostAway) return true;
   const host = (state.players || []).find(p => p.id === state.hostId);
-  if (!host) return !(state.screens || []).some(x => x.id === state.hostId && x.online);
+  if (!host) return false;
   if (host.online || !host.away) return false;
   const wait = host.away + 20000 - (Date.now() - (Room.clockGap || 0));
   if (wait > 0) {
@@ -1607,7 +1613,8 @@ function roomClaimPrompt(state) {
   const modal = document.getElementById('room-claim-modal');
   const body = document.getElementById('room-claim-body');
   if (!modal || !body) return;
-  const c = roomClaimCanAnswer(state) ? state.claims.find(x => x.seat !== Room.me) : null;
+  // A phone that already said yes as a stand-in isn't asked again: the second yes is someone else's (audit 7 Oct 2026, S1).
+  const c = roomClaimCanAnswer(state) ? state.claims.find(x => x.seat !== Room.me && !(Array.isArray(x.yes) && x.yes.indexOf(Room.me) !== -1)) : null;
   if (!c) {
     if (roomClaimShown && !modal.classList.contains('hidden')) closeModal('room-claim-modal');
     roomClaimShown = '';
@@ -1632,6 +1639,13 @@ function roomClaimPrompt(state) {
 function roomClaimAnswer(id, yes) {
   closeModal('room-claim-modal');
   roomAct('claimSeat', { claim: id, ok: !!yes });
+  // With the host away a yes needs a second person's (audit 7 Oct 2026, S1).
+  const ask = Room.state && (Room.state.claims || []).find(x => x.id === id);
+  const others = ask && Array.isArray(ask.yes) ? ask.yes.filter(x => x !== Room.me).length : 0;
+  if (yes && Room.state && !Room.state.youAreHost && !others) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    showToast(t.room_claim_second || (appState.lang === 'ar' ? 'مستني موافقة تانية' : 'Waiting for one more yes'), 'info');
+  }
 }
 if (typeof Room !== 'undefined') Room.onChange((state) => roomClaimPrompt(state));
 
@@ -1745,7 +1759,9 @@ function renderRoomLobby(state, opts) {
   const count = document.getElementById('room-player-count');
   if (count) count.innerText = state.players.length;
   // The night on each row (1280): its points, 👑 on whoever leads; a rise counts up once drawn.
-  const nightPts = state.night || {};
+  // Read from roomNightRows, so a row carries the points of an earlier seat under the same name,
+  // as the night table under the list does (audit 7 Oct 2026, R1).
+  const nightPts = lobbyNightPoints(state);
   const nightTop = Math.max(0, ...state.players.map(p => Number(nightPts[p.id]) || 0));
   // Whoever stays slides, whoever left fades where they stood (JS_Motion.html section 13).
   const paintLobbyRows = () => {
@@ -1896,10 +1912,16 @@ function lobbyNightBadgeHtml(p, night, top) {
   return `<span class="badge lobby-row__night${lead ? ' is-lead' : ''}" title="${label}" aria-label="${label}">` +
     `<span aria-hidden="true">${lead ? '👑' : '🌙'}</span> <b class="metric" data-night-pid="${escapeHTML(p.id)}">${n}</b></span>`;
 }
+/** Each present row's night points, merged as roomNightRows merges them (audit 7 Oct 2026, R1). */
+function lobbyNightPoints(state) {
+  const pts = {};
+  roomNightRows(state).forEach(r => { if (!r.left) pts[r.id] = r.score; });
+  return pts;
+}
 /** After the rows are drawn: a number that rose since this phone last drew it counts up (countUp). */
 function lobbyNightCount(list, state) {
   if (lobbyNightSeen.code !== state.code) { lobbyNightSeen.code = state.code; lobbyNightSeen.pts = null; }
-  const night = state.night || {};
+  const night = lobbyNightPoints(state);
   const was = lobbyNightSeen.pts;
   lobbyNightSeen.pts = Object.assign({}, night);
   if (!was || !list || motionOff() || typeof countUp !== 'function') return;
@@ -2163,7 +2185,9 @@ function roomNightRows(state) {
   Object.keys(gone).forEach(id => {
     const pts = Number(night[id]) || 0;
     if (!pts || !gone[id]) return;
-    const back = rows.find(r => !r.bot && !r.left && samePlayer(r.name, gone[id]));
+    // Someone here now first, else an earlier «مشي» row of the same name: one who left twice is one row (audit 7 Oct 2026, R2).
+    const back = rows.find(r => !r.bot && !r.left && samePlayer(r.name, gone[id]))
+      || rows.find(r => r.left && samePlayer(r.name, gone[id]));
     if (back) back.score += pts;
     else rows.push({ id: id, name: String(gone[id]), score: pts, left: true });
   });

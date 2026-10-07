@@ -1933,7 +1933,8 @@ async function claimRobots() {
   check(M2.state && M2.state.players.filter((p) => p.name === 'منى').length === 1 && M2.state.players.length === 3, 'claim: one منى in the room, in her own seat');
   await H.waitFor((s) => s.players.some((p) => p.id === M.pid && p.online), 'claim: she is here again', 5000);
   res = await api('/claim', { code: H.code, claim: ask.claim, token: ask.token });
-  check(res.ok === false, 'claim: the answer is given once');
+  // An answer stays until it lapses, so a poll whose reply was lost gets it again (audit 7 Oct 2026, S4).
+  check(res.ok === true && res.playerId === M.pid, 'claim: a retry with the same token gets the same answer');
   [H, J, M2].forEach((x) => x.close());
 }
 

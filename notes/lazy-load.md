@@ -361,7 +361,11 @@ its screen maps to (the `views` map above), and the page keeps a comment in its 
   id of a game's markup named (as a string or `#id`) by the shell or by a chunk that doesn't
   load that markup's chunk - `MARKUP_USES_OK` lists the five checked by hand (a selector in
   `RX_CSS`, a class of the same name, a restore after `lzBootWrite`, a comment, a name
-  compared).
+  compared). An id built from parts (a quoted prefix ending at one of its '-' and followed
+  by `+` or `${`, `'jo-phase-' + p`) fails it the same way since the audit of 7 Oct 2026 (L1):
+  `MARKUP_PREFIX_GENERIC` holds the screens' own prefixes (`view-`, `view-room-`,
+  `view-setup-`, `setup-`), `MARKUP_PREFIX_OK` the ones checked by hand (`cs-` a catalog key,
+  `jo-phase-` the restore after `lzBootWrite`).
 - **One door changed**: the phone's back landing on a screen checked
   `document.getElementById('view-' + landed)` to tell a real screen; a game's screen not yet
   loaded is real too (`lzChunksOfView(landed).length`), and `setView` brings it.
@@ -397,7 +401,10 @@ when both hold:
 A `@keyframes` moves when its name is defined once and only that game's moved rules (and its
 files) name it; `@media`, `@supports` and `@container` wrap what they wrapped; `@property`
 stays. The motion setting reads every sheet, so `lzStyle` calls `applyMotionPref` again when
-the setting isn't «تلقائي». **What is left in the page**: 6,596 of the 8,130 rules that are
+the setting isn't «تلقائي». `lzStyle` puts its sheet before the first one game code added at
+run time (`FACE_CSS`, the rooms' own `<style>`s, `motion-off-style`; the page's sheets are the
+ones there when JS_Lazy runs, `LZ_PAGE_SHEETS`), where the moved rules stood on the one page
+(audit 7 Oct 2026, L2). **What is left in the page**: 6,596 of the 8,130 rules that are
 one game's - each ties with something later (the arcade look's generic restyles - `.btn--go`,
 `.card`, `:where(.has-art) > :not(.tv-art)`, `[data-rv]` - or a class the game also writes).
 `node -e` with `chunkStyles(page, p).explain('chess')` (lazy-split.mjs) lists, per rule,

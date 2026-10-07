@@ -137,7 +137,9 @@ and `rooms/JS_RoomTv.html`; neither had a notes file of its own.
   `room._quizChoices` and come down by the server's clock (`quizDeadline`,
   `quizTimeout`, called from `gameDeadline` / `gameTimeout` in RoomGames.js) as
   `shared.choices`. Action `pick { i, qIndex }`: right is half the points, wrong is 0 and
-  spends the answer; typing still pays full. They show under the box for anyone who hasn't
+  spends the answer. Typing pays full before the choices come down; once they are up, a typed
+  answer equal to one of them (folded, `normaliseClue`) is half too, as tapping it (the owner,
+  audit of 7 Oct 2026, P1). They show under the box for anyone who hasn't
   answered (`quizExtrasHtml`, drawn in place so the box keeps what is typed) and as chips
   on the TV.
 

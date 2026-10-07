@@ -176,6 +176,8 @@ the host's phone per game (`recallOptions('tourMode')`).
   with the TV's live cards), and the match screen's card is refilled on every state
   (`tourAfterMatch`). `tour_you_wait` and `tour_bye_wait` are gone; the `_one` lines stay.
 
+- **No think clock in a match** (the audit of 7 Oct 2026, B2): `tourDuelKind.deal` deals every duel match with `think: 0`, whatever the host's phone remembered, and `duelThinkAt` returns 0 for a match (`tourMid`), so no phone or TV draws a countdown. A seat gone a minute loses its game by «خسران غياب» as in winner stays.
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

@@ -206,7 +206,9 @@ the jury points).
   where `shared.taboo` tells everyone («🚫 كان ممنوع على الشاهد: …», under the
   verdict). The card (`witTabooHtml`, `.wit-taboo`: red-ruled, stamped in)
   is on the witness's phone beside the face and while they describe, and on the
-  TV during the look and the drawing. Its words are in `WIT_TEXT`
+  TV during the look and the drawing - but only a card with no `when` (the owner,
+  audit of 7 Oct 2026, W1): «ممنوع تقول نضارة» or the beard card told the jury
+  watching the TV what the real face has, so then the TV shows no card. Its words are in `WIT_TEXT`
   (`wit_taboo_*`), with the game's other words (not `witness.text.js`, which
   holds the rules, as the game did since 2 Oct 2026).
 - **828 كل جولة أصعب** The owner: a lobby switch, **off by default** (the

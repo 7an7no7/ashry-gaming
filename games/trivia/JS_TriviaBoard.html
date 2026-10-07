@@ -309,7 +309,8 @@ function tbQuizSecCols(quiz) {
   });
   const cols = [];
   groups.forEach(g => { for (let k = 0; k < g.qs.length; k += TB_LEVELS.length) cols.push({ name: g.name, qs: g.qs.slice(k, k + TB_LEVELS.length) }); });
-  return cols;
+  // More columns than four boards hold would drop questions: the plain layout keeps every one (audit 7 Oct 2026, Q1).
+  return cols.length > 4 * TB_CATEGORIES_PER_ROUND ? null : cols;
 }
 function tbQuizRounds(quiz) {
   const sec = tbQuizSecCols(quiz);

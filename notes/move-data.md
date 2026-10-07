@@ -54,10 +54,10 @@ And A2: the app asks the browser to keep its data.
 | `ashryPlayers_v1` | both lists, each person once by the name fold (أحمد = احمد), this phone's spelling first |
 | `ashry_saved_groups` | both; a group on both phones (by the fold of its name) keeps everyone in either |
 | `ashryCrews_v1` | every crew with its key; one on both keeps this phone's key |
-| `ashryPacks_v1` | every quiz (one code once: the later change, this phone's record id, the edit key from either); the family words: this phone's unless it has none (one pack a phone) |
+| `ashryPacks_v1` | every quiz (one code once: the later change, this phone's record id, the edit key from either); the family words: this phone's unless it has none (one pack a phone); the crews' word packs (`crewWords`): both, by code |
 | `ashryDaily_v1` | by date: both phones' days and games; a result beats a bare "done" (1) |
 | `ashryDailyPlay_v1` | today's daily put aside: the other's only for a game this phone has none of |
-| `ashrySoloBest_v1` | the better: `seconds`, `guesses`, `total` low, `score` high (then `tile`) |
+| `ashrySoloBest_v1` | the better: `seconds`, `guesses`, `total` low, `score` high (then `tile`), تانجو's run `count` high; a Connections tally `{ solved, perfect, played }` is never summed - the one with more played (then solved) |
 | `ashryMemoryBest_v1` | fewer moves, then fewer seconds |
 | `ashryChessGames_v1` | both, by id and by game key, newest 20 |
 | `ashryNights_v1` | both, by room and day, the last 60 |
@@ -65,15 +65,17 @@ And A2: the app asks the browser to keep its data.
 | `ashryFirstPlay_v1`, `ashryPlayed_v1` | union |
 | `ashryRecent_v1` | this phone's first, then the other's, 6 |
 | `ashryOptions_v1` | a choice (or a field) this phone has never made comes from the other |
-| `gameTrackerState_v1` | only `lang`, `gameLang`, `isDarkMode`, and only where this phone has its default; the sender sends only the ones it chose (a value at its own device's default is no choice: a light phone's default light used to turn a dark tablet light) |
-| `ashryMotion`, `ashryColorShapes` | only while this phone has its default (`auto`, off) |
+| `gameTrackerState_v1` | only `lang`, `gameLang`, `isDarkMode`, and only where this phone has its default; the sender sends only the ones it chose (a value at its own device's default is no choice: a light phone's default light used to turn a dark tablet light). And the chess rating against the computer (`appState.shatranj.rating`, sent as `chessRating` once it has rated games), taken only by a phone with no rated games; `moveApply` puts it into `chState()` (loading the chess chunk if needed) and saves |
+| `ashrySnakesMaps_v1` | «خرايطنا»: both, by id (one seed and look once), this phone's first, 12 at most |
+| `ashryMotion`, `ashryColorShapes`, `ashryQueensPatterns` | only while this phone has its default (`auto`, off, off); a moved colour-shapes setting is applied at once (`applyColorShapes`) |
 | the setups' own keys (`ashryTriviaCount`, `ashryStopRoomOpts`, … `ashryProgramDraft_v1`), `ashryConnections_v1`, `ashryTriviaTeams` | only when this phone has none |
 
 Not moved, on purpose: a room's seat and the last room (`ashryRoom_*`,
 `ashryLastRoom_v1`: two phones would be one player), a game in progress and
 «كمّل», drafts of a round, the install prompts, the screen size (`ashryUiScale`:
-a TV's 150% is no phone's), the crews' cached pages (fetched again with the key
-that moved). Merging the same code twice changes nothing.
+a TV's 150% is no phone's), the sound setting (`ashrySound`: per device, so a TV
+keeps its own, `notes/sound.md`), the crews' cached pages (fetched again with the
+key that moved). Merging the same code twice changes nothing.
 
 `ashryPlayed_v1` (the games a phone has started, `readPlayed` / `markPlayed` in
 JS_Catalog.html) comes from another branch; it is handled by name.
@@ -92,6 +94,11 @@ forms). After a move the page reads its caches again (`loadPlayerLibrary`,
 `seenLists`), applies the language and theme through `toggleLanguage` /
 `toggleDarkMode`, the motion through `applyMotionPref`, and redraws the home, the
 groups and Settings.
+
+Reopening the dialog while a sent code is still live shows that code again with
+its «وقّف الكود» (the get screen's back still shows the two ways); a send in
+flight keeps its button disabled, and a second send can't start until it is back
+(`MOVE_STATE.busy` is `'send'` / `'get'`, never reset by reopening).
 
 ## A2: keeping the data
 
@@ -115,3 +122,5 @@ Chrome and Safari decide by themselves, Firefox asks in its own bar.
 
 Trap met: `wrangler dev` did not reload after `node build.mjs` rewrote
 `generated/rules.js` (the old cap answered); restart it after a rebuild.
+
+Limits (audit 7 Oct 2026, S2/S5): /move/put is 4 an hour per address, and every address together has a daily budget of 1000 sends or 200 MB (one MoveStore, `move-budget`, `spend` in rooms-worker/src/move.js), answered `busy`; bodies are read with a running byte cap (`readCapped`), so a body with no Content-Length is cut off at the limit.

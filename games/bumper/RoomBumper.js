@@ -81,9 +81,10 @@ const bumperCars = (prev) => {
 };
 const bumperBodies = (room, roster, cars) => {
   const out = {};
-  roster.forEach((id, k) => {
+  roster.forEach((id) => {
     const bot = room.players.some(p => p.id === id && p.bot);
-    out[id] = cars[id] || (bot ? BUMPER_BODIES[1 + (k % (BUMPER_BODIES.length - 1))] : 'bumper');
+    // A computer player's body by its id (bumperBotBodyAt, RoomShared.js), as the page draws it in the lobby (audit 7 Oct 2026, X4).
+    out[id] = cars[id] || (bot ? BUMPER_BODIES[bumperBotBodyAt(id, BUMPER_BODIES.length)] : 'bumper');
   });
   return out;
 };

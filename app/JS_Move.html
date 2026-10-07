@@ -56,20 +56,29 @@ function moveDraw(html) {
   if (box) box.innerHTML = html;
 }
 
-/** The door's other side (openMoveData, JS_Core.html): the two ways. */
-function moveOpen() {
+/** The door's other side (openMoveData, JS_Core.html): the two ways. `ways`: the get
+ *  screen's back, which always wants them. */
+function moveOpen(ways) {
   const t = mvT();
-  MOVE_STATE.busy = false;
+  const el = document.getElementById('move-modal');
+  // A code still live comes back with its «وقّف الكود»: a second send would leave the first
+  // readable for 24 hours with its key lost (audit 7 Oct 2026, D5).
+  if (!ways && MOVE_STATE.code && Date.now() < MOVE_STATE.until) {
+    moveShowCode([]);
+    if (el) el.classList.remove('hidden');
+    return;
+  }
+  // busy is left alone: a send in flight finishes and draws its code (audit 7 Oct 2026, D5).
+  const sending = MOVE_STATE.busy === 'send';
   moveDraw(`
     <div class="modal-icon" aria-hidden="true">📲</div>
     <div class="sheet__title">${escapeHTML(t.mv_title || '')}</div>
     <p class="sheet__subtitle">${escapeHTML(t.mv_what || '')}</p>
     <div class="modal-actions">
-      <button type="button" class="btn btn--primary btn--lg" id="move-send-btn" onclick="moveSend()">${escapeHTML(t.mv_send || '')}</button>
+      <button type="button" class="btn btn--primary btn--lg" id="move-send-btn" onclick="moveSend()"${sending ? ' disabled' : ''}>${escapeHTML(sending ? (t.mv_sending || '') : (t.mv_send || ''))}</button>
       <button type="button" class="btn btn--secondary" onclick="moveGetOpen()">${escapeHTML(t.mv_have_code || '')}</button>
       <button type="button" class="btn btn--ghost" onclick="closeModal('move-modal')">${escapeHTML(t.cancel || '')}</button>
     </div>`);
-  const el = document.getElementById('move-modal');
   if (el) el.classList.remove('hidden');
 }
 
@@ -83,12 +92,14 @@ async function moveSend() {
   try { saveToLocal(); } catch (e) {}
   const fit = moveFit(moveCollect(read, { defaults: { isDarkMode: moveDeviceDark() } }).keys);
   if (fit.error) { showToast(moveErrorText(fit.error), 'error'); return; }
-  MOVE_STATE.busy = true;
+  MOVE_STATE.busy = 'send';
   if (btn) { btn.disabled = true; btn.textContent = t.mv_sending || ''; }
   const res = await moveApi('/move/put', { data: { v: MOVE_FORMAT, at: Date.now(), keys: fit.keys } });
   MOVE_STATE.busy = false;
   if (!res.ok) {
-    if (btn) { btn.disabled = false; btn.textContent = t.mv_send || ''; }
+    // The button drawn now (the dialog may have been reopened meanwhile).
+    const now = document.getElementById('move-send-btn');
+    if (now) { now.disabled = false; now.textContent = t.mv_send || ''; }
     showToast(moveErrorText(res.error), 'error');
     return;
   }
@@ -159,7 +170,7 @@ function moveGetOpen() {
     <p class="move-note">${escapeHTML(t.mv_merge_note || '')}</p>
     <div class="modal-actions">
       <button type="button" class="btn btn--primary btn--lg" id="move-get-btn" onclick="moveReceive()" disabled>${escapeHTML(t.mv_get || '')}</button>
-      <button type="button" class="btn btn--ghost" onclick="moveOpen()">${escapeHTML(t.back || '')}</button>
+      <button type="button" class="btn btn--ghost" onclick="moveOpen(true)">${escapeHTML(t.back || '')}</button>
     </div>`);
   movePaintBoxes();
   const input = document.getElementById('move-code-input');
@@ -211,7 +222,10 @@ function moveDeviceDark() { return !!(window.matchMedia && window.matchMedia('(p
 function moveHere() {
   const here = {};
   Object.keys(MOVE_KEYS).forEach((k) => { try { here[k] = localStorage.getItem(k); } catch (e) { here[k] = null; } });
-  here.gameTrackerState_v1 = JSON.stringify({ lang: appState.lang, gameLang: appState.gameLang || 'auto', isDarkMode: !!appState.isDarkMode });
+  const app = { lang: appState.lang, gameLang: appState.gameLang || 'auto', isDarkMode: !!appState.isDarkMode };
+  // The chess rating against the computer, to say whether this phone has rated games (audit 7 Oct 2026, D1).
+  if (appState.shatranj && appState.shatranj.rating) app.chessRating = appState.shatranj.rating;
+  here.gameTrackerState_v1 = JSON.stringify(app);
   return here;
 }
 
@@ -221,7 +235,7 @@ async function moveReceive() {
   if (code.length !== PACK_CODE_LEN || MOVE_STATE.busy) return;
   const t = mvT();
   const btn = document.getElementById('move-get-btn');
-  MOVE_STATE.busy = true;
+  MOVE_STATE.busy = 'get';
   if (btn) { btn.disabled = true; btn.textContent = t.mv_getting || ''; }
   const res = await moveApi('/move/get', { code });
   MOVE_STATE.busy = false;
@@ -249,6 +263,8 @@ function moveApply(write) {
   loadPlayerLibrary();
   seenLists = null;
   if ('ashryMotion' in write) applyMotionPref();
+  if ('ashryColorShapes' in write && typeof applyColorShapes === 'function') applyColorShapes();   // (audit 7 Oct 2026, D4)
+  if (app && app.chessRating) moveApplyChessRating(app.chessRating);
   if (app) {
     if (app.gameLang && app.gameLang !== appState.gameLang) { appState.gameLang = app.gameLang; runLanguageHooks(); }
     if (typeof app.isDarkMode === 'boolean' && app.isDarkMode !== !!appState.isDarkMode) toggleDarkMode();
@@ -260,6 +276,18 @@ function moveApply(write) {
   try { renderCatalogViews(); } catch (e) {}
   try { updateSettingsLabels(); } catch (e) {}
   try { runLanguageHooks(); } catch (e) {}
+}
+
+/** The chess rating moved in (moveMerge took it only for a phone with no rated games): into
+ *  the game's state, which the chess chunk makes on first use (chState). */
+function moveApplyChessRating(rating) {
+  const put = () => {
+    if (typeof chState !== 'function') return;
+    chState().rating = { r: rating.r, n: rating.n };
+    saveToLocal();
+  };
+  if (typeof chState === 'function') { put(); return; }
+  try { lzEnsure(lzChunksOfView('setup-shatranj')).then(put, () => {}); } catch (e) {}
 }
 
 function moveShowDone(got) {

@@ -62,6 +62,9 @@ hear across a table, on the holder's phone and the TV only.
   effects only - a game whose sound is the game plays whatever the setting says:
   دندنها's clips and the chairs' music and zaffa have their own players, and the
   soundboard calls `playFx(id, true)`. The row's hint says so. Per device, so a TV
-  keeps its own. Not covered: a game that builds its own sound on `fxCtx()` directly
+  keeps its own (and «انقل لموبايل تاني» leaves it behind on purpose). The general
+  timer's alarm is the tool's own sound (the owner, audit of 7 Oct 2026, H3): it plays
+  on «الهزة بس» too, silenced only by «مقفول» (`playSound(type, fromTap, ownSound)`).
+  Not covered: a game that builds its own sound on `fxCtx()` directly
   (bowling's rumble, bumper's engine, golf…) still plays; moving those behind the
   setting is a change in each game.

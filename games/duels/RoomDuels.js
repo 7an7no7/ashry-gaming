@@ -452,7 +452,12 @@ const duelAwayTimeout = (v, now) => {
   if (due === null || now < due) return false;
   const s = v.shared;
   const think = duelThinkDeadline(v);
-  if (think !== null && now >= think && due === think) {
+  // A seat gone DUEL_AWAY_MS loses by away even with the think clock on: each auto-move
+  // resets turnAt, so the away time alone would never come (audit 7 Oct 2026, B1).
+  const pid = s.seats[s.turn];
+  const since = pid && v.lastSeen ? Number(v.lastSeen[pid]) || 0 : 0;
+  const goneLong = !!since && now - since >= DUEL_AWAY_MS;
+  if (!goneLong && think !== null && now >= think && due === think) {
     const k = DUEL_KINDS[v.game];
     const seat = s.turn;
     const out = k.move(s, k.auto(s, seat), seat);

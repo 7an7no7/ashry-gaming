@@ -330,10 +330,31 @@ const PACK_API = new Set(['/pack/create', '/pack/get', '/pack/answer', '/pack/sa
    never the body. Limited per address like /create: a person sends a few times and
    reads a few times; a script trying codes (32^6 of them) gets nowhere at 60 tries
    in 10 minutes. */
-const movePutAllowed = limiter(12, 10 * 60 * 1000);
+// A phone sends once per tap: 4 an hour per address, and every address together has a daily
+// budget kept in one MoveStore (spend, move.js), so storage and writes stay bounded (audit 7 Oct 2026, S2).
+const movePutAllowed = limiter(4, 60 * 60 * 1000);
 const moveGetAllowed = limiter(60, 10 * 60 * 1000);
 const moveStub = (env, code) => env.MOVES.get(env.MOVES.idFromName('move:' + code));
 const MOVE_API = new Set(['/move/put', '/move/get', '/move/drop']);
+
+/** The body's text, or null once it passes `max` bytes (read no further). */
+async function readCapped(request, max) {
+  const reader = request.body && request.body.getReader();
+  if (!reader) return '';
+  const chunks = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.length;
+    if (n > max) { try { await reader.cancel(); } catch (e) {} return null; }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(n);
+  let o = 0;
+  for (const c of chunks) { all.set(c, o); o += c.length; }
+  return new TextDecoder().decode(all);
+}
 
 /** The payload as the page builds it (moveCollect): { v, at, keys: { key: text } }, only keys that move. */
 const moveShapeOk = (data) => {
@@ -347,7 +368,10 @@ async function handleMove(env, request, path, body) {
     if (!movePutAllowed(request)) return { ok: false, error: 'busy' };
     if (!moveShapeOk(body.data)) return { ok: false, error: 'bad' };
     const text = JSON.stringify(body.data);
-    if (new TextEncoder().encode(text).length > MOVE_MAX_BYTES) return { ok: false, error: 'too_big' };
+    const bytes = new TextEncoder().encode(text).length;
+    if (bytes > MOVE_MAX_BYTES) return { ok: false, error: 'too_big' };
+    const budget = await env.MOVES.get(env.MOVES.idFromName('move-budget')).spend(bytes);
+    if (!budget || !budget.ok) return { ok: false, error: 'busy' };
     const key = randomOf('abcdefghijkmnopqrstuvwxyz23456789', 24);
     const hash = await keyHash(key);
     for (let attempt = 0; attempt < 8; attempt++) {
@@ -505,8 +529,9 @@ export default {
       if (Number(request.headers.get('content-length') || 0) > MOVE_MAX_BYTES + 4096) return json({ ok: false, error: 'too_big' }, 413);
       let body;
       try {
-        const text = await request.text();
-        if (text.length > MOVE_MAX_BYTES + 4096) return json({ ok: false, error: 'too_big' }, 413);
+        // Read with a running count: a body with no Content-Length stops at the cap, not after it (audit 7 Oct 2026, S5).
+        const text = await readCapped(request, MOVE_MAX_BYTES + 4096);
+        if (text === null) return json({ ok: false, error: 'too_big' }, 413);
         body = JSON.parse(text || '{}') || {};
       } catch (e) {
         return json({ ok: false, error: 'bad' }, 400);

@@ -452,7 +452,10 @@ function shareRoomNight() {
     const g = typeof CATALOG_BY_ID !== 'undefined' ? CATALOG_BY_ID[id === 'chess' ? 'shatranj' : id] : null;
     return g && g.icon;
   }).filter((icon, i, all) => icon && all.indexOf(icon) === i);
-  const date = shareNightDate(new Date());
+  // Dated from the night's first game, not the tap: a card shared after midnight is still
+  // Friday's night (audit 7 Oct 2026, H1).
+  const night = shareNightLoad();
+  const date = shareNightDate(new Date(night && night.code === state.code && night.since ? night.since : Date.now()));
   return shareResultCard({
     title: title,
     icon: '🏆',
@@ -464,26 +467,31 @@ function shareRoomNight() {
   });
 }
 
-/* The evening's games, for the night's card: every game dealt in this room today, in the
+/* The evening's games, for the night's card: every game dealt in this room tonight, in the
    order they were first played, kept on this phone (the room keeps no such list: its
-   night board is points only). A phone that came in late knows the games since. */
+   night board is points only). A phone that came in late knows the games since. The night
+   is the room's code within 12 hours of its first game (`since`), not the calendar day:
+   keyed on the day, a card shared after midnight lost the whole evening (audit 7 Oct 2026, H1). */
 const SHARE_NIGHT_GAMES_KEY = 'ashryNightGames_v1';
-function shareNightDay() {
-  const d = new Date();
-  return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
-}
-function shareNightGamesOf(code) {
+const SHARE_NIGHT_SPAN_MS = 12 * 60 * 60 * 1000;
+function shareNightLoad() {
   try {
     const n = JSON.parse(localStorage.getItem(SHARE_NIGHT_GAMES_KEY) || 'null');
-    return n && n.code === code && n.day === shareNightDay() && Array.isArray(n.games) ? n.games : [];
-  } catch (e) { return []; }
+    return n && typeof n === 'object' && Number(n.since) > 0 && Date.now() - Number(n.since) < SHARE_NIGHT_SPAN_MS ? n : null;
+  } catch (e) { return null; }
+}
+function shareNightGamesOf(code) {
+  const n = shareNightLoad();
+  return n && n.code === code && Array.isArray(n.games) ? n.games : [];
 }
 function shareNightRemember(state) {
   if (!state || !state.code || !state.game || state.phase === 'lobby' || state.youAreScreen) return;
+  const cur = shareNightLoad();
   const games = shareNightGamesOf(state.code);
   if (games.indexOf(state.game) !== -1) return;
+  const since = cur && cur.code === state.code ? cur.since : Date.now();
   try {
-    localStorage.setItem(SHARE_NIGHT_GAMES_KEY, JSON.stringify({ code: state.code, day: shareNightDay(), games: games.concat(state.game).slice(-30) }));
+    localStorage.setItem(SHARE_NIGHT_GAMES_KEY, JSON.stringify({ code: state.code, since: since, games: games.concat(state.game).slice(-30) }));
   } catch (e) {}
 }
 if (typeof Room !== 'undefined') Room.onChange(shareNightRemember);

@@ -178,9 +178,9 @@ const codenamesAction = (room, playerId, action, payload) => {
 
     const word = String(payload.word || '').trim().slice(0, 24);
     if (!word) throw new Error('اكتب التلميح');
-    // A board word, or a clue inside one or around one (idea 547): «شجر» can't point at «شجرة».
+    // A board word, or a clue that starts one or starts with one (idea 547, audit P3): «شجر» can't point at «شجرة».
     if (s.board.some(c => !c.revealed && codenamesClueClash(word, c.word))) {
-      throw new Error('التلميح ما ينفعش يكون كلمة على اللوحة أو جزء منها');
+      throw new Error('التلميح ما ينفعش يكون كلمة على اللوحة، ولا أولها، ولا يبدأ بيها');
     }
     const count = payload.count === 'inf'
       ? 'inf'

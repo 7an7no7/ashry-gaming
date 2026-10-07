@@ -222,6 +222,14 @@ check(threw(() => applyRoomAction(cn, masterOf(second), 'giveClue', { word: cn.s
   check(threw(() => applyRoomAction(cn, masterOf(second), 'giveClue', { word: w + 'zz', count: 1 })) && !cn.shared.clue,
         'codenames: a clue with a board word inside it is refused');
 }
+{
+  // The audit of 7 Oct 2026, P3 (the owner): only a clue that starts a board word, or a board word that
+  // starts the clue, clashes - not one found anywhere inside.
+  const { codenamesClueClash } = new Function(readFileSync(srcPath('Common.js'), 'utf8') + '\nreturn { codenamesClueClash };')();
+  check(codenamesClueClash('شجر', 'شجرة') && codenamesClueClash('شجرة', 'شجر'), 'codenames: «شجر» and «شجرة» clash');
+  check(!codenamesClueClash('باب', 'كباب') && !codenamesClueClash('ice', 'Police') && !codenamesClueClash('art', 'party'),
+        'codenames: a word found inside another, not at its start, is a fair clue («باب» for «كباب», ice for Police)');
+}
 applyRoomAction(cn, masterOf(second), 'giveClue', { word: 'zzqq', count: 2 });
 check(cn.shared.guessesLeft === 3 && cn.shared.endsAt === clock + 60000,
       'codenames: a clue of 2 gives 3 guesses and starts the guessing clock');
@@ -3754,6 +3762,24 @@ Date.now = duelTestClock;
   }
   const xt = duel('xo', ['a', 'b'], { think: 15 });
   check(roomDeadline(xt) === null, 'duel think: إكس أو has no think clock');
+  {
+    // The audit of 7 Oct 2026, B1: with the think clock on, a seat gone a minute still loses by away
+    // (each auto-move reset turnAt, so the away time never came); a seat that is here is moved for.
+    const gb = duel('connect4', ['a', 'b'], { think: 30 });
+    const goneSeat = gb.shared.turn;
+    const gone = gb.shared.seats[goneSeat], here = gb.shared.seats[1 - goneSeat];
+    gb.lastSeen = { [gone]: gb.shared.turnAt };
+    let goneAuto = 0, hereAuto = 0, guard = 0;
+    while (gb.shared.phase === 'play' && guard++ < 50) {
+      const d = roomDeadline(gb);
+      if (d === null) break;
+      const up = gb.shared.turn;
+      roomTimeout(gb, d);
+      if (gb.shared.phase === 'play' && gb.shared.last && gb.shared.last.auto) { if (up === goneSeat) goneAuto++; else hereAuto++; }
+    }
+    check(gb.shared.phase === 'over' && gb.shared.result.reason === 'away' && gb.shared.result.winnerId === here && goneAuto === 1 && hereAuto === 1,
+      'duel think: a seat gone a minute loses by away at its next clock (moved for once before), the seat that is here is moved for');
+  }
 }
 
 /* --- كونكت ٤ team against team, «أحمر ضد أصفر» (the owner, 2 Oct 2026) ------------- */
@@ -8925,6 +8951,23 @@ Date.now = duelTestClock;
     applyRoomAction(four, 'a', 'start', { tournament: true, mode: 5 });
     check(!!four.shared.tour && four.shared.tour.size === 4 && four.shared.tour.rounds === 2 && four.phase === 'play' && four.shared.settings.mode === 5,
       'tournament: four people make a bracket of four, two rounds, with the lobby choices for every match');
+    // The audit of 7 Oct 2026, B2: a think time remembered on the host's phone never reaches a match,
+    // and a seat gone a minute loses its game by away, not by moves made for it.
+    const tk = room('connect4', people(4), { tournament: true, mode: 4, think: 15 });
+    for (let k = 0; k < 5 && !tk.shared.tour.matches.some((m) => m.state === 'play'); k++) toClock(tk);
+    const live = tk.shared.tour.matches.filter((m) => m.state === 'play');
+    check(live.length === 2 && live.every((m) => tk.shared.games[m.id].think === 0) && roomDeadline(tk) === null,
+      'tournament: a match has no think clock, whatever the lobby remembered');
+    const tg = tk.shared.games[live[0].id];
+    const tGone = tg.seats[tg.turn], tMoves = tg.moves;
+    tk.lastSeen = { [tGone]: clock };
+    check(roomDeadline(tk) === Math.max(clock, tg.turnAt) + 60000, 'tournament: a seat gone on its turn: a minute');
+    clock = roomDeadline(tk);
+    roomTimeout(tk, clock);
+    const g0 = tk.shared.games[live[0].id];
+    check(!(g0.last && g0.last.auto) && (g0.moves !== tMoves + 1 || (g0.result || {}).reason === 'away'),
+      'tournament: the gone seat loses its game by away; nothing is played for it');
+    tk.lastSeen = {};
   }
 
   // Brackets from 4 to 12: the byes of a seeded draw, everyone plays until out, one champion.
@@ -12038,6 +12081,31 @@ Date.now = duelTestClock;
   applyRoomAction(r3, 'tvx', 'finish', { round: 2, done: true, scores: { a: { place: 2 }, b: { place: 1, lives: 1 } } });
   check(r3.shared.results.map(x => x.id).join() === 'b,a' && r3.shared.wins.b === 1, 'bumper: the leaver is not in the result');
 
+  // The audit of 7 Oct 2026, X4: a computer player's car in «كورة التصادم» is the one the TV's lobby
+  // drew for it (by its id), though the deal puts people first.
+  {
+    const RS = new Function(readFileSync(srcPath('RoomShared.js'), 'utf8') + '\nreturn { bumperBotBodyAt };')();
+    const page = readFileSync(srcPath('JS_RoomBumper.html'), 'utf8');
+    const bodiesSrc = page.match(/const BMP_BODIES = \[[^\]]*\];/)[0];
+    const bodyOfSrc = page.match(/function bmpBodyOf\(state, id\) \{[\s\S]*?\n\}/)[0];
+    const bmpBodyOf = new Function('bumperBotBodyAt', bodiesSrc + '\n' + bodyOfSrc + '\nreturn bmpBodyOf;')(RS.bumperBotBodyAt);
+    let agree = true;
+    for (let k = 0; k < 6; k++) {
+      const x = newRoom(['a']);
+      x.screens = [{ id: 'tvq' }];
+      applyRoomAction(x, 'a', 'chooseGame', { game: 'bumper' });
+      applyRoomAction(x, 'a', 'lobbyMode', { mode: 'ball' });
+      applyRoomAction(x, 'a', 'addBot', { level: 'easy', name: 'q' + k });
+      x.players.push({ id: 'p' + k, name: 'P' + k });           // a person after the computer player
+      applyRoomAction(x, 'a', 'side', { side: 'blue' });
+      applyRoomAction(x, 'p' + k, 'side', { side: 'blue' });
+      const bot = x.players.find((p) => p.bot).id;
+      const lobbyBody = bmpBodyOf({ shared: x.shared, players: x.players }, bot);
+      applyRoomAction(x, 'a', 'start', { mode: 'ball' });
+      if (!x.shared.bodies || x.shared.sides[bot] !== 'red' || x.shared.bodies[bot] !== lobbyBody || lobbyBody === 'bumper') agree = false;
+    }
+    check(agree, 'ball: a computer player drives the car the TV\'s lobby showed for it');
+  }
   // «كورة التصادم» (2 Oct 2026): sides picked on the phones, goals from the TV, the clock, the golden goal.
   {
     const b = newRoom(['a', 'b', 'c', 'd']);
@@ -12662,6 +12730,29 @@ Date.now = duelTestClock;
     check(ok.misses, 'reaction focus: each new word reaches the screens as its moment comes, never one that agrees');
     check(ok.match, 'reaction focus: the word that agrees is the green, at one server moment');
     check(ok.fooled, 'reaction focus: a tap on a word that doesn\'t agree is ✖ (fooled)');
+    {
+      // The audit of 7 Oct 2026, X3: the words change on the room's alarm, never under a second ahead
+      // (ALARM_FLOOR_MS in room.js): every step is longer, so no word is skipped when the alarm runs late.
+      let stepsOk = true, allSeen = true;
+      for (let n = 0; n < 60; n++) {
+        const r = rxRoom(['a', 'b'], { focus: true });
+        const h = r._reaction;
+        const ats = [clock].concat(h.words.map((w) => w.at), [h.greenAt]);
+        if (ats.some((at, i) => i > 0 && at - ats[i - 1] < 1000)) stepsOk = false;
+        const total = h.words.length + 1;
+        let seen = 1, last = clock;
+        while (r.shared.phase === 'wait') {
+          const before = r.shared.word && r.shared.word.n;
+          clock = Math.max(roomDeadline(r), last + 1000 + 30);   // the floor, and an alarm 30 ms late
+          last = clock;
+          roomTimeout(r, clock);
+          if (r.shared.phase === 'wait' && r.shared.word.n !== before) seen++;
+        }
+        if (seen !== total) allSeen = false;
+      }
+      check(stepsOk, 'reaction focus (rooms): a word stays at least a second, the alarm\'s floor');
+      check(allSeen, 'reaction focus (rooms): with the alarm a second ahead and late, no word is skipped');
+    }
     const r = rxRoom(['a', 'b'], { focus: true });
     toMatch(r);
     applyRoomAction(r, 'a', 'tap', { round: 1, at: r.shared.greenAt + 250 });
@@ -12716,6 +12807,32 @@ Date.now = duelTestClock;
     check(q.shared.phase === 'gameover' && q.shared.final.winner === 'b' && q.shared.board[0].id === 'b', 'reaction knockout: a finalist who leaves hands it to the other');
     const two = rxRoom(['a', 'b'], { mode: 'knockout' });
     check(two.shared.final && two.shared.final.ids.length === 2, 'reaction knockout: two players go straight to the final');
+    // The audit of 7 Oct 2026, X1: a leave mid-round that leaves two starts the final from the next round.
+    const x1 = rxRoom(['a', 'b', 'c'], { fakes: false, mode: 'knockout' });
+    toGreen(x1);
+    applyRoomAction(x1, 'a', 'tap', { round: 1, at: x1.shared.greenAt + 200 });
+    leave(x1, 'c');
+    applyRoomAction(x1, 'b', 'tap', { round: 1, at: x1.shared.greenAt + 300 });
+    check(x1.shared.phase === 'result' && x1.shared.final && x1.shared.final.from === 2 && !Object.keys(x1.shared.final.wins).length && !x1.shared.lastWin,
+      'reaction knockout: a final begun by a leave mid-round doesn\'t count the round under way');
+    applyRoomAction(x1, 'a', 'nextRound', { round: 1 });
+    toGreen(x1);
+    applyRoomAction(x1, 'b', 'tap', { round: 2, at: x1.shared.greenAt + 200 });
+    applyRoomAction(x1, 'a', 'tap', { round: 2, at: x1.shared.greenAt + 260 });
+    check(x1.shared.final.wins.b === 1 && x1.shared.lastWin === 'b', 'reaction knockout: and the final counts from the next round');
+    // X2: a final where neither taps three rounds in a row ends, with no winner; a won round starts the count again.
+    const x2 = rxRoom(['a', 'b'], { fakes: false, mode: 'knockout' });
+    const voidRound = () => { toGreen(x2); clock = x2.shared.greenAt + 2500; roomTimeout(x2, clock); };
+    const nextX2 = () => applyRoomAction(x2, 'a', 'nextRound', { round: x2.shared.round });
+    voidRound(); nextX2(); voidRound(); nextX2();
+    toGreen(x2);
+    applyRoomAction(x2, 'a', 'tap', { round: x2.shared.round, at: x2.shared.greenAt + 200 });
+    applyRoomAction(x2, 'b', 'tap', { round: x2.shared.round, at: x2.shared.greenAt + 300 });
+    nextX2(); voidRound(); nextX2(); voidRound();
+    check(x2.shared.phase === 'result' && x2.shared.final.wins.a === 1, 'reaction knockout: idle final rounds are counted in a row only');
+    nextX2(); voidRound();
+    check(x2.shared.phase === 'gameover' && !x2.shared.final.winner && roomDeadline(x2) === null && x2.shared.board.length === 2 && x2.shared.board[0].id === 'a',
+      'reaction knockout: a final with nobody tapping three rounds in a row ends, no winner, the board as it stands');
   }
 }
 
@@ -14408,13 +14525,15 @@ Date.now = duelTestClock;
         if (on && last) twice = true;
         last = on;
         if (x.look.others || x.look.inShared) secret = false;
-        if (x.look.you !== x.look.screen || x.draw.you !== x.look.you || x.draw.screen !== x.look.you) shown = false;
+        // The audit of 7 Oct 2026, W1: the screen gets the taboo only when it is an unconditional one (no `when`).
+        const tvT = x.look.you && !(W2.WITNESS_TABOOS.find((z) => z.k === x.look.you) || {}).when ? x.look.you : null;
+        if (x.look.screen !== tvT || x.draw.you !== x.look.you || x.draw.screen !== tvT) shown = false;
         if (x.reveal !== x.look.you || x.screenAfter) revealed = false;
         if (on) { const t = W2.WITNESS_TABOOS.find((z) => z.k === x.look.you); if (!t || (t.when && !t.when(x.look.face))) fits = false; }
       }
     }
     check(!twice && with1 / rounds > 0.22 && with1 / rounds < 0.45, 'witness (827): about one round in three has a taboo (' + with1 + ' of ' + rounds + '), never two in a row');
-    check(secret && shown, 'witness (827): the taboo is on the witness\'s phone and the screen only, while they look and describe');
+    check(secret && shown, 'witness (827): the taboo is on the witness\'s phone and the screen only (an unconditional one), while they look and describe');
     check(revealed && fits, 'witness (827): it fits the face, and the reveal tells everyone');
     const off = witRoom(['a', 'b', 'c']);
     applyRoomAction(off, 'a', 'start', { taboo: false });
@@ -18324,7 +18443,7 @@ console.log('• the secret mission');
   check(c.seat === 'mona' && c.name === 'مُنى' && c.status === 'pending', 'the name is matched as a join folds it (منى = مُنى)');
   const view = roomClaimsView(r, now);
   check(view.length === 1 && view[0].seat === 'mona' && view[0].name === 'مُنى' &&
-    JSON.stringify(view).indexOf('tok1') === -1 && Object.keys(view[0]).sort().join() === 'at,id,name,seat',
+    JSON.stringify(view).indexOf('tok1') === -1 && Object.keys(view[0]).sort().join() === 'at,id,name,seat,yes' && Array.isArray(view[0].yes) && !view[0].yes.length,
     'every phone sees whose seat and the name - never the token');
   roomClaimAsk(r, 'منى', online, now + 10, 'c2', 'tok2');
   check(roomClaimsView(r, now + 10).length === 1 && roomClaimsView(r, now + 10)[0].id === 'c2', 'asking again for the same seat replaces the first ask');
@@ -18340,7 +18459,8 @@ console.log('• the secret mission');
   check(roomClaimAnswer(r, 'h', 'c2', true, online, now + 50, 0, 'OTHER') === null && r.keys.mona === 'NEWKEY', 'a second tap does nothing');
   const got = roomClaimTake(r, 'c2', 'tok2', now + 60);
   check(got && got.status === 'yes' && got.key === 'NEWKEY' && got.seat === 'mona', 'the asking phone gets the seat and its key');
-  check(roomClaimTake(r, 'c2', 'tok2', now + 70) === null, 'and only once');
+  // The audit of 7 Oct 2026, S4: an answer stays until it lapses, so a retry gets the same one.
+  check((roomClaimTake(r, 'c2', 'tok2', now + 70) || {}).key === 'NEWKEY', 'a retry with the same token gets the same answer');
 
   // The host's own phone died: anyone seated may answer once the host has been away 20 s.
   r.lastSeen.h = now - 90000;
@@ -18357,6 +18477,17 @@ console.log('• the secret mission');
   const back = new Set(['b', 'mona', 'h']);
   const ans = roomClaimAnswer(r, 'b', c4.id, true, back, now + 210, 90000, 'K4');
   check(ans.status === 'no' && r.keys.h === 'kh', 'its own phone back meanwhile: the answer is no, whatever was pressed');
+
+  // The audit of 7 Oct 2026, S1: with the host away, it takes yes from two different seated people.
+  roomClaimAsk(r, 'H', online2, now + 250, 'c6', 'tok6');
+  const y1 = roomClaimAnswer(r, 'b', 'c6', true, online2, now + 255, 90000, 'K6');
+  const v6 = roomClaimsView(r, now + 255).find((x) => x.id === 'c6');
+  check(y1 && y1.status === 'pending' && r.keys.h === 'kh' && v6 && JSON.stringify(v6.yes) === '["b"]',
+    'the host away: one stand-in\'s yes waits for a second (the seat\'s key unchanged)');
+  const y2 = roomClaimAnswer(r, 'b', 'c6', true, online2, now + 256, 90000, 'K6');
+  check(y2 && y2.status === 'pending' && r.keys.h === 'kh', 'the same stand-in again still waits');
+  const y3 = roomClaimAnswer(r, 'mona', 'c6', true, online2, now + 257, 90000, 'K6');
+  check(y3 && y3.status === 'yes' && r.keys.h === 'K6', 'a second seated person\'s yes gives the seat back');
 
   // An ask nobody answers lapses.
   r.lastSeen.h = now - 90000;

@@ -77,6 +77,7 @@ const RX_TEXT = {
     rx_ko_best3: "أحسن من ٣",
     rx_ko_took: "{name} خد الجولة",
     rx_ko_nobody: "محدش خد الجولة دي: تتعاد",
+    rx_ko_void: "النهائي خلص من غير فايز: محدش داس ٣ جولات ورا بعض",
   },
   en: {
     reaction_wait: "Wait...",
@@ -120,6 +121,7 @@ const RX_TEXT = {
     rx_ko_best3: "best of three",
     rx_ko_took: "{name} takes the round",
     rx_ko_nobody: "Nobody took this round: it's played again",
+    rx_ko_void: "The final ended with no winner: nobody tapped three rounds in a row",
   }
 };
 
@@ -369,7 +371,10 @@ function rxrOverHtml(state, s) {
   const L = rxrT();
   const board = s.board || [];
   const top = board[0];
-  const line = top && top.score > 0 ? `<div class="rx-over__line">⚡ ${escapeHTML(rxrFill(L.rx_winner, { name: '⁨' + top.name + '⁩' }))}</div>` : '';
+  // A knockout final that ended with nobody tapping has no winner (audit 7 Oct 2026, X2).
+  const noWinner = rxrKo(s) && s.final && !s.final.winner && (Number(s.final.void) || 0) >= 3;
+  const line = noWinner ? `<div class="rx-over__line">${escapeHTML(L.rx_ko_void || '')}</div>`
+    : top && top.score > 0 ? `<div class="rx-over__line">⚡ ${escapeHTML(rxrFill(L.rx_winner, { name: '⁨' + top.name + '⁩' }))}</div>` : '';
   const podium = renderPodium(state, board);
   return `<div class="card rx-over">${line}${podium}</div>`;
 }

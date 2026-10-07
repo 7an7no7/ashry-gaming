@@ -482,7 +482,10 @@ function qmDelete(i) {
   const q = quiz.questions[i];
   const go = () => {
     const now = qmQuiz(); if (!now) return;
+    // A section's heading lives on its first question: deleting that one passes it on (audit 7 Oct 2026, Q2).
+    const head = now.questions[i] && now.questions[i].s;
     now.questions.splice(i, 1);
+    if (typeof head === 'string' && now.questions[i] && typeof now.questions[i].s !== 'string') now.questions[i].s = head;
     if (!now.questions.length) now.questions.push(qmBlank());
     qmKeep(now);
     qmEdit.open = -1;
@@ -498,8 +501,11 @@ function qmMove(i, dir) {
   const quiz = qmQuiz(); if (!quiz) return;
   const j = i + dir;
   if (j < 0 || j >= quiz.questions.length) return;
+  // Section headings stay where they are; only the questions move (audit 7 Oct 2026, Q2).
+  const heads = quiz.questions.map(x => x.s);
   const [q] = quiz.questions.splice(i, 1);
   quiz.questions.splice(j, 0, q);
+  quiz.questions.forEach((x, k) => { if (typeof heads[k] === 'string') x.s = heads[k]; else delete x.s; });
   qmKeep(quiz);
   if (qmEdit.open === i) qmEdit.open = j;
   qmRemember();
@@ -563,8 +569,10 @@ function qmDragEnd() {
   d.rows.forEach(r => { r.style.transform = ''; r.classList.remove('is-dragging'); });
   if (d.to === d.from) return;
   const quiz = qmQuiz(); if (!quiz) return;
+  const heads = quiz.questions.map(x => x.s);   // the headings stay at their places (audit 7 Oct 2026, Q2)
   const [q] = quiz.questions.splice(d.from, 1);
   quiz.questions.splice(d.to, 0, q);
+  quiz.questions.forEach((x, k) => { if (typeof heads[k] === 'string') x.s = heads[k]; else delete x.s; });
   if (qmEdit.open === d.from) qmEdit.open = d.to;
   else if (qmEdit.open > d.from && qmEdit.open <= d.to) qmEdit.open--;
   else if (qmEdit.open < d.from && qmEdit.open >= d.to) qmEdit.open++;

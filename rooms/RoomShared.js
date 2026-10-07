@@ -30,3 +30,14 @@ function lobbySeatedOf(players, lobby, max) {
   }
   return ids.slice(0, max);
 }
+
+/**
+ * عربيات التصادم: the body a computer player drives when it has picked none - an index into
+ * BUMPER_BODIES / BMP_BODIES (`n` long), never the plain car (0), from its id, so the TV's
+ * lobby and the deal agree whatever the order of the roster (audit 7 Oct 2026, X4).
+ */
+function bumperBotBodyAt(id, n) {
+  let h = 0;
+  for (const ch of String(id || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return 1 + (h % Math.max(1, n - 1));
+}

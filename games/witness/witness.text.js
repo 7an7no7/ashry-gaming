@@ -22,7 +22,7 @@ gameText({
             </ul>
             <p class="help-sub">🎛️ اختيارات المضيف</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>🚫 <b>ممنوع تقول…</b> (شغّالة لوحدها): جولة من كل ٣ تقريبًا، وعمرها ما تيجي جولتين ورا بعض، الشاهد ياخد كارت ممنوع يشوفه هو والتلفزيون بس: «ممنوع تقول أي لون»، «ممنوع تقول نضارة»، «اوصف بتشبيهات بس»… وفي الكشف الكل يعرف كان ممنوع إيه.</li>
+                <li>🚫 <b>ممنوع تقول…</b> (شغّالة لوحدها): جولة من كل ٣ تقريبًا، وعمرها ما تيجي جولتين ورا بعض، الشاهد ياخد كارت ممنوع يشوفه هو بس (والتلفزيون كمان لو الكارت مبيقولش حاجة عن الوش، زي الألوان والتشبيهات): «ممنوع تقول أي لون»، «ممنوع تقول نضارة»، «اوصف بتشبيهات بس»… وفي الكشف الكل يعرف كان ممنوع إيه.</li>
                 <li>📈 <b>كل جولة أصعب</b> (مقفولة لوحدها): الوش يبان ٨ ثواني في أول تلت اللعبة، ٦ في التاني، و٥ في الآخر، والوشوش في الطابور شبه بعض أكتر. عدّاد القضية بيقول كام ثانية.</li>
             </ul>
             <p class="help-sub">📱 كل واحد من موبايله</p>
@@ -54,7 +54,7 @@ gameText({
             </ul>
             <p class="help-sub">🎛️ The host's choices</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
-                <li>🚫 <b>Don't say…</b> (on unless turned off): about one round in three, never two in a row, the witness gets a forbidden card only they and the TV see: "don't say any colour", "don't say glasses", "comparisons only"… At the reveal everyone learns what it was.</li>
+                <li>🚫 <b>Don't say…</b> (on unless turned off): about one round in three, never two in a row, the witness gets a forbidden card only they see (the TV shows it too when it says nothing about the face, like colours or comparisons): "don't say any colour", "don't say glasses", "comparisons only"… At the reveal everyone learns what it was.</li>
                 <li>📈 <b>Harder every round</b> (off unless turned on): the face shows 8 seconds in the first third of the game, 6 in the second and 5 in the last, and the lineup's faces are closer. The case count says how many seconds.</li>
             </ul>
             <p class="help-sub">📱 Everyone on their own phone</p>

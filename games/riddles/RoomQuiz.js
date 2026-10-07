@@ -119,8 +119,10 @@ const quizAction = (room, playerId, action, payload) => {
     const right = verdict === 'right';
     const name = roomPlayerName(room, playerId);
     const second = !!(room._quizNear && room._quizNear[playerId]);
+    // Once the choices are up, typing one of them is a pick: half, as tapping it (the owner, audit 7 Oct 2026, P1).
+    const viaChoice = Array.isArray(s.choices) && s.choices.some(c => normaliseClue(c) === normaliseClue(text));
     if (right) {
-      room._answers[playerId] = { text: text, time: Math.min(now, s.endsAt), seq: s.solved.length, half: second };
+      room._answers[playerId] = { text: text, time: Math.min(now, s.endsAt), seq: s.solved.length, half: second || viaChoice };
       s.solved.push(playerId);
       s.feed.push({ name: name, right: true });
     } else if (cfg.retry) {

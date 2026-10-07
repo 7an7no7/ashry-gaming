@@ -72,7 +72,7 @@ sentence are فصحى now. Questions that are عامية all through, or ask «�
 with an Egyptian verb, were left as they are.
 
 The team board (*دوري المعرفة*) is single-screen: `JS_TriviaBoard.html`, with its
-own bank in `JS_TriviaBoardBank.html` — ten categories, sixteen or more questions
+own bank in `JS_TriviaBoardBank.html` (a family quiz with sections gets a column a section, or the plain layout when they would need more than twenty columns: `tbQuizSecCols`, audit 7 Oct 2026, Q1) — ten categories, sixteen or more questions
 at each of 100–500, the higher the harder. Only facts that don't change (no
 records, current title holders or "the latest"). The validator only catches a
 question written twice word for word, so before adding, compare new answers with

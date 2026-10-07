@@ -637,7 +637,8 @@ chosen for a family table and are open to change. Styles: the section «ROOMS, T
   `room.nightx.names` (never a computer player, `nightx.bots`; nothing else of nightx). The page's
   one list is `roomNightRows(state)` (JS_Room.html): everyone in, plus each leaver as `{ left:
   true }`; someone who left and came back under the same name (`samePlayer`) is one row with both
-  their points. The board (`roomNightBoardHtml` → `renderScoreboard`, whose rows now take `left`:
+  their points, and one who left twice is one «مشي» row (audit 7 Oct 2026, R2); the lobby's 🌙/👑
+  badges read the same merged points (`lobbyNightPoints`, R1). The board (`roomNightBoardHtml` → `renderScoreboard`, whose rows now take `left`:
   greyed, «مشي»), the TV's line (`tvNightLine`: «(مشي)»), the night's share card (`shareRoomNight`:
   the name with «(مشي)»; rows only) and ليالينا (`rememberNight`) all read it. Leak check: a
   GENERIC probe holds `nightNames` to names of people on the night and gone (and `played`,
@@ -781,6 +782,14 @@ for a family table and are open to change; each says so. Styles: section 72 at t
   - Chosen: the wording is neutral masculine («إنت منى تاني؟», «منى رجع؟ رجّعه مكانه») because the
     app doesn't know who is a woman; the owner's «رجعت / رجّعها» would need that. No «ده أنا» for a
     computer player's name or a screen.
+  - The audit of 7 Oct 2026 (S1, S4, R3, R6): the host's yes alone still gives the seat back, but with
+    the host away it takes yes from **two** different seated people (not computer players, not the
+    seat asked about); a no from any of them ends the ask. `claims` entries carry `yes: [ids]` (the
+    stand-ins' yes so far): a phone already in it isn't asked again, and its yes toasts «مستني موافقة
+    تانية». An answer stays in `room._claims` until it lapses (`SEAT_CLAIM_MS` after it), so a
+    poll whose reply was lost gets the same answer and key; `cancel` removes only a pending ask.
+    The prompt is never shown on a screen (unseated), and with a TV host it waits for the server's
+    `hostAway`; `ROOM_NOT_FOUND` in the claim flow reads as the room-not-found text.
   - Tests: `rules.mjs` («Taking your own seat back»: 26 checks - the minute, the fold منى = مُنى, the
     view without the token, only the host while here, a bot never, the host's own seat and the
     20 s, the seat's phone back meanwhile, the lapse, four at most), `leaks.mjs` (every room of

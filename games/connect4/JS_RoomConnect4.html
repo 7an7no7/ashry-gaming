@@ -353,7 +353,8 @@ function duelThinkLobbyHtml(state, t) {
 /** When the seat up's think time runs out (the server's time), or 0: off, over, or not winner stays. */
 function duelThinkAt(state) {
   const s = (state && state.shared) || {};
-  if (s.phase !== 'play' || !Array.isArray(s.seats) || !Array.isArray(s.line) || s.teamMode || !(Number(s.think) > 0)) return 0;
+  // A tournament match has no think clock (audit 7 Oct 2026, B2); its state carries tourMid.
+  if (s.tourMid || s.phase !== 'play' || !Array.isArray(s.seats) || !Array.isArray(s.line) || s.teamMode || !(Number(s.think) > 0)) return 0;
   return (Number(s.turnAt) || 0) + Number(s.think) * 1000;
 }
 

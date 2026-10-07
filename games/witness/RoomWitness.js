@@ -209,7 +209,10 @@ const witnessStartLook = (room) => {
   room._witness = { faces: lineup.faces, real: lineup.real, taboo };
   room.secrets = {};
   room.secrets[s.witnessId] = taboo ? { face, taboo } : { face };
-  room.screenOnly = taboo ? { taboo } : null;
+  // The TV, watched by the jury, gets only a card that says nothing about the face: «ممنوع تقول نضارة»
+  // there told them the real face wears glasses (the owner, audit 7 Oct 2026, W1).
+  const tabooDef = taboo ? WITNESS_TABOOS.find(x => x.k === taboo) : null;
+  room.screenOnly = taboo && !(tabooDef && tabooDef.when) ? { taboo } : null;
   s.phase = 'look';
   s.lookEndsAt = Date.now() + WITNESS_LOOK_LEAD_MS + (s.lookMs || WITNESS_LOOK_MS);
 };

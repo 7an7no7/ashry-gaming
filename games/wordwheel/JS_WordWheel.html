@@ -83,8 +83,18 @@ function setWordWheelWay(way) {
 /** 1172: «بالدور» needs two names: the players sheet, two rows, whoever was in the round first. */
 function wheelAskDuo(go) {
   const keep = appState.activePlayers;
+  const group = appState.currentGroup;
   appState.activePlayers = (keep || []).slice(0, 2);
-  askPlayers(2, (stored) => go(stored.slice(0, 2)), { max: 2 });
+  askPlayers(2, (stored) => {
+    // The sheet's Start wrote the two names over «مين بيلعب؟» and emptied the group: a bigger table keeps its list (audit 7 Oct 2026, O2).
+    if (keep && keep.length > 2) {
+      appState.activePlayers = keep;
+      appState.currentGroup = group;
+      saveToLocal();
+      if (typeof renderSavedGroups === 'function') renderSavedGroups();
+    }
+    go(stored.slice(0, 2));
+  }, { max: 2 });
   appState.activePlayers = keep;
 }
 

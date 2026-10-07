@@ -209,12 +209,12 @@ const sameRoomName = (a, b) =>
    A phone whose battery died or whose browser was cleared comes back with no key, and its
    name is taken - by itself. Joining with that name, when that seat's phone has been gone
    over a minute, may ask for the seat back: the asking phone waits, the host (or, the host
-   away 20 s, anyone seated who isn't a computer player) answers «منى رجعت؟ رجّعها مكانها»,
+   away 20 s, two different seated people who aren't computer players) answers «منى رجعت؟ رجّعها مكانها»,
    and on yes the phone is given that seat - its id, so its night points and place in the
    game - with a fresh key: the old key stops working. room.js does the waiting and the keys
    (claim, claimSeat); these decide. room._claims: [{ id, seat, name, at, token, status:
-   'pending' | 'yes' | 'no', key?, doneAt? }]; only the pending ones' id, seat, name and time
-   reach a phone (roomClaimsView), never a token or a key. */
+   'pending' | 'yes' | 'no', yes?: [stand-in ids], key?, doneAt? }]; only the pending ones' id,
+   seat, name, time and stand-ins' yes reach a phone (roomClaimsView), never a token or a key. */
 const SEAT_CLAIM_AWAY_MS = 60000;      // the seat's phone gone this long before it can be asked for
 const SEAT_CLAIM_MS = 3 * 60 * 1000;   // an ask unanswered this long lapses; an answer is kept this long for its phone
 const SEAT_CLAIM_MAX = 4;              // asks waiting at once in one room
@@ -237,10 +237,10 @@ const roomClaimsPrune = (room, now) => {
   return true;
 };
 
-/** What every phone is shown: the asks waiting (whose seat, the name, since when). */
+/** What every phone is shown: the asks waiting (whose seat, the name, since when, the stand-ins' yes so far). */
 const roomClaimsView = (room, now) => (Array.isArray(room._claims) ? room._claims : [])
   .filter(c => c.status === 'pending' && now - c.at < SEAT_CLAIM_MS && (room.players || []).some(p => p.id === c.seat))
-  .map(c => ({ id: c.id, seat: c.seat, name: c.name, at: c.at }));
+  .map(c => ({ id: c.id, seat: c.seat, name: c.name, at: c.at, yes: Array.isArray(c.yes) ? c.yes.slice() : [] }));
 
 /** A phone asks for the seat named `rawName`. Returns the ask (its id and token go to that phone only) or throws. */
 const roomClaimAsk = (room, rawName, online, now, id, token) => {
@@ -269,10 +269,19 @@ const roomClaimAnswer = (room, pid, claimId, yes, online, now, hostAwayFor, newK
   const seated = (room.players || []).some(p => p.id === pid && !p.bot);
   if (room.hostId !== pid && !(seated && hostAwayFor >= SEAT_CLAIM_STAND_IN_MS)) throw new Error('دي للمضيف بس');
   if (pid === c.seat) throw new Error('دي للمضيف بس');
-  c.doneAt = now;
   const p = (room.players || []).find(x => x.id === c.seat);
   // Its own phone came back meanwhile (or it left): the seat is not for asking any more.
-  if (!yes || !p || !roomSeatAway(room, c.seat, online, now)) { c.status = 'no'; return c; }
+  if (!yes || !p || !roomSeatAway(room, c.seat, online, now)) { c.doneAt = now; c.status = 'no'; return c; }
+  // The host's yes alone gives the seat back; with the host away it takes two different seated
+  // people's yes, so one person can't ask from a second tab and approve it from their own seat
+  // (audit 7 Oct 2026, S1). A stand-in who has since left or become a screen no longer counts.
+  if (room.hostId !== pid) {
+    const stillSeated = (id) => (room.players || []).some(x => x.id === id && !x.bot && id !== c.seat);
+    c.yes = (Array.isArray(c.yes) ? c.yes : []).filter(stillSeated);
+    if (!c.yes.includes(pid)) c.yes.push(pid);
+    if (c.yes.length < 2) return c;
+  }
+  c.doneAt = now;
   c.status = 'yes';
   c.key = String(newKey);
   room.keys = room.keys || {};
@@ -281,14 +290,16 @@ const roomClaimAnswer = (room, pid, claimId, yes, online, now, hostAwayFor, newK
   return c;
 };
 
-/** The asking phone comes for its answer: the ask, taken off the list once answered (null: no such ask). */
+/**
+ * The asking phone comes for its answer: the ask (null: no such ask). An answer stays until it
+ * lapses (roomClaimsPrune, SEAT_CLAIM_MS after it was given), so a poll whose reply was lost asks
+ * again with the same token and gets the same answer and key (audit 7 Oct 2026, S4).
+ */
 const roomClaimTake = (room, claimId, token, now) => {
   roomClaimsPrune(room, now);
   const list = room._claims || [];
   const c = list.find(x => x.id === String(claimId || '') && x.token === String(token || ''));
-  if (!c) return null;
-  if (c.status !== 'pending') room._claims = list.filter(x => x !== c);
-  return c;
+  return c || null;
 };
 
 /**
@@ -1861,6 +1872,12 @@ const gamePlayerLeft = (room, playerId, name) => {
       if (room.phase === 'guess' && !here(s.guesserId)) finishImposter(room, 'caught', null);
       // The one who was to ask first has gone before the questions got going: someone else starts.
       if ((room.phase === 'reveal' || room.phase === 'discuss') && s.firstId && !here(s.firstId)) imposterPickFirst(room);
+      // «مين يسأل مين؟»: the asker gone, the next pair is named; the target gone, the same asker
+      // asks someone else (audit 7 Oct 2026, E2).
+      if (room.phase === 'discuss' && s.dir) {
+        if (s.dir.askerId && !here(s.dir.askerId)) imposterDirNext(room, null);
+        else if (s.dir.targetId && !here(s.dir.targetId)) imposterDirNext(room, s.dir.askerId);
+      }
       return;
     case 'chameleon':
       if (s.phase !== 'guess' && s.phase !== 'results' && impostorsGone([room._chamId])) {

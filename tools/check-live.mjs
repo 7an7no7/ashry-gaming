@@ -82,7 +82,9 @@ else ok('everything is pushed');
 const ON_GITHUB = process.env.GITHUB_ACTIONS === 'true';
 const timeOf = async (file) => {
   if (!ON_GITHUB) return (await stat(file)).mtimeMs;
-  const t = git(`log -1 --format=%ct -- "${path.relative(root, file).replace(/\\/g, '/')}"`);
+  // --first-parent: a branch merged after the last build counts from its merge into this line, not
+  // from its own older commit (audit 7 Oct 2026, C1).
+  const t = git(`log -1 --first-parent --format=%ct --"${path.relative(root, file).replace(/\\/g, '/')}"`);
   return t ? Number(t) * 1000 : 0;
 };
 const built = await timeOf(path.join(root, 'docs', 'index.html'));

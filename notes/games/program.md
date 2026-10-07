@@ -63,6 +63,8 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
   own, ended after `PROGRAM_ROUNDS`: لو خيروك، مين أكثر واحد، موجة، كلمة واحدة، القنبلة 5,
   فيبج 4, الجرس 10 questions, ارسم وخمّن one turn each (6 at most); من أنا؟ after its
   round, أتوبيس كومبليت at `done`, ارسم واكتب after the last chain.
+  الحرباء is not over while «مين فضحها؟» waits (`shared.blamePending`), so its −1 is in
+  the places (audit of 7 Oct 2026, E1).
 - **Places → points** (`programPlaces`, `programBank`): who played is the game's own seats
   (`shared.seats`, flattened), a tournament's entrants, the teams, else the roster; the
   game's board is best-first (some win low), so a place is where a row sits, tied rows
@@ -291,7 +293,9 @@ Phases (`program.phase`; every change raises `seq`, which the host's taps carry)
 - **780 «السهرة بالأرقام»** (no extra rule asked). Before the champion the finale counts the night up:
   «🎮 ٥ ألعاب · ⏱️ ساعة و٢٠ دقيقة · ❓ ٤٧ سؤال · 🔔 ٣٠ ضغطة على الجرس · 🤥 ١٢ كدبة في كدّاب · 🎳 ٣ سترايك».
   - Server (`RoomProgram.js`): `room._progLog.n` (`programCountsNew`, `programCount`): `questions` (each room
-    trivia question reaching its results, key `tqn…`; each buzzer question the host marks right with a press in),
+    trivia question reaching its results, key `tqn…`; each buzzer question the host marks right with a press in,
+    once a question, key `bq<deal>:<round>`: a ✅ undone by ↶ and given again, or a stale ✅, counts it once -
+    audit of 7 Oct 2026, P4),
     `presses` (every press on الجرس, once per player and question, key `bp…`), `fibs` (lies told in كدّاب, counted
     in `programLogEnd` once that game is over - until then an uncalled lie is a secret), `knocks` (bowling strikes,
     at the game's end). `programFinish` puts them in `final.stats` (`programStatsOf`) beside `games` and

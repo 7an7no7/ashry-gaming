@@ -70,6 +70,8 @@ const programPeople = (room) => room.players.filter(p => !p.bot);
 /** Has the game in the room reached its end, as far as the program is concerned? */
 const programGameOver = (room) => {
   if (!room.game || room.phase === 'lobby') return false;
+  // الحرباء's «مين فضحها؟» is still to come: bank after its −1, not before (audit 7 Oct 2026, E1).
+  if (room.game === 'chameleon' && (room.shared || {}).blamePending) return false;
   if (roomGameIsOver(room)) return true;
   const s = room.shared || {};
   const cap = PROGRAM_ROUNDS[room.game];
@@ -580,7 +582,13 @@ const programBeforeMove = (room, playerId, action, payload) => {
   const p = room.program;
   const log = room._progLog;
   if (!p || p.phase !== 'playing' || !log || !room.shared) return;
-  if (room.game === 'buzzer' && action === 'correct' && room.hostId === playerId && (room.shared.buzzes || []).length) programCount(room, 'questions');
+  // One count per question, keyed on it: a ✅ undone by ↶ then given again, or a stale ✅ for
+  // an earlier first in line, used to count it twice (audit 7 Oct 2026, P4).
+  if (room.game === 'buzzer' && action === 'correct' && room.hostId === playerId) {
+    const b = room.shared.buzzes || [];
+    const fresh = b.length && !(payload && payload.id !== undefined && b[0] && payload.id !== b[0].id);
+    if (fresh && programLogKey(room, 'bq' + (room.shared.dealId || '') + ':' + room.shared.round)) programCount(room, 'questions');
+  }
   if (room.game === 'buzzer' && action === 'correct' && room.hostId === playerId) {
     const b = room.shared.buzzes || [];
     if (b.length >= 2 && b[0].id && b[1].id && typeof b[0].at === 'number' && typeof b[1].at === 'number') {

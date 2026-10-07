@@ -105,7 +105,12 @@ const GENERIC = (room) => {
     // «ده أنا» (1272): an ask for a seat back is whose seat, the name and when - never its token or the seat's key.
     probe('a seat asked back shows no token and no key', true, (view, pid, idx) => {
       if (!Array.isArray(view.claims)) return 'claims (not a list)';
-      for (const c of view.claims) if (Object.keys(c).sort().join() !== 'at,id,name,seat') return 'claims (' + Object.keys(c).join() + ')';
+      // `yes`: the stand-ins' yes so far, player ids (audit 7 Oct 2026, S1).
+      for (const c of view.claims) {
+        const keys = Object.keys(c).sort().join();
+        if (keys !== 'at,id,name,seat' && keys !== 'at,id,name,seat,yes') return 'claims (' + Object.keys(c).join() + ')';
+        if ('yes' in c && (!Array.isArray(c.yes) || c.yes.some((id) => typeof id !== 'string'))) return 'claims (yes not a list of ids)';
+      }
       for (const c of room._claims || []) {
         const hit = idx.find(c.token) || (c.key ? idx.find(c.key) : null);
         if (hit) return hit;

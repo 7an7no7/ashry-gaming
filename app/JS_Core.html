@@ -184,9 +184,11 @@
   // (pageshow from the back-forward cache) is a return from away too.
   window.addEventListener('pageshow', () => wakeAudio());
 
-  function playSound(type, fromTap) {
+  function playSound(type, fromTap, ownSound) {
     // Settings → الصوت: «الهزة بس» and «مقفول» play no effects (soundPref, below).
-    if (soundPref() !== 'on') return;
+    // `ownSound`: a tool whose sound is the point (the general timer's alarm) is silenced
+    // only by «مقفول» (the owner, audit 7 Oct 2026, H3).
+    if (soundPref() === 'off' || (soundPref() !== 'on' && !ownSound)) return;
     if (type === 'click') {
       const now = Date.now();
       if (fromTap) {

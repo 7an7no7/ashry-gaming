@@ -194,7 +194,9 @@ id `darkroom` everywhere (`room-darkroom`, `ROOM_GAMES.darkroom`,
   `dz` (until when, by the server's clock) and the private `dizzy` event: a
   banner «😵 منى داخ! الشمال بقى يمين» and a wobbling note with the seconds left
   (`dkDizzyPaint`, painted every frame), a wobbly sound on the voice. Back at
-  the start (a trap, a new map, a new mover) ends it.
+  the start (a trap, a new map, a new mover) ends it. A bump's wobble on the
+  guides' map and the TV goes the way the kid really walked (`shared.face`),
+  the mover's own echo the arrow pressed (`dkOnEvent`; audit of 7 Oct 2026, K1).
 - Tests: `rules.mjs` ("The dark room": the mic with the first guide, a guide
   without it refused, passed on, a double tap dropped, the mover calling,
   never the mover, its holder leaving, off by default; dizzy at level 3 from a

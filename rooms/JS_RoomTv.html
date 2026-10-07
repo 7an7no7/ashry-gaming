@@ -325,6 +325,9 @@ function tvCornerSync(view, state, t, lobby) {
   } else if (tvCorner.el.parentNode !== frame) {
     frame.appendChild(tvCorner.el);
   }
+  // Built before the QR library arrived: draw it now that it has (audit 7 Oct 2026, R4).
+  const qrBox = tvCorner.el.querySelector('#tv-corner-qr');
+  if (qrBox && qrBox.classList.contains('hidden') && typeof qrcode !== 'undefined') renderJoinQR('tv-corner-qr', roomJoinUrl(state.code));
   // Asked big: for the time left of its TV_QR_BIG_MS, by the server's clock.
   const at = Number(state.tvQrAt) || 0;
   const left = at ? at + TV_QR_BIG_MS - roomServerNow() : 0;

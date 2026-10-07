@@ -62,10 +62,13 @@ const REACTION_FAKE_KINDS = ['yellow', 'cat', 'word'];
 // «ركّز!» (875): the colours a word names and is written in, a word's time on the pad, how many
 // words that don't agree come before the one that does.
 const REACTION_FOCUS_COLOURS = ['red', 'green', 'blue', 'yellow'];
-const REACTION_FOCUS_STEP_MS = [700, 1100];
+// Rooms only (the one-phone game keeps RX_FOCUS_STEP_MS, 0.7-1.1 s): a word changes on the room's
+// alarm, never set under a second ahead (ALARM_FLOOR_MS), so a shorter step skipped words (audit 7 Oct 2026, X3).
+const REACTION_FOCUS_STEP_MS = [1100, 1500];
 const REACTION_FOCUS_MISSES = [2, 5];
 const REACTION_MODES = ['points', 'knockout'];
 const REACTION_KO_WINS = 2;                  // the final is the best of three
+const REACTION_KO_VOID = 3;                  // a final with no valid time this many rounds in a row ends, no winner
 
 const reactionRand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 
@@ -306,13 +309,21 @@ const reactionKoSettle = (room) => {
   const s = room.shared;
   const rows = s.rows || [];
   if (s.final) {
+    // A final begun by a leave mid-round starts from the next round (audit 7 Oct 2026, X1).
+    if (s.final.from && s.round < s.final.from) { s.lastWin = null; return false; }
     const w = rows.length && rows[0].ms !== null && s.final.ids.indexOf(rows[0].id) !== -1 ? rows[0].id : null;
     s.lastWin = w;
     if (w) {
       s.final.wins[w] = (s.final.wins[w] || 0) + 1;
       rows[0].win = true;
       if (s.final.wins[w] >= REACTION_KO_WINS) { s.final.winner = w; return true; }
+      s.final.void = 0;
+      return false;
     }
+    // Neither finalist taps, round after round: the game ends with no winner, the board as it stands
+    // (both finalists level, told apart by their best time) (audit 7 Oct 2026, X2).
+    s.final.void = (s.final.void || 0) + 1;
+    if (s.final.void >= REACTION_KO_VOID) { s.final.winner = null; return true; }
     return false;
   }
   const fouls = rows.filter(r => r.foul), none = rows.filter(r => r.ms === null && !r.foul), timed = rows.filter(r => r.ms !== null);
@@ -443,7 +454,7 @@ const reactionPlayerLeft = (room, playerId) => {
   // «خروج المغلوب»: down to two by a leave, the final begins (from the next round).
   if (reactionKo(s) && !s.final && reactionPlaying(room).length === 2) {
     s.alive = reactionPlaying(room);
-    s.final = { ids: s.alive.slice(), wins: {} };
+    s.final = { ids: s.alive.slice(), wins: {}, from: (Number(s.round) || 0) + 1 };
   }
   if ((s.phase === 'go' || s.phase === 'wait') && reactionAllIn(room)) reactionCloseRound(room, Date.now());
   if (room.shared.phase !== 'gameover') s.board = reactionBoard(room);

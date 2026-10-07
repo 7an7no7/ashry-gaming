@@ -769,12 +769,13 @@ export class Room extends DurableObject {
     const id = String((body && body.claim) || '');
     if (id) {
       if (body.cancel) {
+        // Only an ask still waiting goes: an answer stays for its phone until it lapses (audit 7 Oct 2026, S4).
         const c = (room._claims || []).find((x) => x.id === id && x.token === String(body.token || ''));
-        if (c) {
+        if (c && c.status === 'pending') {
           room._claims = room._claims.filter((x) => x !== c);
           this.touch(false);
           await this.save();
-          if (c.status === 'pending') this.broadcast();
+          this.broadcast();
         }
         return { ok: true, cancelled: true };
       }

@@ -221,6 +221,15 @@ export const MARKUP_USES_OK = {
   JS_Solo: 'queens-stage',                 // a comment
   JS_Utils: 'teams-player-list whoami-result-ui'   // a name compared; PLAY_EXIT_OVER of the screen on show
 };
+/* The same for an id built from parts (a quoted prefix followed by + or ${, audit 7 Oct 2026,
+   L1). The screens' own prefixes are generic: setView and the room router build them for
+   every game ('setup-' + id is a screen's name for setView) and wait for its chunk (lzWait)
+   before looking. "File > prefixes", checked by hand like MARKUP_USES_OK. */
+export const MARKUP_PREFIX_GENERIC = ['view-', 'view-room-', 'view-setup-', 'setup-'];
+export const MARKUP_PREFIX_OK = {
+  JS_Catalog: 'cs-',                       // a catalog key ('cs-' + id), not an element
+  JS_Core: 'jo-phase-'                     // restoreView after a reload: lzBootWrite brought the chunk
+};
 
 /* --------------------------------------------------------------------------- */
 
@@ -620,6 +629,7 @@ export function splitMarkup({ controller, views, sources, fileChunk, shellSet, c
   // the page: its own chunk, or a chunk that loads it first. The shell and other chunks
   // run without it (the screen's chunk not yet loaded), so each of those is listed and checked.
   const ok = new Set(Object.entries(MARKUP_USES_OK).flatMap(([f, ids]) => ids.split(' ').map((id) => `${f}>${id}`)));
+  const okPre = new Set(Object.entries(MARKUP_PREFIX_OK).flatMap(([f, ps]) => ps.split(' ').map((p) => `${f}>${p}`)));
   const problems = [];
   for (const b of moving) {
     const ids = [...controller.slice(b.start, b.end).matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
@@ -633,8 +643,18 @@ export function splitMarkup({ controller, views, sources, fileChunk, shellSet, c
         if (!new RegExp(`['"\`#]${id.replace(/[-$]/g, '\\$&')}(?![\\w-])`).test(src)) continue;
         if (!ok.has(`${f}>${id}`)) problems.push(`${f} (${fc ? 'chunk ' + fc : 'the shell'}) names #${id}, whose markup comes with chunk ${b.chunk}`);
       }
+      // An id built from parts ('jo-phase-' + p, `jo-phase-${p}`) is a quoted prefix the
+      // whole-id search above can't see (audit 7 Oct 2026, L1): a prefix ending at a '-' of a
+      // moved id, followed by + or ${, is checked the same way.
+      for (const m of src.matchAll(/['"`#]([A-Za-z][\w-]*-)(?:['"`]\s*\+|\$\{)/g)) {
+        const pre = m[1];
+        if (MARKUP_PREFIX_GENERIC.includes(pre) || okPre.has(`${f}>${pre}`)) continue;
+        const id = ids.find((x) => x.startsWith(pre) && x.length > pre.length);
+        if (id) problems.push(`${f} (${fc ? 'chunk ' + fc : 'the shell'}) builds an id from '${pre}' (as #${id}...), whose markup comes with chunk ${b.chunk}; checked, it goes in MARKUP_PREFIX_OK`);
+      }
     }
   }
+  problems.splice(0, problems.length, ...new Set(problems));
   if (problems.length) throw new Error(`lazy-split: code that can run before a game's markup is in the page names an element of it (put the code behind a door, or check it and add it to MARKUP_USES_OK):\n  ${problems.join('\n  ')}`);
   return { html, byChunk, views: moving.filter((b) => b.view).length, popups: moving.filter((b) => !b.view).length };
 }

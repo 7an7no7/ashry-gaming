@@ -39,8 +39,9 @@ const MOVE_FORMAT = 1;
  * Not here, on purpose: a room's seat and the last room (a key to someone's seat:
  * two phones would be one player), a game in progress and «كمّل» (they belong to
  * the screen they were left on), drafts of a round, the install prompts, the
- * screen size (ashryUiScale: a TV's 150% is no phone's), and the crews' cached
- * pages (fetched again with the key that moves).
+ * screen size (ashryUiScale: a TV's 150% is no phone's), the sound setting
+ * (ashrySound: per device, so a TV keeps its own - notes/sound.md), and the crews'
+ * cached pages (fetched again with the key that moves).
  */
 const MOVE_KEYS = {
   ashryName: 'fill',                 // the name in rooms: only when this phone has none
@@ -61,9 +62,11 @@ const MOVE_KEYS = {
   ashryPlayed_v1: 'set',             // the games this phone has started (readPlayed / markPlayed, JS_Catalog.html): both
   ashryRecent_v1: 'recent',          // the home's recent row: this phone's first
   ashryOptions_v1: 'options',        // every setup's remembered choices: where this phone has none
-  gameTrackerState_v1: 'app',        // the theme, the language, the games' language (nothing else of it)
+  gameTrackerState_v1: 'app',        // the theme, the language, the games' language, the chess rating (nothing else of it)
+  ashrySnakesMaps_v1: 'snakesMaps',  // «خرايطنا»: both, by id, the newest 12 (audit 7 Oct 2026, D1)
   ashryMotion: 'pref',
   ashryColorShapes: 'pref',
+  ashryQueensPatterns: 'pref',       // الملكات «نقشة لكل لون» (audit 7 Oct 2026, D1)
   ashryTriviaTeams: 'fill',
   ashryTriviaCount: 'fill', ashryTriviaCat: 'fill', ashryWhoamiRoomCat: 'fill',
   ashryStopRoomOpts: 'fill', ashrySpyfallRoomOpts: 'fill', ashryMonkeyRoomOpts: 'fill',
@@ -74,13 +77,16 @@ const MOVE_KEYS = {
   ashryMissionSetup_v1: 'fill', ashryMissionShe_v1: 'fill', ashryProgramDraft_v1: 'fill'
 };
 // A 'pref' is taken only while this phone still has its default.
-const MOVE_PREF_DEFAULTS = { ashryMotion: 'auto', ashryColorShapes: '0' };
+const MOVE_PREF_DEFAULTS = { ashryMotion: 'auto', ashryColorShapes: '0', ashryQueensPatterns: '0' };
 // The app's own settings in gameTrackerState_v1, and their defaults (the theme's is the
 // device's own: the page passes it in opts.defaults).
 const MOVE_APP_FIELDS = { lang: 'ar', gameLang: 'auto', isDarkMode: false };
 const MOVE_CHESS_KEEP = 20;      // CH_KEEP, JS_ChessReview.html
 const MOVE_NIGHTS_KEEP = 60;     // NIGHTS_KEEP, JS_Room.html
 const MOVE_RECENT_KEEP = 6;      // RECENT_MAX, JS_Catalog.html
+const MOVE_SNAKES_MAPS_KEEP = 12; // SNK_MAPS_MAX, JS_Snakes.html
+/** A chess rating worth moving: rated games played ({ r, n }, appState.shatranj.rating). */
+const moveChessRatingOk = (x) => moveIsObj(x) && typeof x.r === 'number' && typeof x.n === 'number' && x.n > 0;
 
 const moveExpired = (at, now) => !(Number(at) > 0) || now - Number(at) > MOVE_TTL_MS;
 
@@ -128,6 +134,8 @@ function moveCollect(read, opts) {
       if (!moveIsObj(st)) return;
       const keep = {};
       Object.keys(MOVE_APP_FIELDS).forEach((f) => { if (f in st && st[f] !== defaults[f]) keep[f] = st[f]; });
+      // The chess rating against the computer travels too, once rated games made it (audit 7 Oct 2026, D1).
+      if (moveIsObj(st.shatranj) && moveChessRatingOk(st.shatranj.rating)) keep.chessRating = { r: st.shatranj.rating.r, n: st.shatranj.rating.n };
       if (!Object.keys(keep).length) return;
       v = JSON.stringify(keep);
     }
@@ -177,6 +185,13 @@ const moveBestBetter = (a, b) => {
   if (typeof a.score === 'number' && typeof b.score === 'number') {
     return a.score > b.score || (a.score === b.score && (a.tile || 0) > (b.tile || 0));
   }
+  // تانجو's three-minute run is better high; a Connections tally { solved, perfect, played } is
+  // never summed (the same code merged twice must change nothing): the one with more played
+  // wins (audit 7 Oct 2026, D2).
+  if (typeof a.count === 'number' && typeof b.count === 'number') return a.count > b.count;
+  if (typeof a.played === 'number' && typeof b.played === 'number') {
+    return a.played > b.played || (a.played === b.played && (a.solved || 0) > (b.solved || 0));
+  }
   return false;
 };
 
@@ -202,7 +217,9 @@ const moveBestBetter = (a, b) => {
  *   recent    this phone's first, then the other's, MOVE_RECENT_KEEP
  *   options   a choice this phone has never made comes from the other
  *   app       the theme, the language and the games' language only where this
- *             phone still has its default
+ *             phone still has its default; the chess rating only where this phone
+ *             has no rated games
+ *   snakesMaps «خرايطنا»: both, by id (one seed and look once), the first 12
  *   pref      the same, for a setting kept under its own key
  *   fill      the other's only when this phone has none
  */
@@ -286,7 +303,32 @@ function moveMerge(here, incoming, opts) {
         const next = Object.assign({}, newer, { id: wa.id, key: wa.key || wb.key || null });
         if (JSON.stringify(next) !== JSON.stringify(wa)) { out.words = next; changed = true; }
       }
+      // A crew's family words (crewWords, crewWordsSync): every crew's, by its code (audit 7 Oct 2026, D3).
+      const cw = Array.isArray(out.crewWords) ? out.crewWords.slice() : [];
+      (Array.isArray(b.crewWords) ? b.crewWords : []).forEach((w) => {
+        if (moveIsObj(w) && w.code && Array.isArray(w.words) && !cw.some((x) => x && x.code === w.code)) { cw.push(w); changed = true; }
+      });
+      if (cw.length) out.crewWords = cw;
       if (changed) put(k, out);
+      return;
+    }
+    if (kind === 'snakesMaps') {
+      // «خرايطنا» (JS_Snakes.html): both phones' maps by id, one map (seed and look) once, the newest first.
+      const a = moveParse(mine, []), b = moveParse(raw, []);
+      if (!Array.isArray(b)) return;
+      const out = Array.isArray(a) ? a.filter((m) => moveIsObj(m)) : [];
+      let added = 0;
+      b.forEach((m) => {
+        if (!moveIsObj(m) || typeof m.id !== 'string' || typeof m.name !== 'string') return;
+        if (out.some((x) => x.id === m.id || (x.seed === m.seed && x.theme === m.theme))) return;
+        out.push(m); added++;
+      });
+      if (!added) return;
+      const kept = out.slice(0, MOVE_SNAKES_MAPS_KEEP);
+      const took = b.filter((m) => kept.indexOf(m) !== -1).length;
+      if (!took) return;
+      got.settings += took;
+      put(k, kept);
       return;
     }
     if (kind === 'daily') {
@@ -416,6 +458,10 @@ function moveMerge(here, incoming, opts) {
         const cur = f in out ? out[f] : defaults[f];
         if (cur === defaults[f] && b[f] !== cur) { out[f] = b[f]; got.settings++; changed = true; }
       });
+      // The chess rating: taken only by a phone with no rated games of its own (audit 7 Oct 2026, D1).
+      if (moveChessRatingOk(b.chessRating) && !moveChessRatingOk(out.chessRating)) {
+        out.chessRating = { r: b.chessRating.r, n: b.chessRating.n }; got.bests++; changed = true;
+      }
       if (changed) put(k, out);
     }
   });

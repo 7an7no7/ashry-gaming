@@ -205,6 +205,11 @@ with every right choice: a member could read the quiz's answers before the night
   more than five continues in a second column of the same name), its questions down the
   column 100…500 in order, five columns a board, at most four boards; a quiz with no
   sections is laid out as before. Rules test: `rules.mjs` "packs/sections".
+  Since the audit of 7 Oct 2026 (Q1, Q2): a quiz whose sections would need more than
+  twenty columns gets the plain board layout, so no question is dropped; in the editor
+  the headings stay at their places when questions are moved (↑↓ or dragged), and
+  deleting a section's first question passes its heading to the next one (unless that
+  one has its own).
 
 ## Tests
 

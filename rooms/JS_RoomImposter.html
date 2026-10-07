@@ -26,12 +26,49 @@ function imposterFirstHtml(state, t) {
   if (!p) return '';
   return `<p class="field__hint" style="text-align:center">🎤 ${escapeHTML(t.spy_first || '')}: <b>${escapeHTML(p.name)}</b></p>`;
 }
+/* «مين يسأل مين؟» in rooms (503): the pair the server walks, on every phone and the TV.
+   The asker's phone has «التالي»; the host's (anyone's once the host is away) a quiet one. */
+function imposterDirHtml(state, t, tv) {
+  const d = state.shared && state.shared.dir;
+  if (!d || !d.askerId || !d.targetId) return '';
+  const nameOf = (id) => (state.players.find(p => p.id === id) || {}).name || '…';
+  const next = (cls) => `<button type="button" class="btn ${cls} btn--sm btn--auto" onclick="roomAct('dirNext', { turn: ${Number(d.turn) || 0} })">${escapeHTML(t.director_next || '')} ⏭</button>`;
+  const mine = !tv && d.askerId === Room.me;
+  const card = `
+    <div class="director">
+      <div class="director__label">🎤 ${escapeHTML(t.director_turn || '')} <span class="metric">${Number(d.turn) || 0}</span></div>
+      <div class="director__pair">
+        <span class="director__name">${escapeHTML(nameOf(d.askerId))}</span>
+        <span class="director__verb">${escapeHTML(t.director_asks_verb || '')}</span>
+        <span class="director__name director__name--target">${escapeHTML(nameOf(d.targetId))}</span>
+      </div>
+      <div class="director__hint">${escapeHTML(t.director_asks || '')}</div>
+      ${mine ? next('btn--secondary') : roomMoveOnHtml(state, next('btn--ghost'), '')}
+    </div>`;
+  return tv ? `<div class="tv-scale">${card}</div>` : card;
+}
+
+/* «أنا الجاسوس» (502): the same quiet button on every phone in the round, so nothing
+   tells the table who pressed it until the round stops. A non-spy's tap only says so. */
+function imposterClaimHtml(state, t) {
+  const s = state.shared || {};
+  if (s.undercover || (s.roster || []).indexOf(Room.me) === -1) return '';
+  return `<div class="btn-stack" style="margin-top: var(--sp-3)"><button type="button" class="btn btn--ghost btn--sm" onclick="imposterClaim()">${escapeHTML(t.imp_claim_btn || '')}</button></div>`;
+}
+function imposterClaim() {
+  const st = Room.state;
+  if (!st || st.game !== 'imposter' || st.phase !== 'discuss') return;
+  const t = TRANSLATIONS[appState.lang];
+  if (!st.you || st.you.role !== 'spy') { showToast(t.imp_claim_only_spy || '', 'info'); return; }
+  showConfirmModal(t.imp_claim_confirm || '', () => roomAct('spyClaim'));
+}
+
 function imposterRoomOpts() {
   try { return JSON.parse(localStorage.getItem(IMPOSTER_ROOM_OPTS_KEY) || 'null') || {}; } catch (e) { return {}; }
 }
 function setImposterRoomOpt(key, value) {
   const o = imposterRoomOpts();
-  o[key] = key === 'spies' || key === 'limit' ? Number(value) : (key === 'undercover' ? !!value : String(value));
+  o[key] = key === 'spies' || key === 'limit' ? Number(value) : (key === 'undercover' || key === 'director' ? !!value : String(value));
   try { localStorage.setItem(IMPOSTER_ROOM_OPTS_KEY, JSON.stringify(o)); } catch (e) {}
   if (key === 'limit') haptic('light');
   if (key === 'undercover' || key === 'limit') {
@@ -59,6 +96,8 @@ ROOM_GAMES.imposter = {
     const undercover = !!o.undercover;
     // The discussion's limit (the review of 1 Oct 2026): off by default; the vote opens by itself.
     const limit = IMPOSTER_ROOM_LIMITS.indexOf(Number(o.limit)) !== -1 ? Number(o.limit) : 0;
+    // «مين يسأل مين؟» (503): on unless this host switched it off.
+    const director = o.director !== false;
     return `
       <div class="card card--tight">
         <div class="field" style="margin-bottom: var(--sp-3)">
@@ -85,6 +124,13 @@ ROOM_GAMES.imposter = {
           </div>
           <p class="field__hint">${escapeHTML(t.imp_limit_hint || '')}</p>
         </div>
+        <div class="field" style="margin-top: var(--sp-3)">
+          <label class="switch-row" for="room-imp-director">
+            <span class="field__label">${escapeHTML(t.imp_dir_switch || '')}</span>
+            <span class="switch"><input type="checkbox" id="room-imp-director" role="switch" ${director ? 'checked' : ''} onchange="setImposterRoomOpt('director', this.checked)"><span class="switch__track" aria-hidden="true"></span></span>
+          </label>
+          <p class="field__hint">${escapeHTML(t.imp_dir_hint || '')}</p>
+        </div>
       </div>`;
   },
 
@@ -102,6 +148,8 @@ ROOM_GAMES.imposter = {
       undercover: under ? under.checked : !!o.undercover,
       // Minutes of discussion before the vote opens by itself (0: none).
       limit: IMPOSTER_ROOM_LIMITS.indexOf(Number(o.limit)) !== -1 ? Number(o.limit) : 0,
+      // «مين يسأل مين؟»: who asks whom, walked by the server (on by default).
+      director: o.director !== false,
       // المختلف's pairs come in the games' language (SPY_PAIRS_EN on the server).
       lang: contentLang()
     };
@@ -175,19 +223,21 @@ function imposterFlipCard() {
 function renderImposterDiscuss(el, state, t) {
   const undercover = !!(state.shared && state.shared.undercover);
   const endsAt = state.shared.endsAt || 0;
-  renderRoomFrame(el, 'discuss|' + state.youAreHost + '|' + undercover + '|' + endsAt + '|' + state.shared.firstId + '|' + appState.lang, () => `
+  const d = state.shared.dir || {};
+  renderRoomFrame(el, 'discuss|' + state.youAreHost + '|' + undercover + '|' + endsAt + '|' + state.shared.firstId + '|' + [d.turn, d.askerId, d.targetId].join(',') + '|' + appState.lang, () => `
     <div class="card" style="text-align:center">
       <div class="eyebrow">${escapeHTML(endsAt ? (t.imp_time_left || '') : (t.discussion_time || 'وقت النقاش'))}</div>
       <div id="room-imp-timer" class="metric metric--xl metric--accent">${endsAt ? imposterClockText(endsAt) : '00:00'}</div>
       <p class="card__subtitle" style="margin-bottom:0">${escapeHTML(undercover ? (t.imp_und_discuss_hint || '') : (t.imposter_discuss_hint || 'اسألوا بعضكم واكتشفوا الجاسوس'))}</p>
     </div>
-    ${imposterFirstHtml(state, t)}
+    ${state.shared.dir ? imposterDirHtml(state, t) : imposterFirstHtml(state, t)}
     ${roomMoveOnHtml(state,
       `<div class="btn-stack">
            <button onclick="roomAct('startVote')" class="btn btn--primary btn--lg">${escapeHTML(undercover ? (t.imp_und_start_vote || t.imp_start_vote || '') : (t.imp_start_vote || ''))}</button>
            <button onclick="roomAct('revealResult')" class="btn btn--ghost btn--sm">${escapeHTML(t.imp_reveal_direct || '')}</button>
          </div>`,
       `<div class="waiting-note">${escapeHTML(t.imp_wait_vote || '')}</div>`)}
+    ${imposterClaimHtml(state, t)}
     ${renderRoomPlayerStrip(state)}`);
 
   startRoomDiscussClock(state.shared.startedAt, endsAt);
@@ -211,7 +261,8 @@ function renderImposterGuess(el, state, t) {
   const s = state.shared;
   const mine = s.guesserId === Room.me;
   const undercover = !!s.undercover;
-  renderRoomFrame(el, 'guess|' + s.guesserId + '|' + mine + '|' + state.youAreHost + '|' + undercover + '|' + appState.lang, () => {
+  const claim = !!s.claim;
+  renderRoomFrame(el, 'guess|' + s.guesserId + '|' + mine + '|' + state.youAreHost + '|' + undercover + '|' + claim + '|' + appState.lang, () => {
     // The vote first, the caught spy's bar rising last; their card stays face down till then.
     const bars = roomSpyVoteBars(state, [s.guesserId], 'phone');
     const cover = spyRevealParts(['imp-guess', roomDealKey(state), s.guesserId].join('|'), t.reveal_spy_was, bars.ms);
@@ -219,7 +270,9 @@ function renderImposterGuess(el, state, t) {
     ${bars.html}
     <div class="card card--accent ${cover.cls}" ${cover.attrs} style="text-align:center; --cover-at:${cover.at}ms">${cover.cover}
       <div class="metric metric--md">${undercover ? '🎭' : '🕵️'} ${escapeHTML(s.guesserName || '')}</div>
-      <p class="sheet__subtitle">${escapeHTML(mine ? (undercover ? (t.imp_und_guess_hint || '') : (t.imp_guess_hint || '')) : (undercover ? (t.imp_und_guessing || '') : (t.imp_guessing || '')))}</p>
+      <p class="sheet__subtitle">${escapeHTML(claim
+        ? (mine ? (t.imp_claim_hint || '') : (t.imp_claim_guessing || ''))
+        : mine ? (undercover ? (t.imp_und_guess_hint || '') : (t.imp_guess_hint || '')) : (undercover ? (t.imp_und_guessing || '') : (t.imp_guessing || '')))}</p>
     </div>
     ${mine
       ? `<div class="btn-stack">${(s.options || []).map(w => `<button class="ballot-option" onclick="roomAct('guess', { word: '${jsStringAttr(w)}' })"><span class="ballot-option__label">${escapeHTML(w)}</span></button>`).join('')}</div>`
@@ -234,11 +287,21 @@ function imposterOutcomeLine(s, t) {
   const names = (s.spies || []).join(' · ');
   const under = !!s.undercover;
   if (s.outcome === 'escaped') return (under ? (t.imp_und_escaped || '') : (t.imp_escaped || '')).replace('{name}', names);
+  if (s.outcome === 'claimed') return (t.imp_claimed || '').replace('{name}', names);
   if (s.outcome === 'stole') return (under ? (t.imp_und_stole || '') : (t.imp_stole || '')).replace('{name}', names);
   if (s.outcome === 'caught') return (under ? (t.imp_und_caught || '') : (t.imp_caught || '')).replace('{name}', names);
   // The server keeps the leaver's name (impostorLeftName): they are off the roster by then.
   if (s.impostorLeft) return (t.room_impostor_left || '').replace('{name}', s.impostorLeftName || names);
   return under ? (t.imp_und_revealed || '') : (t.imp_revealed || '');
+}
+
+/** «صوتك بيتحسب» (501): after a vote caught the spy, who scored - only those who voted for a spy. */
+function imposterPointsLine(state, t) {
+  const s = state.shared || {};
+  if (s.outcome !== 'caught' || !s.vote || !Array.isArray(s.pointIds)) return '';
+  const names = s.pointIds.map(id => (state.players.find(p => p.id === id) || {}).name).filter(Boolean);
+  if (!names.length) return '';
+  return `<p class="sheet__subtitle">✅ ${escapeHTML((t.imp_points_to || '').replace('{names}', names.join(appState.lang === 'ar' ? '، ' : ', ')))}</p>`;
 }
 
 /** Counts up from the shared start time, so every phone shows the same number. */
@@ -322,7 +385,7 @@ function renderImposterResult(el, state, t) {
     const bars = roomSpyVoteBars(state, s.spyIds || [], 'phone');
     const cover = spyRevealParts(revealKey,
                                  undercover ? (spies.length > 1 ? t.reveal_und_were : t.reveal_und_was) : (spies.length > 1 ? t.reveal_spies_were : t.reveal_spy_was), bars.ms);
-    const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, spyCastVerdict(s.outcome), { kind: 'spy', loud: spyCastLoud(state), after: cover.at }) : '';
+    const cast = typeof spyCastHtml === 'function' ? spyCastHtml(revealKey, spyCastVerdict(s.outcome === 'claimed' ? 'stole' : s.outcome), { kind: 'spy', loud: spyCastLoud(state), after: cover.at }) : '';
     return `${bars.html}${cast}
     <div class="card ${won ? 'card--accent' : ''} ${cover.cls}" ${cover.attrs} style="text-align:center; --cover-at:${cover.at}ms">${cover.cover}
       <div class="metric metric--md ${won ? 'tx-success' : (s.outcome === 'revealed' ? '' : 'tx-danger')}" style="margin-bottom: var(--sp-3)">${won ? '🎉' : (undercover ? '🎭' : '🕵️')} ${escapeHTML(imposterOutcomeLine(s, t))}</div>
@@ -335,6 +398,7 @@ function renderImposterResult(el, state, t) {
         <div class="eyebrow">${t.secret_word || 'الكلمة السرية'}</div>
         <div class="metric metric--md metric--accent">${escapeHTML(s.secretWord || '')}</div>`}
       ${s.accusedName ? `<p class="sheet__subtitle">${escapeHTML(t.cham_accused || '')}: ${escapeHTML(s.accusedName)}${s.guess ? ` · ${escapeHTML(t.spy_guess_was || '')}: ${escapeHTML(s.guess)}` : ''}</p>` : ''}
+      ${imposterPointsLine(state, t)}
     </div>
     ${renderScoreboard(s.board)}
     ${state.youAreHost

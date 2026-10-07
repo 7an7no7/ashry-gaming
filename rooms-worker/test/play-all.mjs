@@ -2386,6 +2386,22 @@ async function coreSeg() {
     'a wrong guess: the players score and the word is shown');
   await A.must('restart');
   await all(bots, (s) => s.phase === 'lobby' && s.shared.scores && s.shared.scores[players[0].pid] === 1, 'restart keeps the scores');
+  // «مين يسأل مين؟» and «أنا الجاسوس» (the owner's picks of 7 Oct 2026).
+  await A.must('start', { category: 'حيوانات', spies: 1, director: true });
+  await all(bots, (s) => s.phase === 'reveal' && s.you, 'imposter dealt with the ask director');
+  await A.must('beginDiscussion');
+  await all(bots, (s) => s.phase === 'discuss' && s.shared.dir && s.shared.dir.turn === 1 && s.shared.dir.askerId !== s.shared.dir.targetId, 'every phone shows who asks whom');
+  const askerBot = byId(bots, A.state.shared.dir.askerId);
+  await askerBot.must('dirNext', { turn: 1 });
+  await all(bots, (s) => s.shared.dir && s.shared.dir.turn === 2, 'the asker moves to the next pair');
+  const impClaimer = bots.find((b) => b.state.you && b.state.you.role === 'spy');
+  const impClaimWord = bots.find((b) => b.state.you && b.state.you.role === 'player').state.you.word;
+  await impClaimer.must('spyClaim');
+  await all(bots, (s) => s.phase === 'guess' && s.shared.claim && s.shared.guesserId === impClaimer.pid && s.shared.options.indexOf(impClaimWord) !== -1, '«أنا الجاسوس» stops the discussion: the spy picks from six');
+  const impClaimBefore = A.state.shared.scores[impClaimer.pid] || 0;
+  await impClaimer.must('guess', { word: impClaimWord });
+  await all(bots, (s) => s.phase === 'result' && s.shared.outcome === 'claimed' && s.shared.scores[impClaimer.pid] === impClaimBefore + 3, 'the right word is 3 points to the spy');
+  await A.must('restart');
   await A.must('backToHub');
 
   /* --- كلمة واحدة ----------------------------------------------------------- */
@@ -2751,6 +2767,34 @@ async function coreSeg() {
     'a wrong guess: the players score and the word is revealed');
   await A.must('nextRound', { lang: 'ar' });
   await all(bots, (s) => s.shared.phase === 'clues' && s.shared.round === 2, 'next round deals again');
+  // «الإعادة» on a tie and «مين فضحها؟» (the owner's picks of 7 Oct 2026).
+  const cham2 = bots.find((b) => b.state.you && b.state.you.role === 'chameleon');
+  const [ta, tb, tc] = bots.filter((b) => b !== cham2);
+  await A.must('startVote');
+  await all(bots, (s) => s.shared.phase === 'voting', 'round 2: the vote is open');
+  await cham2.must('vote', { option: ta.pid });
+  await ta.must('vote', { option: tb.pid });
+  await tb.must('vote', { option: ta.pid });
+  await tc.must('vote', { option: tb.pid });
+  await all(bots, (s) => s.shared.phase === 'tiebreak' && (s.shared.tied || []).length === 2, 'a tie goes to the replay');
+  await A.must('revote');
+  await all(bots, (s) => s.shared.phase === 'voting' && s.shared.revote && s.shared.vote.options.length === 2, 'the replay is between the tied only');
+  for (const b of bots) await b.must('vote', { option: b === ta ? tb.pid : ta.pid });
+  await all(bots, (s) => s.shared.phase === 'results' && s.shared.outcome === 'escaped', 'an innocent named in the replay: the chameleon escapes');
+  await A.must('nextRound', { lang: 'ar' });
+  await all(bots, (s) => s.shared.phase === 'clues' && s.shared.round === 3, 'round 3 dealt');
+  const cham3 = bots.find((b) => b.state.you && b.state.you.role === 'chameleon');
+  const rest3 = bots.filter((b) => b !== cham3);
+  const secret3 = rest3[0].state.you.secret;
+  await A.must('startVote');
+  await all(bots, (s) => s.shared.phase === 'voting', 'round 3: the vote is open');
+  for (const b of bots) await b.must('vote', { option: b === cham3 ? rest3[0].pid : cham3.pid });
+  await all(bots, (s) => s.shared.phase === 'guess', 'round 3: the chameleon is caught');
+  await cham3.must('guess', { index: secret3 });
+  await all(bots, (s) => s.shared.phase === 'results' && s.shared.outcome === 'stole' && s.shared.blamePending, 'a stolen word asks who gave it away');
+  const blamedWas = A.state.shared.scores[rest3[1].pid] || 0;
+  await cham3.must('blame', { id: rest3[1].pid });
+  await all(bots, (s) => s.shared.blamedId === rest3[1].pid && s.shared.scores[rest3[1].pid] === blamedWas - 1, 'the one named loses a point');
   await A.must('backToHub');
 
   /* --- الموقع السري --------------------------------------------------------- */

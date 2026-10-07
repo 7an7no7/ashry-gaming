@@ -320,11 +320,11 @@ const PROBES = {
   },
   chameleon(room) {
     const s = room.shared || {};
-    const open = s.phase === 'clues' || s.phase === 'voting' || s.phase === 'guess';
+    const open = s.phase === 'clues' || s.phase === 'voting' || s.phase === 'tiebreak' || s.phase === 'guess';
     return [
       probe('the word stays hidden until the result', open, (view) => (hasKey(view.shared, 'secretWord') ? 'shared.secretWord' : null)),
       probe('the chameleon is told nothing', open, (view, pid) => (pid === room._chamId && view.you && 'secret' in view.you ? 'you.secret' : null)),
-      probe('who the chameleon is stays hidden until the vote', s.phase === 'clues' || s.phase === 'voting', (view) =>
+      probe('who the chameleon is stays hidden until the vote', s.phase === 'clues' || s.phase === 'voting' || s.phase === 'tiebreak', (view) =>
         (hasKey(view.shared, 'chameleonId') ? 'shared.chameleonId' : null))
     ];
   },
@@ -1531,6 +1531,14 @@ const DRIVERS = {
     const wrong = S(T).options.find((w) => w !== T.room._impSecret);
     must(T, spy, 'guess', { word: wrong });
     must(T, T.host, 'restart');
+    // «مين يسأل مين؟» and «أنا الجاسوس» (7 Oct 2026): the pair walked, then the spy owns up and misses.
+    must(T, T.host, 'start', { category: 'حيوانات', spies: 1, director: true });
+    must(T, T.host, 'beginDiscussion');
+    must(T, S(T).dir.askerId, 'dirNext', { turn: S(T).dir.turn });
+    const spy2 = T.room._impSpies[0];
+    must(T, spy2, 'spyClaim');
+    must(T, spy2, 'guess', { word: S(T).options.find((w) => w !== T.room._impSecret) });
+    must(T, T.host, 'restart');
     must(T, T.host, 'start', { undercover: true, spies: 1 });
     must(T, T.host, 'beginDiscussion');
     must(T, T.host, 'startVote');
@@ -1667,7 +1675,24 @@ const DRIVERS = {
     for (const id of T.ids) must(T, id, 'vote', { option: id === cham ? T.ids.find((x) => x !== cham) : cham });
     const secretIdx = S(T).words.indexOf(T.room._chamSecret);
     if (S(T).phase === 'guess') must(T, cham, 'guess', { index: (secretIdx + 1) % 16 });
-    return S(T).phase === 'results';
+    // «الإعادة»: a tie between two innocents, the replay between them only; then a stolen
+    // word and «مين فضحها؟» (7 Oct 2026).
+    must(T, T.host, 'nextRound', { lang: 'ar' });
+    must(T, T.host, 'startVote');
+    const ch2 = T.room._chamId;
+    const [a, b, c] = T.ids.filter((x) => x !== ch2);
+    const first = { [ch2]: a, [a]: b, [b]: a, [c]: b };
+    for (const id of T.ids) must(T, id, 'vote', { option: first[id] });
+    if (S(T).phase !== 'tiebreak') return false;
+    must(T, T.host, 'revote');
+    for (const id of T.ids) must(T, id, 'vote', { option: id === a ? b : a });
+    must(T, T.host, 'nextRound', { lang: 'ar' });
+    must(T, T.host, 'startVote');
+    const ch3 = T.room._chamId;
+    for (const id of T.ids) must(T, id, 'vote', { option: id === ch3 ? T.ids.find((x) => x !== ch3) : ch3 });
+    must(T, ch3, 'guess', { index: T.room._chamSecret });
+    must(T, ch3, 'blame', { id: T.ids.find((x) => x !== ch3) });
+    return S(T).phase === 'results' && S(T).blamedId;
   },
   spyfall() {
     const T = table('spyfall', 4);

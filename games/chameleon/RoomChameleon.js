@@ -22,7 +22,9 @@ const chameleonRoomAction = (room, playerId, action, payload) => {
     const entry = family && family.length >= CHAMELEON_GRID
       ? { category: room._pack.pack.title, words: shuffled(family).slice(0, CHAMELEON_GRID) }
       : nextPrompt(room, pool, 'cham_' + lang);
-    const words = entry.words.slice(0, CHAMELEON_GRID);
+    // Shuffled at every deal (the owner's pick 511, 7 Oct 2026): a board that comes back
+    // is not the same grid, so «the third one in the top row» is never remembered.
+    const words = shuffled(entry.words.slice(0, CHAMELEON_GRID));
     const secret = Math.floor(Math.random() * words.length);
     const roster = room.players.map(p => p.id);
     const cham = roster[Math.floor(Math.random() * roster.length)];
@@ -68,6 +70,40 @@ const chameleonRoomAction = (room, playerId, action, payload) => {
     if (closeVote(room)) resolveChameleonVote(room);
     return;
   }
+  if (action === 'revote') {
+    // «الإعادة» (the owner's pick 512): the tied have each said one more word; the table
+    // votes again between them only. Whoever of them has left is off the ballot.
+    requireMoveOn(room, playerId);
+    if (s.phase !== 'tiebreak') return;
+    const tied = (s.tied || []).filter(id => room.players.some(p => p.id === id));
+    s.revote = true;
+    if (tied.length < 2) {
+      if (tied.length === 1) chameleonAccuse(room, tied[0]);
+      else finishChameleon(room, 'escaped', null);
+      return;
+    }
+    openVote(room, tied.map(id => ({ id: id, label: roomPlayerName(room, id), ownerId: id })), s.roster);
+    s.phase = 'voting';
+    return;
+  }
+  if (action === 'blame') {
+    // «مين فضحها؟» (the owner's pick 513): the chameleon who guessed right names whose clue
+    // gave the word away (-1 and «فضحتها» on the board for the round), or nobody (id '').
+    // Anyone who may move the round on can only pass it as nobody.
+    if (s.phase !== 'results' || !s.blamePending) return;
+    const id = String((payload && payload.id) || '');
+    if (playerId !== room._chamId) {
+      requireMoveOn(room, playerId);
+      if (id) throw new Error('الحرباء بس تختار');
+    }
+    if (id && (id === room._chamId || (s.roster || []).indexOf(id) === -1 || !room.players.some(p => p.id === id))) throw new Error('اختيار غير صحيح');
+    s.blamePending = false;
+    s.blamedId = id || null;
+    s.blamedName = id ? roomPlayerName(room, id) : '';
+    if (id) addScore(room, id, -1);
+    s.board = scoreboardOf(room);
+    return;
+  }
   if (action === 'guess') {
     if (s.phase !== 'guess') throw new Error('ليس وقت التخمين');
     if (playerId !== room._chamId) throw new Error('الحرباء فقط تخمّن');
@@ -90,16 +126,31 @@ const roomPlayerName = (room, id) => {
   return p ? p.name : '';
 };
 
-/** Most votes is accused; a tie lets the chameleon slip away. */
+/**
+ * Most votes is accused. A first tie goes to «الإعادة» (512): the tied each say one more
+ * word and the table votes again between them only; a second tie lets the chameleon slip away.
+ */
 const resolveChameleonVote = (room) => {
   const s = room.shared;
   const results = s.vote.results || [];
   const top = results.reduce((m, r) => Math.max(m, r.count), 0);
   const leaders = results.filter(r => top > 0 && r.count === top);
-  const accused = leaders.length === 1 ? leaders[0] : null;
-  s.accusedId = accused ? accused.id : null;
-  s.accusedName = accused ? accused.label : '';
-  if (accused && accused.id === room._chamId) {
+  if (leaders.length > 1 && !s.revote) {
+    s.tied = leaders.map(r => r.id);
+    s.accusedId = null;
+    s.accusedName = '';
+    s.phase = 'tiebreak';
+    return;
+  }
+  chameleonAccuse(room, leaders.length === 1 ? leaders[0].id : null);
+};
+
+/** The table has named one (or nobody): a caught chameleon guesses, anyone else lets it escape. */
+const chameleonAccuse = (room, accusedId) => {
+  const s = room.shared;
+  s.accusedId = accusedId || null;
+  s.accusedName = accusedId ? roomPlayerName(room, accusedId) : '';
+  if (accusedId && accusedId === room._chamId) {
     s.chameleonId = room._chamId;
     s.chameleonName = roomPlayerName(room, room._chamId);
     s.phase = 'guess';
@@ -123,6 +174,10 @@ const finishChameleon = (room, outcome, guessIndex) => {
   } else if (outcome !== 'revealed') {
     addScore(room, cham, 2);
   }
+  // «مين فضحها؟» (513): a stolen word waits for the chameleon to name who gave it away.
+  s.blamePending = outcome === 'stole' && (s.roster || []).some(id => id !== cham && room.players.some(p => p.id === id));
+  s.blamedId = null;
+  s.blamedName = '';
   s.board = scoreboardOf(room);
   s.phase = 'results';
 };

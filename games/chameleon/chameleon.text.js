@@ -21,6 +21,17 @@ gameText({
       cham_coord_word: "الإحداثيات والكلمة السرية",
       cham_random_cat: "فئة عشوائية",
       cham_wins: "الحرباء كسبت!",
+      cham_tie_title: "تعادل! الإعادة",
+      cham_tie_hint: "كل واحد من دول يقول كلمة كمان، وبعدين تصوّتوا تاني بينهم بس. تعادل تاني = الحرباء تهرب.",
+      cham_revote: "صوّتوا تاني",
+      cham_revote_title: "الإعادة: صوّتوا بين المتعادلين بس",
+      cham_blame_title: "مين فضحها؟",
+      cham_blame_hint: "الحرباء تختار مين كلمته فضحت الكلمة السرية: ينقص نقطة.",
+      cham_blame_nobody: "محدش",
+      cham_blame_waiting: "الحرباء بتختار مين فضح الكلمة…",
+      cham_blamed: "{name} فضحتها: نقطة أقل",
+      cham_blamed_none: "محدش فضحها",
+      cham_blamed_badge: "فضحتها",
     },
     en: {
       cham_room_hint: "Everyone sees the same 16 words. Each phone marks the secret one, except the chameleon's. Give a clue each in turn, then the host opens the vote.",
@@ -40,6 +51,17 @@ gameText({
       cham_coord_word: "Coordinates and secret word",
       cham_random_cat: "Random category",
       cham_wins: "The chameleon wins!",
+      cham_tie_title: "A tie! The replay",
+      cham_tie_hint: "Each of these says one more word, then vote again between them only. Another tie and the chameleon gets away.",
+      cham_revote: "Vote again",
+      cham_revote_title: "The replay: vote between the tied only",
+      cham_blame_title: "Who gave it away?",
+      cham_blame_hint: "The chameleon names whose clue gave the secret word away: they lose a point.",
+      cham_blame_nobody: "Nobody",
+      cham_blame_waiting: "The chameleon is naming who gave the word away…",
+      cham_blamed: "{name} gave it away: a point less",
+      cham_blamed_none: "Nobody gave it away",
+      cham_blamed_badge: "gave it away",
     }
   },
   rules: {
@@ -52,12 +74,15 @@ gameText({
                 <li>الحرباء بتحاول تقول كلمة عامة تقنعكم إنها عارفة.</li>
                 <li>صوّتوا على الحرباء. لو مسكتوها، عندها فرصة أخيرة تخمّن الكلمة من اللوحة: لو صابت، هي اللي تكسب.</li>
                 <li>لو اتهمتوا الغلط، الحرباء تكسب.</li>
+                <li><b>مين فضحها؟</b> لو الحرباء خمّنت الكلمة صح، تختار مين كلمته فضحتها: ينقص نقطة ويتكتب جنبه «فضحتها» الجولة دي، أو تختار «محدش».</li>
+                <li>اللوحة بتتلخبط كل جولة، فنفس الموضوع مش بيرجع بنفس الترتيب.</li>
                 <li><b>العب تاني</b> يوزّع من جديد لنفس اللاعبين ويكمّل النقط: مسكتوها وغلطت = نقطة لكل واحد، هربت أو خمّنت = نقطتين للحرباء.</li>
             </ol>
             <p class="help-sub">📱 على موبايلات منفصلة</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>اللوحة على كل موبايل وعلى التلفزيون، وكل واحد يشوف كلمته السرية معلّمة على موبايله. المضيف يفتح التصويت، والحرباء تخمّن بالضغط على الكلمة.</li>
                 <li>النقاط: مسكتوا الحرباء وغلطت = نقطة لكل واحد. هربت أو خمّنت صح = نقطتين للحرباء.</li>
+                <li><b>الإعادة</b>: لو التصويت اتعادل، كل واحد من المتعادلين يقول كلمة كمان وتصوّتوا تاني بينهم بس. تعادل تاني = الحرباء تهرب.</li>
             </ul>`,
     },
     en: {
@@ -69,12 +94,15 @@ gameText({
                 <li>The chameleon tries to say something vague enough to pass as knowing.</li>
                 <li>Vote on the chameleon. If caught, they get one last guess at the word from the board: right, and they win.</li>
                 <li>Accuse the wrong person and the chameleon wins.</li>
+                <li><b>Who gave it away?</b> If the chameleon guesses the word, they name whose clue gave it away: that player loses a point and wears "gave it away" this round. Or they pick "Nobody".</li>
+                <li>The board is shuffled every round, so a topic never comes back in the same order.</li>
                 <li><b>Play again</b> deals again to the same table and keeps score: caught and wrong = a point each, escaped or guessed = two for the chameleon.</li>
             </ol>
             <p class="help-sub">📱 On separate phones</p>
             <ul class="list-disc list-inside space-y-1 text-xs">
                 <li>The board on every phone and the TV, each player's secret word marked on their own phone. The host opens the vote; the chameleon guesses by tapping a word.</li>
                 <li>Points: catch the chameleon and they guess wrong = a point each. They escape or guess right = two points for the chameleon.</li>
+                <li><b>The replay</b>: if the vote ties, each of the tied says one more word and you vote again between them only. Another tie and the chameleon gets away.</li>
             </ul>`,
     }
   }

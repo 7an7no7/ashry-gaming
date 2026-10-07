@@ -435,7 +435,43 @@ body.dark .mines-cell.is-open { background: var(--surface-sunken); }
   color: var(--text-strong);
   font-weight: 800;
 }
-.strands-word i { display: inline-block; width: 0.6rem; height: 2px; border-radius: 1px; background: var(--text-3); }
+/* A slot is a box a letter (1170, 7 Oct 2026), two slots a row under the grid on a
+   phone and beside it on a laptop; «الخيط الملوّن» takes a row of its own. */
+.strands-words { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.strands-word { justify-content: center; flex-wrap: wrap; min-width: 0; padding: var(--sp-1) var(--sp-2); overflow-wrap: anywhere; text-align: center; }
+.strands-word--span { grid-column: 1 / -1; }
+.strands-word__boxes { display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
+.strands-word__boxes i {
+  display: inline-grid; place-items: center;
+  width: 0.9rem; height: 1.1rem; border-radius: 3px;
+  box-shadow: inset 0 0 0 1.5px var(--text-3);
+  font-style: normal; font-size: 0.7rem; line-height: 1;
+}
+.strands-word__boxes i.is-hint { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent-ink); }
+/* The line under the finger (1169): a rounded band under the letters it crosses. */
+.strands-grid { position: relative; }
+.strands-cell { position: relative; z-index: 1; }
+.strands-band {
+  position: absolute; left: 0; top: 0; z-index: 0;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 45%, transparent);
+  pointer-events: none;
+  opacity: 0;
+}
+.strands-grid.has-band .strands-band { opacity: 1; }
+.strands-grid.has-band .strands-cell.is-tracing { background: transparent; box-shadow: none; transform: none; }
+.strands-bubble {
+  position: fixed; z-index: var(--z-float-hi);
+  transform: translate(-50%, -100%);
+  max-width: calc(100vw - 2rem);
+  padding: var(--sp-1) var(--sp-4);
+  border-radius: var(--r-full);
+  background: var(--accent); color: var(--accent-on);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  font-size: 1.5rem; font-weight: 900; line-height: 1.3; white-space: nowrap;
+  pointer-events: none;
+}
 .strands-word.is-found { background: var(--success-soft); color: var(--success-ink); }
 .strands-word.motion-waiting { visibility: hidden; }
 .strands-word.motion-landed { animation: solo-land 320ms var(--ease-out); }
@@ -502,15 +538,34 @@ body.dark .mines-cell.is-open { background: var(--surface-sunken); }
 .wheel-turn { margin: var(--sp-2) 0 0; font-weight: 800; text-align: center; }
 .wheel-turn.is-p0, .wheel-duo-line.is-p0 { color: var(--team-red-ink); }
 .wheel-turn.is-p1, .wheel-duo-line.is-p1 { color: var(--team-blue-ink); }
+/* The word being made (1175, 7 Oct 2026): big and centred where the eye is; a
+   refused word stays a moment in red and shakes (wheelRefuse), one that counts
+   flies into its cells or the ⭐ (wheelFlyWord, .wheel-fly). */
 .wheel-typed {
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   margin: var(--sp-2) 0;
   color: var(--text-strong);
-  font-size: 1.6rem;
-  font-weight: 800;
-  line-height: 2.5rem;
+  font-size: 2.1rem;
+  font-weight: 900;
+  line-height: 2.75rem;
   text-align: center;
+  white-space: nowrap;
 }
+.wheel-typed.is-wrong { color: var(--danger-ink); }
+.wheel-fly {
+  position: fixed; z-index: var(--z-float-hi);
+  color: var(--accent-ink);
+  font-size: 2.1rem; font-weight: 900; line-height: 1; white-space: nowrap;
+  pointer-events: none;
+}
+/* «خروج» as a quiet 🚪 at the end of the tools row (1174): upright, the whole
+   play screen fits without the bar under it. */
+.sdk-tools.wheel-tools .btn { flex: 1 1 0; }
+.sdk-tools.wheel-tools .btn.wheel-exit { flex: 0 0 auto; min-width: var(--tap); }
+/* The bonus words on the result (1176). */
+.wheel-bonus-list { display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--sp-1); }
+.wheel-bonus-word { padding: 0.1rem var(--sp-2); border-radius: var(--r-full); background: var(--surface-2); color: var(--text-strong); font-weight: 800; }
+.wheel-bonus-list.is-got .wheel-bonus-word { background: var(--warning-soft); color: var(--warning-ink); }
 .wheel-ring {
   position: relative;
   /* A short phone (an iPhone with Safari's bars) gives the ring less, so ✓
@@ -546,9 +601,6 @@ body.dark .mines-cell.is-open { background: var(--surface-sunken); }
   cursor: pointer;
 }
 .wheel-letter.is-on { background: var(--accent); color: var(--accent-on); }
-/* Upright, the sticky «خروج» bar sat over ✓, the hint and ⌫ whenever the
-   crossword made the page scroll; the exit follows the tools instead. */
-#view-play-wordwheel .view-actions { position: static; }
 /* Upright on a phone, the crossword and the ring share what the screen has left
    after the header, the bar, the stats, the word being made and the tools
    (--ww-room, about 22rem of fixed parts): at 375x812 a 7-row crossword put ⌫,
@@ -587,6 +639,18 @@ body.dark .mines-cell.is-open { background: var(--surface-sunken); }
 @keyframes pin-flip { from { transform: rotateX(-90deg); opacity: 0; } to { transform: none; opacity: 1; } }
 .pin-ask { margin-bottom: var(--sp-2); color: var(--text-strong); font-weight: 800; text-align: center; }
 .pin-ghost { position: fixed; z-index: var(--z-float-hi); color: var(--success-ink); font-size: 1.6rem; font-weight: 900; pointer-events: none; }
+/* What the round is worth now, as five dots (1163); the one a new word costs empties with a puff. */
+.pin-pips { display: inline-flex; align-items: center; gap: 0.2rem; direction: ltr; vertical-align: middle; }
+.pin-pip { position: relative; width: 0.6rem; height: 0.6rem; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--border-strong); }
+.pin-pip.is-on { background: var(--accent); box-shadow: none; }
+.pin-pips.is-over .pin-pip.is-on { background: var(--success-btn); }
+.pin-pip.is-just::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--accent);
+  opacity: 0; animation: pin-pip-out 560ms var(--ease-out) both;
+}
+@keyframes pin-pip-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(0.7rem) scale(0.4); } }
+/* A wrong pick tumbling out of the choices (pinDropChoice): a copy, over the page. */
+.solo-choice.pin-fall { position: fixed; z-index: var(--z-float-hi); margin: 0; pointer-events: none; }
 
 /* --- Quiz streak --- */
 .streak-card {
@@ -1382,8 +1446,9 @@ button.herd-group { cursor: pointer; }
   .solo-layout__side:has(.wheel-ring) > .solo-bar { grid-area: bar; }
   .solo-layout__side .wheel-ring { grid-area: ring; width: min(calc(var(--app-h, 100vh) - 14rem), 10rem); margin: 0; }
   .solo-layout__side .wheel-letter { width: 2.4rem; height: 2.4rem; font-size: 1.1rem; }
-  .solo-layout__side .wheel-typed { grid-area: typed; align-self: end; margin: 0; min-height: 1.9rem; line-height: 1.9rem; font-size: 1.25rem; }
+  .solo-layout__side .wheel-typed { grid-area: typed; align-self: end; margin: 0; min-height: 1.9rem; line-height: 1.9rem; font-size: 1.5rem; }
   .solo-layout__side .wheel-tools { grid-area: tools; align-self: start; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: var(--sp-2); }
+  .solo-layout__side .wheel-tools .wheel-exit { grid-column: 1 / -1; justify-self: center; }
   .pin-clue { min-height: 2.25rem; }
   .pin-clues { gap: 5px; }
   .strands-theme { gap: var(--sp-2); margin-bottom: var(--sp-2); }
@@ -1400,6 +1465,14 @@ button.herd-group { cursor: pointer; }
   .solo-choice { min-height: 2.6rem; padding: var(--sp-1) var(--sp-2); font-size: var(--fs-sm); }
   .solo-choices:has(> :nth-child(5)) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .solo-choices { margin-bottom: var(--sp-2); }
+  /* إيه اللي يجمعهم؟ on its side (1164): the words on one side, the six choices
+     two by three on the other (the narrower list is Style_Arcade's), tighter, and
+     the question line left out (the header names the game), so nothing scrolls. */
+  #pinpoint-stage .solo-choices { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  #pinpoint-stage .solo-choice { min-height: 2.3rem; line-height: 1.15; }
+  #pinpoint-stage .solo-choice__icon { font-size: 1rem; }
+  #pinpoint-stage .pin-ask { display: none; }
+  #pinpoint-stage .pin-clue { min-height: 2.1rem; }
   .flags-target { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-2); }
   .flags-target__flag { font-size: 2.4rem; }
   .flags-row { min-height: 2rem; }
@@ -1411,6 +1484,7 @@ button.herd-group { cursor: pointer; }
   .g2048-tile { transition: none; }
   .g2048-tile.is-new, .g2048-tile.is-merged { animation: none; }
   .pin-clue.is-new, .streak-card.is-new, .strands-word.motion-landed { animation: none; }
+  .pin-pip.is-just::after { animation: none; opacity: 0; }
   .streak-timer { display: none; }
   .flags-row.is-new, .flags-row.is-new .flags-row__fill, .flags-row.is-new .flags-row__arrow, .daily-bar i.is-new { animation: none; }
 }

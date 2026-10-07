@@ -41,7 +41,7 @@ const svT = (key, vars) => {
 
 // sinceKey / since: how long the setter has been up (the host's skip); draft: a خمن الكلمة row being typed;
 // pick: the country a setter picked; seen: what this phone last drew of its own board (the motion).
-const svRoom = { clock: null, clockKey: null, sinceKey: '', since: 0, draft: { key: '', text: '' }, pick: { key: '', code: '' }, emojiKind: 'film', seen: {}, scoreKey: '', myScore: 0, liveHtml: {} };
+const svRoom = { clock: null, clockKey: null, sinceKey: '', since: 0, draft: { key: '', text: '' }, pick: { key: '', code: '' }, emojiKind: 'film', seen: {}, scoreKey: '', myScore: 0, liveHtml: {}, unsure: '' };
 
 const SV_ICONS = { wordle: '🟩', guessnum: '🔢', flags: '🌍', emoji: '🤔' };
 
@@ -227,6 +227,15 @@ function svWordleKey(key) {
     }
     const text = d.text;
     if (svTriedBefore(r => r.w === svWordleFold(text), row)) return;
+    // The soft dictionary (1102): a word no list knows shakes once; the same word again goes.
+    if (svRoom.unsure !== d.key + '|' + text && !svWordleKnown(text, s.pub.alpha)) {
+      svRoom.unsure = d.key + '|' + text;
+      if (row && !motionOff()) { row.classList.remove('animate-shake'); void row.offsetWidth; row.classList.add('animate-shake'); setTimeout(() => row.classList.remove('animate-shake'), 600); }
+      showToast(svT('wordle_not_in_dict'));
+      haptic('heavy');
+      return;
+    }
+    svRoom.unsure = '';
     d.text = '';
     haptic('light');
     svSend('guess', { text: text, round: svRound(s) }).then(ok => { if (!ok) { d.text = text; svWordlePaintDraft(); } });
@@ -349,9 +358,32 @@ function svWordleSet(form) {
   const text = input ? input.value : '';
   const p = svWordleProblem(text);
   if (p) { svFormError(form, svT(p === 'length' ? 'sv_wordle_bad_len' : 'sv_wordle_bad_letters')); return; }
+  // The soft dictionary (1102): a typo stops a round being unsolvable; «تمام» again sends it as written.
+  const w = svWordleFold(text);
+  if (svRoom.unsure !== 'set|' + w && !svWordleKnown(w, svWordleAlpha(w))) {
+    svRoom.unsure = 'set|' + w;
+    svFormError(form, svT('wordle_not_in_dict'));
+    return;
+  }
+  svRoom.unsure = '';
   svFormError(form, '');
   haptic('medium');
   svSend('setSecret', { word: text, round: svRound(s) }, form);
+}
+
+/**
+ * خمن الكلمة's soft dictionary on a room's phone (1102): the one-phone check
+ * (wordleKnownIn, JS_Wordle) once its chunk and the word wheel's banks are here;
+ * until then every word goes, and they are fetched in the background.
+ */
+function svWordleKnown(text, alpha) {
+  if (typeof wordleKnownIn !== 'function') {
+    if (typeof lzEnsure === 'function') lzEnsure(['wordle', 'wordwheel']).catch(() => {});
+    return true;
+  }
+  const lang = alpha === 'en' ? 'en' : 'ar';
+  if (!text) { wordleDictionary(lang); return true; }
+  return wordleKnownIn(text, lang, '');
 }
 
 function svNumSet(form) {
@@ -756,6 +788,7 @@ function svRender(kind, state) {
   const s = state.shared;
   if (!s || !s.solve) return;
   const you = state.you || {};
+  if (kind === 'wordle' && s.phase !== 'gameover') svWordleKnown('', 'ar');   // fetch the soft dictionary early (1102)
   let fx = {};
   const rebuilt = renderRoomFrame(el, svSig(state), () => {
     const head = `<div class="cn-score"><span class="cn-score__role">${SV_ICONS[kind]} ${escapeHTML(svT('sv_round', { n: s.round, m: s.rounds }))}</span>

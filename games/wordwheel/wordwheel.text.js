@@ -22,6 +22,8 @@ gameText({
       wheel_duo_won: "{name} كسب!",
       wheel_duo_draw: "تعادل!",
       wheel_duo_letters: "حرف",
+      wheel_bonus_got: "لقيت",
+      wheel_bonus_missed: "فاتتك",
     },
     en: {
       wheel_words: "Words",
@@ -42,6 +44,8 @@ gameText({
       wheel_duo_won: "{name} wins!",
       wheel_duo_draw: "A draw!",
       wheel_duo_letters: "letters",
+      wheel_bonus_got: "Found",
+      wheel_bonus_missed: "Missed",
     }
   },
   rules: {
@@ -50,7 +54,7 @@ gameText({
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>اسحب صباعك على الحروف اللي في الدايرة بالترتيب عشان تكوّن كلمة، أو المسهم واحد واحد واضغط <b>✓</b>.</li>
                 <li>كل كلمة من الكلمات المتقاطعة بتتملى لما تكتبها. خلّصهم كلهم وتكسب.</li>
-                <li>كلمة صح مش في الشبكة بتتحسب <b>⭐ كلمة زيادة</b>.</li>
+                <li>كلمة صح مش في الشبكة بتتحسب <b>⭐ كلمة زيادة</b>. في الآخر بتشوف الكلمات الزيادة اللي لقيتها، وشوية من اللي فاتوك.</li>
                 <li><b>🔀 لخبط</b> بيغيّر أماكن الحروف، و<b>💡 تلميح</b> بيفتح حرف في الشبكة (والوقت ساعتها مش بيدخل في أحسن نتيجة).</li>
                 <li><b>🏆 الكلمة الكبيرة</b>: الكلمة اللي فيها كل الحروف بتنوّر بالدهبي.</li>
             </ol>
@@ -74,7 +78,7 @@ gameText({
             <ol class="list-decimal list-inside space-y-1 text-xs">
                 <li>Swipe across the letters in the wheel in order to spell a word, or tap them one by one and press <b>✓</b>.</li>
                 <li>A word in the crossword fills in as soon as you make it. Fill them all to win.</li>
-                <li>A real word that isn't in the grid counts as a <b>⭐ bonus word</b>.</li>
+                <li>A real word that isn't in the grid counts as a <b>⭐ bonus word</b>. At the end you see the bonus words you found, and a few you missed.</li>
                 <li><b>🔀 Shuffle</b> moves the letters around, and <b>💡 Hint</b> opens a letter in the grid (the time then doesn't count for your best).</li>
                 <li><b>🏆 The big word</b>: the word with all the letters lights up in gold.</li>
             </ol>

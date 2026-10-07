@@ -24,6 +24,10 @@
    passes the turn (a word already found doesn't), a grid word fills in in its
    finder's colour and scores its letters, and most letters wins once the grid
    is full. s.playWay 'duo' and s.duo = { names, cur, pts, owner: { wi: p } }.
+   Third batch: (1174) «خروج» is a 🚪 in the tools row, so the screen fits
+   upright; (1175) the word being made is big and centred, flies into its
+   cells or the ⭐ (wheelFlyWord) and shakes red when refused (wheelRefuse);
+   (1176) the result lists the bonus words found and a few missed.
    ========================================================================= */
 
 let wheelDrag = null;
@@ -199,12 +203,10 @@ function paintWordWheel() {
           <button type="button" class="btn btn--neutral btn--sm" onclick="shuffleWordWheel()">🔀 ${escapeHTML(t.wheel_shuffle || '')}</button>
           ${s.race || s.duo ? '' : `<button type="button" class="btn btn--neutral btn--sm" onclick="hintWordWheel()">💡 ${escapeHTML(t.solo_hint || '')}</button>`}
           <button type="button" class="btn btn--primary btn--sm" onclick="wheelSubmit()" aria-label="${escapeHTML(t.wheel_submit || '')}" title="${escapeHTML(t.wheel_submit || '')}" ${s.typed.length >= 2 ? '' : 'disabled'}>✓</button>
+          ${s.race ? '' : `<button type="button" class="btn btn--ghost btn--sm wheel-exit" onclick="${s.phase === 'play' ? 'playExit(setupWordWheel)' : 'setupWordWheel()'}" aria-label="${escapeHTML(t.exit || '')}" title="${escapeHTML(t.exit || '')}">🚪</button>`}
         </div>
       </div>
-    </div>
-    ${s.race ? '' : `<div class="view-actions play-foot">
-      <button class="btn btn--ghost btn--sm btn--auto play-exit" onclick="${s.phase === 'play' ? 'playExit(setupWordWheel)' : 'setupWordWheel()'}">${escapeHTML(t.exit || '')}</button>
-    </div>`}`;
+    </div>`;
   wheelBind();
   wheelDrawLine();
 }
@@ -255,7 +257,7 @@ function wheelBind() {
 function wheelRefreshTyped() {
   const s = wheelState();
   const typed = document.getElementById('wheel-typed');
-  if (typed) typed.textContent = s.typed.map(i => s.letters[i]).join('');
+  if (typed) { typed.classList.remove('is-wrong'); typed.textContent = s.typed.map(i => s.letters[i]).join(''); }
   document.querySelectorAll('#wheel-ring .wheel-letter').forEach(b => b.classList.toggle('is-on', s.typed.indexOf(Number(b.dataset.i)) !== -1));
   const submit = document.querySelector('.wheel-tools .btn--primary');
   if (submit) submit.disabled = s.typed.length < 2;
@@ -284,14 +286,14 @@ function wheelShake(id) {
   if (el && el.animate && !motionOff()) el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 260 });
 }
 
-/** A grid word's cells turn over one after another. */
-function wheelFlipWord(s, wi) {
+/** A grid word's cells turn over one after another (from `at` ms: the word's flight lands first). */
+function wheelFlipWord(s, wi, at) {
   if (motionOff()) return;
   const p = s.words[wi];
   for (let k = 0; k < wheelLen(p); k++) {
     const r = p.dir === 'a' ? p.r : p.r + k, c = p.dir === 'a' ? p.c + k : p.c;
     const cell = document.querySelector(`#wheel-grid [data-key="${wheelCellKey(r, c)}"]`);
-    if (cell && cell.animate) cell.animate([{ transform: 'rotateX(90deg)' }, { transform: 'none' }], { duration: 300, delay: k * 70, easing: 'ease-out', fill: 'backwards' });
+    if (cell && cell.animate) cell.animate([{ transform: 'rotateX(90deg)' }, { transform: 'none' }], { duration: 300, delay: (at || 0) + k * 70, easing: 'ease-out', fill: 'backwards' });
   }
 }
 
@@ -303,6 +305,7 @@ function wheelSubmit() {
   s.typed = [];
   // A race: the words are on the server, which judges the word (JS_RoomRace.html).
   if (s.race) {
+    s.lastWord = word;   // its flight or its shake comes with the server's answer (RACE_UI.wordwheel)
     saveToLocal(); paintWordWheel();
     // "Already found" is said once, for this word: the board's `last` stays 'again' through
     // everyone else's moves, so it is read here, after this phone's own answer, not in sync.
@@ -313,6 +316,9 @@ function wheelSubmit() {
     return;
   }
   const wi = s.words.findIndex(p => p.w === word);
+  // 1175: where the word was made, for its flight into its slot (or the ⭐).
+  const typedEl = document.getElementById('wheel-typed');
+  const from = typedEl && word ? typedEl.getBoundingClientRect() : null;
   // 1172: whoever's turn it is; every try passes it, except a word already found.
   const duo = s.duo;
   const who = duo ? duo.cur : -1;
@@ -327,7 +333,8 @@ function wheelSubmit() {
     playSound('success');
     haptic(big ? 'double' : 'light');
     paintWordWheel();
-    wheelFlipWord(s, wi);
+    const flown = wheelFlyWord(word, from, wheelWordCells(s, wi));
+    wheelFlipWord(s, wi, flown);
     if (duo) wheelDuoGain(who, pts, big);
     if (big) wheelBigMoment(s, wi);
     if (s.found.length === s.words.length) wheelFinish();
@@ -339,6 +346,9 @@ function wheelSubmit() {
     saveToLocal();
     playSound('click');
     paintWordWheel();
+    const star = document.getElementById('wheel-bonus');
+    const flown = wheelFlyWord(word, from, star ? [star] : []);
+    if (star) setTimeout(() => soloPop(star.closest('.solo-stat') || star, 1.2), flown);
     showToast(`⭐ ${t.wheel_bonus || ''}: ${word}`, 'success');
     return;
   }
@@ -347,8 +357,65 @@ function wheelSubmit() {
   saveToLocal();
   paintWordWheel();
   if (again) showToast(t.wheel_already || '', 'info');
-  wheelShake('wheel-typed');
+  wheelRefuse(word);
   wheelShake('wheel-ring');
+}
+
+/** The cells of a grid word, in its order. */
+function wheelWordCells(s, wi) {
+  const p = s.words[wi];
+  const out = [];
+  for (let k = 0; k < wheelLen(p); k++) {
+    const r = p.dir === 'a' ? p.r : p.r + k, c = p.dir === 'a' ? p.c + k : p.c;
+    const cell = document.querySelector(`#wheel-grid [data-key="${wheelCellKey(r, c)}"]`);
+    if (cell) out.push(cell);
+  }
+  return out;
+}
+
+/**
+ * 1175: a word that counts flies from where it was made into its place - the grid
+ * word's cells, or the ⭐ - shrinking as it goes. Returns how long the flight takes (0: none).
+ */
+function wheelFlyWord(word, from, targets) {
+  if (!from || !targets.length || motionOff() || !document.body.animate) return 0;
+  const box = targets.map(el => el.getBoundingClientRect()).reduce((a, r) => ({
+    l: Math.min(a.l, r.left), t: Math.min(a.t, r.top), r: Math.max(a.r, r.right), b: Math.max(a.b, r.bottom)
+  }), { l: Infinity, t: Infinity, r: -Infinity, b: -Infinity });
+  const ghost = document.createElement('div');
+  ghost.className = 'wheel-fly';
+  ghost.textContent = word;
+  ghost.dir = 'auto';
+  ghost.style.left = (from.left + from.width / 2) + 'px';
+  ghost.style.top = (from.top + from.height / 2) + 'px';
+  document.body.appendChild(ghost);
+  const dx = (box.l + box.r) / 2 - (from.left + from.width / 2);
+  const dy = (box.t + box.b) / 2 - (from.top + from.height / 2);
+  const ms = 420;
+  const a = ghost.animate([
+    { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+    { transform: 'translate(-50%, -50%) scale(1.12)', opacity: 1, offset: 0.15 },
+    { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.55)`, opacity: 0.15 }
+  ], { duration: ms, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'both' });
+  const done = () => { if (ghost.isConnected) ghost.remove(); };
+  a.onfinish = done;
+  setTimeout(done, ms + 600);
+  return ms - 80;
+}
+
+/** 1175: a refused word stays up a moment, red, and shakes where the eye is, then clears. */
+function wheelRefuse(word) {
+  const el = document.getElementById('wheel-typed');
+  if (!el || !word) return;
+  el.textContent = word;
+  el.classList.add('is-wrong');
+  wheelShake('wheel-typed');
+  setTimeout(() => {
+    const now = document.getElementById('wheel-typed');
+    if (now !== el || !el.classList.contains('is-wrong')) return;
+    el.classList.remove('is-wrong');
+    if (!wheelState().typed.length) el.textContent = '';
+  }, motionOff() ? 500 : 650);
 }
 
 /** 1171: the big word - a 🏆 toast, its gold cells pop after they turn over. */
@@ -428,14 +495,35 @@ function wheelFinish() {
     share = `${soloShareHeader(t, s.daily)}\n🔡 ${t.setup_wordwheel || ''} ✅ ${soloTime(seconds)}${s.bonusFound.length ? ' · ⭐ ' + s.bonusFound.length : ''}${s.hints ? ' · 💡 ' + s.hints : ''}`;
   }
   const lines = [`⭐ ${escapeHTML(t.wheel_bonus || '')}: ${s.bonusFound.length}/${s.bonus.length}`];
+  const words = wheelBonusLines(s, t);
   if (s.bigFound) lines.push(`🏆 ${escapeHTML(t.wheel_big_found || '')}`);
   if (s.hints) lines.push(`💡 ${escapeHTML(t.solo_hint || '')}: ${s.hints}`);
   if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${soloTime(rec.prev.seconds)}`);
+  // The words go under the count on the sheet, never on a share picture (they'd give the letters away).
+  const shareLines = lines.slice();
+  lines.splice(1, 0, ...words);
   soloLater('wordwheel', motionOff() ? 0 : 800, () => soloResult({
     icon: '🔡', title: rec.record ? (t.solo_new_best || '') : (t.solo_solved || ''),
-    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, win: true, share: share,
+    valueText: soloTime(seconds), valueLabel: t.solo_time || '', lines: lines, shareLines: shareLines, win: true, share: share,
     again: () => startWordWheel(false), exit: setupWordWheel
   }));
+}
+
+const WHEEL_MISSED_SHOWN = 6;
+
+/**
+ * 1176: the bonus words on the result - the ones found, and up to six missed (the
+ * longest first), so «⭐ 3/12» means something. Lines of the result sheet (HTML).
+ */
+function wheelBonusLines(s, t) {
+  const chips = (list) => list.map(w => `<bdi class="wheel-bonus-word">${escapeHTML(w)}</bdi>`).join('');
+  const missed = s.bonus.filter(w => s.bonusFound.indexOf(w) === -1)
+    .map((w, i) => ({ w, i })).sort((a, b) => b.w.length - a.w.length || a.i - b.i)
+    .slice(0, WHEEL_MISSED_SHOWN).map(x => x.w);
+  const out = [];
+  if (s.bonusFound.length) out.push(`<span class="wheel-bonus-list is-got"><span>${escapeHTML(t.wheel_bonus_got || '')}:</span> ${chips(s.bonusFound)}</span>`);
+  if (missed.length) out.push(`<span class="wheel-bonus-list"><span>${escapeHTML(t.wheel_bonus_missed || '')}:</span> ${chips(missed)}${s.bonus.length - s.bonusFound.length > missed.length ? ' …' : ''}</span>`);
+  return out;
 }
 
 /** 1172: «بالدور» ends with the grid full: most letters wins (no record; a draw can happen). */
@@ -483,10 +571,14 @@ RACE_UI.wordwheel = {
     fresh.forEach(f => { s.words[f.wi].w = f.w; s.found.push(f.wi); });
     const bonusFresh = (b.bonus || []).filter(w => s.bonusFound.indexOf(w) === -1);
     bonusFresh.forEach(w => s.bonusFound.push(w));
+    const typedEl = document.getElementById('wheel-typed');
+    const from = typedEl ? typedEl.getBoundingClientRect() : null;
     if (fresh.length || bonusFresh.length) paintWordWheel();
     if (fx && fx.first) return;
     if (fresh.length) {
-      playSound('success'); haptic('light'); fresh.forEach(f => wheelFlipWord(s, f.wi));
+      // 1175: the word this phone just made flies from where it was made into its cells.
+      playSound('success'); haptic('light');
+      fresh.forEach(f => wheelFlipWord(s, f.wi, f.w === s.lastWord ? wheelFlyWord(f.w, from, wheelWordCells(s, f.wi)) : 0));
       // 1171: the big word lights its 🏆 on the racer's phone too.
       const big = fresh.find(f => wheelIsBig(s, s.words[f.wi]));
       if (big) { s.bigFound = true; wheelBigMoment(s, big.wi); }
@@ -494,7 +586,7 @@ RACE_UI.wordwheel = {
     else if (bonusFresh.length) { playSound('click'); showToast(`⭐ ${t.wheel_bonus || ''}: ${bonusFresh[0]}`, 'success'); }
   },
   snapshot: (s) => s.found.length * 100 + s.bonusFound.length,
-  miss: () => { wheelShake('wheel-typed'); wheelShake('wheel-ring'); },
+  miss: () => { wheelRefuse(wheelState().lastWord || ''); wheelShake('wheel-ring'); },
   paint: () => paintWordWheel(),
   finished: () => 0,
   revealHtml: (r) => (r && r.words ? `<div class="strands-words">${r.words.map(w => `<span class="strands-word is-found">${escapeHTML(w)}</span>`).join('')}</div>` : '')

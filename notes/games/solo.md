@@ -590,6 +590,73 @@ the nonogram bubble), `tools/lazy-split.mjs` (the memory popup's two lines).
 - **(1172) كلمات من حروف «بالدور».** A «طريقة اللعب» switch on the setup (`#wordwheel-way` in Controller.html, `setWordWheelWay`, remembered as `way`, a `prefs` key): لوحدك / بالدور. Start asks two names through the players sheet (`wheelAskDuo` → `askPlayers(2, …, { max: 2 })`, prefilled with the first two in the round). `s.duo = { names, cur, pts, owner: { wi: player } }`. Every try passes the turn - a grid word, a ⭐ bonus word or a miss - except a word already found; a grid word is filled in in its finder's colour (`.is-p0` `--team-red`, `.is-p1` `--team-blue`; a crossing cell keeps the first finder's colour) and scores its letters, the big word double; the bar shows both names and scores, the one whose turn it is ringed, with «دور …» under it; the points count up (`wheelDuoGain`). No hint, no record, never the daily. The grid full: most letters wins, or a draw (`wheelDuoFinish`: 👑 or 🤝, both scores, «العب تاني» keeps the two names). Chosen: a bonus word scores nothing and passes the turn.
 - **(1178) خمّن الدولة «رحلتك».** After a win on one phone the map draws a dotted line from the first pin to the next and on to the gold one, a segment after another (`fmapHtml`'s `route`, `fmapRouteSvg`, `.fmap__route`, opacity only, from 1.4 s); a reload draws it still. «📤 شارك رحلتك» on the finished board (not in the daily or a past day: the picture would give the day's answer away) draws a share card of its own - the map's outlines (`Path2D` from `FMAP_LAND`), the numbered pins in their colours, the gold star, the dotted route, the guesses in order with their km (`fmapDrawRoute` in JS_FlagsMap.html, `flagsShareRoute` / `flagsDrawRouteCard` in JS_Flags.html) - through `shareResultCard`, which now takes `o.draw` (one line in `app/JS_ShareCard.html`). A first-try win has no line (one pin), and still shares.
 
+## The ideas of 7 Oct 2026, third batch (the owner's picks): built - part one
+
+The owner's answer to each: "build as described". Details marked *chosen* were left to the builder.
+(1102, خمن الكلمة's soft dictionary in rooms, is in `solve.md`.)
+
+- **(1111) تشابه: the mistakes as dots by «تأكيد».** The line «محاولات متبقية: ●●○○» above the
+  button is gone: «تأكيد» and four dots share one row (`.connect-submit`, `connectDotsHtml`; the
+  dots' aria label and title say «محاولات متبقية: n»). A lost dot is an empty ring; on a miss its
+  filled self falls out of it (`connectDropDot`, called from `connectMiss`, so the race does it
+  too: a Web Animation on the ring's inner `<i>`, transform and opacity, nothing with motion off).
+  `.connect-lives` is gone from `Style_Screens.html`.
+- **(1112) تشابه: wider on a laptop.** From 900px the board (and its buttons) is
+  `min(100%, max(48rem, the height budget × 1.2))` (`--conn-h` on `.connect-grid` /
+  `#connect-meta`), and a tile's height is a fifth of the height budget (`height`, no
+  `aspect-ratio`), so a wider board only makes the tiles wider, never the board taller.
+- **(1162) إيه اللي يجمعهم؟: a wrong choice falls out.** A wrong pick is no longer drawn
+  crossed out: it is left out of the choices (`paintPinpoint` skips `r.wrong`). `pinDropChoice(i,
+  repaint)`: a copy of the button (`.solo-choice.pin-fall`, fixed under `<body>`) drops and turns
+  away, the others close the gap through `flipGrid(box, hide it, { items: '.solo-choice' })`, and
+  the screen is drawn again around the same `#solo-choices` box (`paintPinpoint(fresh, keep)` puts
+  the kept box back, so the slide runs on). A pick that ends the round, or motion off, just
+  redraws. The race's wrong pick goes the same way. `pinShakeOption` is gone.
+- **(1163) إيه اللي يجمعهم؟: the points at stake as five dots.** The bar's «تستاهل» is five dots
+  (`pinWorthHtml`, `.pin-pips` / `.pin-pip.is-on`), full for what a right pick scores now; the one
+  a new word costs empties with a small puff (`.is-just`, CSS, none with reduced motion). Once the
+  round is over the dots show what it scored, in green (`.is-over`). Its label (aria and title):
+  «دلوقتي بـ n نقط» (`pin_worth_now`). The Help rule says so.
+- **(1164) إيه اللي يجمعهم؟ on a phone on its side.** *Partly done already*: Style_Arcade's
+  landscape block had put the six choices two by three beside a narrower list
+  (`min(36vw, 20rem)`). Added (Style_Solo's landscape block, `#pinpoint-stage`): two columns
+  whatever the count, 6px gaps, choices 2.3rem high, the clues 2.1rem, and the question line
+  «إيه اللي يجمعهم؟» left out on its side (the header names the game; the colours say right or
+  missed) - *chosen*, so the «الجولة الجاية» button and the exit fit under the choices at 667×375.
+  Not measured in a browser by the builder.
+- **(1169) خيوط: the line follows the finger.** While tracing, `strandsPaintBand(cells)` (from
+  `strandsPaintDrag`) draws a band in the accent from the first cell's centre to the last
+  (`.strands-band`, absolutely placed in the grid, `translate` + `rotate`, its ends rounded, under
+  the letters: the cells are `z-index: 1` and a traced cell is transparent while the band shows,
+  `.has-band`), and the letters so far in a bubble above the grid (`#strands-bubble`, fixed under
+  `<body>`, kept on screen at the top; hidden when the finger lifts and on leaving the screen,
+  `onLeaveScreen`). The race's grid has it too.
+- **(1170) خيوط: slots sized to the word.** A slot is a box a letter (`.strands-word__boxes i`, a
+  hint fills the first box in the accent, `is-hint`), two slots a row (`.strands-words` is a
+  2-column grid; «الخيط الملوّن» takes a row of its own). Upright the list was already under the
+  grid and on a laptop beside it (the solo layout), so that part stood. The race's reveal list uses
+  the same classes and is two columns now too.
+- **(1174) كلمات من حروف: «خروج» in the tools row.** The bar under the screen is gone; «خروج» is a
+  🚪 ghost button at the end of the tools row (`.wheel-exit`, its label as aria and title; not in a
+  race). The tools share the row by their labels (`.sdk-tools.wheel-tools .btn { flex: 1 1 0 }`),
+  so five fit at 375px; on its side the 🚪 sits on its own line under the 2×2 tools. *Chosen*: 🚪.
+- **(1175) كلمات من حروف: the word being made, bigger.** `.wheel-typed` is 2.1rem, black weight,
+  centred (1.5rem on its side). A word that counts flies from there into its cells
+  (`wheelFlyWord(word, from, cells)`, `.wheel-fly`, transform and opacity) and the cells turn over
+  as it lands (`wheelFlipWord(s, wi, at)`); a bonus word flies into the ⭐ and pops it. A refused
+  word stays up a moment in red and shakes (`wheelRefuse`; it used to shake an emptied line). The
+  race does both with the server's answer (`s.lastWord`).
+- **(1176) كلمات من حروف: the bonus words on the result.** Under «⭐ كلمة زيادة: 3/12» the sheet
+  lists the bonus words found (gold chips, «لقيت:») and up to six missed, longest first («فاتتك:»,
+  `…` when there are more) - `wheelBonusLines`, `WHEEL_MISSED_SHOWN`. A daily's share picture never
+  carries them (`shareLines`). Not in «بالدور» (a bonus word scores nothing there). *Chosen*: six,
+  longest first.
+
+Shared files touched: `styles/Style_Screens.html` (تشابه's rules: the dots, the wide board; the
+`.connect-lives` rules removed), `styles/Style_Solo.html` (the pinpoint dots and fall, its
+landscape rules, خيوط's band, bubble and boxes, the word wheel's typed word, flight, 🚪 and bonus
+chips; `#view-play-wordwheel .view-actions` removed).
+
 ## History
 
 The day-by-day log of the work on this game is in `notes/log.md` (search it for the game's name); a new entry goes there, and anything that changes how the game works goes in this file.

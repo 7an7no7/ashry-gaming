@@ -5952,7 +5952,7 @@ async function bankSeg() {
     const third = three.find((b) => b !== upO && b !== other);
     await until(() => bS(upO).eventSeq === bS(K1).eventSeq, 2000);
     const made = await upO.act('offer', { to: other.pid, give: { cash: 10 }, get: {}, ev: bS(upO).eventSeq });
-    check(made.ok, 'bank: an offer is made on your own turn');
+    check(made.ok, 'bank: an offer is made on your own turn' + (made.ok ? '' : ' (refused: ' + made.error + ', stage ' + bS(K1).turn.stage + ')'));
     await other.waitFor((s) => !!s.shared.offer && s.shared.offer.to === other.pid, 'bank: the offer reaches the other phone');
     const oid = (bS(other).offer || {}).id;
     await third.act('answer', { yes: true, id: oid });

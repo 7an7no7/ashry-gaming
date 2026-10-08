@@ -2700,6 +2700,23 @@ function lobbyOptionsFold(state, options, t) {
     </details>`;
 }
 
+/* «⚙️ خيارات أكتر» inside a game's options (the owner's pick 1C, done for the lobbies on 8 Oct 2026, as
+   الليزر had it): the options most tables change stay in view, the house rules fold with a line of what
+   is on. Remembered per game for this page (lobbyOptsOpen[key]); summarised by lobbyOptsSummarise. */
+function lobbyMoreHtml(key, inner) {
+  if (!inner || !String(inner).trim()) return '';
+  const t = TRANSLATIONS[appState.lang] || {};
+  const open = !!lobbyOptsOpen[key];
+  return `<details class="lobby-opts lobby-opts--more" ${open ? 'open' : ''} data-r="${open ? 1 : 0}" ontoggle="lobbyOptsToggled(this, '${jsStringAttr(key)}')">
+      <summary class="lobby-opts__head">
+        <span class="lobby-opts__title">⚙️ ${escapeHTML(t.setup_more || '')}</span>
+        <span class="lobby-opts__sum"></span>
+        <span class="lobby-opts__chev" aria-hidden="true">▾</span>
+      </summary>
+      <div class="lobby-opts__body">${inner}</div>
+    </details>`;
+}
+
 function lobbyOptsToggled(el, game) {
   // A details drawn open fires its toggle too: only a tap on it is a choice.
   const now = el.open ? '1' : '0';
@@ -2749,7 +2766,7 @@ function roomLobbySumShare(state, root) {
   // Back in the hub: the next game chosen (the same one again too) starts with no line on the room.
   if (!state || !state.game) { roomLobbySum.sent = ''; return; }
   if (!state.youAreHost || state.youAreScreen || state.phase !== 'lobby') return;
-  const out = root && root.querySelector('.lobby-opts .lobby-opts__sum');
+  const out = root && root.querySelector('.lobby-opts:not(.lobby-opts--more) > summary .lobby-opts__sum');
   const text = out ? out.textContent.trim().slice(0, 120) : '';
   const key = state.code + '|' + state.game + '|' + text;
   if ((state.lobbySum || '') === text) { roomLobbySum.sent = key; return; }

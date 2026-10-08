@@ -883,3 +883,5 @@ for a family table and are open to change; each says so. Styles: section 72 at t
     `rename` and `becomePlayer` (RoomGames.js); `create`, `join` (room.js); `roomView`; `handle`
     (index.js); `MOVE_KEYS`. New: `rooms/Faces.js` (SHARED_LISTS, the server's FILES and EXPORTS),
     `rooms/JS_Faces.html` (the chunk `faces`, SHELL_USES_OK).
+
+**The lobby's options follow the setups' rules** (8 Oct 2026): the options most tables change in view, seats/sides/teams/pieces always in view, house rules under `lobbyMoreHtml('<game>-more', …)`; a switch that is off shows no explanation.

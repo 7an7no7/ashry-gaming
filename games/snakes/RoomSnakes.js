@@ -259,7 +259,7 @@ const snakesNewRoomGame = (room, playerId, action, p) => {
   g.events.forEach(e => { e.seq += base; });
   g.eventSeq = base + g.eventSeq;
   room.shared = Object.assign(g, {
-    settings: { turnClock: clock, theme: theme, surprises: surprises, moving: moving, teamSize: teams ? size : 0, seed: seed },
+    settings: { turnClock: clock, theme: theme, surprises: surprises, moving: moving, teamSize: size, seed: seed },   // the size asked for, kept when it didn't fit this time, so a full table's next play again has teams again
     roster: room.players.map(x => x.id),
     lobby: prev.lobby || null,
     wins: prev.wins || {},

@@ -1198,6 +1198,8 @@ function endTimesUpRound() {
     : null;
   if (timesUpState.turnClock) timesUpState.turnClock.stop();
   timesUpState.turnClock = null;
+  // Stopped inside its last 3 seconds: the red rim goes with it (it clears on a tick or a new screen only).
+  if (typeof countdownClear === 'function') countdownClear();
   timesUpState.judged = [];
   playSound('success');
 
@@ -1261,6 +1263,16 @@ function finishTimesUpGrandFinale() {
       </div>
     </div>
   `;
+
+  // The sheet can be closed by back or Escape: under it, no dead card with the last word,
+  // but the result and a way to play again.
+  ['timesup-turn-live-card', 'timesup-turn-ready-card'].forEach(id => { const e = document.getElementById(id); if (e) e.classList.add('hidden'); });
+  const sum = document.getElementById('timesup-turn-sum');
+  if (sum) {
+    sum.innerHTML = `<div class="sheet__title">${escapeHTML(winnerText)}</div>
+      <button type="button" class="btn btn--primary btn--lg" onclick="resetTimesUpPlay()">${escapeHTML(t.play_again || '')}</button>`;
+    sum.classList.remove('hidden');
+  }
 
   paintTimesUpRoundUndo();
   modal.classList.remove('hidden');

@@ -610,6 +610,7 @@ ROOM_GAMES.bumper = {
             <div class="bmp-land__top">
               ${bmpStatusHtml(state, true)}
               <button type="button" class="btn btn--ghost btn--xs btn--auto bmp-land__back" onclick="bmpSetMode('stick')">${escapeHTML(t.bmp_back_stick)}</button>
+              ${state.youAreHost ? `<button type="button" class="btn btn--ghost btn--xs btn--auto" onclick="roomAct('endNow', {})">${escapeHTML(t.bmp_end_now)}</button>` : ''}
             </div>
             <div class="bmp-land__main">
               <div class="bmp-land__side">
@@ -684,6 +685,9 @@ function bmpWirePad() {
   const pad = document.getElementById('bmp-pad');
   if (pad && !pad.dataset.wired) {
     pad.dataset.wired = '1';
+    // A new pad (the frame rebuilt mid-drag): the finger that held the old one is gone with it,
+    // and its release never comes here, so the stick lets go now rather than drive on.
+    if (bmp.stick && (bmp.stick.x || bmp.stick.y)) { bmp.stick = { x: 0, y: 0 }; bmpSendNow(); }
     let active = null;
     const move = (e) => {
       const r = pad.getBoundingClientRect();
@@ -720,6 +724,7 @@ function bmpWirePad() {
   const gas = document.getElementById('bmp-gas');
   if (gas && !gas.dataset.wired) {
     gas.dataset.wired = '1';
+    if (bmp.tilt.held) { bmp.tilt.held = false; bmpSendNow(); }   // the same for a Gas held on the old button
     const on = (e) => { if (!bmp.tilt.on) bmpTiltAsk(); bmp.tilt.held = true; gas.classList.add('is-held'); try { gas.setPointerCapture(e.pointerId); } catch (err) {} bmpSendNow(); e.preventDefault(); };
     const off = () => { bmp.tilt.held = false; gas.classList.remove('is-held'); bmpSendNow(); };
     gas.addEventListener('pointerdown', on);
@@ -2427,6 +2432,14 @@ function bmp3dView(g, stage, T) {
   canvas.className = 'bmp-canvas3d';
   let renderer;
   try { renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); } catch (e) { return null; }
+  // A context the browser takes away (a GPU reset, memory) may never come back: the rink is
+  // mounted again a moment later. Our own dispose forces a loss too (forceContextLoss): not that one.
+  let gone = false;
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    if (gone) return;
+    setTimeout(() => { if (!gone && bmp.tv === g && g.raf && stage.isConnected) bmpViewMount(g, stage); }, 400);
+  }, false);
   const small = Math.min(window.screen.width || 800, window.screen.height || 800) < 700;
   renderer.setPixelRatio(threeGfxRatio());
   renderer.shadowMap.enabled = true;
@@ -2726,6 +2739,7 @@ function bmp3dView(g, stage, T) {
       }
     },
     dispose() {
+      gone = true;
       Object.values(views).forEach(freeCar);
       disposables.forEach(o => { try { o.dispose(); } catch (e) {} });
       renderer.dispose();

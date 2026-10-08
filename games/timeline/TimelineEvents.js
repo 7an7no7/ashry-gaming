@@ -178,7 +178,7 @@ const TIMELINE_EVENTS = [
   { y: 2010, ar: 'أول كأس عالم في أفريقيا',                en: 'The first World Cup in Africa' },
   { y: 2010, ar: 'إطلاق إنستجرام',                         en: 'Instagram launches' },
   { y: 2010, ar: 'أول آيباد',                              en: 'The first iPad' },
-  { y: 2011, ar: 'ثورة يناير',                             en: 'The January Revolution in Egypt' },
+  { y: 2011, ar: 'فرح الأمير ويليام وكيت ميدلتون',          en: 'Prince William marries Kate Middleton' },
   { y: 2012, ar: 'المسبار كيوريوسيتي ينزل على المريخ',     en: 'The Curiosity rover lands on Mars' },
   { y: 2015, ar: 'افتتاح قناة السويس الجديدة',             en: 'The New Suez Canal opens' },
   { y: 2017, ar: 'محمد صلاح ينضم لليفربول',                en: 'Mohamed Salah joins Liverpool' },

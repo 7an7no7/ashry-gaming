@@ -146,11 +146,17 @@ const Room = (() => {
     remember();
     if (typeof updateRoomBanner === 'function') updateRoomBanner();
     if (wasIn) {
+      // The room's own popups go with it, wherever they were opened from.
+      ['chat-modal', 'room-player-menu'].forEach((id) => {
+        const m = document.getElementById(id);
+        if (m && !m.classList.contains('hidden')) closeModal(id);
+      });
       showToast(roomErrLocal(message), 'error');
       emit(true);
       // Only from a room screen: someone playing a one-phone game or using a timer
-      // meanwhile stays put (setView would stop that game's clocks).
-      if (String(appState.currentView || '').indexOf('room-') === 0) setView('menu');
+      // meanwhile stays put (setView would stop that game's clocks), and so does
+      // someone on the join screen typing another room's code.
+      if (onRoomView()) setView('menu');
     }
   };
 
@@ -350,11 +356,13 @@ const Room = (() => {
       pollTimer = setTimeout(tick, POLL_MS);
       if (!session || connected() || pollInFlight || document.hidden) return;
       pollInFlight = true;
+      // The room this poll is about: a leave and a join while it is out make its answer another room's.
+      const asked = session;
       try {
         const res = await request('/poll', {
           code: session.code, pid: session.playerId, key: session.key, v: state ? state.version : 0
         });
-        if (!session || connected()) return;
+        if (session !== asked || !session || connected()) return;
         heardAt = Date.now();
         if (res.gone) { handleDropped(DROPPED.gone); return; }
         if (res.kicked) { handleDropped(DROPPED.kicked); return; }
@@ -493,8 +501,11 @@ const Room = (() => {
 
       // No socket right now: the same move over plain HTTP.
       const { code, playerId, key } = session;
+      const asked = session;
       return request('/act', { code: code, pid: playerId, key: key, action: action, payload: payload || {} })
         .then(res => {
+          // Sent from a room this phone has since left: its gone or kicked is not this room's.
+          if (session !== asked) return state;
           if (res.gone || res.kicked) {
             handleDropped(res.gone ? DROPPED.gone : DROPPED.kicked);
             throw roomError(res.gone ? DROPPED.gone : DROPPED.kicked);
@@ -543,6 +554,10 @@ const Room = (() => {
         if (!res.ok || res.gone || res.kicked || !res.state) {
           session = null;
           remember();
+          // A slow answer comes after restoreView's look (1.5 s): a reload onto a room screen
+          // whose room is gone goes home, not to an empty lobby with no banner.
+          if (typeof updateRoomBanner === 'function') updateRoomBanner();
+          if (onRoomView()) setView('menu');
           return false;
         }
         if (notOlder(res.state)) {
@@ -660,9 +675,19 @@ function roomCanMoveOn(state) {
  * line). A button that fires when the host is back is simply refused.
  */
 function roomMoveOnHtml(state, html, orElse) {
+  if (roomProgHeld(html, state)) html = '';
   if (!state || state.youAreHost) return html || '';
   if (!html) return orElse || '';
   return `<span class="room-moveon">${html}</span>` + (orElse ? `<span class="room-moveon-not">${orElse}</span>` : '');
+}
+
+/* برنامج السهرة's result pause (~9 s, then the table): the server refuses another round of the game
+   just played (programGuard, RoomProgram.js), so its buttons aren't drawn meanwhile - the program's
+   bar has «⏭» for the host. True when `code` (a button's markup or onclick) is one of those. */
+const ROOM_PROG_HELD = /'(playAgain|restart|tourNew|nextRound|nextQuestion|nextGame)'/;
+function roomProgHeld(code, state) {
+  const st = state || (typeof Room !== 'undefined' ? Room.state : null);
+  return !!(st && st.program && st.program.phase === 'result' && ROOM_PROG_HELD.test(String(code || '')));
 }
 
 /** The body class and the line that say so, on a phone's room screens and the TV. */
@@ -2752,16 +2777,26 @@ function roomChunksOf(state) {
   return ids;
 }
 
+/** A chunk the route waited for has come: draw the room only if this device didn't go elsewhere
+    while it loaded (a screen always draws; a phone still on the screen it asked from - a room
+    screen, or the home it pressed «ارجع للغرفة» on - goes on; one that went home meanwhile stays). */
+let roomRouteFrom = null;
+function roomRouteAgain() {
+  const st = Room.state;
+  if (st && (st.youAreScreen || onRoomView() || appState.currentView === roomRouteFrom)) routeRoomState(st);
+}
+
 /** Draws whatever the room is doing now: its lobby, a spectator note, or the game. */
 function routeRoomState(state) {
   if (state && state.code && !state.youAreScreen) rememberLastRoom(state.code);
   // A game dealt in the room counts as played on this phone (the home's poster, D1).
   if (typeof markRoomPlayed === 'function') markRoomPlayed(state);
+  roomRouteFrom = appState.currentView;
   if (state && state.game && typeof lzWait === 'function' &&
-      lzWait(roomChunksOf(state), () => { if (Room.state) routeRoomState(Room.state); }, 'route')) return;
+      lzWait(roomChunksOf(state), roomRouteAgain, 'route')) return;
   // برنامج السهرة (JS_RoomProgram.html, a chunk of its own): its code before anything of it is drawn.
   if (state && state.program && typeof lzWait === 'function' &&
-      lzWait(['program'], () => { if (Room.state) routeRoomState(Room.state); }, 'route-prog')) return;
+      lzWait(['program'], roomRouteAgain, 'route-prog')) return;
   if (state && state.program && typeof progPaintPill === 'function') progPaintPill(state);
   // A big screen draws every phase itself (JS_RoomTv.html).
   if (state.youAreScreen) {
@@ -2843,7 +2878,8 @@ function playRoomFx(name) {
   playSound(name);
 }
 
-const onRoomView = () => (appState.currentView || '').indexOf('room-') === 0;
+// The join screen is not in the room: someone typing another room's code isn't pulled back to this one.
+const onRoomView = () => { const v = appState.currentView || ''; return v.indexOf('room-') === 0 && v !== 'room-join'; };
 
 let roomStageSeen = '';
 let roomClockStageSeen = '';
@@ -2865,6 +2901,8 @@ Room.onChange((state) => {
   }
   updateRoomBanner();
   paintRoomHostAway(state);
+  // The program's result pause, for the games' own «العب تاني» buttons drawn without a helper (styles).
+  document.body.classList.toggle('prog-result', !!(state && state.program && state.program.phase === 'result'));
   if (!state) { roomStageSeen = ''; roomActionSeen = null; return; }
 
   const stage = state.phase + '|' + (state.game || '');
@@ -2876,7 +2914,7 @@ Room.onChange((state) => {
   if (!onRoomView()) {
     // Only a game dealt from the lobby: many games change phase inside a round
     // (night and day, reveal and vote), which used to buzz with this every time.
-    if (moved && state.phase !== 'lobby' && !wasInGame) {
+    if (moved && state.phase !== 'lobby' && !wasInGame && appState.currentView !== 'room-join') {
       const t = TRANSLATIONS[appState.lang] || {};
       showToast(t.room_started_away || 'اللعبة بدأت في الغرفة');
       haptic('light');

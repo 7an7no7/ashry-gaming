@@ -64,7 +64,8 @@ function huDeckWords(id, lang) {
   const seen = new Set();
   const out = [];
   const add = (w) => {
-    const word = String(w || '').trim();
+    // 'Name|Show' in the who-am-I lists: only the name goes on the forehead.
+    const word = String(w || '').split('|')[0].trim();
     const f = foldWord(word);
     if (!word || !f || seen.has(f) || word.length > 28) return;
     seen.add(f);
@@ -389,7 +390,10 @@ function paintHeadsUp() {
   if (!el) return;
   const who = huPlayer(s);
   const whoName = who || (t.hu_you || '');
-  const exit = `<button type="button" class="hu-exit" onclick="${s.phase === 'play' || s.phase === 'countdown' ? 'playExit(setupHeadsUp)' : 'setupHeadsUp()'}" aria-label="${escapeHTML(t.exit || '')}">✕</button>`;
+  // Mid-match asks first, between turns too (a stray tap lost every score); only the very
+  // first ready card (nothing played yet) and the final board leave at once.
+  const fresh = s.phase === 'final' || (s.phase === 'ready' && !s.turn && (s.round || 1) === 1);
+  const exit = `<button type="button" class="hu-exit" onclick="${fresh ? 'setupHeadsUp()' : 'playExit(setupHeadsUp)'}" aria-label="${escapeHTML(t.exit || '')}">✕</button>`;
   const deck = huDecksNow().find(d => d.id === s.deck) || HU_DECKS[0];
   delete el.dataset.flash;
   el.dataset.phase = s.phase;

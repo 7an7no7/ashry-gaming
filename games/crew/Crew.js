@@ -158,8 +158,17 @@ const crewCleanNight = (input, members, now) => {
     claim(name, r && byId.has(r.member) ? r.member : (byName.get(crewFold(name)) || null));
     return { m: decided.get(name), n: name };
   };
-  const rows = src.map(r => Object.assign(who(r), { p: Math.max(0, Math.floor(Number(r.points) || 0)) }))
-    .filter(r => r.n && r.p > 0).sort((a, b) => b.p - a.p);
+  // One row per member (or per folded guest name): someone who left and joined again comes
+  // back under a fresh pid, so the room sends two rows of one person - their points add up.
+  const sum = new Map();
+  src.forEach(r => {
+    const w = who(r);
+    const p = Math.max(0, Math.floor(Number(r.points) || 0));
+    const k = w.m ? 'm:' + w.m : 'g:' + crewFold(w.n);
+    const had = sum.get(k);
+    if (had) had.p += p; else sum.set(k, Object.assign(w, { p }));
+  });
+  const rows = [...sum.values()].filter(r => r.n && r.p > 0).sort((a, b) => b.p - a.p);
   const start = Number(inp.start) > 0 ? Number(inp.start) : now;
   const keep = (list, max, extra) => (Array.isArray(list) ? list : []).slice(0, max).map(r => Object.assign(who(r), extra(r))).filter(r => r.n);
   return {

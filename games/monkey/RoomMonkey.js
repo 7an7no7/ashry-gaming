@@ -50,6 +50,8 @@ const monkeyRoomAction = (room, playerId, action, payload) => {
   if (action === 'letter') {
     if (s.mode !== 'letters') throw new Error('ليست لعبة حروف');
     if (!isTurn) throw new Error('دور لاعب آخر');
+    // A monkey doesn't play (a swap or the host's quarters can leave the turn on one).
+    if ((s.quarters[playerId] || 0) >= 4) throw new Error('القرد ما بيلعبش');
     const ch = monkeyFold(String((payload && payload.ch) || '')).charAt(0);
     if (!ch) throw new Error('اكتب حرفاً');
     s.letters.push({ ch: ch, by: playerId, name: roomPlayerName(room, playerId) });
@@ -195,7 +197,11 @@ const monkeyRoomAction = (room, playerId, action, payload) => {
     if (!l) return;
     s.verdict = null;
     const at = s.order.indexOf(l.by);
-    setMonkeyTurn(room, at === -1 ? s.turn : at);
+    // Back to whoever typed it - unless they are a monkey now (a swap, the host's
+    // quarters): then the next one who isn't.
+    if (at === -1) setMonkeyTurn(room, s.turn);
+    else if ((s.quarters[l.by] || 0) >= 4) advanceMonkey(room, at);
+    else setMonkeyTurn(room, at);
     return;
   }
 

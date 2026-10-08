@@ -208,7 +208,11 @@ const buzzerQuizMove = (room, playerId, action, payload) => {
     s.board = scoreboardOf(room);
     return;
   }
-  if (action === 'reset') { s.buzzes = []; s.last = null; s.round += 1; freshRoster(); return; }
+  if (action === 'reset') {
+    // The round the host saw: a double tap must not wipe a buzz that landed between the taps.
+    if (staleTap(payload, 'round', s.round)) return;
+    s.buzzes = []; s.last = null; s.round += 1; freshRoster(); return;
+  }
   if (action === 'lock')  { s.phase = 'locked'; s.buzzes = []; return; }
   if (action === 'arm')   { s.phase = 'armed'; s.last = null; return; }
   if (action === 'adjust') {

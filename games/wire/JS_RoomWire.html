@@ -234,7 +234,8 @@ ROOM_GAMES.wire = {
     const panel = ((state.you || {}).panel || []).map((x) => x.c).join(',');
     const sig = ['wr', s.place, s.level, s.phase === 'gameover', panel, (s.alive || []).indexOf(Room.me) !== -1, state.youAreHost, appState.lang, wrL()].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => wrPhoneHtml(state));
-    if (rebuilt) { wr.hostKey = ''; wrWire(el); }
+    // A drag held on the old frame never gets its release here: its control goes back to the server's value.
+    if (rebuilt) { wr.hostKey = ''; wr.dragging = null; wrWire(el); }
     refreshRoomPlayerStrip(el, state);
     wr.el = el; wr.tv = false;
     wrPaint(state, el);
@@ -315,8 +316,9 @@ function wrWire(el) {
     const sl = e.target.closest && e.target.closest('[data-wr-act="slide"]');
     if (!sl) return;
     const cid = sl.closest('[data-c]').dataset.c;
-    const d = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
+    let d = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
     if (!d) return;
+    if (sl.closest('.wr-ctl.is-flip')) d = -d;   // drawn upside down: the arrow goes the way it looks
     e.preventDefault();
     const v = Math.max(1, Math.min(WIRE_VALUES, (wrValue(cid) || 1) + d));
     if (v !== wrValue(cid)) { wrLocal(cid, v); wrSend('ctl', { c: cid, v }); }
@@ -326,7 +328,9 @@ function wrWire(el) {
 function wrSlideTo(drag, e) {
   const r = drag.el.getBoundingClientRect();
   const vert = drag.el.dataset.o === 'v';
-  const f = vert ? (r.bottom - e.clientY) / r.height : (e.clientX - r.left) / r.width;
+  let f = vert ? (r.bottom - e.clientY) / r.height : (e.clientX - r.left) / r.width;
+  // An upside-down break turns the control 180° (labels and all): read the finger turned too.
+  if (drag.el.closest('.wr-ctl.is-flip')) f = 1 - f;
   const v = 1 + Math.round(Math.max(0, Math.min(1, f)) * (WIRE_VALUES - 1));
   if (v === wrValue(drag.cid)) return;
   // Shown here while the finger moves; sent when it lets go (end, in wrWire).

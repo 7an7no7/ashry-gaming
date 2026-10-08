@@ -2488,7 +2488,7 @@ const MOST_LIKELY_TO = {
    -------------------------------------------------------------------------- */
 const FIBBAGE = {
   ar: [
-    { q: 'أطول اسم لمدينة في العالم فيه ___ حرف.', a: '168' },
+    { q: 'الاسم الرسمي الكامل لبانكوك فيه حوالي ___ حرف.', a: '168' },
     { q: 'قلب الجمبري موجود في ___ بتاعه.', a: 'راسه' },
     { q: 'العسل ما بيبوظش أبداً لأن فيه نسبة ___ قليلة جداً.', a: 'مياه' },
     { q: 'الأخطبوط عنده ___ قلوب.', a: 'ثلاثة' },
@@ -2682,7 +2682,7 @@ const FIBBAGE = {
     { q: 'أطول ماتش تنس في التاريخ استمر حوالي ___ ساعة.', a: '11' }
   ],
   en: [
-    { q: 'The longest place name in the world has ___ letters.', a: '85' },
+    { q: 'The full ceremonial name of Bangkok has about ___ letters.', a: '168' },
     { q: 'A shrimp\'s heart is located in its ___.', a: 'head' },
     { q: 'Honey never spoils because it contains almost no ___.', a: 'water' },
     { q: 'An octopus has ___ hearts.', a: 'three' },
@@ -2969,12 +2969,17 @@ const DRAW_WORD_CATS = {
       'مريلة', 'طربوش', 'شمسية', 'نظارة', 'شنطة يد', 'زرار', 'تاج ورد'
     ],
     'مواصلات': [
-      'عربية', 'أتوبيس', 'قطر', 'طيارة', 'صاروخ', 'مركب', 'عجلة', 'موتوسيكل',
-      'غواصة', 'تاكسي', 'سفينة فضاء', 'عربية إسعاف', 'عربية مطافي', 'جرار زراعي',
+      'عربية', 'أتوبيس', 'قطر', 'طيارة', 'مركب', 'عجلة', 'موتوسيكل',
+      'غواصة', 'تاكسي', 'عربية إسعاف', 'عربية مطافي', 'جرار زراعي',
       'توكتوك', 'ترام', 'عربية كارو', 'يخت', 'مركب شراعي', 'منطاد', 'هليكوبتر', 'سكوتر',
       'زلاجة', 'سكيت بورد', 'ميكروباص', 'مترو', 'فلوكة', 'سفينة', 'باراشوت', 'عربية شرطة',
       'ونش', 'لودر', 'شاحنة', 'حنطور', 'عجلة بثلاث عجلات', 'عربية سباق', 'أتوبيس دورين', 'تلفريك',
-      'جيت سكي', 'قمر صناعي', 'مرساة'
+      'جيت سكي'
+    ],
+    // A rocket, a satellite and an anchor aren't transport, and الفنان المزيف tells the
+    // fake the category: space has its own (the anchor went, there is no sea category).
+    'فضاء': [
+      'صاروخ', 'سفينة فضاء', 'قمر صناعي', 'كوكب زحل', 'نيزك', 'مذنب'
     ],
     'أماكن ومباني': [
       'بيت', 'مدرسة', 'مستشفى', 'برج', 'كوبري', 'قلعة', 'خيمة', 'كنيسة',
@@ -2988,8 +2993,8 @@ const DRAW_WORD_CATS = {
       'شمس', 'قمر', 'نجمة', 'سحابة', 'مطر', 'شجرة', 'وردة', 'جبل',
       'بحر', 'نار', 'قوس قزح', 'بركان', 'صبار', 'ورقة شجر', 'ثلج', 'موجة',
       'نخلة', 'جزيرة', 'شلال', 'كهف', 'صحراء', 'بحيرة', 'نهر',
-      'برق', 'إعصار', 'عباد الشمس', 'قطرة مية', 'دخان', 'كوكب زحل', 'نيزك', 'واحة',
-      'غابة', 'صخرة', 'مذنب', 'شروق الشمس', 'غروب الشمس', 'هلال', 'قلعة رمل', 'شجرة تفاح',
+      'برق', 'إعصار', 'عباد الشمس', 'قطرة مية', 'دخان', 'واحة',
+      'غابة', 'صخرة', 'شروق الشمس', 'غروب الشمس', 'هلال', 'قلعة رمل', 'شجرة تفاح',
       'شاطئ', 'جبل جليد', 'عش عصفور', 'ريشة', 'خلية نحل', 'صدفة بحر'
     ],
     'جسم الإنسان': [
@@ -3201,12 +3206,12 @@ const DRAW_WORD_CATS = {
       'Turban', 'Fez', 'Raincoat'
     ],
     'Transport': [
-      'Car', 'Bus', 'Train', 'Plane', 'Rocket', 'Boat', 'Bicycle', 'Motorcycle',
-      'Submarine', 'Taxi', 'Anchor',
-      'Spaceship', 'Ambulance', 'Fire truck', 'Tractor',
+      'Car', 'Bus', 'Train', 'Plane', 'Boat', 'Bicycle', 'Motorcycle',
+      'Submarine', 'Taxi',
+      'Ambulance', 'Fire truck', 'Tractor',
       'Tuk-tuk', 'Tram', 'Horse cart', 'Yacht',
       'Sailboat', 'Hot air balloon', 'Helicopter', 'Scooter', 'Sled', 'Skateboard',
-      'Satellite', 'Hovercraft',
+      'Hovercraft',
       'Minibus', 'Subway Train', 'Ship', 'Canoe',
       'Parachute', 'Police Car', 'Crane', 'Bulldozer', 'Truck',
       'Carriage', 'Tricycle', 'Race Car', 'Double Decker Bus', 'Fishing Boat',
@@ -3214,7 +3219,7 @@ const DRAW_WORD_CATS = {
       'Tow Truck', 'Bin Lorry', 'Forklift', 'Steamroller',
       'Oar', 'Rowing Boat', 'Ice Cream Van', 'Monster Truck',
       'Raft', 'Go-kart', 'Cement Mixer', 'Pirate Ship',
-      'UFO', 'Unicycle', 'Glider', 'Tank',
+      'Unicycle', 'Glider', 'Tank',
       'Felucca', 'Speedboat', 'Digger',
       'Van', 'Pickup Truck', 'Gondola', 'Donkey Cart', 'Ferry',
       'Bullet Train', 'Jeep'
@@ -3240,17 +3245,20 @@ const DRAW_WORD_CATS = {
       'Sea', 'Fire', 'Rainbow', 'Volcano', 'Cactus', 'Leaf', 'Snowflake', 'Wave',
       'Bird nest', 'Bird feather', 'Beehive', 'Seashell',
       'Palm tree', 'Island', 'Waterfall', 'Cave', 'Desert', 'Lake', 'River',
-      'Lightning', 'Tornado', 'Sunflower', 'Water drop', 'Smoke', 'Saturn', 'Meteor',
+      'Lightning', 'Tornado', 'Sunflower', 'Water drop', 'Smoke',
       'Acorn', 'Snowball', 'Icicle', 'Four-leaf Clover',
-      'Snow', 'Oasis', 'Forest', 'Sand', 'Rock', 'Comet',
+      'Snow', 'Oasis', 'Forest', 'Sand', 'Rock',
       'Sunrise', 'Sunset', 'Crescent Moon', 'Sandcastle', 'Apple Tree', 'Campfire',
       'Pinecone', 'Haystack', 'Tulip', 'Puddle', 'Cobweb',
       'Daisy', 'Bamboo', 'Log', 'Tree Stump',
       'Thunder', 'Storm', 'Hill', 'Mud', 'Stone',
       'Flower', 'Grass', 'Branch', 'Root', 'Seed', 'Ocean',
-      'Beach', 'Bay', 'Coral Reef', 'Planet', 'Galaxy',
+      'Beach', 'Bay', 'Coral Reef',
       'Full Moon', 'Solar Eclipse', 'Lunar Eclipse', 'Sky', 'Ice', 'Iceberg',
       'North Pole', 'South Pole', 'Glacier'
+    ],
+    'Space': [
+      'Rocket', 'Spaceship', 'Satellite', 'UFO', 'Saturn', 'Meteor', 'Comet', 'Planet', 'Galaxy'
     ],
     'The body': [
       'Eye', 'Hand', 'Foot', 'Heart', 'Nose', 'Ear', 'Tooth', 'Skull',

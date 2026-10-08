@@ -2037,8 +2037,10 @@ function skrUnitName(state, key) {
 function skrStandings(state) {
   const s = state.shared || {};
   const scores = s.scores || {};
+  // Only ids still seated: a leaver's total stays in s.scores, and as '…' with a low score it took the gold.
+  const order = Array.isArray(s.order) ? s.order : [];
   const rows = (s.board || []).map(r => ({ id: r.id, name: r.name, team: r.team || null, score: typeof scores[r.id] === 'number' ? scores[r.id] : Number(r.score) || 0 }));
-  Object.keys(scores).forEach(id => { if (!rows.some(r => r.id === id)) rows.push({ id: id, name: skrName(state, id, true), team: null, score: Number(scores[id]) || 0 }); });
+  Object.keys(scores).forEach(id => { if (order.indexOf(id) !== -1 && !rows.some(r => r.id === id)) rows.push({ id: id, name: skrName(state, id, true), team: null, score: Number(scores[id]) || 0 }); });
   return rows.sort((a, b) => a.score - b.score);
 }
 

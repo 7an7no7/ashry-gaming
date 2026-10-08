@@ -32,6 +32,8 @@ const withFace = (p, view) => {
 export const roomView = (room, pid, online, extra) => {
   const screens = room.screens || [];
   const isScreen = screens.some((s) => s.id === pid);
+  // A screen that joined during this deal (room.js join) waits for the next one for its slice.
+  const late = screens.some((s) => s.id === pid && s.late && s.late === String((room.shared || {}).dealId || '-'));
   return {
     code: room.code,
     version: room.version,
@@ -87,7 +89,7 @@ export const roomView = (room, pid, online, extra) => {
     you: isScreen ? null : ((room.secrets && room.secrets[pid]) || null),
     // What only the big screen draws (الأوضة المضلمة's map, shown lit where the guides' lenses are):
     // set by a game on room.screenOnly, sent to screens and nobody else.
-    screen: isScreen ? (room.screenOnly || null) : null,
+    screen: isScreen && !late ? (room.screenOnly || null) : null,
     // False for someone who joined after this game was dealt.
     inGame: isScreen || !room.shared || !room.shared.roster ? true : room.shared.roster.indexOf(pid) !== -1,
     // The server's clock as this was sent: a phone that has just reloaded or joined can read a

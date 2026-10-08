@@ -153,6 +153,8 @@ const mafiaAction = (room, playerId, action, payload) => {
   if (action === 'moreTime') {
     requireHost(room, playerId);
     if (s.phase !== 'day' || !s.endsAt) return;
+    // The second tap of a double tap aims at a clock the first already moved (a phone sends the endsAt it saw).
+    if (staleTap(payload, 'endsAt', s.endsAt)) return;
     s.endsAt += 60000;
     return;
   }

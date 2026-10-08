@@ -547,7 +547,10 @@ function sklOverHtml(state, tv) {
       : `<div class="btn-stack"><button type="button" class="btn btn--go btn--lg" onclick="sklAct(this, 'playAgain')">${escapeHTML(t.play_again || '')}</button>
           <button type="button" class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button></div>`)
     : (tv ? '' : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`);
-  return `<div class="skl-over">
+  // The deciding flips play out first (with Style_Rooms.html: .skl-over.is-new waits --skl-wait).
+  const fresh = motionFirst(['skl-over', roomDealKey(state), tv ? 'tv' : ''].join('|'));
+  const wait = fresh ? (sklLocal.wait || 0) : 0;
+  return `<div class="skl-over${fresh ? ' is-new' : ''}"${fresh ? ` style="--skl-wait:${wait}ms" data-reveal-ms="${wait + 400}"` : ''}>
       <div class="card card--accent skl-won">
         <div class="skl-won__icon" aria-hidden="true">${w ? sklDiscHtml(sklFlowerOf(s, w), sklCol(s, w)) : '🌸'}</div>
         <div class="card__title">${escapeHTML(title)}</div>

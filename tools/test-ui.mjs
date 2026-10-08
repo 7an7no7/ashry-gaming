@@ -819,7 +819,7 @@ if (ONLY.includes('program')) {
   };
   const views = async () => Promise.all(all.map((p) => ev(p, `appState.currentView`)));
   await lookAll('the line-up');
-  check((await views()).every((v) => v === 'room-program' || v === 'room-tv'), 'program: the line-up is the program\'s own screen');
+  { const vs = await views(); check(vs.every((v) => v === 'room-program' || v === 'room-tv'), 'program: the line-up is the program\'s own screen', vs.join(', ')); }
   // The first game now; cut short at once: the table between two games.
   await ev(host, `(async () => { await Room.act('programSkip', { seq: Room.state.program.seq }); return 1; })()`);
   await wait(1500);

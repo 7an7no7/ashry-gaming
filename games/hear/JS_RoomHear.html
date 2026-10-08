@@ -617,14 +617,19 @@ function hrAfter(state, el, fresh) {
     const st = Room.state;
     if (!st || st.game !== 'hear') { hrStop(); return; }
     const now = roomServerNow();
+    // The live deadline, not the one drawn into the markup: «خلّصت» moves it with no
+    // rebuild on the drawers' phones (their frame is one from draw to collect), and
+    // once the pencils are down the clock reads 0.
+    const sh = st.shared || {};
+    const until = sh.phase === 'draw' && sh.endsAt ? Number(sh.endsAt) : now;
     el.querySelectorAll('[data-hr-pencil]').forEach(p => {
-      const until = Number(p.dataset.hrPencil), total = Number(p.dataset.hrTotal) || 1;
+      const total = Number(p.dataset.hrTotal) || 1;
       const frac = Math.max(0, Math.min(1, (until - now) / total));
       p.style.setProperty('--t', frac.toFixed(3));
       p.classList.toggle('is-hurry', frac < 0.25);
     });
     el.querySelectorAll('[data-hr-clock]').forEach(c => {
-      const left = Math.max(0, Math.ceil((Number(c.dataset.hrClock) - now) / 1000));
+      const left = Math.max(0, Math.ceil((until - now) / 1000));
       const txt = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
       if (c.textContent !== txt) {
         c.textContent = txt;

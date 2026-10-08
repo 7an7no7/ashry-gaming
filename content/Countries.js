@@ -133,7 +133,9 @@ function flagsBearing(a, b) {
   return (Math.atan2(y, x) / rad + 360) % 360;
 }
 
-const flagsProximity = (km) => Math.max(0, Math.round(100 * (1 - km / 20015)));
+// 100 is the right country alone: a wrong one under ~100 km away (Bahrain for Qatar) used to round
+// to 100, the same as a win on the card, the share line and the race's closest bar.
+const flagsProximity = (km) => km > 0 ? Math.min(99, Math.max(0, Math.round(100 * (1 - km / 20015)))) : 100;
 
 // The map's five colours (JS_FlagsMap.html): 0 more than 9,000 km away (red) … 4 within 1,200 (green).
 // A room's table sees only this step of each guess, never the kilometres (RoomSolve.js).

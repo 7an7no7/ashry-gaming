@@ -3106,7 +3106,8 @@ function bsRoomFleetsHtml(state) {
 function bsHostRow(state, tv) {
   const s = state.shared || {};
   if (!roomCanMoveOn(state) || (s.phase !== 'play' && s.phase !== 'place')) return '';
-  const key = [state.code, s.round, s.turnSeq].join('|');
+  // The match too: in a tournament another match can have the same round and step.
+  const key = [state.code, s.tourMid || '', s.round, s.turnSeq].join('|');
   if (bsRoomLocal.turnKey !== key) { bsRoomLocal.turnKey = key; bsRoomLocal.turnSince = Date.now(); }
   const waitingOn = s.phase === 'place' ? (s.seats || []).filter((id, k) => !s.ready[k]) : [s.seats[s.turn]];
   const quiet = waitingOn.some(id => {
@@ -3241,7 +3242,9 @@ ROOM_GAMES.battleship = {
       const mini = Object.assign({}, model.seas[other], bsSeaShown(s.seas, model.seas[other].k, s.last, flying && s.last));
       side.push(bsMiniHtml(mini, mini.label), bsRoomFleetsHtml(state), bsRoomRadarLogHtml(state));
     }
-    side.push(`<div data-bs-hostrow></div>`, duelRoomLineHtml(state, t));
+    // The line too waits for the last shell: drawn from the final state it put the loser at the back first.
+    const lineState = flying && s.phase === 'over' ? Object.assign({}, state, { shared: Object.assign({}, s, { phase: 'play' }) }) : state;
+    side.push(`<div data-bs-hostrow></div>`, duelRoomLineHtml(lineState, t));
     // The board already has the last shot's win: it waits for the shell to land like everything else.
     if ((state.players || []).length > 2 && !(flying && s.phase === 'over')) side.push(renderScoreboard(s.board));
     if (s.phase === 'over' && !flying) side.push(roomShareBtnHtml(state, s.board));
@@ -3303,13 +3306,15 @@ TV_GAMES.battleship = {
     const flying = !!bsRoomLocal.flying;
     const clock = s.endsAt && (s.phase === 'play' || s.phase === 'place') ? ` <span class="tv-pill" data-bs-clock></span>` : '';
     const side = view.querySelector('[data-bs-tvside]');
+    // The line waits for the last shell as on the phone.
+    const lineState = flying && s.phase === 'over' ? Object.assign({}, state, { shared: Object.assign({}, s, { phase: 'play' }) }) : state;
     const html = `
       <div class="tv-scale">${bsRoomPills(state, t, true)}</div>
       <div class="tv-title tv-center-text duel-tv__status">${escapeHTML(bsRoomStatus(state, flying, true))}${clock}</div>
       ${bsHostRow(state, true)}
       ${s.phase === 'over' && !flying ? duelRoomOverHtml(state, t, true) : ''}
       ${s.phase !== 'place' ? `<div class="tv-scale">${bsRoomFleetsHtml(state)}${bsRoomRadarLogHtml(state, true)}</div>` : ''}
-      <div class="tv-scale">${duelRoomLineHtml(state, t, true)}</div>`;
+      <div class="tv-scale">${duelRoomLineHtml(lineState, t, true)}</div>`;
     if (side && side._bsHtml !== html) { side.innerHTML = html; side._bsHtml = html; }
     bsTickClock(state);
     duelPillsAfter(view, duelRoomPillKey('bstv', state), {

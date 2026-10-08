@@ -137,6 +137,17 @@ const stopAction = (room, playerId, action, payload) => {
     return;
   }
 
+  if (action === 'closeWriting') {
+    // «بدون وقت»: no clock ends the writing, so the host (or anyone, once the host
+    // is away) closes it; the sheets are collected as after وقف, with no stopper.
+    requireMoveOn(room, playerId);
+    if (staleTap(payload, 'round', s.round)) return;
+    if (s.phase !== 'writing') return;
+    s.phase = 'collecting';
+    s.collectEndsAt = Date.now() + STOP_COLLECT_MS;
+    return;
+  }
+
   if (action === 'adjust') {
     requireHost(room, playerId);
     if (s.phase !== 'review') return;

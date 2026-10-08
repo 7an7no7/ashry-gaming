@@ -151,7 +151,7 @@ function paintQueens() {
               edge(r - 1, c) ? 'bt' : '', edge(r + 1, c) ? 'bb' : '', edge(r, c - 1) ? 'bl' : '', edge(r, c + 1) ? 'br' : '',
               bad.has(i) ? 'is-bad' : ''].filter(Boolean).join(' ');
             const mark = s.marks[i] === 2 ? '👑' : (s.marks[i] === 1 ? '✕' : '');
-            return `<button type="button" class="${cls}" data-i="${i}" onpointerdown="queensDown(event, ${i})">${mark}</button>`;
+            return `<button type="button" class="${cls}" data-i="${i}" onpointerdown="queensDown(event, ${i})" onclick="if (event.detail === 0) queensKey(${i})">${mark}</button>`;
           }).join('')}
         </div>
       </div>
@@ -230,6 +230,21 @@ function queensDown(e, i) {
     document.removeEventListener('pointercancel', up);
     queensDrag = null;
   };
+}
+
+/** Enter or Space on a cell (a keyboard, a TV remote): the tap's cycle, empty → ✕ → 👑. */
+function queensKey(i) {
+  const s = queensState();
+  if (s.phase !== 'play') return;
+  const before = s.marks.slice();
+  s.marks[i] = (s.marks[i] + 1) % 3;
+  soloUndoPush(s, before);
+  saveToLocal();
+  paintQueens();
+  // The board was drawn again: the focus goes back to the same cell.
+  const cell = document.querySelector(`#queens-grid [data-i="${i}"]`);
+  if (cell) cell.focus();
+  queensCheck();
 }
 
 /** Empties the board, after asking: it is every mark at once. */

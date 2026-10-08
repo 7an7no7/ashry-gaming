@@ -268,6 +268,8 @@ const resolveImposterVote = (room) => {
   s.accusedId = accused ? accused.id : null;
   s.accusedName = accused ? accused.label : '';
   if (accused && (room._impSpies || []).indexOf(accused.id) !== -1) {
+    // A spy named after leaving (the other spy still here) has no guess to make: caught.
+    if (!room.players.some(p => p.id === accused.id)) { finishImposter(room, 'caught', null); return; }
     // المختلف: naming them ends it (the owner, 20 Sep 2026). They are holding a
     // near relative of the table's word, so picking it out of six would be free,
     // and catching them would be worth nothing. الجاسوس keeps its guess.

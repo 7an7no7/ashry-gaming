@@ -201,6 +201,11 @@ const chess4NewRoomGame = (room, playerId, action, p) => {
     // The same table, turned by one: red, who moves first, is someone else.
     const was = prev.seats || [];
     order = [0, 1, 2, 3].map(k => { const id = was[(k + 1) % 4]; return id && room.players.some(x => x.id === id) ? id : null; });
+    // A colour left empty goes to someone watching (a latecomer) before a computer player;
+    // whoever the host chose to keep watching stays out.
+    const watch = lobby.watch || [];
+    const waiting = room.players.filter(x => !x.bot && order.indexOf(x.id) === -1 && watch.indexOf(x.id) === -1).map(x => x.id);
+    for (let k = 0; k < 4 && waiting.length; k++) if (!order[k]) order[k] = waiting.shift();
     mode = prev.settings.mode;
     clock = prev.settings.clock;
   } else {

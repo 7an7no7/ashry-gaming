@@ -714,6 +714,9 @@ function dkWireMover(el) {
   });
   const st = el.querySelector('[data-dk-stick]');
   if (st && !st.dataset.wired) {
+    // A new stick (the frame rebuilt mid-drag, as a trap does): the old one took the finger's
+    // release with it, so a push still held by the finger (not the arrow keys) stops here.
+    if (dk.stick.on && !Object.values(dk.keys || {}).some(Boolean)) { dk.stick.on = false; dk.stick.vx = 0; dk.stick.vy = 0; dkStickSend(true); }
     st.dataset.wired = '1';
     const knob = st.firstElementChild;
     let on = false;
@@ -1636,5 +1639,5 @@ function dkTv3D(m, T) {
   };
 }
 onLeaveScreen((from) => { if (from === 'room-darkroom' || from === 'room-tv') { if (from === 'room-tv') dkTvDrop(); dkStopLoop(); } });
-onRoomClocksReset(() => { dkTvDrop(); dkStopLoop(); dk.mine = null; dk.lens = {}; });
+onRoomClocksReset(() => { dkTvDrop(); dkStopLoop(); dk.mine = null; dk.lens = {}; dk.stick.on = false; dk.stick.vx = 0; dk.stick.vy = 0; dk.keys = {}; });
 </script>

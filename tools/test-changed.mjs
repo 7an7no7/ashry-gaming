@@ -54,7 +54,10 @@ const MAP = [
   // A game's own words and rules (games/<id>/<id>.text.js): its screens.
   { files: /\.text\.js$/, screens: true },
   // The party games the core segment plays in its one room (and their word lists, which المشنقة,
-  // the solve games, the race and the packs' rooms deal from too).
+  // the solve games, the race and the packs' rooms deal from too). PartyContent.js also holds
+  // DRAW_WORDS, which المهمة السرية deals its word missions from (RoomMission.js): its row comes
+  // first, since a file takes the first row that names it.
+  { files: /^PartyContent\.js$/, robots: ['core', 'autonext', 'hangman', 'solve', 'race', 'quiz', 'mission'], ui: CORE_GAMES.concat(['hangman', 'wordle'], RACE_GAMES), screens: true, mission: true },
   { files: /^(SpyWords|CodenamesWords|PartyContent|TriviaQuestions|ChameleonWords|SpyfallPlaces|BombPrompts|EmojiRiddles|Proverbs|MonkeyWords|StopWords|TimelineEvents)\.js$/, robots: ['core', 'autonext', 'hangman', 'solve', 'race', 'quiz'], ui: CORE_GAMES.concat(['hangman', 'wordle'], RACE_GAMES), screens: true },
   { files: /^JS_Room(Imposter|Codenames|Buzzer|Stop|Chameleon|Spyfall|Bomb|Draw|TwoTruths|Quiz|FiveSeconds|Telephone|Monkey|FakeArtist|Trivia|Herd|Mind|Timeline)\.html$/, robots: ['core', 'autonext'], ui: CORE_GAMES },
   // «التالي لوحده»: the next round by itself in the vote and quiz games.

@@ -54,7 +54,10 @@ function family(prop) {
   if (/^(gap|row-gap|column-gap|grid)/.test(p)) return 'grid';
   if (/^(font|line-height)/.test(p)) return 'font';
   if (/^(transform|translate|rotate|scale)/.test(p)) return 'transform';
-  if (/^(overflow)/.test(p)) return 'overflow';
+  if (/^(overflow)/.test(p) || p === 'word-wrap') return 'overflow';   // word-wrap is overflow-wrap's old name
+  // white-space is the shorthand of text-wrap (and white-space-collapse); columns of column-count / -width.
+  if (/^(white-space|text-wrap)/.test(p)) return 'white-space';
+  if (/^(columns|column-(count|width|rule|span|fill))/.test(p)) return 'columns';
   return p.split('-')[0];
 }
 

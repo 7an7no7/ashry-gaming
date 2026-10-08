@@ -311,7 +311,10 @@ const laserReveal = (room) => {
   s.shots = alive.map(pid => {
     const m = room.secrets[pid] && !room.secrets[pid].ghost ? room.secrets[pid] : laserRandomSpot(A);
     // A pickup this phone chose to use: a second ray, a wider one, or its shield.
-    const use = m.use && s.held[pid] ? s.held[pid] : null;
+    // A firing pickup is kept while this player's own shield is up: a shield fires nothing,
+    // so using it then would waste it (the shield pickup itself is still used).
+    const ownUp = !!m.shield && !s.shieldUsed[pid];
+    const use = m.use && s.held[pid] && !(ownUp && s.held[pid] !== 'shield') ? s.held[pid] : null;
     const shield = use === 'shield' || (!!m.shield && !s.shieldUsed[pid]);
     const shot = { id: pid, x: m.x, y: m.y, a: m.a, shield };
     if (use) { shot.use = use; delete s.held[pid]; }

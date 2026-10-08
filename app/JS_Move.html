@@ -222,6 +222,11 @@ function moveDeviceDark() { return !!(window.matchMedia && window.matchMedia('(p
 function moveHere() {
   const here = {};
   Object.keys(MOVE_KEYS).forEach((k) => { try { here[k] = localStorage.getItem(k); } catch (e) { here[k] = null; } });
+  // No played list yet: readPlayed falls back to the recent row, so the merge starts from it too
+  // (written alone, the incoming list would end that fallback and forget this phone's games).
+  if (here.ashryPlayed_v1 == null && typeof readPlayed === 'function') {
+    try { here.ashryPlayed_v1 = JSON.stringify(readPlayed()); } catch (e) {}
+  }
   const app = { lang: appState.lang, gameLang: appState.gameLang || 'auto', isDarkMode: !!appState.isDarkMode };
   // The chess rating against the computer, to say whether this phone has rated games (audit 7 Oct 2026, D1).
   if (appState.shatranj && appState.shatranj.rating) app.chessRating = appState.shatranj.rating;

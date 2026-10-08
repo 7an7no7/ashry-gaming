@@ -18,10 +18,12 @@ const TELE_TWICE_MAX = 4;          // «لفّة كمان»: for a table of 3 or
 const cleanStrokes = (batch) => {
   const out = [];
   let points = 0;
+  let fills = 0;
   (Array.isArray(batch) ? batch : []).forEach(st => {
     const left = DRAW_MAX_POINTS - points;
     if (left < 2) return;
     const tool = DRAW_TOOLS.indexOf(String((st && st.t) || 'f')) !== -1 ? String(st.t || 'f') : 'f';
+    if (tool === 'b') { if (fills >= DRAW_MAX_FILLS) return; fills += 1; }
     let pts = ((st && st.p) || []).map(n => Math.max(0, Math.min(255, Math.round(Number(n) || 0))));
     const exact = DRAW_TOOL_POINTS[tool];
     if (exact) {

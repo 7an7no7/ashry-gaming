@@ -98,10 +98,14 @@ const mgBoard = (room) => {
   s.scores = {};
   const match = (s.settings || {}).scoring === 'match';
   const mp = match ? golfMatchPoints(s.card || {}, (s.order || []).filter(id => (s.card || {})[id]), mgCourse(s).length) : null;
+  // Stroke play counts only the holes everyone on the card has finished, so cut mid-hole
+  // (the hub, the program moving on) nobody leads by having played one hole fewer.
+  const ids = room.players.map(p => p.id).filter(id => (s.card || {})[id]);
+  const full = (i) => ids.every(id => typeof s.card[id][i] === 'number');
   const rows = room.players.map((p, k) => {
     const card = (s.card || {})[p.id] || [];
     let total = 0;
-    card.forEach(v => { if (typeof v === 'number') total += v; });
+    card.forEach((v, i) => { if (typeof v === 'number' && (match || full(i))) total += v; });
     const score = match ? (mp.pts[p.id] || 0) : total;
     s.scores[p.id] = score;
     return { id: p.id, name: p.name, score: score, strokes: total, k: k };

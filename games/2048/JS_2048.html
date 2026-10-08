@@ -70,8 +70,10 @@ function set2048Size(n) {
   paint2048Setup();
 }
 
-/** `n`: the size to deal; none (the setup's Start) deals the setup's pick. */
-function start2048(n) {
+/** `n`: the size to deal; none (the setup's Start) deals the setup's pick. `sure`: already asked. */
+function start2048(n, sure) {
+  // The setup's Start over a game with points on it asks first, as every other solo Start does.
+  if (!sure && soloConfirmNew('g2048', (st) => st.score > 0, () => start2048(n, true))) return;
   soloNewGame('g2048');
   const s = g2048State();
   s.tiles = [];
@@ -224,7 +226,7 @@ function move2048(dir) {
 /** A new game throws the board away, so a game with points on it asks first. It keeps the board's size (the owner). */
 function confirmNew2048() {
   const s = g2048State();
-  const again = () => start2048(g2048N(g2048State()));
+  const again = () => start2048(g2048N(g2048State()), true);
   if (s.phase === 'play' && s.score > 0) showConfirmModal((TRANSLATIONS[appState.lang] || {}).g2048_new_confirm || '', again, { yes: 'cf_restart', tone: 'danger', icon: '🔄' });
   else again();
 }

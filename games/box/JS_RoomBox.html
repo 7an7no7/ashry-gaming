@@ -753,7 +753,14 @@ function bxConfirm() {
   l.step = 'wait';
   bxSaveLocal();
   haptic('medium');
-  roomAct('bid', { box: s.box, amount: l.v, insure: !!l.ins });
+  // A bid that didn't get there (no answer, the socket gone) puts this phone back on its bid,
+  // rather than leave it on «you bid N» while the box opens with it as a pass.
+  Room.act('bid', { box: s.box, amount: l.v, insure: !!l.ins }).catch((err) => {
+    const now = Room.state;
+    const cur = now && now.game === 'box' ? bxLocalFor(now) : null;
+    if (cur && cur.key === l.key && cur.step === 'wait' && !(now.you && typeof now.you.bid === 'number')) { cur.step = 'bid'; bxSaveLocal(); ROOM_GAMES.box.render(now); }
+    if (!(err && err.quiet)) showToast((err && err.message) || 'تعذر تنفيذ الإجراء', 'error');
+  });
 }
 /** «تأمين» (7 Oct 2026): 50 ج on top of the bid; a scorpion or the thief then costs half. */
 function bxIns() {

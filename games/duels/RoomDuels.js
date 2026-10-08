@@ -627,7 +627,14 @@ const c4tNextTeams = (room) => {
     if (!teams[k].length && teams[1 - k].length >= 2) {
       const from = teams[1 - k];
       const id = from[Math.floor(Math.random() * from.length)];
+      // The relay carries into the next game: the side losing a member keeps whoever was due next.
+      const at = from.indexOf(id), len = from.length;
+      const relay = Array.isArray(s.relay) ? s.relay : (s.relay = [0, 0]);
+      let next = ((Number(relay[1 - k]) || 0) % len + len) % len;
+      if (at < next) next -= 1;
       teams[1 - k] = from.filter(x => x !== id);
+      relay[1 - k] = next % teams[1 - k].length;
+      relay[k] = 0;
       teams[k] = [id];
     }
   });

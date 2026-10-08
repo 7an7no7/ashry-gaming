@@ -178,7 +178,8 @@ function syncRoomChat(state, opening) {
   const talk = msgs.filter(m => !m.sys);
   const last = msgs.length ? msgs[msgs.length - 1] : null;
   const lastTalk = talk.length ? talk[talk.length - 1] : null;
-  if (!inRoom) { roomChat.inRoom = false; roomChat.seen = 0; roomChat.notified = 0; roomChat.to = 'all'; roomChat.newFrom = 0; paintRoomChatBanner(0); return; }
+  // Out of the room (closed, removed, left): a chat opened from the banner shuts with it.
+  if (!inRoom) { if (roomChatOpen()) closeModal('chat-modal'); roomChat.inRoom = false; roomChat.seen = 0; roomChat.notified = 0; roomChat.to = 'all'; roomChat.newFrom = 0; paintRoomChatBanner(0); return; }
   if (!roomChat.inRoom || roomChat.code !== state.code) {
     // Just arrived (or straight on to another room): what is already here is
     // history, not news - and another room's line ids mean nothing here.

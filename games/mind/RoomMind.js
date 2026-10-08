@@ -111,6 +111,7 @@ const mindAction = (room, playerId, action, payload) => {
       level: 0,
       maxLevel: mindMaxLevel(roster.length),
       lives: roster.length,
+      livesMax: roster.length,          // the hearts row keeps the lost ones after someone leaves
       pile: [],
       discarded: [],
       held: {},

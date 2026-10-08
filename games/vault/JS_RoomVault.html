@@ -438,7 +438,10 @@ function vtWire(el) {
 
 function vtSend(action, payload) {
   const s = (Room.state && Room.state.shared) || {};
-  roomAct(action, Object.assign({ safe: s.safeNo }, payload));
+  // `m`: the side's mistakes this phone has seen, so a double tap's second miss isn't counted again.
+  const mine = Room.state ? vtMine(Room.state) : null;
+  const m = mine && mine.side && typeof mine.side.mistakes === 'number' ? { m: mine.side.mistakes } : {};
+  roomAct(action, Object.assign({ safe: s.safeNo }, m, payload));
 }
 
 /** The stage moves to another of my locks (d: +1 / -1), or straight to lock i. */

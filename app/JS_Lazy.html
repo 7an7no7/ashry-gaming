@@ -18,9 +18,12 @@
    (lzBootWrite, at the end of the body), so nothing waits for it.
    ========================================================================= */
 var LZ = window.LZ_MANIFEST || null;
-var lz = { loaded: {}, loading: {}, pending: {}, from: {}, boot: {}, tags: {}, stale: {}, busy: 0, barTimer: null, fail: null };
+var lz = { loaded: {}, loading: {}, pending: {}, from: {}, boot: {}, tags: {}, stale: {}, busy: 0, barTimer: null, fail: null, nav: 0 };
 var LZ_TIMEOUT_MS = 15000;
 function lzView() { try { return appState.currentView; } catch (e) { return null; } }
+/* Every change of screen counts (setView): away and back to the same screen is still a move. */
+function lzNavMoved() { lz.nav++; }
+function lzModalOpen() { return !!document.querySelector('.modal-overlay:not(.hidden)'); }
 
 /** A chunk and everything it needs, in the order they must run. */
 function lzClosure(ids) {
@@ -104,7 +107,9 @@ function lzWait(ids, retry, key) {
   if (lzReady(ids)) return false;
   key = key || 'nav';
   lz.pending[key] = retry;
-  lz.from[key] = lzView();
+  // The screen, how many screens have been shown, and whether a popup was open: a late
+  // chunk opens nothing over a sheet opened since (setView would shut it) or after a trip away.
+  lz.from[key] = lzView() + '#' + lz.nav + (lzModalOpen() ? '+' : '');
   lzBusy(1);
   lzEnsure(ids).then(function () {
     lzBusy(-1);
@@ -121,7 +126,13 @@ function lzWait(ids, retry, key) {
   });
   return true;
 }
-function lzLeft(key) { return key === 'nav' && lz.from[key] !== lzView(); }
+function lzLeft(key) {
+  if (key !== 'nav') return false;
+  var from = String(lz.from[key] || '');
+  var here = lzView() + '#' + lz.nav;
+  if (from === here + '+') return false;   // asked from a popup: that popup may still be open
+  return from !== here || lzModalOpen();
+}
 /** Runs fn now if its chunks are here, or once they are. */
 function lzRun(ids, fn) {
   if (typeof ids === 'string') ids = [ids];
@@ -168,12 +179,33 @@ function lzBusy(d) {
 function escapeLz(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 function lzFailed(ids, retry, key) {
   var el = lzPill();
-  lz.fail = { ids: ids, retry: retry, key: key, from: lzView() };
+  var fail = lz.fail = { ids: ids, retry: retry, key: key, from: lzView() };
   el.className = 'lz-status lz-status--fail';
   el.innerHTML = '<span>' + escapeLz(lzText('lz_failed', 'مقدرناش نفتح اللعبة')) + '</span>' +
     '<button type="button" class="lz-status__btn" onclick="lzRetry()">' + escapeLz(lzText('lz_retry', 'حاول تاني')) + '</button>' +
     '<button type="button" class="lz-status__x" onclick="lzDismiss()" aria-label="' + escapeLz(lzText('close', 'إغلاق')) + '">✕</button>';
   el.hidden = false;
+  // A page left open across releases asks for a chunk the server no longer keeps (docs/g keeps
+  // four builds): trying the same file again can't work, the new build can. Offer that instead.
+  lzNewerBuild().then(function (newer) {
+    if (!newer || lz.fail !== fail) return;
+    el.innerHTML = '<button type="button" class="lz-status__btn" onclick="lzUpdateApp()">' + escapeLz(lzText('ver_ready', 'فيه نسخة أحدث - اضغط للتحديث')) + '</button>' +
+      '<button type="button" class="lz-status__x" onclick="lzDismiss()" aria-label="' + escapeLz(lzText('close', 'إغلاق')) + '">✕</button>';
+  });
+}
+/** sw.js names the newest build; true when it isn't this page's. The published site only. */
+function lzNewerBuild() {
+  if (!window.STATIC_SITE || !window.BUILD_ID || typeof fetch !== 'function') return Promise.resolve(false);
+  return fetch('sw.js', { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (txt) {
+    var m = /const CACHE = 'ashry-(\d+)'/.exec(txt);
+    return !!(m && m[1] !== String(window.BUILD_ID));
+  }).catch(function () { return false; });
+}
+/** The update, even in a room (a reload rejoins it): Settings' own path, told to switch at once. */
+function lzUpdateApp() {
+  lzDismiss();
+  if (typeof updateApp === 'function') updateApp(true);
+  else location.reload();
 }
 function lzDismiss() {
   lz.fail = null;

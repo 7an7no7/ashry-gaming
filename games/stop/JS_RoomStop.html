@@ -198,8 +198,12 @@ function stopRoomFrame(state, t, inRound, iSubmitted) {
       ${hint ? `<p class="field__hint">${escapeHTML(hint)}</p>` : ''}
     </div>`;
 
+  // «بدون وقت»: nothing but وقف ends the writing, so the host (or anyone while the host is away) can close it.
+  const closeWriting = s.phase === 'writing' && !s.endsAt
+    ? roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="roomAct('closeWriting', { round: ${Number(s.round) || 0} })">${escapeHTML(t.stop_room_close_writing || '')}</button></div>`)
+    : '';
   if (s.phase === 'writing' || s.phase === 'collecting') {
-    if (!inRound) return head + letterCard('') + `<div class="waiting-note">${escapeHTML(t.vote_spectating || '')}</div>` + renderRoomPlayerStrip(state);
+    if (!inRound) return head + letterCard('') + `<div class="waiting-note">${escapeHTML(t.vote_spectating || '')}</div>` + closeWriting + renderRoomPlayerStrip(state);
     if (s.phase === 'collecting' || iSubmitted) {
       return head + letterCard('') + `
         <div class="card" style="text-align:center">
@@ -207,7 +211,7 @@ function stopRoomFrame(state, t, inRound, iSubmitted) {
             ? `<div class="waiting-note"><span class="animate-pulse">⏳</span> ${escapeHTML(t.stop_room_collecting || '')}</div>
                ${s.stopperName ? `<p class="field__hint">✋ ${escapeHTML(s.stopperName)} ${escapeHTML(t.stop_room_stopped_by || '')}</p>` : ''}`
             : `<div class="waiting-note"><span class="animate-pulse">✍️</span> ${escapeHTML(t.waiting_others || '')} (${done}/${expected})</div>`}
-        </div>` + renderRoomPlayerStrip(state);
+        </div>` + closeWriting + renderRoomPlayerStrip(state);
     }
     return head + letterCard(t.stop_room_write_hint || '') + `
       <div class="card card--tight stop-room-form" data-key="${escapeHTML(stopRoundKey(state))}">
@@ -220,7 +224,7 @@ function stopRoomFrame(state, t, inRound, iSubmitted) {
           </div>`).join('')}
         <button type="button" id="stop-room-stop" class="btn btn--danger btn--lg is-locked" aria-disabled="true" onclick="submitStopRoom(true)">${escapeHTML(t.stop_stop_btn || '')}</button>
         <p id="stop-room-gate" class="field__hint" style="text-align:center">${escapeHTML(t.stop_room_stop_hint || '')}</p>
-      </div>` + renderRoomPlayerStrip(state);
+      </div>` + closeWriting + renderRoomPlayerStrip(state);
   }
 
   if (s.phase === 'review') {

@@ -60,7 +60,7 @@ const GOLF = {
   AIR_G: 20,              // the fall, in the air
   LAND: 0.75,             // speed kept on landing
   DT: 1 / 240,
-  MAX_T: 14,
+  MAX_T: 20,              // the rink's ice: a hard putt can slide ~16 s
   OVER_PAR: 3,            // strokes past par, then the ball is picked up (golfMaxOf)
   PENALTY: 1
 };
@@ -1202,7 +1202,7 @@ function golfFly(sim, b) {
 /** One step of one ball: the ground, the rails and pieces, the water, the cup, and whether it stops. */
 function golfMove(sim, b, clock) {
   const h = sim.hole, dt = GOLF.DT;
-  let slope = 0, onBelt = false;
+  let slope = 0, onBelt = false, drag = GOLF.GREEN;
   if (b.air) {
     golfFly(sim, b);
     if (b.air) return;
@@ -1224,7 +1224,7 @@ function golfMove(sim, b, clock) {
       if (golfRampU(ramps[i], b.x, b.y) >= 0) { ramp = ramps[i]; const u = golfUnit(ramp.dx, ramp.dy); ax -= u[0] * GOLF.RAMP_G; ay -= u[1] * GOLF.RAMP_G; }
     }
     slope = Math.sqrt(ax * ax + ay * ay);
-    let drag = GOLF.GREEN;
+    drag = GOLF.GREEN;
     b.sand = false; b.mud = false; b.ice = false;
     const ice = h.ice || [];
     for (let i = 0; i < ice.length; i++) if (golfInPoly(b.x, b.y, ice[i])) { drag = GOLF.ICE; b.ice = true; }
@@ -1341,7 +1341,9 @@ function golfMove(sim, b, clock) {
     if (!b.lip) { b.lip = 1; b.vx *= 0.7; b.vy *= 0.7; }
   } else if (b.lip && cd2 > (GOLF.CUP_R + 0.3) * (GOLF.CUP_R + 0.3)) b.lip = 0;
 
-  if (sp2 < GOLF.STOP && slope < GOLF.REST_SLOPE && !onBelt && !golfInSweep(h, b.x, b.y)) { b.end = 'rest'; b.vx = b.vy = 0; return; }
+  // A slope the ground's own drag holds (green 3, sand, mud) is rest too: the drag cancels the
+  // pull every step, and the ball used to sit there jittering until MAX_T.
+  if (sp2 < GOLF.STOP && slope < Math.max(GOLF.REST_SLOPE, drag) && !onBelt && !golfInSweep(h, b.x, b.y)) { b.end = 'rest'; b.vx = b.vy = 0; return; }
   if (sim.t >= GOLF.MAX_T) { b.end = 'rest'; b.vx = b.vy = 0; }
 }
 
@@ -1689,7 +1691,17 @@ function golfAutoShot(h, at, t0) {
   // Just past the cup (a putt that dies at the rim drops), just to a point on the way.
   const shot = shotTo(tx, ty, toCup ? 0.6 : 0);
   const d0 = golfDistance(h, at[0], at[1]);
-  if (!isFinite(d0)) return shot;
+  // The last way out (a spot the field can't route from, or every putt above ends in the water):
+  // the first putt round the compass that ends dry somewhere the cup can be reached from.
+  const compass = (fallback) => {
+    for (let a = 0; a < 24; a++) for (const pw of [40, 80, 150, 300]) {
+      const sh = { dx: Math.round(Math.cos(a * Math.PI / 12) * 1000), dy: Math.round(Math.sin(a * Math.PI / 12) * 1000), power: pw, t0: when };
+      const r = golfPutt(h, at, sh);
+      if (r.end === 'cup' || (r.end === 'rest' && isFinite(golfDistance(h, r.at[0], r.at[1])))) return sh;
+    }
+    return fallback;
+  };
+  if (!isFinite(d0)) return compass(shot);
   // How far from the cup a putt leaves the ball (-1 in it, Infinity in the water: back where it lay).
   const after = (sh) => {
     const r = golfPutt(h, at, sh);
@@ -1735,7 +1747,7 @@ function golfAutoShot(h, at, t0) {
   };
   play(tries.concat(aims(d0 - 0.5)));
   if (!isFinite(left)) play(aims(d0 + 3, true));
-  return pick;
+  return isFinite(left) ? pick : compass(pick);
 }
 
 /** A hole's score in words: 'ace', 'albatross', 'eagle', 'birdie', 'par', 'bogey', 'double', 'more'. */

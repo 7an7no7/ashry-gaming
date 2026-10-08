@@ -827,7 +827,7 @@ const TRIVIA_QUESTIONS = {
     {"q": "Which country is shaped like a boot?", "choices": ["Portugal", "Italy", "Greece", "Spain"], "answer": 1, "c": "geography"},
     {"q": "What is the currency of Saudi Arabia?", "choices": ["Riyal", "Dinar", "Dirham", "Pound"], "answer": 0, "c": "geography"},
     {"q": "Which language has the most native speakers?", "choices": ["English", "Spanish", "Arabic", "Mandarin Chinese"], "answer": 3, "c": "general"},
-    {"q": "How many letters are in the Arabic alphabet?", "choices": ["29", "30", "28", "26"], "answer": 2, "c": "general"},
+    {"q": "How many letters are in the Arabic alphabet?", "choices": ["32", "30", "28", "26"], "answer": 2, "c": "general"},
     {"q": "Who composed Egypt's national anthem \"Bilady, Bilady\"?", "choices": ["Riad Al Sunbati", "Sayed Darwish", "Mohamed Abdel Wahab", "Baligh Hamdi"], "answer": 1, "c": "film"},
     {"q": "Who painted \"The Starry Night\"?", "choices": ["Vincent van Gogh", "Pablo Picasso", "Claude Monet", "Salvador Dalí"], "answer": 0, "c": "film"},
     {"q": "What is the tallest animal in the world?", "choices": ["Elephant", "Camel", "Ostrich", "Giraffe"], "answer": 3, "c": "science"},

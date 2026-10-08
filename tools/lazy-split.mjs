@@ -152,7 +152,9 @@ export const LAZY_EDGES = [
   // «جرّبها كلغز» from a chess review goes through lzRun.
   'JS_ChessReview>JS_ChessPuzzles',
   // The race's own screen: the connections board only in its race.
-  'JS_RoomRace>JS_Connections'
+  'JS_RoomRace>JS_Connections',
+  // «انقل لموبايل تاني» sets the chess rating only through typeof chState / lzEnsure (JS_Move.html).
+  'JS_Move>JS_Chess'
 ];
 
 /* Screens, room games and cards of the home whose chunk the code can't say by itself. */

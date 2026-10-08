@@ -181,7 +181,7 @@ const SOLVE_KINDS = {
     check(p) {
       const kind = SV_EMOJI_KINDS.indexOf(p.kind) !== -1 ? p.kind : 'thing';
       const ap = svEmojiAnswerProblem(p.answer);
-      if (ap) throw new Error(ap === 'long' ? 'الإجابة لحد 8 كلمات' : 'اكتب الإجابة');
+      if (ap) throw new Error(ap === 'long' ? 'الإجابة لحد 8 كلمات' : ap === 'short' ? 'الإجابة حرفين على الأقل' : 'اكتب الإجابة');
       const cp = svEmojiClueProblem(p.clue, p.answer);
       if (cp) throw new Error(cp === 'spells' ? 'الإيموجي بيتهجّى الإجابة' : (cp === 'letters' ? 'الفزورة إيموجي بس، من غير حروف' : 'اكتب الفزورة بالإيموجي'));
       return { a: svClean(p.answer), alt: [], e: String(p.clue).trim(), k: kind };

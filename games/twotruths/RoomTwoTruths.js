@@ -21,7 +21,7 @@ const twoTruthsAction = (room, playerId, action, payload) => {
       phase: 'writing',
       submitted: [],
       roster: room.players.map(p => p.id),
-      scores: (room.shared && room.shared.scores) || {},
+      scores: {},                       // a new game starts at zero, as every other room game does
       order: [],
       turn: -1
     };

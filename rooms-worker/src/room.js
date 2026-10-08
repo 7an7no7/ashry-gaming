@@ -12,7 +12,7 @@
  * with a key only their own phone was given (player ids are visible to all).
  */
 import { DurableObject } from 'cloudflare:workers';
-import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, roomSeatAway, roomClaimsPrune, roomClaimAsk, roomClaimAnswer, roomClaimTake, bumperRelaying, bumperJoined, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, missionJoined, missionPlayerLeft, HUM_SONGS, humSongIndexOf, roomGameIsOff, faceClean } from '../generated/rules.js';
+import { PACK_CODE_RE, packCode, roomHostChanged, ROOM_GAME_IDS, applyRoomAction, roomDeadline, roomTimeout, roomTimeoutDeals, withPromptMemory, roomEvent, roomPlayerLeft, sameRoomName, cleanRoomName, roomSeatAway, roomClaimsPrune, roomClaimAsk, roomClaimAnswer, roomClaimTake, bumperRelaying, bumperJoined, darkRelaying, bankNightPoints, crewNightInput, crewCleanCode, missionJoined, missionPlayerLeft, HUM_SONGS, humSongIndexOf, roomGameIsOff, faceClean } from '../generated/rules.js';
 import { roomView } from './view.js';
 
 /* «اعمل وشك» (1282): the face a phone sends on create and join is kept on its player only when
@@ -119,7 +119,12 @@ export class Room extends DurableObject {
   /* --- storage ----------------------------------------------------------- */
 
   async load() {
-    if (this.room === undefined) this.room = (await this.ctx.storage.get('room')) || null;
+    if (this.room === undefined) {
+      this.room = (await this.ctx.storage.get('room')) || null;
+      // Quick moves not yet saved when the room was evicted must not reuse version numbers
+      // phones already hold (a phone on the HTTP fallback would take a new state as old, or "same").
+      if (this.room) this.room.version = (Number(this.room.version) || 0) + 1000;
+    }
     return this.room;
   }
 
@@ -368,6 +373,8 @@ export class Room extends DurableObject {
     await this.load();
     const room = this.room;
     if (!room || !this.mayCrew(pid)) return { ok: false, error: 'دي للمضيف بس' };
+    // A Start may have landed during the calls.
+    if (room.game && room.phase !== 'lobby') return { ok: false, error: 'غيّر الشلة بين الألعاب' };
     const old = room.crew;
     if (old && old.code !== code && room.crewNight) {
       const stub = this.crewStub(old.code);
@@ -681,7 +688,7 @@ export class Room extends DurableObject {
       phase: 'lobby',
       hostId,
       // A room opened from a TV has that screen as its host and no players yet.
-      players: screen ? [] : [roomWithFace({ id: hostId, name: String(name || '').trim().slice(0, 24) || 'Host' }, rawFace)],
+      players: screen ? [] : [roomWithFace({ id: hostId, name: cleanRoomName(name) || 'Host' }, rawFace)],
       screens: screen ? [{ id: hostId }] : [],
       shared: {},
       secrets: {},
@@ -715,9 +722,14 @@ export class Room extends DurableObject {
       // A big screen: no name, no seat, and never a secret.
       room.screens = room.screens || [];
       if (room.screens.length >= MAX_SCREENS) return { ok: false, error: 'الغرفة فيها شاشات كفاية' };
-      room.screens.push({ id: pid });
+      // One that comes in while a game is dealt sees the screen-only slice (الأوضة المضلمة's map,
+      // الخزنة's locks) from the next deal on: a second device opened mid-game by a player must not
+      // read what that player is playing blind to (the owner, 8 Oct 2026). view.js reads `late`.
+      const entry = { id: pid };
+      if (room.game && room.phase !== 'lobby') entry.late = String((room.shared || {}).dealId || '-');
+      room.screens.push(entry);
     } else {
-      const name = String(rawName || '').trim().slice(0, 24);
+      const name = cleanRoomName(rawName);
       if (!name) return { ok: false, error: 'اكتب اسمك الأول' };
       if (room.players.length >= MAX_PLAYERS) return { ok: false, error: 'الغرفة اتملت' };
       // Joining mid-game is allowed: the newcomer watches until the next round.
@@ -1174,6 +1186,9 @@ export class Room extends DurableObject {
     }
     // The host's socket is watched: the alarm looks again when it would fall silent.
     if (pid === this.room.hostId) await this.scheduleAlarm(Date.now() + (this.room.game ? HOST_QUIET_MS : SOCKET_SILENT_MS) + 1000);
+    // Someone else back while the host is gone: the alarm counts the handover from now on (with
+    // nobody here when it last looked, it had fallen back to the 6-hour cleanup).
+    else if (!this.onlineIds().has(this.room.hostId)) await this.scheduleAlarm(Date.now() + ALARM_FLOOR_MS);
     return new Response(null, { status: 101, webSocket: client });
   }
 

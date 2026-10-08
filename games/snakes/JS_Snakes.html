@@ -2765,8 +2765,9 @@ async function snkBuild(c, g, e, m, seats) {
 function snkSyncPlayers(c, g, me, keep) {
   const want = g.seats || [];
   Object.keys(c.players).forEach(id => {
-    // A leaver whose suitcase walk is still to play stays until it has played (snkLeave).
-    if (want.indexOf(id) === -1 && !(keep && keep[id])) { if (c.players[id].zz) c.players[id].zz.remove(); c.players[id].e.remove(); delete c.players[id]; }
+    // A leaver whose suitcase walk is still to play stays until it has played (snkLeave),
+    // and one walking off right now (its item already off the queue) stays till the walk ends.
+    if (want.indexOf(id) === -1 && !(keep && keep[id]) && !c.players[id].leaving) { if (c.players[id].zz) c.players[id].zz.remove(); c.players[id].e.remove(); delete c.players[id]; }
   });
   want.forEach((id, i) => {
     const col = SNK_HEX[g.colors[id]] || '#888';

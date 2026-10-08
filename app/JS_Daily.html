@@ -100,19 +100,21 @@ function renderDaily() {
     const cat = CATALOG_BY_ID[g.id];
     const result = soloDailyResult(g.id);
     const going = !result && soloDailyInProgress(g.id);
+    // Switched off for a fix: greyed with «🛠️ بنصلّحها» in place of «العب» (playDaily only says why).
+    const off = !result && typeof catalogOff === 'function' && catalogOff(g.id);
     // 1095 (7 Oct 2026): three states at a glance - «العب» in the game's colour, «كمّل»
     // amber with a ring (started), done: its result in green and the row dimmed.
     const badge = going
       ? `<span class="badge daily-row__go is-going"><i class="daily-ring" aria-hidden="true"></i>${escapeHTML(t.daily_continue || 'كمّل')}</span>`
       : `<span class="badge daily-row__go">${escapeHTML(t.daily_play || '')}</span>`;
     return `
-          <button type="button" class="tool-item daily-row${result ? ' is-done' : going ? ' is-going' : ''}" data-accent="${cat.accent}" data-game="${g.id}" onclick="playDaily('${g.id}')" ${result ? 'disabled' : ''}>
+          <button type="button" class="tool-item daily-row${result ? ' is-done' : off ? ' is-off' : going ? ' is-going' : ''}" data-accent="${cat.accent}" data-game="${g.id}" onclick="playDaily('${g.id}')" ${result ? 'disabled' : ''}>
             <span class="tool-icon" aria-hidden="true">${typeof iconHtml === 'function' ? iconHtml(cat.icon) : cat.icon}</span>
             <span class="tool-info">
               <span class="tool-name">${escapeHTML(t[cat.title] || g.id)}</span>
               <span class="tool-desc">${escapeHTML(result ? (t.daily_done_today || '') : (t[cat.desc] || ''))}</span>
             </span>
-            <span class="daily-row__status">${result ? escapeHTML(g.line(result)) : badge}</span>
+            <span class="daily-row__status">${result ? escapeHTML(g.line(result)) : off ? gameOffBadge(t) : badge}</span>
           </button>`;
   }).join('');
   el.innerHTML = `

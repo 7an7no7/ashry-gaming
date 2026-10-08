@@ -1073,7 +1073,8 @@
     runLanguageHooks();
     // A room screen only redraws when the room changes, so it kept the old
     // language until the next move. Drop its signatures and draw it now.
-    if ((appState.currentView || '').indexOf('room-') === 0 && typeof Room !== 'undefined' && Room.state) {
+    // Not on the join screen (onRoomView): routing there pulls a phone typing another code back into its room.
+    if (typeof onRoomView === 'function' && onRoomView() && typeof Room !== 'undefined' && Room.state) {
       const view = document.getElementById('view-' + appState.currentView);
       if (view) delete view.dataset.sig;
       const setup = document.getElementById('room-host-setup');
@@ -1316,7 +1317,8 @@
      // From here a game's screens that come with its chunk are adopted as they come.
      markupStarted = true;
      hoistModals();
-     initializeApp();
+     // A throw in start-up must not cost the service worker and the rooms (a ?room= link).
+     try { initializeApp(); } catch (e) { console.error('init', e); }
      registerServiceWorker();
  
      // Honour a scanned ?room= link, or quietly rejoin the last room.
@@ -1387,7 +1389,7 @@
     navigator.serviceWorker.addEventListener('controllerchange', async () => {
       // Settings → تحديث البيانات asked for the new build: it is here, so switch now -
       // unless a game or a room has been opened since, when the note below says so.
-      if (appUpdateAsked) { if (appUpdateSafeView()) { reloadApp(); return; } controlled = true; }
+      if (appUpdateAsked) { if (appUpdateForced || appUpdateSafeView()) { reloadApp(); return; } controlled = true; }
       // A first visit's first worker taking over is not news - but from then on the
       // page is controlled, and a later build taking over is.
       if (!controlled) { controlled = true; return; }
@@ -1631,7 +1633,10 @@
         setSyncing(false);
     }
 
-    loadFromLocal();
+    try { loadFromLocal(); } catch (e) {
+      console.error('load failed', e);
+      try { setView('menu'); } catch (e2) {}
+    }
     // The history gets one entry per screen from the home to the one restored.
     navInit(appState.currentView);
     // The saved screen is known now, so the intro can decide how to leave.
@@ -1669,18 +1674,21 @@
    * installed, the page switches the moment its worker takes over (controllerchange above).
    */
   let appUpdateAsked = false;
-  async function updateApp() {
+  // A room's game whose chunk is gone from the server (lzUpdateApp): switch even in the room.
+  let appUpdateForced = false;
+  async function updateApp(force) {
     const sw = window.STATIC_SITE && navigator.serviceWorker;
     const reg = sw ? await navigator.serviceWorker.getRegistration().catch(() => null) : null;
     if (!reg) { reloadApp(); return; }
     appUpdateAsked = true;
+    if (force === true) appUpdateForced = true;
     try { await reg.update(); } catch (e) {}
     if (!reg.installing && !reg.waiting) { reloadApp(); return; }
     const t = TRANSLATIONS[appState.lang] || {};
     if (typeof showToast === 'function') showToast(t.update_downloading || 'بنزّل النسخة الجديدة…', 'info');
     // A download that never ends (the network went) still gets a reload - on a screen
     // that loses nothing, or once the phone is back on one.
-    setTimeout(() => { if (appUpdateSafeView()) reloadApp(); else appUpdateWatch(); }, 120000);
+    setTimeout(() => { if (appUpdateForced || appUpdateSafeView()) reloadApp(); else appUpdateWatch(); }, 120000);
   }
 
   /* --- Settings → الإصدار: when this copy was published, and whether it is the latest --- */
@@ -2022,7 +2030,11 @@
         console.error('restore failed', appState.currentView, e);
         const up = (VIEW_META[appState.currentView] || {}).up || '';
         document.body.classList.remove('is-fullscreen-view', 'is-tv-view');
-        setView(up.indexOf('setup-') === 0 ? up : 'menu');
+        // The setup screen can throw on the same saved data: then the home, and start-up goes on.
+        try { setView(up.indexOf('setup-') === 0 ? up : 'menu'); } catch (e2) {
+          console.error('restore fallback failed', e2);
+          try { setView('menu'); } catch (e3) {}
+        }
     }
   }
 
@@ -3675,6 +3687,8 @@
     if (BALOO_VIEWS.indexOf(viewId) !== -1) ensureBalooFont();
     if (typeof syncFxButton === 'function') syncFxButton(viewId);
     const previous = appState.currentView;
+    // Away and back again is a move too (JS_Lazy.html, lzLeft): a redraw of the same screen isn't.
+    if (previous !== viewId && typeof lzNavMoved === 'function') lzNavMoved();
     document.body.classList.toggle('is-fullscreen-view', FULLSCREEN_VIEWS.indexOf(viewId) !== -1);
     document.body.classList.toggle('is-tv-view', viewId === 'room-tv');
     // A room game on screen (not its lobby): the raised «افتح غرفة» lowers into

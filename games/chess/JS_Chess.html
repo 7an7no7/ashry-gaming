@@ -2679,6 +2679,7 @@ function chUndoLocal() {
   s.comment = null;
   chLocal.sel = '';
   chLocal.hint = null;
+  chLocal.coachBefore = null; chLocal.coachKey = ''; chLocal.coachAsking = ''; chLocal.hintAsking = '';
   chLocal.pre = null; chLocal.presel = '';
   saveToLocal();
   haptic('light');
@@ -3271,7 +3272,13 @@ function chComputerSoon() {
     // From 1400 (الكابتن, الأستاذ, الجنرال, a rating chosen that high) Stockfish plays, held to the rating
     // (JS_ChessStockfish.html, chSfPlay); below it, and whenever Stockfish can't, the app's own engine.
     const elo = chOppElo(st);
-    const think = elo >= CH_SF_PLAY_MIN && !hqs
+    // With a clock on, the computer's own time runs while Stockfish loads or waits behind the coach's
+    // looks, and its ms budget counts none of that: then the app's own engine plays this move.
+    const clocked = !!(st.clk && st.clk.at);
+    const sfFree = chSf.ok && !chSf.failed && !chSf.busy && !chSf.queue.length;
+    // (Loaded meanwhile for the next move.)
+    if (clocked && !sfFree && elo >= CH_SF_PLAY_MIN && !hqs && !chSf.ready && chSfFits(st.g, false)) chSfStart();
+    const think = elo >= CH_SF_PLAY_MIN && !hqs && (!clocked || sfFree)
       ? chSfPlay(st.g, { elo: elo, ms: ms, start: st.start || '', moves: st.hist.slice() }).then(mv => mv || own())
       : own();
     think.then((mv) => {
@@ -3445,18 +3452,19 @@ function chCoachAnalyse(g, hq, lines) {
 /** On your turn the coach looks at the position once: the hint and the warning read it. */
 function chCoachPrepare() {
   const s = chState();
-  const key = s.gameId + '|' + s.hist.length;
+  // Keyed by the take-backs too: after ↶ the same move count is another position.
+  const key = chTakeBackKey(s) + '|' + s.hist.length;
   if (chLocal.coachKey === key) { chPaint(); return; }
   setTimeout(() => {
     const st = chState();
-    if (st.phase !== 'play' || st.gameId + '|' + st.hist.length !== key || appState.currentView !== 'play-shatranj') return;
+    if (st.phase !== 'play' || chTakeBackKey(st) + '|' + st.hist.length !== key || appState.currentView !== 'play-shatranj') return;
     // Continue and a new game reach here twice (setView's hook and their own call): one look is enough.
     if (chLocal.coachKey === key || chLocal.coachAsking === key) return;
     chLocal.coachAsking = key;
     chCoachAnalyse(chessCloneGame(st.g), !!chHqOf(st)).then(a => {
       if (chLocal.coachAsking === key) chLocal.coachAsking = '';
       const s2 = chState();
-      if (s2.gameId + '|' + s2.hist.length !== key || chLocal.coachKey === key) return;
+      if (chTakeBackKey(s2) + '|' + s2.hist.length !== key || chLocal.coachKey === key) return;
       chLocal.coachBefore = a;
       chLocal.coachKey = key;
       if (appState.currentView === 'play-shatranj') chPaint();
@@ -3467,7 +3475,7 @@ function chCoachPrepare() {
 /** Your move against the computer, judged: a blunder waits for you to take it back or play it anyway. */
 function chCoachJudge(before, beforeLost, info, beforeClk, beforeHq) {
   const s0 = chState();
-  const key = s0.gameId + '|' + (s0.hist.length - 1);
+  const key = chTakeBackKey(s0) + '|' + (s0.hist.length - 1);
   const n = s0.hist.length, gid = s0.gameId, tk = chTakeBackKey(s0);
   const hq = !!beforeHq;
   const pre0 = chLocal.coachKey === key && chLocal.coachBefore ? chLocal.coachBefore : null;
@@ -3663,7 +3671,7 @@ function chBestNow(s) {
 function chHint() {
   const s = chState();
   if (!chHumanTurn(s) || s.vs !== 'phone' || chLocal.pending) return;
-  const key = s.gameId + '|' + s.hist.length;
+  const key = chTakeBackKey(s) + '|' + s.hist.length;
   // The hint on the board already is not asked for twice.
   if (chLocal.hint && chLocal.hint.key === key) return;
   if (chHelpLeft(s, 'hint') <= 0) return;
@@ -3674,7 +3682,7 @@ function chHint() {
     chCoachAnalyse(chessCloneGame(s.g), !!chHqOf(s)).then(a => {
       if (chLocal.hintAsking === key) chLocal.hintAsking = '';
       const st = chState();
-      if (st.gameId + '|' + st.hist.length !== key || appState.currentView !== 'play-shatranj') return;
+      if (chTakeBackKey(st) + '|' + st.hist.length !== key || appState.currentView !== 'play-shatranj') return;
       chLocal.coachBefore = a; chLocal.coachKey = key;
       chHint();
     });
@@ -3769,7 +3777,7 @@ function chPaint(opts) {
     threats[mine].forEach(sq => marks.push({ sq: sq, kind: 'mine' }));
     threats[mine === 'w' ? 'b' : 'w'].forEach(sq => marks.push({ sq: sq, kind: 'theirs' }));
   }
-  const hint = chLocal.hint && chLocal.hint.key === s.gameId + '|' + s.hist.length ? chLocal.hint : null;
+  const hint = chLocal.hint && chLocal.hint.key === chTakeBackKey(s) + '|' + s.hist.length ? chLocal.hint : null;
   const best = chBestNow(s);
   const ended = s.phase === 'done' && s.result;
   // The computer thinking: your next move can be queued (a premove) - unless premoves are switched off.

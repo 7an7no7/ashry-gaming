@@ -67,10 +67,12 @@ function shareCardMark() {
 
 /** A line shortened with an ellipsis until it fits: a long name must not run off the card. */
 function shareCardFit(ctx, text, maxWidth) {
-  let s = String(text == null ? '' : text);
+  const s = String(text == null ? '' : text);
   if (ctx.measureText(s).width <= maxWidth) return s;
-  while (s.length > 1 && ctx.measureText(s + '…').width > maxWidth) s = s.slice(0, -1);
-  return s + '…';
+  // By whole characters, so a cut never splits an emoji's two halves.
+  const a = Array.from(s);
+  while (a.length > 1 && ctx.measureText(a.join('') + '…').width > maxWidth) a.pop();
+  return a.join('') + '…';
 }
 
 /** The plain words of a line that may carry markup (a solo result's lines are HTML). */
@@ -460,7 +462,8 @@ function shareRoomNight() {
     title: title,
     icon: '🏆',
     rows: rows,
-    footer: (t.night_champion || '🏆 {name}').replace('{name}', top.name),
+    // Escaped: the footer is read as markup (shareCardText), and a name is plain text.
+    footer: (t.night_champion || '🏆 {name}').replace('{name}', () => escapeHTML(top.name)),
     games: games,
     date: date,
     text: title + ' · ' + date + ' · ' + (t.night_champion || '🏆 {name}').replace('{name}', top.name)
@@ -523,7 +526,7 @@ function shareRoomResult() {
     icon: (meta && meta.icon) || '🏆',
     rows: rows,
     unit: unit,
-    footer: top ? '🏆 ' + top.name : '',
+    footer: top ? '🏆 ' + escapeHTML(top.name) : '',
     text: (title ? title + ' · ' : '') + (top ? top.name + ' ' + top.value + (word ? ' ' + word : '') : '')
   });
 }

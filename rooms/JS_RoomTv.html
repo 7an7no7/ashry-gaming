@@ -32,7 +32,7 @@ const TV_GAMES = {};
 function roomJoinUrl(code) { return roomInviteUrl(code); }
 
 /** A TV button. The label is text (a player's name can be in it), so it is escaped here. */
-const tvBtn = (label, onclick, kind) =>
+const tvBtn = (label, onclick, kind) => roomProgHeld(onclick) ? '' :
   `<button class="btn btn--${kind || 'primary'} btn--auto" onclick="${onclick}">${escapeHTML(String(label || ''))}</button>`;
 
 /**
@@ -1414,7 +1414,7 @@ TV_GAMES.whoami = {
       <div class="tv-trivia">
         <div class="tv-title tv-center-text">${t.whoami_reveal || ''}</div>
         <div class="tv-ids">${(s.all || []).map(x => `
-          <div class="tv-panel"><div class="tv-eyebrow">${x.got ? ['🥇', '🥈', '🥉'][x.got - 1] || '✅' : '❔'} ${escapeHTML(x.name)}</div><div class="tv-title">${escapeHTML(x.word)}</div></div>`).join('')}
+          <div class="tv-panel"><div class="tv-eyebrow">${x.got ? ['🥇', '🥈', '🥉'][x.got - 1] || '✅' : '❔'} ${escapeHTML(x.name)}</div>${roomWhoWordHtml(x.word, true)}</div>`).join('')}
         </div>
         <div class="tv-scale">${renderScoreboard(s.board)}</div>
         ${host(tvBtn(t.play_again, "roomAct('restart')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
@@ -1449,7 +1449,7 @@ TV_GAMES.buzzer = {
         ${s.quiz && !s.quiz.done ? (typeof s.quiz.answer === 'number' ? '' : tvBtn(t.bz_quiz_reveal || '', `roomAct('quizReveal', { n: ${s.quiz.n} })`, 'secondary')) + tvBtn(t.bz_quiz_next || '', `roomAct('quizNext', { n: ${s.quiz.n} })`, 'primary') : ''}
         ${s.quiz && s.quiz.done ? tvBtn('↺ ' + (t.bz_quiz_again || ''), "roomAct('playAgain')", 'primary') : ''}
         ${typeof bzUndoHtml === 'function' ? bzUndoHtml(state, t, true) : ''}
-        ${tvBtn('🔄 ' + (t.bz_reset || ''), "roomAct('reset')", 'ghost')}
+        ${tvBtn('🔄 ' + (t.bz_reset || ''), `roomAct('reset', { round: ${Number(s.round) || 1} })`, 'ghost')}
         ${tvBtn(t.bz_reset_scores || '', "bzResetScores()", 'ghost')}
         ${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}
       </div>`;
@@ -1487,6 +1487,7 @@ TV_GAMES.stop = {
           <div class="sbus-fill-anchor">${stopBusFillNoteHtml(state, null)}</div>
           ${s.phase === 'collecting' ? `<div class="tv-note">⏳ ${t.stop_room_collecting || ''}${s.stopperName ? ' · ✋ ' + escapeHTML(s.stopperName) : ''}</div>` : ''}
           <div class="tv-strip-inline">${chips}</div>
+          ${s.phase === 'writing' && !s.endsAt ? roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.stop_room_close_writing, "roomAct('closeWriting', { round: " + (Number(s.round) || 0) + " })", 'ghost')}</div>`) : ''}
         </div>`;
     }
     if (s.phase === 'review') {

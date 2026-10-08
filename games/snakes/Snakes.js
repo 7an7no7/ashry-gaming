@@ -84,8 +84,8 @@ const SNAKES_NEAR_MS = 1000;         // a snake snapping at a near miss, a ladde
 const SNAKES_SIX_MS = 700;           // the cheer for a six
 const SNAKES_WIN_MS = 2800;          // the trophy dance at 100
 const SNAKES_BOUNCE_MS = 900;        // bumping into the cup at 100 (it giggles) before walking back
-const SNAKES_BUILD_MS = 5600;        // the map built in front of everyone
-const SNAKES_TEARDOWN_MS = 2600;     // the old map taken apart first (play again)
+const SNAKES_BUILD_MS = 6200;        // the map built in front of everyone (8 ladders carried in, 6 players: ~6.1 s)
+const SNAKES_TEARDOWN_MS = 3500;     // the old map taken apart first (play again; 8 ladders carried out: ~3.4 s)
 const SNAKES_BUILD_VARIANTS = 3;
 
 /* --- the third round (the owner, 2 Oct 2026) ----------------------------------------------------

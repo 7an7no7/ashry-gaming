@@ -368,10 +368,10 @@ function soloMarkDaily(id, result, day) {
   // keep only which games were done, so the streak, the best streak and the
   // totals go on counting - deleting them capped every streak at 63 days.
   const cutoff = soloToday(new Date(Date.now() - 62 * 24 * 3600 * 1000));
-  const hard = soloToday(new Date(Date.now() - 400 * 24 * 3600 * 1000));
+  // Kept for good (the owner, 8 Oct 2026): no 400-day cut, so a streak or a total never
+  // starts losing its oldest days.
   Object.keys(all).forEach(d => {
-    if (d < hard) delete all[d];
-    else if (d < cutoff) Object.keys(all[d] || {}).forEach(k => { all[d][k] = 1; });
+    if (d < cutoff) Object.keys(all[d] || {}).forEach(k => { all[d][k] = 1; });
   });
   try { localStorage.setItem(SOLO_DAILY_KEY, JSON.stringify(all)); } catch (e) {}
   keepDataAsk();
@@ -387,7 +387,7 @@ function soloStreak() {
   const day = new Date();
   if (!has(day)) day.setDate(day.getDate() - 1);
   let n = 0;
-  while (has(day) && n < 400) {
+  while (has(day)) {
     n++;
     day.setDate(day.getDate() - 1);
   }

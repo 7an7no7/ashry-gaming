@@ -68,8 +68,10 @@ const requireMoveOn = (room, playerId) => requireHost(room, playerId, true);
  * they're stashed and offered back if the room returns to Codenames.
  */
 const clearGameState = (room) => {
-  // Sides kept as a map (أسماء الرموز); سكرو's two lists of seats are dealt afresh.
-  if (room.shared && room.shared.teams && !Array.isArray(room.shared.teams)) room._teamsMemo = room.shared.teams;
+  // Sides kept as a map (أسماء الرموز's); سكرو's two lists of seats are dealt afresh, and
+  // الليزر's { pid: 0 | 1 } is no side أسماء الرموز knows (nobody showed on one, and a team
+  // chat went to everyone).
+  if (room.game === 'codenames' && room.shared && room.shared.teams && !Array.isArray(room.shared.teams)) room._teamsMemo = room.shared.teams;
   // Codenames' options and the evening's score come back with the teams.
   if (room.game === 'codenames' && room.shared) {
     room._cnMemo = { settings: room.shared.settings || null, wins: room.shared.wins || null };
@@ -198,12 +200,19 @@ const pushChat = (room, entry) => {
 };
 
 /**
+ * A name as a room keeps it: control, zero-width and direction characters out (a pasted
+ * 'منى' + U+200B sat beside 'منى' looking the same, and U+202E turned the text after it
+ * round), trimmed, 24 at most. The join, the seat claim, a screen becoming a player, a rename.
+ */
+const cleanRoomName = (raw) => String(raw || '').replace(/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, '').trim().slice(0, 24);
+
+/**
  * Two names for one person: case, spaces, diacritics and the Arabic letters
  * people spell alike (samePlayer on the phone). A room's join and a screen
  * becoming a player both refuse a name that is already taken this way.
  */
 const sameRoomName = (a, b) =>
-  foldArabicLetters(a).replace(/\s+/g, ' ').trim() === foldArabicLetters(b).replace(/\s+/g, ' ').trim();
+  foldArabicLetters(cleanRoomName(a)).replace(/\s+/g, ' ').trim() === foldArabicLetters(cleanRoomName(b)).replace(/\s+/g, ' ').trim();
 
 /* --- «ده أنا»: taking your own seat back (the ideas of 7 Oct 2026, 1272 + 1278) ----------
    A phone whose battery died or whose browser was cleared comes back with no key, and its
@@ -244,7 +253,7 @@ const roomClaimsView = (room, now) => (Array.isArray(room._claims) ? room._claim
 
 /** A phone asks for the seat named `rawName`. Returns the ask (its id and token go to that phone only) or throws. */
 const roomClaimAsk = (room, rawName, online, now, id, token) => {
-  const name = String(rawName || '').trim().slice(0, 24);
+  const name = cleanRoomName(rawName);
   const p = (room.players || []).find(x => !x.bot && sameRoomName(x.name, name));
   if (!p) throw new Error('CLAIM_NONE');
   if (!roomSeatAway(room, p.id, online, now)) throw new Error('الاسم ده لسه متصل في الغرفة، اختار اسم تاني');
@@ -646,7 +655,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
       return;
     }
     if (!room.screens.some(s => s.id === playerId)) return;              // already a player
-    const name = String((payload && payload.name) || '').trim().slice(0, 24);
+    const name = cleanRoomName(payload && payload.name);
     if (!name) throw new Error('اكتب اسمك أولاً');
     if (room.players.length >= ROOM_MAX_PLAYERS) throw new Error('الغرفة ممتلئة');
     if (room.players.some(p => sameRoomName(p.name, name))) {
@@ -669,7 +678,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
     if (room.phase !== 'lobby') throw new Error('غيّر اسمك بين الألعاب');
     const me = room.players.find(p => p.id === playerId && !p.bot);
     if (!me) throw new Error('لست في الغرفة');
-    const name = String((payload && payload.name) || '').trim().slice(0, 24);
+    const name = cleanRoomName(payload && payload.name);
     if (!name) throw new Error('اكتب اسمك أولاً');
     if (room.players.some(p => p.id !== playerId && sameRoomName(p.name, name))) {
       throw new Error('الاسم ده مستخدم في الغرفة، اختار اسم تاني');
@@ -797,15 +806,21 @@ const applyRoomAction = (room, playerId, action, payload) => {
     // waited server-side (the lobby shows none), and is the one banked if no round followed it.
     const restarted = room._restartNight;
     room._restartNight = null;
+    let lobbyTeams = null;
     if (had && restarted && restarted.game === had && room.phase === 'lobby' && !(room.shared || {}).board) {
+      // أسماء الرموز: its sides are placed by the winner, as they were played - not as the lobby
+      // has them since (someone switched, a latecomer picked one).
+      lobbyTeams = restarted.teams ? (room.shared || {}).teams || null : null;
       room.shared = Object.assign({}, room.shared, { board: restarted.board, roster: restarted.roster },
-        restarted.winner ? { winner: restarted.winner } : {});   // أسماء الرموز: its sides are placed by the winner
+        restarted.winner ? { winner: restarted.winner } : {}, restarted.teams ? { teams: restarted.teams } : {});
     }
     // The night's table, taken from the game's own board before it is cleared. ارسم وخمّن and
     // الفنان المزيف keep a board only at a round's result: left mid-round, their running scores.
     const sh = room.shared || {};
     if (had) bankNightPoints(room, sh.board || (NIGHT_BOARD_FROM_SCORES[had] && sh.scores ? scoreboardOf(room) : undefined));
     if (had) settlePredictions(room);
+    // The lobby's sides are the ones remembered for the next game of it (clearGameState).
+    if (lobbyTeams) room.shared.teams = lobbyTeams;
     clearGameState(room);
     room.game = null;
     room.phase = 'lobby';
@@ -850,7 +865,15 @@ const applyRoomAction = (room, playerId, action, payload) => {
   if ((action === 'start' || action === 'playAgain') && roomGameIsOff(room.game)) throw new Error(OFF_MSG);
   if ((action === 'nextRound' || action === 'tourNew') && wasOver && roomGameIsOff(room.game)) throw new Error(OFF_MSG);
   // The board the finished game ended on (its players' rows), for the audience's guesses if this deals the next one.
-  const boardBefore = action === 'playAgain' || action === 'tourNew' ? nightBoardOf(room, (room.shared || {}).board, true) : null;
+  // Winner stays (the duels' next game, the owner's E4 of 8 Oct 2026): each game is settled on its
+  // own result, not on the session's tally of wins (shared.board), and a fresh «مين هيكسب؟» opens.
+  const duelNext = action === 'nextRound' && wasOver && ['connect4', 'dots', 'xo'].indexOf(room.game) !== -1 && !(room.shared || {}).tour;
+  const boardBefore = action === 'playAgain' || action === 'tourNew' ? nightBoardOf(room, (room.shared || {}).board, true)
+    : (duelNext ? duelResultBoard(room) : null);
+  // «لعبة جديدة» (restart) after a finished round: the guesses on it are settled before the game's
+  // state is replaced - the next Start would open new ones over them, unscored.
+  const restartBoard = action === 'restart' && room.predict && (wasOver || room.phase === 'result')
+    ? nightBoardOf(room, (room.shared || {}).board, true) : null;
   // برنامج السهرة: what this move is about to wipe (the buzzer's line), for the awards.
   programBeforeMove(room, playerId, action, payload);
 
@@ -941,10 +964,11 @@ const applyRoomAction = (room, playerId, action, payload) => {
   // game that ended are settled against its board, and a fresh «مين هيكسب؟» opens -
   // the old picks must not be scored against a later game's board.
   const dealtNew = room.shared !== sharedBefore || (dealing && JSON.stringify(room.shared || {}) !== textBefore);
-  if ((action === 'playAgain' || action === 'tourNew') && wasOver && dealtNew && !roomGameIsOver(room)) {
+  if ((action === 'playAgain' || action === 'tourNew' || duelNext) && wasOver && dealtNew && !roomGameIsOver(room)) {
     settlePredictions(room, boardBefore);
     room.predict = { game: room.game, until: Date.now() + PREDICT_OPEN_MS, picks: {} };
   }
+  if (restartBoard && room.phase === 'lobby') settlePredictions(room, restartBoard);
 
   // Whoever is present when a game is dealt is in it. This can't be inferred
   // from secrets — a Codenames operative and a Just One guesser both have none.
@@ -1137,6 +1161,12 @@ function settlePredictions(room, boardOf) {
   roomEvent(room, 'predicted', { names: right.join('، '), n: voters.length });
 }
 
+/** The duel just played (winner stays, s.result in RoomDuels.js), as a board: the winner first; a draw is level. */
+const duelResultBoard = (room) => {
+  const r = (room.shared || {}).result || {};
+  return r.winnerId ? [{ id: r.winnerId, score: 1 }].concat(r.loserId ? [{ id: r.loserId, score: 0 }] : []) : [];
+};
+
 /* --- the leaderboard of the night --------------------------------------------
    Placement points rather than each game's own score: a trivia score and a
    سكرو score are not the same currency. 5 for the first, 3 for the second, 2
@@ -1264,6 +1294,13 @@ const nightPlacesOf = (room, board, cut) => {
   const on = nightBoardOf(room, board).filter(r => played.indexOf(r.id) !== -1);
   const keys = on.map(boardRowKey);
   if (!on.length || keys.every(k => k === keys[0])) {
+    // Someone who played is off the board (a leaver: most boards drop them): a game played to its
+    // end ranks the board first and them after, still as played - a forfeit used to bank the
+    // leaver the winner's 5 (U1, the owner, 8 Oct 2026). One cut short stays everyone "played".
+    const off = played.filter(id => !on.some(r => r.id === id));
+    if (on.length && !cut && off.some(id => !(room.players || []).some(x => x.id === id))) {
+      return { coop: false, rows: on.map(r => ({ id: r.id, place: 1 })).concat(off.map(id => ({ id, place: on.length + 1 }))) };
+    }
     return { coop: true, rows: played.map(id => ({ id, place: cut ? 99 : 1 })) };
   }
   const rows = on.map((r, i) => ({ id: r.id, place: 1 + keys.indexOf(keys[i]) }));
@@ -1903,6 +1940,11 @@ const gamePlayerLeft = (room, playerId, name) => {
       }
       if (s.phase === 'voting' && voteClosed()) resolveSpyfallVote(room);
       if (s.phase === 'guess' && !here(s.guesserId)) finishSpyfall(room, 'caught', null, s.guesserId);
+      // The one who was to ask first has gone: someone still here starts, as in الجاسوس.
+      if (s.phase === 'play' && s.firstId && !here(s.firstId)) {
+        const left = (s.roster || []).filter(here);
+        s.firstId = left.length ? left[Math.floor(Math.random() * left.length)] : null;
+      }
       return;
     case 'justone':
       // Without the guesser there is no round: the word is shown, no point.
@@ -2154,6 +2196,11 @@ const mafiaPlayerLeft = (room, playerId, name) => {
     s.out = (s.out || []).concat([{ id: playerId, name: name || '', role: mafiaShownRole(room, playerId), night: s.phase === 'night', left: true }]);
   }
   if (mafiaCheckEnd(room)) return;
+  // Their tap no longer counts toward the night's «N / alive» (it showed 6/6 with one still to tap).
+  if (room._mafiaActed) {
+    room._mafiaActed = room._mafiaActed.filter(id => id !== playerId);
+    s.actedN = room._mafiaActed.length;
+  }
   if (s.phase === 'night' && mafiaAlive(room).every(id => (room._mafiaActed || []).indexOf(id) !== -1)) { mafiaEndNight(room); return; }
   // The day vote: someone who left is no longer a choice, and whoever voted for them votes again
   // (their ballot would be wasted, and the result would say the table sent nobody out).

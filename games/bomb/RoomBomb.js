@@ -64,6 +64,7 @@ const bombRoomAction = (room, playerId, action, payload) => {
     s.holderId = present[(at + 1) % present.length];
     s.holderName = roomPlayerName(room, s.holderId);
     s.passes = (s.passes || 0) + 1;
+    s.passSeq = (s.passSeq || 0) + 1;      // only grows: a send-back's stale-tap key
     // 703: the round's hands, for the TV's replay after the boom (who held it is public).
     s.trail = (Array.isArray(s.trail) ? s.trail : []).concat([s.holderId]).slice(-BOMB_TRAIL_MAX);
     return;
@@ -74,7 +75,8 @@ const bombRoomAction = (room, playerId, action, payload) => {
     // settle it at any point. The fuse keeps burning through the argument.
     if (s.phase !== 'ticking') return;
     // Aimed at the pass the phone saw: a second tap, or one after the bomb moved on, does nothing.
-    if (staleTap(payload, 'passes', s.passes || 0) || staleTap(payload, 'from', s.fromId)) return;
+    // `seq` only grows (passes and from repeat once the bomb is passed again after a send-back).
+    if (staleTap(payload, 'seq', s.passSeq || 0) || staleTap(payload, 'passes', s.passes || 0) || staleTap(payload, 'from', s.fromId)) return;
     const isHost = room.hostId === playerId;
     if (!s.fromId) throw new Error('مفيش تمريرة ترجع');
     if (!isHost && playerId !== s.holderId) throw new Error('القنبلة مش معاك');
@@ -84,6 +86,7 @@ const bombRoomAction = (room, playerId, action, payload) => {
     s.holderName = roomPlayerName(room, s.holderId);
     s.fromId = null;
     s.passes = Math.max(0, (s.passes || 0) - 1);
+    s.passSeq = (s.passSeq || 0) + 1;
     if (Array.isArray(s.trail) && s.trail.length > 1) s.trail = s.trail.slice(0, -1);
     s.sentBack = (s.sentBack || 0) + 1;
     return;
@@ -152,6 +155,7 @@ const dealBomb = (room, o) => {
     holderId: holder,
     holderName: roomPlayerName(room, holder),
     passes: 0,
+    passSeq: Number(prev.passSeq) || 0,
     trail: [holder],
     strikes: o.strikes,
     loserId: null,

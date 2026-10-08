@@ -40,7 +40,7 @@ const esDir = () => (appState.lang === 'en' ? 'ltr' : 'rtl');
 
 const esLocal = { card: null, bidN: null, bidS: null, callN: null, pickKey: '', clock: null, clockKey: null, turnMine: false,
   handInView: '', shownHand: null, shownKey: '', lastOpen: false, sheetOpen: false, hideTrickNo: '' };
-const esFx = Object.assign(pcFx(), { tvSig: '', tvEnding: false, tvState: null });
+const esFx = Object.assign(pcFx(), { tvSig: '', tvDrawn: '', tvEnding: false, tvState: null });
 
 /* --- the host's options -------------------------------------------------------------- */
 
@@ -889,7 +889,18 @@ function esOwnMoveWaiting(state) {
 function esAfterDraw(root, state, handWas) {
   const s = esShared(state);
   const evs = pcEventsToPlay(esFx, state);
-  if (document.hidden || pcWokeRecently(esFx) || !root.getClientRects().length || !evs.length) return;
+  const quiet = document.hidden || pcWokeRecently(esFx) || !root.getClientRects().length || !evs.length;
+  if (quiet || ['dash', 'bid', 'call', 'play'].indexOf(s.phase) === -1 || evs.length > 12 || !pcCanMove()) {
+    // No flight gathers the last trick (a reload, a hidden page, a wake): it leaves the table now,
+    // or its four cards sat there as if still being played until the next lead.
+    const lt = s.lastTrick;
+    const no = lt ? [s.deal, lt.no].join('|') : '';
+    if (lt && !(s.trick || []).length && esLocal.hideTrickNo !== no) {
+      esLocal.hideTrickNo = no;
+      pcDeferRedraw(esFx, 'estimation');
+    }
+    if (quiet) return;
+  }
   esEventSounds(state, evs);
   if (['dash', 'bid', 'call', 'play'].indexOf(s.phase) === -1 || evs.length > 12 || !pcCanMove()) return;
   esPlay(root, state, evs, esFx.prevPhase === 'lobby' ? 900 : 0, handWas, false);
@@ -1089,8 +1100,8 @@ TV_GAMES.estimation = {
     // (as كدّاب's and الشايب's do): without the suffix it never matched, and
     // the new state was drawn at once over a card still in flight.
     if (esFx.tvSig && cur !== esFx.tvSig) {
-      if (esFx.busyUntil > Date.now()) { pcDeferRedraw(esFx, 'estimation'); return esFx.tvSig + '|' + esLocal.hideTrickNo; }
-      if (view && esPlayEnding(view, state)) { esFx.tvEnding = true; pcDeferRedraw(esFx, 'estimation'); return esFx.tvSig + '|' + esLocal.hideTrickNo; }
+      if (esFx.busyUntil > Date.now()) { pcDeferRedraw(esFx, 'estimation'); return esFx.tvDrawn || (esFx.tvSig + '|' + esLocal.hideTrickNo); }
+      if (view && esPlayEnding(view, state)) { esFx.tvEnding = true; pcDeferRedraw(esFx, 'estimation'); return esFx.tvDrawn || (esFx.tvSig + '|' + esLocal.hideTrickNo); }
     }
     return cur + '|' + esLocal.hideTrickNo;
   },
@@ -1104,6 +1115,8 @@ TV_GAMES.estimation = {
     }
     esFx.tvEnding = false;
     esFx.tvSig = esServerSig(Object.assign({}, state, { you: null }));
+    // What sig() answers while the frame is held: the gather changes hideTrickNo mid-flight.
+    esFx.tvDrawn = esFx.tvSig + '|' + esLocal.hideTrickNo;
     if (view) view._esTable = ['dash', 'bid', 'call', 'play'].indexOf(s.phase) !== -1;
     if (s.phase === 'roundOver' || s.phase === 'gameover') {
       const over = s.phase === 'gameover';

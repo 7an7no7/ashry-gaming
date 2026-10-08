@@ -6460,7 +6460,7 @@ async function hangmanSeg() {
               'hangman: team against team - a writer from one team, a captain on the other');
     let tw = byId(hmBots, H.state.shared.setter);
     await tw.must('setWord', { word: 'مدرسة', hints: ['مكان', 'فيها فصول', 'جرس'], round: 1 });
-    await all(hmBots.concat([S]), (s) => s.shared.phase === 'guessing' && s.shared.tb && s.shared.cat === 'مكان' && s.shared.hintsN === 3,
+    await all(hmBots.concat([S]), (s) => s.shared.phase === 'guessing' && s.shared.tb && s.shared.cat === 'مكان' && s.shared.hintsN === 2,
               'hangman: the team\'s board is the table\'s, with the first hint');
     check(!leaks(S, 'مدرسة') && !leaks(S, 'فيها فصول') && hmBots.filter((b) => b !== tw).every((b) => !leaks(b, 'مدرسة') && !leaks(b, 'جرس')),
           'hangman: the word and the hints to come stay on the writer\'s phone');

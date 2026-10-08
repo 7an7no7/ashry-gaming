@@ -365,15 +365,17 @@ function catalogFeatured(t) {
    app. It stays a .gcard with data-game and .gcard__icon, so the filters,
    flipGrid and both icon flights find it as they find any card. */
 function catalogSpotlight(g, t) {
+  // Switched off for a fix: greyed with «🛠️ بنصلّحها» in place of «العب», as a poster is.
+  const off = catalogOff(g.id);
   return `
-    <button type="button" class="gcard gcard--spotlight" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this, true)">
+    <button type="button" class="gcard gcard--spotlight${off ? ' is-off' : ''}" data-accent="${g.accent}" data-game="${g.id}" onclick="catalogOpen('${g.id}', this, true)">
       <span class="gcard__icon" aria-hidden="true">${iconHtml(g.icon)}</span>
       <span class="gcard__body">
         <span class="gcard__title">${escapeHTML(catalogTitle(g, t))}</span>
         <span class="gcard__desc">${escapeHTML(catalogDesc(g, t))}</span>
         <span class="gcard__meta">${catalogMeta(g, t, false, true)}</span>
       </span>
-      <span class="gcard__cta" aria-hidden="true">${escapeHTML(t.cat_play || '')}<span class="gcard__cta-arrow">›</span></span>
+      ${off ? gameOffBadge(t) : `<span class="gcard__cta" aria-hidden="true">${escapeHTML(t.cat_play || '')}<span class="gcard__cta-arrow">›</span></span>`}
     </button>`;
 }
 
@@ -1822,6 +1824,22 @@ function togetherSheetRoom(roomId) {
 }
 function togetherSheetOpen(id) {
   closeModal('room-sheet-modal');
+  // A room-only game with no setup: its «القوانين والاختيارات» is its card in Help, not a
+  // second «افتح غرفة» (catalogRunOpen would fall through to roomCreateFor).
+  const g = CATALOG_BY_ID[id];
+  if (g && !g.setup && !g.open && (g.modes || []).indexOf('device') === -1) {
+    setTimeout(() => {
+      openHelpModal();
+      if (document.getElementById('help-card-' + id)) setTimeout(() => helpJumpTo(id), 60);
+      else {
+        const term = catalogTitle(g, TRANSLATIONS[appState.lang] || {});
+        const box = document.getElementById('help-search');
+        if (box) box.value = term;
+        filterHelp(term);
+      }
+    }, 0);
+    return;
+  }
   catalogOpen(id, document.querySelector('#view-together .gcard[data-game="' + id + '"]'), false);
 }
 

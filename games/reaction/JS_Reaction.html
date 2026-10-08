@@ -66,7 +66,8 @@ function startReactionRound() {
     // stayed down was added to the reaction, and a tie was decided on letting go.
     const press = (player) => (e) => {
         if (e && e.cancelable) e.preventDefault();
-        handleReactionTap(player);
+        // The tap's time is the event's own (performance.now()'s clock), not when the handler ran.
+        handleReactionTap(player, e && e.timeStamp > 0 && e.timeStamp <= performance.now() ? e.timeStamp : undefined);
     };
     p1.onclick = null;
     p2.onclick = null;
@@ -118,11 +119,11 @@ function startReactionRound() {
         if (r.status === 'waiting') {
             clearTimeout(r.fakeEndId);
             r.status = 'ready';
-            r.startTime = performance.now();
 
             // Turn GREEN!
             rxPaintHalf(p1, 'go');
             rxPaintHalf(p2, 'go');
+            rxClockFromPaint(r);
             msg1.innerHTML = rxMsg(L.reaction_tap, '', 'rx-msg--go');
             msg2.innerHTML = rxMsg(L.reaction_tap, '', 'rx-msg--go');
             if (typeof motionBump === 'function') { motionBump(msg1.firstElementChild, 1.18); motionBump(msg2.firstElementChild, 1.18); }
@@ -153,7 +154,7 @@ function rxFocusRound(p1, p2, msg1, msg2, L) {
             const c = pick(RX_FOCUS_COLOURS);
             show(c, c);
             r.status = 'ready';
-            r.startTime = performance.now();
+            rxClockFromPaint(r);
             return;
         }
         left -= 1;
@@ -166,7 +167,13 @@ function rxFocusRound(p1, p2, msg1, msg2, L) {
     step();
 }
 
-function handleReactionTap(player) {
+/** The clock starts when the green is on the screen, not when it was asked for: a frame later (no fade on go). */
+function rxClockFromPaint(r) {
+    r.startTime = performance.now();
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (r.status === 'ready') r.startTime = performance.now(); }));
+}
+
+function handleReactionTap(player, at) {
     const r = appState.reaction;
     if (r.status === 'ended') return;
 
@@ -183,14 +190,14 @@ function handleReactionTap(player) {
     if (r.status === 'ready') {
         // THE FIRST PERSON TAPPED!
         r.status = 'resolving';
-        r.firstTapInfo = { player: player, time: performance.now() };
+        r.firstTapInfo = { player: player, time: typeof at === 'number' ? at : performance.now() };
 
         // Wait 60 milliseconds to see if the other player taps for a TIE!
         setTimeout(() => {
             if (r.status === 'resolving') {
                 // No one else tapped, we have a clear winner!
                 r.status = 'ended';
-                const reactionTime = Math.round(r.firstTapInfo.time - r.startTime);
+                const reactionTime = Math.max(0, Math.round(r.firstTapInfo.time - r.startTime));
                 showReactionResult(r.firstTapInfo.player, reactionTime, false, null, false);
             }
         }, 60);
@@ -201,7 +208,7 @@ function handleReactionTap(player) {
         // THE SECOND PERSON TAPPED WITHIN THE WINDOW! IT'S A TIE!
         if (player !== r.firstTapInfo.player) {
             r.status = 'ended';
-            const reactionTime = Math.round(r.firstTapInfo.time - r.startTime);
+            const reactionTime = Math.max(0, Math.round(r.firstTapInfo.time - r.startTime));
             showReactionResult(null, reactionTime, false, null, true);
         }
     }

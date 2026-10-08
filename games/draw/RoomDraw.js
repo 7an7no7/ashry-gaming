@@ -55,11 +55,14 @@ const GUESS_MEASURE_WORDS = new Set([
   'bunch', 'loaf', 'piece', 'cone', 'pot', 'box', 'pair'
 ]);
 
-/** The folded words of a phrase, each without its article. */
+/** The folded words of a phrase, each without its article. Eastern Arabic digits
+    (١٩٧٣, ۱۹۷۳ on an Arabic keyboard) read as 1973; "the" goes only as a word of its
+    own (Theme is not "me"). */
 const guessWords = (text) => foldArabicLetters(text)
-  .replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/).filter(Boolean)
+  .replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x660))
+  .replace(/[\u06F0-\u06F9]/g, d => String(d.charCodeAt(0) - 0x6F0))
+  .replace(/[^\p{L}\p{N} ]/gu, ' ').trim().split(/\s+/).filter(w => w && w !== 'the')
   .map(w => {
-    if (w.indexOf('the') === 0 && w.length > 3) w = w.slice(3);
     for (let i = 0; i < 2 && w.length > 3 && w.indexOf('ال') === 0; i++) w = w.slice(2);
     return w;
   }).filter(Boolean);
@@ -122,6 +125,7 @@ const guessVerdict = (text, answers, bank) => {
 };
 
 const DRAW_MAX_POINTS = 2600;     // ~15KB of JSON, however long the round
+const DRAW_MAX_FILLS = 60;        // a fill is 2 numbers, but a whole-canvas flood on every viewer's replay
 const DRAW_ROUND_SECONDS = 90;    // the default the host can change
 const DRAW_ROUND_MIN = 30;
 const DRAW_ROUND_MAX = 240;
@@ -191,12 +195,14 @@ const drawGuessAction = (room, playerId, action, payload) => {
 
     const batch = Array.isArray(payload.strokes) ? payload.strokes : [];
     let points = s.strokes.reduce((n, st) => n + (st.p ? st.p.length : 0), 0);
+    let fills = s.strokes.filter(st => st.t === 'b').length;
 
     batch.forEach(st => {
       const room_left = DRAW_MAX_POINTS - points;
       if (room_left < 2) return;
 
       const tool = DRAW_TOOLS.indexOf(String(st.t || 'f')) !== -1 ? String(st.t || 'f') : 'f';
+      if (tool === 'b') { if (fills >= DRAW_MAX_FILLS) return; fills += 1; }
       let pts = (st.p || []).map(n => Math.max(0, Math.min(255, Math.round(Number(n) || 0))));
 
       const exact = DRAW_TOOL_POINTS[tool];

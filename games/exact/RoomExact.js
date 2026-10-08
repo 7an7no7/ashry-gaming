@@ -160,16 +160,21 @@ const exactChooseKind = (room) => {
   return bag.length ? exactPickOf(bag) : 'count';
 };
 
-/** Deals one order: its numbers, the secrets it gives each phone, its timings. */
-const exactDeal = (room) => {
+/**
+ * Deals one order: its numbers, the secrets it gives each phone, its timings. `again`: the order
+ * someone left in the middle of, dealt again as the same kind (still «new» if it was, and the
+ * game's first «بالظبط ٣» stays that).
+ */
+const exactDeal = (room, again) => {
   const s = room.shared;
   const ids = exactRoster(room);
   const n = ids.length;
   const L = s.level;
   s.round = (s.round || 0) + 1;
-  const kind = exactChooseKind(room);
+  const kind = again ? again.kind : exactChooseKind(room);
   const def = EXACT_KINDS.find(k => k.kind === kind);
-  const o = { kind, fresh: s.seen.indexOf(kind) === -1 };
+  const o = { kind, fresh: again ? !!again.fresh : s.seen.indexOf(kind) === -1 };
+  if (s.round === 1 || (again && again.first)) o.first = true;
   const mine = {};
   const sync = Math.max(220, 800 - 70 * (L - 1));
   const beat = Math.max(450, 1000 - 60 * (L - 1));
@@ -179,7 +184,7 @@ const exactDeal = (room) => {
   const split = (inG) => { const g = shuffled(ids).slice(0, inG); return (id) => g.indexOf(id) !== -1; };
   const groupSize = () => exactRand(1, n - 1);
   if (kind === 'count') {
-    o.n = s.round === 1 ? Math.min(3, n - 1) : exactRand(1, n - 1);
+    o.n = o.first ? Math.min(3, n - 1) : exactRand(1, n - 1);
     win = 2600;
   } else if (kind === 'none') {
     win = 2800;
@@ -559,8 +564,11 @@ const exactPlayerLeft = (room, playerId) => {
   if (s.streak) delete s.streak[playerId];
   if (exactRoster(room).length < 2) { exactGameOver(room); return; }
   if (s.phase === 'ready' || s.phase === 'go') {
-    // A new round number (a tap still on its way for the old order is stale), the same level.
-    exactDeal(room);
+    // A new round number (a tap still on its way for the old order is stale), the same level,
+    // and the same kind of order: it is the one they were in, not counted as seen twice.
+    const again = s.order && EXACT_KINDS.some(k => k.kind === s.order.kind) ? s.order : null;
+    if (again) s.last = s.last.slice(0, -1);
+    exactDeal(room, again);
     s.redealt = s.round;
   }
   s.board = exactBoard(room);

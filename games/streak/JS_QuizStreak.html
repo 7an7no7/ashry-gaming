@@ -394,6 +394,9 @@ function streakFinish() {
 function restoreStreak() {
   const s = streakState();
   if (s.phase !== 'play' || !s.q) return false;
+  // Reloaded while Help or the exit sheet held the clock: the pause is given back first, so a
+  // question that "ran out" during it isn't a lost heart (and no stale pause adds time later).
+  if (s.q.pausedAt) { s.q.endsAt += Math.max(0, Date.now() - s.q.pausedAt); s.q.pausedAt = 0; saveToLocal(); }
   if (s.q.picked === null && Date.now() >= s.q.endsAt) {
     paintStreak(false);
     answerStreak(-1);

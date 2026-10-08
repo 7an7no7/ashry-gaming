@@ -1506,7 +1506,7 @@ const CONNECTIONS_HARD = {
       { name: 'بيوت الحيوانات', words: ['عش', 'جحر', 'خلية', 'عرين'] },
       { name: 'أصوات الحيوانات', words: ['نباح', 'مواء', 'صهيل', 'نهيق'] },
       { name: 'غطا جسم الحيوانات', words: ['ريش', 'قشور', 'فرو', 'صدفة'] },
-      { name: 'حيوانات بتبيض', words: ['فرخة', 'تمساح', 'بطريق', 'سلحفاة'] } ] },
+      { name: 'زواحف', words: ['تمساح', 'سلحفاة', 'ثعبان', 'سحلية'] } ] },
     { groups: [
       { name: 'حيوانات قطبية', words: ['دب قطبي', 'بطريق', 'فقمة', 'ثعلب قطبي'] },
       { name: 'حيوانات صحراوية', words: ['جمل', 'فنك', 'عقرب', 'ضب'] },
@@ -1770,7 +1770,7 @@ const CONNECTIONS_HARD = {
       { name: 'Animal homes', words: ['Nest', 'Burrow', 'Hive', 'Den'] },
       { name: 'Animal sounds', words: ['Bark', 'Meow', 'Neigh', 'Bray'] },
       { name: 'Animal coverings', words: ['Feathers', 'Scales', 'Fur', 'Shell'] },
-      { name: 'Animals that lay eggs', words: ['Hen', 'Crocodile', 'Penguin', 'Tortoise'] } ] },
+      { name: 'Reptiles', words: ['Crocodile', 'Tortoise', 'Snake', 'Lizard'] } ] },
     { groups: [
       { name: 'Polar animals', words: ['Polar Bear', 'Penguin', 'Seal', 'Walrus'] },
       { name: 'Desert animals', words: ['Camel', 'Fennec Fox', 'Scorpion', 'Lizard'] },

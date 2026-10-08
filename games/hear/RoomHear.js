@@ -272,7 +272,8 @@ const hearGrade = (room) => {
 /** «أغرب رسمة»: everyone here votes for a drawing that isn't their own. Fewer than two drawings: no vote. */
 const hearOpenVote = (room) => {
   const s = room.shared;
-  const drawings = s.drawings || [];
+  // A drawer who left isn't in it: a vote for them would be a vote for nobody.
+  const drawings = (s.drawings || []).filter(d => hearHere(room, d.id));
   s.gradeEndsAt = null;
   if (drawings.length < 2) { hearVoteResult(room); return; }
   const eligible = hearPresent(room);
@@ -286,7 +287,8 @@ const hearOpenVote = (room) => {
 const hearVoteResult = (room) => {
   const s = room.shared;
   if (s.phase !== 'vote' && s.phase !== 'grade') return;
-  const res = (s.vote && s.vote.results) || [];
+  // Only drawings whose owner is still here: one who left mid-vote can't take the top and leave it to nobody.
+  const res = ((s.vote && s.vote.results) || []).filter(r => r.ownerId && hearHere(room, r.ownerId));
   const most = res.reduce((m, r) => Math.max(m, r.count), 0);
   s.weird = [];
   s.weirdVotes = most;

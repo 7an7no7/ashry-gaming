@@ -80,7 +80,7 @@ const BOX_TRAITS = {
   gain:    ['treasure', 'steal'],                              // whoever takes it surely gains money
   lose:    ['scorpion', 'bill'],                               // whoever takes it surely loses more money
   nomoney: ['key', 'empty'],                                   // no money moves at all
-  moves:   ['treasure', 'scorpion', 'bill', 'steal', 'double'],// money moves
+  moves:   ['treasure', 'scorpion', 'bill', 'steal'],          // money surely moves (double or nothing may move nothing)
   others:  ['bill', 'steal'],                                  // it touches a player other than the taker
   alone:   ['treasure', 'scorpion', 'double', 'key', 'empty'], // it touches the taker only
   luck:    ['double'],                                         // luck decides
@@ -329,7 +329,8 @@ const boxOpen = (room) => {
       tie = true;
       const poorest = Math.min(...best.map(id => s.money[id] || 0));
       const poor = best.filter(id => (s.money[id] || 0) === poorest);
-      tieBy = poor.length < best.length ? 'poorer' : 'lot';
+      // «للي فلوسه أقل» only when that settled it: two or more equally poorest are drawn by lot.
+      tieBy = poor.length === 1 ? 'poorer' : 'lot';
       best = poor;
     }
     winnerId = best[Math.floor(Math.random() * best.length)];

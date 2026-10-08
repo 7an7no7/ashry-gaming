@@ -332,9 +332,10 @@ const codenamesAction = (room, playerId, action, payload) => {
     requireHost(room, playerId);
     const teams = s.teams || {};
     const settings = codenamesSettings(room);
+    // A finished game waits for «لعبة أخرى» to bank it on the night (the lobby holds no winner),
+    // with the sides it was played by: the lobby's may change before then.
+    if (s.winner) room._restartNight = { game: room.game, board: null, roster: s.roster || null, winner: s.winner, teams: JSON.parse(JSON.stringify(teams)) };
     if (settings.rotate) rotateSpymasters(room, teams);
-    // A finished game waits for «لعبة أخرى» to bank it on the night (the lobby holds no winner).
-    if (s.winner) room._restartNight = { game: room.game, board: null, roster: s.roster || null, winner: s.winner };
     room.phase = 'lobby';
     room.secrets = {};
     // The sides, the options and the evening's score carry over.

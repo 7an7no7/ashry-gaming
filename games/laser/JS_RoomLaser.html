@@ -1651,7 +1651,7 @@ ROOM_GAMES.laser = {
       const shieldBtn = shieldUsed
         ? `<span class="laser-chip">${escapeHTML(t.laser_shield_used)}</span>`
         : `<button type="button" class="btn btn--sm btn--auto ${shieldOn ? 'btn--warning' : 'btn--secondary'}" aria-pressed="${shieldOn}" onclick="laserShield(${!shieldOn})" ${ready ? 'disabled' : ''}>${escapeHTML(shieldOn ? t.laser_shield_on : t.laser_shield)}</button>`;
-      const useBtn = held ? `<button type="button" class="btn btn--sm btn--auto laser-use ${useOn ? 'is-on' : ''}" style="--laser-c:${LASER_PK_COL[held]}" aria-pressed="${useOn}" onclick="laserUse(${!useOn})" ${ready ? 'disabled' : ''}>${escapeHTML((useOn ? t.laser_using : t.laser_use) + ' ' + laserPkName(t, held))}</button>` : '';
+      const useBtn = held ? `<button type="button" class="btn btn--sm btn--auto laser-use ${useOn ? 'is-on' : ''}" style="--laser-c:${LASER_PK_COL[held]}" aria-pressed="${useOn}" onclick="laserUse(${!useOn})" ${ready || (shieldOn && !shieldUsed && held !== 'shield') ? 'disabled' : ''}>${escapeHTML((useOn ? t.laser_using : t.laser_use) + ' ' + laserPkName(t, held))}</button>` : '';
       const hint = ready ? t.laser_ready_wait : (useOn && held === 'second' ? t.laser_pk_hint_second : shieldOn ? t.laser_shield_on_hint : (s.cracked || []).length ? t.laser_hide_hint + ' · ' + t.laser_floor_cracked : t.laser_hide_hint)
         + (!ready && s.turret ? ' · ' + t.laser_turret_hint : '');
       // 871: this phone stood still two rounds and was moved; it says so, kindly.

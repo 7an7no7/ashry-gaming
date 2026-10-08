@@ -229,12 +229,18 @@ function wheelBind() {
     const btn = e.target.closest('.wheel-letter');
     if (!btn || s.phase !== 'play') return;
     e.preventDefault();
+    // One finger at a time (as Queens): a second finger is ignored, and the drag hears only its
+    // own pointer. A primary pointer with a drag still set means that drag lost its "up": it goes.
+    if (wheelDrag && !e.isPrimary) return;
+    if (wheelDrag && wheelDrag.end) wheelDrag.end();
+    const pid = e.pointerId;
     const i = Number(btn.dataset.i);
     const before = s.typed.length;
     if (s.typed.indexOf(i) === -1) s.typed.push(i);
     wheelDrag = { moved: false, start: before, from: i };
     wheelRefreshTyped();
     const move = (ev) => {
+      if (ev.pointerId !== pid) return;
       const over = soloCellAt(ev.clientX, ev.clientY, '.wheel-letter');
       if (!over || !wheelDrag) return;
       const k = Number(over.dataset.i);
@@ -249,7 +255,8 @@ function wheelBind() {
       if (pos === -1) { s.typed.push(k); wheelDrag.moved = true; wheelRefreshTyped(); }
       else if (pos === s.typed.length - 2) { s.typed.pop(); wheelRefreshTyped(); }
     };
-    const up = () => {
+    const up = (ev) => {
+      if (ev && ev.pointerId !== pid) return;
       document.removeEventListener('pointermove', move);
       document.removeEventListener('pointerup', up);
       document.removeEventListener('pointercancel', up);
@@ -261,6 +268,12 @@ function wheelBind() {
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', up);
     document.addEventListener('pointercancel', up);
+    wheelDrag.end = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      wheelDrag = null;
+    };
   });
 }
 
@@ -470,14 +483,15 @@ function shuffleWordWheel() {
 function hintWordWheel() {
   const s = wheelState();
   if (s.phase !== 'play' || s.race) return;
+  // A cell of a found word is already drawn open (a crossing word was found): a hint there
+  // would show nothing new and still count.
+  const cellsOf = (p) => { const out = []; for (let k = 0; k < p.w.length; k++) out.push(wheelCellKey(p.dir === 'a' ? p.r : p.r + k, p.dir === 'a' ? p.c + k : p.c)); return out; };
+  const open = new Set();
+  s.found.forEach(wi => { if (s.words[wi]) cellsOf(s.words[wi]).forEach(key => open.add(key)); });
   const hidden = [];
   s.words.forEach((p, wi) => {
     if (s.found.indexOf(wi) !== -1) return;
-    for (let k = 0; k < p.w.length; k++) {
-      const r = p.dir === 'a' ? p.r : p.r + k, c = p.dir === 'a' ? p.c + k : p.c;
-      const key = wheelCellKey(r, c);
-      if (s.shown.indexOf(key) === -1) hidden.push(key);
-    }
+    cellsOf(p).forEach(key => { if (s.shown.indexOf(key) === -1 && !open.has(key)) hidden.push(key); });
   });
   if (!hidden.length) return;
   s.shown.push(soloPick(hidden, Math.random));

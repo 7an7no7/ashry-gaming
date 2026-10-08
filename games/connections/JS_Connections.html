@@ -232,6 +232,14 @@ function submitConnectGuess() {
   if (c.selected.length !== 4 || c.phase === 'done') return;
   // A race: the groups are on the server, which judges the four (JS_RoomRace.html).
   if (c.race) {
+    // The same four already tried and wrong (the server's list, synced): said as on one phone,
+    // and not sent - the server would only mark it 'again', which nothing drew.
+    if ((c.tried || []).indexOf(c.selected.slice().sort().join('|')) !== -1) {
+      const tt = TRANSLATIONS[appState.lang] || {};
+      showToast(tt.conn_already_tried || 'جرّبت الأربعة دول قبل كده', 'info');
+      haptic('light');
+      return;
+    }
     const words = c.selected.slice();
     c.lastWords = words;
     c.selected = [];

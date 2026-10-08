@@ -719,6 +719,15 @@ function csEditRound(id, n) {
 function csCancelEdit(id) {
   const s = csState(id);
   const g = CS_GAMES[id];
+  // A round a fix made stale can't be left as it is (it would keep its missing points as 0).
+  const t = csT();
+  const stale = g && s.rounds ? csStaleRound(g, s, 0, t) : -1;
+  if (stale !== -1) {
+    if (stale !== s.editing) csEditRound(id, stale);
+    showToast((t.cs_fix_next || 'صلّح الجولة {n} كمان: اتغيّر مين بيلعب فيها').replace('{n}', stale + 1), 'error');
+    haptic('medium');
+    return;
+  }
   delete s.editing;
   s.draft = s.newDraft || {};
   delete s.newDraft;

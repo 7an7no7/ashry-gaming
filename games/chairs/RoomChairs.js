@@ -120,11 +120,14 @@ const chairsAction = (room, playerId, action, payload) => {
     if (s.phase !== 'sit') return;
     if (s.sits.some(x => x.id === playerId)) return;
     const now = Date.now();
-    let at = payload && typeof payload.at === 'number' && isFinite(payload.at) ? payload.at : now;
-    // An honest stamp is never before the stop (the phone saw the stop after it happened)
-    // and never after its arrival, so a stamp outside that is one the phone couldn't
-    // have had: the arrival counts for it. A hair before the stop is clock drift.
-    if (at < s.stopAt - CHAIRS_GRACE_MS || at > now) at = now;
+    const stamped = payload && typeof payload.at === 'number' && isFinite(payload.at);
+    // An honest stamp is never before the stop (the phone saw the stop after it happened),
+    // so one from before it (past a hair of clock drift) is a tap made while the music still
+    // played that only landed after the stop: a false start, as in رد الفعل.
+    if (stamped && payload.at < s.stopAt - CHAIRS_GRACE_MS) { chairsEndRound(room, playerId, 'early'); return; }
+    let at = stamped ? payload.at : now;
+    // Never after its arrival either: a stamp from the future counts as the arrival.
+    if (at > now) at = now;
     // stopAt is on every phone, so a page changed to send it as its stamp sat first every
     // time: nobody is quicker than a hand can be, and taps held to that floor go by arrival.
     at = Math.max(s.stopAt + CHAIRS_MIN_REACT_MS, Math.min(now, at));

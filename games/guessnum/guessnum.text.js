@@ -25,6 +25,8 @@ gameText({
       gn_window: "بين {lo} و {hi}",
       gn_more_than: "الرقم أكبر من {n}",
       gn_less_than: "الرقم أصغر من {n}",
+      gn_min_ph: "من",
+      gn_max_ph: "لحد",
     },
     en: {
       gn_bub_idle: "Let's go!",
@@ -48,6 +50,8 @@ gameText({
       gn_window: "Between {lo} and {hi}",
       gn_more_than: "It's more than {n}",
       gn_less_than: "It's less than {n}",
+      gn_min_ph: "From",
+      gn_max_ph: "To",
     }
   },
   rules: {

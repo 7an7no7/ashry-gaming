@@ -619,6 +619,9 @@ const screwSkip = (room) => {
   }
   if (s.phase === 'play' && s.turn) {
     const pid = s.turn.pid;
+    const look = s.turn.stage === 'seeSwap' && room._screw.look;
+    // The look happened: the log says so, as leaving it or a leaver does.
+    if (look) screwEvent(room, 'seeSwap', { pid: pid, target: look.target, slot: look.slot, swapped: false });
     screwDropPending(room, false);
     screwEvent(room, 'skip', { pid: pid });
     screwPassTurn(room, s.order.indexOf(pid), false);

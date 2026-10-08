@@ -69,7 +69,7 @@ ROOM_GAMES.spyfall = {
     const v = s.vote || {};
     const roundKey = roomDealKey(state, s.round);
     if (spyfallRoom.crossedRound !== roundKey) { spyfallRoom.crossed = new Set(); spyfallRoom.crossedRound = roundKey; spyfallRoom.guessing = false; }
-    const sig = ['spy', s.phase, s.round, (v.voted || []).length, v.phase, s.outcome, state.youAreHost, appState.lang,
+    const sig = ['spy', s.phase, s.round, s.firstId, (v.voted || []).length, v.phase, s.outcome, state.youAreHost, appState.lang,
                  spyfallRoom.guessing, [...spyfallRoom.crossed].join(','), JSON.stringify(s.scores || {})].join('|');
     const rebuilt = renderRoomFrame(el, sig, () => spyfallFrame(state, t));
     if (rebuilt) spyfallFirstSpin(el, state, 'phone');
@@ -259,7 +259,7 @@ TV_GAMES.spyfall = {
   sig(state) {
     const s = state.shared || {};
     const v = s.vote || {};
-    return [s.phase, s.round, (v.voted || []).length, v.phase, s.outcome, s.bold ? 1 : 0, JSON.stringify(s.scores || {})].join('|');
+    return [s.phase, s.round, s.firstId, (v.voted || []).length, v.phase, s.outcome, s.bold ? 1 : 0, JSON.stringify(s.scores || {})].join('|');
   },
   frame(state, t) {
     const s = state.shared || {};

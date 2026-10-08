@@ -287,6 +287,8 @@ const hmProgramTeams = (room) => {
   if (!hmTeamsWay(s) || s.phase !== 'gameover' || !Array.isArray(s.teams)) return null;
   const p = s.tpts || [0, 0];
   const t = s.teams;
+  // A team that left whole is no place: the team still here is first (not 2nd behind an empty group).
+  if (!t[0].length || !t[1].length) return [t[0].concat(t[1])];
   if (p[0] === p[1]) return [t[0].concat(t[1])];
   return p[0] > p[1] ? [t[0].slice(), t[1].slice()] : [t[1].slice(), t[0].slice()];
 };
@@ -524,7 +526,8 @@ const hangmanAction = (room, playerId, action, payload) => {
     if (!hmTeamsWay(s) && hmGuessers(room).length < 1) throw new Error('مفيش حد يخمّن');
     // The hints are the writer's choice: up to three (`hints`), or the one `hint` of an older page.
     const raw = Array.isArray(p.hints) ? p.hints.slice(0, HM_HINTS_MAX) : [p.hint];
-    const hints = raw.map(hmCleanHint).filter(Boolean);
+    // A hint that would open only with the losing miss can never help: it isn't kept (an older page could send it).
+    const hints = raw.map(hmCleanHint).filter(Boolean).slice(0, hmHintsUsable(s.max));
     if (hints.some(x => hmHintProblem(x, p.word))) throw new Error('التلميح فيه الكلمة نفسها');
     hmBeginGuessing(room, hmClean(p.word), hints, p.hold === true);
     return;
@@ -555,7 +558,11 @@ const hangmanAction = (room, playerId, action, payload) => {
     const who = hmBoardFor(room, playerId);
     if (!who.b) return;
     if (action === 'reveal') {
-      if (!hmReveal(who.b, room._hm.word)) return;
+      if (!hmReveal(who.b, room._hm.word)) {
+        // Unused and still playing: one letter left, which a lifeline never gives - say so, not nothing.
+        if (!who.b.lr && who.b.state === 'play') throw new Error('فاضل حرف واحد: خمّنه انت!');
+        return;
+      }
     } else if (!hmRemoveWrong(who.b, room._hm.word).length) return;
     hmAfterMove(room, playerId, who, 'hit');
     return;

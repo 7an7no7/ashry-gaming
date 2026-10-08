@@ -228,6 +228,16 @@ async function submitJustOneGuess() {
 const WHOAMI_ROOM_CAT_KEY = 'ashryWhoamiRoomCat';
 function whoamiRoomCat() { try { return localStorage.getItem(WHOAMI_ROOM_CAT_KEY) || ''; } catch (e) { return ''; } }
 function setWhoamiRoomCat(value) { try { localStorage.setItem(WHOAMI_ROOM_CAT_KEY, String(value)); } catch (e) {} }
+/* An identity of the anime and the cartoons is 'Name|Show' (WHOAMI_DB): the name, and the show
+   as a small hint beside it, as the one-phone game draws it. The TV passes its own markup. */
+function roomWhoWordHtml(word, tv) {
+  const w = String(word || '');
+  const i = w.indexOf('|');
+  const name = i === -1 ? w : w.slice(0, i);
+  const show = i === -1 ? '' : w.slice(i + 1);
+  if (tv) return `<div class="tv-title">${escapeHTML(name)}</div>` + (show ? `<div class="tv-note">(${escapeHTML(show)})</div>` : '');
+  return `<span class="badge badge--accent">${escapeHTML(name)}</span>` + (show ? ` <span class="field__hint">(${escapeHTML(show)})</span>` : '');
+}
 ROOM_GAMES.whoami = {
   lobbyOptions(state) {
     if (!state.youAreHost) return '';
@@ -274,7 +284,7 @@ ROOM_GAMES.whoami = {
             <div class="status-row">
               <div class="status-row__body">
                 <div class="status-row__name">${x.got ? ['🥇', '🥈', '🥉'][x.got - 1] || '✅' : '❔'} ${escapeHTML(x.name)}</div>
-                <div><span class="badge badge--accent">${escapeHTML(x.word)}</span></div>
+                <div>${roomWhoWordHtml(x.word)}</div>
               </div>
             </div>`).join('')}
         </div>
@@ -319,7 +329,7 @@ ROOM_GAMES.whoami = {
           <div class="status-row">
             <div class="status-row__body">
               <div class="status-row__name">${got !== -1 ? '✅ ' : ''}${escapeHTML(o.name)}</div>
-              <div><span class="badge badge--accent">${escapeHTML(o.word)}</span></div>
+              <div>${roomWhoWordHtml(o.word)}</div>
             </div>
           </div>`;
         }).join('')}

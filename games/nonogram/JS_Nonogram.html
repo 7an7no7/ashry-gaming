@@ -153,7 +153,7 @@ function paintNonogram() {
       const i = r * n + c;
       const v = s.cells[i];
       const cls = ['nono-cell', v === 1 ? 'is-fill' : '', v === 2 ? 'is-x' : '', c % 5 === 4 && c < n - 1 ? 'is-sep-r' : '', r % 5 === 4 && r < n - 1 ? 'is-sep-b' : ''].filter(Boolean).join(' ');
-      return `<button type="button" class="${cls}" data-i="${i}" onpointerdown="nonoDown(event, ${i})">${v === 2 ? '✕' : ''}</button>`;
+      return `<button type="button" class="${cls}" data-i="${i}" onpointerdown="nonoDown(event, ${i})" onclick="if (event.detail === 0) nonoKey(${i})">${v === 2 ? '✕' : ''}</button>`;
     }).join('')}`).join('');
   el.innerHTML = `
     <div class="solo-layout">
@@ -267,6 +267,22 @@ function nonoDown(e, i) {
       nonoDrag = null;
     }
   };
+}
+
+/** Enter or Space on a cell (a keyboard, a TV remote): the tap, in the mode chosen (fill or ✕). */
+function nonoKey(i) {
+  const s = nonoState();
+  if (s.phase !== 'play') return;
+  const mark = s.mode === 'fill' ? 1 : 2;
+  const before = s.cells.slice();
+  s.cells[i] = s.cells[i] === mark ? 0 : mark;
+  soloUndoPush(s, before);
+  saveToLocal();
+  paintNonogram();
+  // The board was drawn again: the focus goes back to the same cell.
+  const cell = document.querySelector(`#nono-grid [data-i="${i}"]`);
+  if (cell) cell.focus();
+  nonoCheck();
 }
 
 /** Empties the board, after asking: it is every mark at once. */

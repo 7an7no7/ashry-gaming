@@ -223,7 +223,14 @@ function beginTriviaBoard() {
   const quiz = source && typeof packQuizById === 'function' ? packQuizById(source) : null;
   // A quiz opened by its code has no right choices on this phone (a: -1, packHideAnswers):
   // each comes from the server as its card is answered (tbQuizAnswer).
-  const quizCopy = quiz && packCleanQuiz(quiz, !packIsMine(quiz) && !!quiz.code).pack;
+  const cleaned = quiz ? packCleanQuiz(quiz, !packIsMine(quiz) && !!quiz.code) : null;
+  // A quiz still being written (no title, an empty question, no right choice ticked) says
+  // what is missing instead of quietly playing the app's own questions.
+  if (cleaned && cleaned.error) {
+    showToast(typeof packErrorText === 'function' ? packErrorText(cleaned.error, cleaned.at) : '', 'error');
+    return;
+  }
+  const quizCopy = cleaned && cleaned.pack;
 
   stopTriviaTimer();
   cancelTriviaAdvance();
@@ -317,6 +324,12 @@ function tbQuizRounds(quiz) {
   if (sec) return Math.max(1, Math.min(4, Math.ceil(sec.length / TB_CATEGORIES_PER_ROUND)));
   return Math.max(1, Math.min(4, Math.ceil(((quiz && quiz.questions) || []).length / TB_QUIZ_PER_BOARD)));
 }
+/* Each card's choices in an order of its own, dealt with the card: authors tend to type the
+   right one first, and the board would show it as «أ» every time. The stored `a` stays in the
+   author's order (/pack/answer returns that index); tbCardItem reads the choices through `o`. */
+function tbQuizChoiceOrder(q) {
+  return shuffleArray(((q && q.c) || []).map((_, k) => k));
+}
 function tbDealQuizRound(quiz, round) {
   const sec = tbQuizSecCols(quiz);
   if (sec) {
@@ -325,7 +338,7 @@ function tbDealQuizRound(quiz, round) {
     return part.map((c, k) => ({
       cat: null, quizCol: (round - 1) * TB_CATEGORIES_PER_ROUND + k, sec: c.name,
       cells: TB_LEVELS.slice(0, rows).map((points, r) => (r < c.qs.length
-        ? { points: points, q: c.qs[r], team: null, done: false }
+        ? { points: points, q: c.qs[r], o: tbQuizChoiceOrder(quiz.questions[c.qs[r]]), team: null, done: false }
         : { points: points, q: -1, team: null, done: true, blank: true }))
     }));
   }
@@ -339,7 +352,7 @@ function tbDealQuizRound(quiz, round) {
       cat: null, quizCol: c,
       cells: TB_LEVELS.slice(0, rows).map((points, r) => {
         const k = r * cols + c;
-        return k < list.length ? { points: points, q: from + k, team: null, done: false } : { points: points, q: -1, team: null, done: true, blank: true };
+        return k < list.length ? { points: points, q: from + k, o: tbQuizChoiceOrder(list[k]), team: null, done: false } : { points: points, q: -1, team: null, done: true, blank: true };
       })
     });
   }
@@ -364,7 +377,10 @@ function tbCardItem(s, col, cell) {
   if (s && s.quiz && col.cat === null) {
     const q = s.quiz.questions[cell.q];
     // A right choice not here yet (a quiz opened by code): '…' until tbQuizAnswer brings it.
-    return q ? [(q.e ? q.e + ' ' : '') + q.q, q.a >= 0 ? q.c[q.a] : '…', q.c, q.a] : null;
+    if (!q) return null;
+    // A board saved before the cards had an order of their own plays in the author's order.
+    const o = Array.isArray(cell.o) && cell.o.length === q.c.length ? cell.o : q.c.map((_, k) => k);
+    return [(q.e ? q.e + ' ' : '') + q.q, q.a >= 0 ? q.c[q.a] : '…', o.map(k => q.c[k]), q.a >= 0 ? o.indexOf(q.a) : -1];
   }
   const cat = tbCategory(col.cat);
   const item = cat && (cat.levels[cell.points] || [])[cell.q];

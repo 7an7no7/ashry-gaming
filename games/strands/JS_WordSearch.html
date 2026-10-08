@@ -437,15 +437,22 @@ function strandsBind() {
     const cell = e.target.closest('.strands-cell');
     if (!cell || s.phase !== 'play') return;
     e.preventDefault();
+    // One finger at a time (as Queens): a second finger is ignored, and the drag hears only its
+    // own pointer. A primary pointer with a drag still set means that drag lost its "up": it goes.
+    if (strandsDrag && !e.isPrimary) return;
+    if (strandsDrag && strandsDrag.end) strandsDrag.end();
+    const pid = e.pointerId;
     strandsDrag = { start: Number(cell.dataset.i), cells: [Number(cell.dataset.i)] };
     strandsPaintDrag();
     const move = (ev) => {
+      if (ev.pointerId !== pid) return;
       const over = soloCellAt(ev.clientX, ev.clientY, '.strands-cell');
       if (!over || !strandsDrag) return;
       const line = strandsLine(s.size, strandsDrag.start, Number(over.dataset.i));
       if (line) { strandsDrag.cells = line; strandsPaintDrag(); }
     };
-    const up = () => {
+    const up = (ev) => {
+      if (ev && ev.pointerId !== pid) return;
       document.removeEventListener('pointermove', move);
       document.removeEventListener('pointerup', up);
       document.removeEventListener('pointercancel', up);
@@ -457,6 +464,12 @@ function strandsBind() {
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', up);
     document.addEventListener('pointercancel', up);
+    strandsDrag.end = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      strandsDrag = null;
+    };
   });
 }
 

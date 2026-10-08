@@ -267,7 +267,11 @@ function playFx(name, always) {
   const fn = FX[name];
   if (!fn) return;
   if (!always && typeof soundPref === 'function' && soundPref() !== 'on') return;
-  try { fn(fxCtx().currentTime + 0.01); } catch (e) {}
+  const ctx = fxCtx();
+  // A context still waiting for a tap (a TV reloaded into a room) has a frozen clock: every
+  // effect scheduled on it would play at once on the first touch, so an effect is dropped.
+  if (!always && !fxRenderTo && ctx.state !== 'running') return;
+  try { fn(ctx.currentTime + 0.01); } catch (e) {}
 }
 
 /* --- the sheet and the button ---------------------------------------------- */

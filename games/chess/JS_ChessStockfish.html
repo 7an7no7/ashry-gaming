@@ -32,7 +32,7 @@
 // Positions searched per look: on this PC 120,000 is about depth 14 in 0.15 s, on a phone
 // about three times as long. The review asks once for every position of the game.
 const CH_SF = { file: 'g/sf19-lite.js', coach: 150000, best: 200000, review: 120000, timeout: 30000 };
-const chSf = { w: null, ready: null, failed: false, busy: null, queue: [], onLine: null, memo: new Map(), inflight: new Map(), simd: null };
+const chSf = { w: null, ready: null, ok: false, failed: false, busy: null, queue: [], onLine: null, memo: new Map(), inflight: new Map(), simd: null };
 
 /** Can Stockfish look at this game? Any chess but الوزير المستخبي, on a phone that runs it. */
 function chSfFits(g, hq) {
@@ -85,7 +85,7 @@ function chSfStart() {
     chSf.w = w;
     const t = setTimeout(() => { chSf.onLine = null; chSfFail(); resolve(false); }, CH_SF.timeout);
     chSf.onLine = (line) => {
-      if (line === 'readyok') { clearTimeout(t); chSf.onLine = null; resolve(true); }
+      if (line === 'readyok') { clearTimeout(t); chSf.onLine = null; chSf.ok = true; resolve(true); }
       else if (chSfDead(line)) { clearTimeout(t); chSf.onLine = null; chSfFail(); resolve(false); }
     };
     w.onmessage = (e) => chSfLine(String(e.data));

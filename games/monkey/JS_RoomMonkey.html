@@ -226,7 +226,8 @@ ROOM_GAMES.monkey = {
              </div>`
           : `<div class="waiting-note">${t.room_wait_host}</div>`}
         ${renderRoomPlayerStrip(state)}`);
-      if (fresh && typeof confetti === 'function') confetti({ particleCount: 140, spread: 90 });
+      // Once per deal (and never with motion off): a host handover or the language rebuilds this frame.
+      if (fresh && motionFirst('mk-over|' + roomDealKey(state)) && typeof confetti === 'function') confetti({ particleCount: 140, spread: 90 });
       refreshRoomPlayerStrip(el, state);
       return;
     }

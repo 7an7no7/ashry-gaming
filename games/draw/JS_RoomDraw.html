@@ -498,6 +498,30 @@ function activeToolLetter() {
   return (draw.tool === 'p' || draw.tool === 'e') ? 'f' : draw.tool;
 }
 
+/* What the server keeps of a drawing (DRAW_MAX_POINTS, DRAW_MAX_FILLS in RoomDraw.js). ارسم واكتب
+   and ارسم اللي بتسمعه send the page whole, and the server used to cut it past the budget
+   without a word: the phone stops there and says so. Fills are capped everywhere. */
+const DRAW_PAGE_POINTS = 2600;
+const DRAW_PAGE_FILLS = 60;
+function drawPageStrokes() {
+  const sent = draw.local ? [] : (((Room.state && Room.state.shared) || {}).strokes || []);
+  return sent.concat(draw.pending);
+}
+/** Room for `need` more numbers on this page? Only a page sent whole is counted. */
+function drawPageHas(need) {
+  if (!draw.local) return true;
+  const used = draw.pending.reduce((n, st) => n + ((st && st.p) || []).length, 0);
+  return used + need <= DRAW_PAGE_POINTS;
+}
+function drawPageFullNote(key) {
+  const now = Date.now();
+  if (now - (draw.fullAt || 0) < 1500) return;
+  draw.fullAt = now;
+  const t = TRANSLATIONS[appState.lang] || {};
+  showToast(t[key] || '', 'warning');
+  haptic('heavy');
+}
+
 function bindDrawSurface(canDraw) {
   draw.canvas = document.getElementById('draw-canvas');
   if (!draw.canvas) return;
@@ -530,6 +554,8 @@ function bindDrawSurface(canDraw) {
 
     // A fill is a single tap: no drag, nothing to preview.
     if (draw.tool === 'b') {
+      if (drawPageStrokes().filter(st => st && st.t === 'b').length >= DRAW_PAGE_FILLS) { drawPageFullNote('draw_fills_full'); return; }
+      if (!drawPageHas(2)) { drawPageFullNote('draw_page_full'); return; }
       const stroke = { t: 'b', c: draw.colour, w: 1, p: [x, y] };
       drawStroke(draw.ctx, stroke, draw.canvas.width);
       draw.pending.push(stroke);
@@ -540,9 +566,10 @@ function bindDrawSurface(canDraw) {
       return;
     }
 
+    const letter = activeToolLetter();
+    if (!drawPageHas(letter === 'f' ? 2 : 4)) { drawPageFullNote('draw_page_full'); return; }
     draw.canvas.setPointerCapture(e.pointerId);
     draw.drawing = true;
-    const letter = activeToolLetter();
     draw.current = { c: activeColour(), w: activeWidth(), p: [x, y] };
     draw.liveSeq++;
     draw.liveSent = 0;
@@ -582,6 +609,7 @@ function bindDrawSurface(canDraw) {
     const p = cur.p;
     // Skip points that add nothing — keeps the payload small.
     if (Math.abs(p[p.length - 2] - x) < 2 && Math.abs(p[p.length - 1] - y) < 2) return;
+    if (!drawPageHas(p.length + 2)) { drawPageFullNote('draw_page_full'); return; }
     p.push(x, y);
     // Paint locally at once: the drawer never waits on the network.
     drawStroke(draw.ctx, { c: cur.c, w: cur.w, p: p.slice(-4) }, draw.canvas.width);

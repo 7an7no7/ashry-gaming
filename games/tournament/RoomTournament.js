@@ -228,6 +228,9 @@ const tourRoomOf = (room, m) => {
   Object.keys(hidden).forEach(k => { v[k] = hidden[k]; });
   // The host away for this one move (room.js): a stand-in may play for a quiet phone in any match.
   if (room._hostAway) v._hostAway = true;
+  // Who is here right now (room.js, for skipTurn's quiet check): without it everyone looked away.
+  if (Array.isArray(room._online)) v._online = room._online;
+  if (Array.isArray(room._onlineScreens)) v._onlineScreens = room._onlineScreens;
   return v;
 };
 
@@ -236,7 +239,7 @@ const tourCommit = (room, m, v) => {
   room.shared.games[m.id] = v.shared;
   room._tourHidden = room._tourHidden || {};
   const hidden = {};
-  Object.keys(v).forEach(k => { if (k.charAt(0) === '_' && k !== '_hostAway' && v[k] !== undefined) hidden[k] = v[k]; });
+  Object.keys(v).forEach(k => { if (k.charAt(0) === '_' && k !== '_hostAway' && k !== '_online' && k !== '_onlineScreens' && v[k] !== undefined) hidden[k] = v[k]; });
   room._tourHidden[m.id] = hidden;
   room.secrets = room.secrets || {};
   (v.shared.seats || []).forEach(pid => {

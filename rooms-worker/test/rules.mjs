@@ -6898,8 +6898,9 @@ Date.now = duelTestClock;
   const second1 = MG.solved[s.holes[1]];
   holeOut(r, 'a', second1.path);
   check(s.balls.a.done === 'cup' && s.card.a[1] === second1.strokes, 'minigolf: a ball in the cup is done, and its strokes go on the card');
-  check(s.board.find((x) => x.id === 'a').score === max0 + 1 + second1.strokes && s.board[0].score <= s.board[1].score,
-    'minigolf: the board is the totals of the holes played, lowest first');
+  // The audit of 8 Oct 2026 (F2): only holes everyone has finished count, so a game cut here ranks fairly.
+  check(s.board.find((x) => x.id === 'a').score === max0 + 1 && s.board[0].score <= s.board[1].score,
+    'minigolf: the board is the totals of the holes everyone has finished, lowest first');
   // The next hole's own most strokes.
   for (let k = 0; k < 9 && !s.balls.b.done; k++) tiny(r, 'b');
   check(s.balls.b.done === 'picked' && s.card.b[1] === MG.golfMaxOf(HID(s.holes[1])) + 1, 'minigolf: each hole picks up at its own most strokes');
@@ -12251,6 +12252,16 @@ Date.now = duelTestClock;
   };
   const tick = (r) => { const due = roomDeadline(r); clock = Math.max(clock + 1, due); roomTimeout(r, clock); };
   {
+    // The audit of 8 Oct 2026 (C1): a tap made while the music still played (stamped before the stop,
+    // past the grace) that reaches the server after the stop is a false start, not the fastest sit.
+    const r = chairsRoom(['a', 'b', 'c', 'd']);
+    tick(r);
+    const st = r.shared.stopAt;
+    clock = st + 50;
+    applyRoomAction(r, 'a', 'sit', { round: 1, at: st - 300 });
+    check(r.shared.phase === 'result' && r.shared.loserId === 'a' && r.shared.why === 'early', 'chairs: a tap stamped before the stop that arrives after it is a false start');
+  }
+  {
     // «الأرقام القياسية» (the owner's pick of 7 Oct 2026, 854): the room's fastest sit of the evening.
     const r = chairsRoom(['a', 'b', 'c', 'd']);
     tick(r);
@@ -12313,8 +12324,8 @@ Date.now = duelTestClock;
     const stop = s.stopAt;
     clock = stop + 500;
     applyRoomAction(r, 'a', 'sit', { round: 2, at: stop + 400 });
-    applyRoomAction(r, 'c', 'sit', { round: 2, at: stop - 1000 });          // a time the phone can't have had: the arrival counts
-    check(s.sits[0].id === 'a' && s.sits[0].ms === 400 && s.sits[1].id === 'c' && s.sits[1].ms === 500, 'chairs: a tap is timed by the phone\'s stamp inside [the stop, the arrival]; a stamp before the stop counts as its arrival');
+    applyRoomAction(r, 'c', 'sit', { round: 2, at: stop + 9000 });          // a stamp after its arrival: the arrival counts
+    check(s.sits[0].id === 'a' && s.sits[0].ms === 400 && s.sits[1].id === 'c' && s.sits[1].ms === 500, 'chairs: a tap is timed by the phone\'s stamp inside [the stop, the arrival]; a stamp after the arrival counts as its arrival');
     applyRoomAction(r, 'a', 'sit', { round: 2, at: stop + 100 });
     check(s.sits.length === 2 && s.sits[0].ms === 400, 'chairs: a second tap by the same player changes nothing');
     clock = stop + 900;
@@ -12454,7 +12465,7 @@ Date.now = duelTestClock;
     const stop = s.stopAt;
     clock = stop + 600;
     applyRoomAction(r, 'c', 'sit', { round: 2, at: stop + 300 });
-    applyRoomAction(r, 'a', 'sit', { round: 2, at: stop - 2000 });
+    applyRoomAction(r, 'a', 'sit', { round: 2, at: stop + 600 });
     check(s.sits[0].id === 'c' && s.sits[0].ms === 300 && s.sits[1].id === 'a' && s.sits[1].ms === 600, "chairs/dj: the taps are judged against the DJ's stop as against the secret one");
     tick(r);
     check(s.phase === 'result' && s.loserId === 'd' && s.why === 'late', 'chairs/dj: no tap is last, as always');

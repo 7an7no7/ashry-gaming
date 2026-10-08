@@ -87,6 +87,13 @@ function mafiaStopClock() {
 }
 onRoomClocksReset(mafiaStopClock);
 
+/** «+1 دقيقة» with the clock it was pressed on, read at the tap: the server drops the second
+    tap of a double tap (its clock already moved), and a later deliberate tap still adds one. */
+function mafiaMoreTime() {
+  const s = (Room.state && Room.state.shared) || {};
+  roomAct('moreTime', { endsAt: s.endsAt });
+}
+
 /** The vote's "nobody" option, said in this phone's language. */
 function mafiaVoteState(state) {
   const t = TRANSLATIONS[appState.lang];
@@ -504,7 +511,7 @@ ROOM_GAMES.mafia = {
           ${inGame && alive ? role : ''}
           ${roomMoveOnHtml(state, `<div class="btn-stack">
               <button class="btn btn--primary btn--lg" onclick="roomAct('startVote')">🗳️ ${escapeHTML(t.mafia_vote_now || '')}</button>
-              ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('moreTime')">+1 ${escapeHTML(t.meta_min || '')}</button>` : ''}
+              ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="mafiaMoreTime()">+1 ${escapeHTML(t.meta_min || '')}</button>` : ''}
             </div>`, `<div class="waiting-note">${escapeHTML(t.mafia_vote_soon || '')}</div>`)}
           ${renderRoomPlayerStrip(state)}`;
       }
@@ -1127,7 +1134,7 @@ TV_GAMES.mafia = {
     if (s.phase === 'day') {
       // The morning of the same street: the door of whoever left stands open (539).
       return mafiaStreetDayHtml(state, t, people,
-        moveOn(tvBtn('🗳️ ' + (t.mafia_vote_now || ''), "roomAct('startVote')") + (state.youAreHost ? tvBtn('+1 ' + (t.meta_min || ''), "roomAct('moreTime')", 'ghost') : '')));
+        moveOn(tvBtn('🗳️ ' + (t.mafia_vote_now || ''), "roomAct('startVote')") + (state.youAreHost ? tvBtn('+1 ' + (t.meta_min || ''), 'mafiaMoreTime()', 'ghost') : '')));
     }
     if (s.phase === 'voting') {
       return `<div class="tv-vote"><div class="tv-title tv-center-text">🗳️ ${escapeHTML(t.mafia_who_leaves || '')}</div>${people}${tvVoteProgress(state, t)}</div>`;

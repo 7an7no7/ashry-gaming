@@ -118,6 +118,7 @@ const vaultAction = (room, playerId, action, payload) => {
   if (action === 'cut' || action === 'sym' || action === 'dial' || action === 'light') {
     if (staleTap(payload, 'safe', s.safeNo)) return;
     if (s.phase !== 'play') return;
+    if (vaultCandlesOut(room, now)) { vaultWrite(room); if (s.phase !== 'play') return; }
     const i = Math.floor(Number(payload.i));
     const lock = ((room._vault || {}).safe || {}).locks ? room._vault.safe.locks[i] : null;
     if (!lock) throw new Error('قفل مش موجود');
@@ -128,9 +129,14 @@ const vaultAction = (room, playerId, action, payload) => {
     const want = { cut: 'wires', sym: 'symbols', dial: 'dial', light: 'lights' }[action];
     if (lock.k !== want) throw new Error('ده مش القفل ده');
     const pr = room._vault.prog[key][i];
+    // `m`: the side's mistakes as the phone saw them (optional, for an older page). A wrong move
+    // sent before an earlier mistake reached that phone (a double tap on «جرّب», a wrong symbol
+    // twice) is dropped, not counted again; a right one still counts.
+    const staleMiss = staleTap(payload, 'm', side.mistakes);
     if (action === 'cut') {
       const w = Math.floor(Number(payload.w));
       if (!(w >= 0 && w < lock.look.wires.length) || pr.cut.indexOf(w) !== -1) return;
+      if (w !== lock.sol && staleMiss) return;
       pr.cut.push(w);
       if (w === lock.sol) vaultOpenLock(room, key, i, playerId, now);
       else vaultMistake(room, key, i, playerId, now);
@@ -142,6 +148,7 @@ const vaultAction = (room, playerId, action, payload) => {
         if (pr.pressed.length === lock.sol.length) vaultOpenLock(room, key, i, playerId, now);
         else vaultEvent(room, { type: 'step', side: key, i, by: playerId });
       } else {
+        if (staleMiss) return;
         pr.pressed = [];
         vaultMistake(room, key, i, playerId, now);
       }
@@ -149,6 +156,7 @@ const vaultAction = (room, playerId, action, payload) => {
       const code = Array.isArray(payload.code) ? payload.code.slice(0, 3).map(d => Math.floor(Number(d))) : [];
       if (code.length !== 3 || code.some(d => !(d >= 0 && d <= 9))) throw new Error('الكود 3 أرقام');
       if (code.join('') === lock.sol.join('')) vaultOpenLock(room, key, i, playerId, now);
+      else if (staleMiss) return;
       else vaultMistake(room, key, i, playerId, now);
     } else {
       const c = String(payload.c || '');
@@ -159,6 +167,7 @@ const vaultAction = (room, playerId, action, payload) => {
         if (pr.n >= answer.length) vaultOpenLock(room, key, i, playerId, now);
         else vaultEvent(room, { type: 'step', side: key, i, by: playerId });
       } else {
+        if (staleMiss) return;
         pr.n = 0;
         pr.row = vaultLightRowOf(side.mistakes);      // the column that applied, for «ليه كده؟»
         vaultMistake(room, key, i, playerId, now);
@@ -172,6 +181,7 @@ const vaultAction = (room, playerId, action, payload) => {
     // «المفتاح الاحتياطي»: a spare key opens one shut lock outright, from whoever works that lock.
     if (staleTap(payload, 'safe', s.safeNo)) return;
     if (s.phase !== 'play') return;
+    if (vaultCandlesOut(room, now)) { vaultWrite(room); if (s.phase !== 'play') return; }
     const i = Math.floor(Number(payload.i));
     if (!s.locks[i]) throw new Error('قفل مش موجود');
     const key = vaultSideOfLock(room, playerId, i);
@@ -280,7 +290,18 @@ const vaultDealHolders = (room, key) => {
   const holders = {};
   ids.forEach(id => { holders[id] = { locks: [], pages: [] }; });
   if (s.way === 'all') {
-    kinds.forEach((k, i) => { if (ids.length) holders[ids[i % ids.length]].locks.push(i); });
+    // Who held what keeps it (someone left: only the leaver's locks go round, each to whoever
+    // holds fewest); at a new safe nobody held anything, so it is dealt round the table as ever.
+    const prev = side.holders || {};
+    const owner = {};
+    ids.forEach(id => ((prev[id] || {}).locks || []).forEach(i => { owner[i] = id; }));
+    kinds.forEach((k, i) => { if (owner[i]) holders[owner[i]].locks.push(i); });
+    kinds.forEach((k, i) => {
+      if (owner[i] || !ids.length) return;
+      const id = ids.reduce((b, x) => (holders[x].locks.length < holders[b].locks.length ? x : b), ids[0]);
+      holders[id].locks.push(i);
+    });
+    ids.forEach(id => holders[id].locks.sort((x, y) => x - y));
     // Each phone a page for a lock on someone else's phone, every kind of lock covered.
     const present = kinds.filter((k, i) => kinds.indexOf(k) === i);
     const covered = {};
@@ -385,6 +406,21 @@ const vaultMistake = (room, key, i, by, now) => {
   vaultEvent(room, { type: 'mistake', side: key, i, k: s.locks[i].k, by, n: side.mistakes, pen: pen ? Math.round(pen / 1000) : undefined });
   if (s.settings.mistakes !== 'time' && side.strikes >= VAULT_STRIKES) vaultSideLost(room, key, 'alarm', now);
   else if (side.left <= 0) vaultSideLost(room, key, 'time', now);
+};
+
+/** A move that comes after a side's candle has burnt down (before the alarm got to it) ends that
+ * side for time first, as the alarm would have (and the safe, if that was the last side): true
+ * when a side went out by it. */
+const vaultCandlesOut = (room, now) => {
+  const s = room.shared;
+  let out = false;
+  Object.keys(s.sides).forEach((k) => {
+    const sd = s.sides[k];
+    const end = sd.done ? null : vaultSideDeadline(sd);
+    if (end !== null && now >= end) { vaultSideLost(room, k, 'time', now); out = true; }
+  });
+  if (out) vaultCheckEnd(room, now);
+  return out;
 };
 
 const vaultSideLost = (room, key, why, now) => {

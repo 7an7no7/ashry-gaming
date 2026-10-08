@@ -486,7 +486,13 @@ function chess4Play(g, move) {
   CHESS4_SEATS.forEach(t => {
     if (t === s || g.out[t]) return;
     const now = chess4InCheckPos(p, t);
-    if (now) { checks++; if (!before[t] || g.giver[t] < 0) g.giver[t] = s; }
+    if (now) {
+      checks++;
+      // Whoever's move gives the check now: an older checker keeps it only while
+      // their piece still attacks the king and this move adds no check of its own.
+      const old = g.giver[t];
+      if (!before[t] || old < 0 || g.out[old] || chess4Attacked(p.b, p.kings[t], 1 << s) || !chess4Attacked(p.b, p.kings[t], 1 << old)) g.giver[t] = s;
+    }
     else g.giver[t] = -1;
   });
   g.giver[s] = -1;

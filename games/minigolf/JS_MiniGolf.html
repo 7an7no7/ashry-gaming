@@ -3366,8 +3366,11 @@ function startMiniGolf(daily) {
   let course;
   if (daily) {
     const ids = GOLF_HOLES.map(h => h.id);
-    const rnd = soloRng(soloDaySeed('minigolf'));
-    const holeId = ids[Math.floor(rnd() * ids.length)];
+    // From its own cut-over day the daily walks the whole list (soloDailyCycle: no hole back
+    // until every one has been); a day before it keeps the hole it always had, in the archive too.
+    const day = soloArchiveDay || soloToday();
+    const holeId = day >= '2026-10-09' ? soloDailyCycle('minigolf', ids, day)[0]
+      : ids[Math.floor(soloRng(soloDaySeed('minigolf'))() * ids.length)];
     course = [holeId];
   } else {
     course = golfDealCourse(s.holes, s.level, (ids, n, lvl) => freshPick('golf_' + lvl, ids, n));

@@ -207,12 +207,8 @@ const timelinePlayerLeft = (room, playerId) => {
   s.order = (s.order || []).filter(id => id !== playerId);
   if (s.hands) delete s.hands[playerId];
   if (activeRoster(room, s.order).length < TIMELINE_MIN_PLAYERS) {
-    s.phase = 'gameover';
-    s.winnerId = null;
-    s.winnerName = '';
-    s.winnerIds = [];
-    s.winnerNames = [];
-    room.phase = 'gameover';
+    // The board as it is now (the leaver is gone from it), and whoever leads named.
+    timelineEndOnBoard(room, 'left');
     return;
   }
   s.hands = timelineCounts(room);

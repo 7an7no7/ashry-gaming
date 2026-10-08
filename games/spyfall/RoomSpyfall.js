@@ -119,6 +119,8 @@ const resolveSpyfallVote = (room) => {
   s.accusedId = accused ? accused.id : null;
   s.accusedName = accused ? accused.label : '';
   if (accused && (room._spyIds || []).indexOf(accused.id) !== -1) {
+    // A spy named after leaving (the other spy still here) has no guess to make: caught.
+    if (!room.players.some(p => p.id === accused.id)) { finishSpyfall(room, 'caught', null, accused.id); return; }
     s.guesserId = accused.id;
     s.guesserName = accused.label;
     s.phase = 'guess';

@@ -305,7 +305,12 @@ self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) =>
     fetch(fresh('./')).then(clean).then((res) => {
       if (!res.ok) throw new Error('index ' + res.status);
-      return Promise.all([c.put('./index.html', res.clone()), c.put('./', res)]);
+      // Only this build's page: an edge still serving the build before (GitHub Pages while
+      // it purges) would be kept as this one's. A failed install retries on the next check.
+      return res.clone().text().then((txt) => {
+        if (txt.indexOf('"${buildId}"') === -1) throw new Error('stale index');
+        return Promise.all([c.put('./index.html', res.clone()), c.put('./', res)]);
+      });
     }).then(() => c.addAll(SHELL.map(fresh)))
   ).then(() => caches.open(CHUNKS)).then((g) => Promise.all(GAME_FILES.map((f) =>
     g.match(f).then((hit) => hit || fetch(f).then((res) => { if (!res.ok) throw new Error(f + ' ' + res.status); return g.put(f, res); })))))
@@ -317,7 +322,9 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== CHUNKS && k !== CDN).map((k) => caches.delete(k))))
+    // Only this app's own builds' caches: on GitHub Pages the origin (7an7no7.github.io) is
+    // shared with any other project page of the account, and theirs are not ours to delete.
+    .then((keys) => Promise.all(keys.filter((k) => /^ashry-\\d+$/.test(k) && k !== CACHE).map((k) => caches.delete(k))))
     .then(() => caches.open(CHUNKS)).then((g) => g.keys().then((reqs) => Promise.all(reqs
       .filter((r) => KEEP_FILES.indexOf('./g/' + new URL(r.url).pathname.split('/').pop()) === -1)
       .map((r) => g.delete(r)))))
@@ -356,7 +363,9 @@ self.addEventListener('fetch', (event) => {
       fetch(req).then((res) => { if (res.ok) g.put(req, res.clone()); return res; }))));
     return;
   }
-  const cached = () => caches.match(req).then((hit) => hit || caches.match('./index.html'));
+  // From this build's cache, never caches.match across the (possibly shared) origin.
+  const own = (r) => caches.open(CACHE).then((c) => c.match(r));
+  const cached = () => own(req).then((hit) => hit || own('./index.html'));
   if (req.mode !== 'navigate') { event.respondWith(fetch(req).then((res) => keep(req, res)).catch(cached)); return; }
   // A room's link with a preview (/r/CODE, site-worker/): the page there only sends a
   // browser on to ./?room=CODE, so a phone with the app goes there at once, on line or off.
@@ -367,7 +376,7 @@ self.addEventListener('fetch', (event) => {
   if (crew) { event.respondWith(Response.redirect(new URL('./?crew=' + crew[1].toUpperCase(), self.registration.scope).href, 302)); return; }
   // Opening the app (a room link's ?room= too): this build's saved page at once; the
   // network only when there is none yet. A newer build arrives as a newer worker.
-  event.respondWith(caches.match('./index.html').then((hit) => (hit ? clean(hit) :
+  event.respondWith(own('./index.html').then((hit) => (hit ? clean(hit) :
     fetch(req).then((res) => keep(req, res)).catch(() => cached().then((c) => (c ? clean(c) : Response.error()))))));
 });
 `;
@@ -391,8 +400,15 @@ if (existsSync(manifestPath)) {
 // GitHub Pages runs Jekyll otherwise, which skips files and slows the build.
 await writeFile(path.join(out, '.nojekyll'), '', 'utf8');
 
-for (const icon of ['icon-180.png', 'icon-192.png', 'icon-512.png', 'favicon-64.png', 'manifest.webmanifest']) {
-  if (!existsSync(path.join(out, icon))) console.warn(`warning: docs/${icon} missing - run npm run build:icons`);
+// The worker's install fetches every one of these (SHELL): one missing fails every phone's
+// install, silently. So for docs/ it fails the build; a SITE_OUT copy only warns.
+{
+  const missing = ['icon-180.png', 'icon-192.png', 'icon-512.png', 'favicon-64.png', 'manifest.webmanifest'].filter((f) => !existsSync(path.join(out, f)));
+  if (missing.length) {
+    const msg = `docs/ is missing ${missing.join(', ')} - run npm run build:icons`;
+    if (process.env.SITE_OUT) console.warn('warning: ' + msg);
+    else throw new Error(msg);
+  }
 }
 
 console.log(`docs/index.html written (${(html.length / 1024).toFixed(0)} KB), rooms via ${roomsUrl}`);

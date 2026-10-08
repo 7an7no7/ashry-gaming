@@ -62,7 +62,7 @@ function progDraftLoad() {
 }
 function progDraftSave() {
   if (prog.edit) return;   // the running program's games are the server's, not this phone's draft
-  try { localStorage.setItem(PROG_DRAFT_KEY, JSON.stringifyprogDraftLoad()); } catch (e) {}
+  try { localStorage.setItem(PROG_DRAFT_KEY, JSON.stringify(progDraftLoad())); } catch (e) {}
 }
 
 /** A game's options as the host's phone would start it now: its lobby options drawn out of
@@ -763,8 +763,10 @@ function progTick() {
   const st = typeof Room !== 'undefined' ? Room.state : null;
   const p = st && st.program;
   const nodes = document.querySelectorAll('[data-prog-count], [data-prog-ring]');
+  // Only a result or the table counts down: through a game the hidden program screen still holds
+  // its nodes, so stop here too (progPaintPill and progRender start it again on the next pause).
   if (!p || !nodes.length || (p.phase !== 'result' && p.phase !== 'between')) {
-    if (!nodes.length || !p || p.phase === 'final') { clearInterval(prog.timer); prog.timer = null; }
+    clearInterval(prog.timer); prog.timer = null;
     return;
   }
   const L = progLeft(p);

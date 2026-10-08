@@ -93,7 +93,7 @@ const newer = [];
 for (const f of sources) if ((await timeOf(srcPath(f))) > built + 1000) newer.push(f);
 // The build tools shape docs/ too (the worker, the chunks, the games' text, the pictures, the chess
 // engine): an edit there with no build:site would pass every check below with the old build live.
-const toolFiles = ['tools/build-site.mjs', 'tools/lazy-split.mjs', 'tools/game-text.cjs', 'tools/sources.cjs', 'tools/make-og.mjs', 'tools/site.config.json'];
+const toolFiles = ['tools/build-site.mjs', 'tools/lazy-split.mjs', 'tools/css-split.mjs', 'tools/text-split.mjs', 'tools/game-text.cjs', 'tools/sources.cjs', 'tools/make-og.mjs', 'tools/site.config.json'];
 let vendor = [];
 try { vendor = (await readdir(path.join(root, 'vendor', 'stockfish'))).filter((f) => /\.(js|wasm)$/.test(f)).map((f) => 'vendor/stockfish/' + f); } catch (e) {}
 for (const f of [...toolFiles, ...vendor]) {

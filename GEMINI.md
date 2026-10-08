@@ -986,11 +986,25 @@ also its `Room<Game>.js` with `ROOM_RULES.<id>`, `ROOM_GAMES` and
 `TONIGHT_ORDER` («الليلة دي؟», `npm run check` fails without it), and a room game a
 `crew` title in its `Games.js` entry (`npm run check` and `test:rules` fail without it).
 
-**Never hardcode a colour.** Use the tokens: `--accent` / `--accent-soft` /
-`--accent-ink` / `--accent-on` for the current screen's colour, `--text` /
-`--text-2` / `--text-3` for copy, `--surface` / `--surface-solid` /
+**The app's frame never hardcodes a colour** (the rules of 8 Oct 2026, `notes/design.md`).
+The header, menus, setups, popups, buttons and fields use the tokens: `--accent` /
+`--accent-soft` / `--accent-ink` / `--accent-on` for the current screen's colour,
+`--text` / `--text-2` / `--text-3` for copy, `--surface` / `--surface-solid` /
 `--surface-2` / `--surface-3` for backgrounds, `--success` / `--danger` /
-`--warning` for meaning. Everything resolves correctly in both themes.
+`--warning` for meaning. Everything resolves correctly in both themes. A game's
+own look (الحقوا!'s paper, المزاد's gold) may have colours of its own: declare
+them once at the top of its section as custom properties (`--wr-ink`), with
+both themes, and never repeat them as literals.
+
+**Small coloured text uses the `-ink`.** `--success` / `--danger` / `--warning`
+(and `--accent`) are for fills, icons and big numbers (a clock, a 2rem score);
+as text under ~19px bold they fall under 4.5:1 in light (green on white 3.77:1),
+so text takes `--success-ink` / `--danger-ink` / `--warning-ink` / `--accent-ink`.
+
+**Text sizes and weights come from the scales.** The app's frame takes `--fs-*`
+(`--tv-*` on the TV) and `--fw-*`, in rem, never px (px doesn't grow with
+Settings → Screen size). `--fs-xs` (12px) is the floor: no text under it,
+except a game's board art (coordinates, pips).
 
 **Per-screen colour comes from `data-accent`.** `setView` reads `accent` out of
 `VIEW_META` (in `JS_Core.html`) and sets it on the view, and every component
@@ -1017,13 +1031,13 @@ page background; these resolve through the same tokens as everything else.
 `.btn--primary` (the one action the screen exists for), `.btn--secondary`,
 `.btn--ghost` (retreat/dismiss), `.btn--neutral`, and `.btn--danger` /
 `--success` / `--warning` / `--danger-soft` for meaning. Sizes are `.btn--lg`,
-default, `.btn--sm`, `.btn--xs`; `.btn--auto` opts out of full width. The old
-`btn-blue`/`btn-orange`-style classes only survive as aliases so a stray one
-still renders as a button — do not add new uses.
+default, `.btn--sm`, `.btn--xs`; `.btn--auto` opts out of full width. (The old
+`btn-blue`-style aliases were deleted on 8 Oct 2026: nothing used them.)
 
 Other components: `.card`, `.section` + `.section__title`, `.eyebrow`,
 `.game-card`, `.tool-item`, `.row` / `.status-row`, `.chip`, `.badge`,
-`.metric`, `.empty`, `.field` + `.field__label`, `.input-group`, `.stepper`,
+`.metric`, `.empty`, `.field` + `.field__label` + `.field__error` (the one
+error line under a field), `.input-group`, `.stepper`,
 `.segmented`, `.switch` (inside a `<label class="switch-row">`), `.keypad` +
 `.key`, `.wheel`, `.view-actions`, and the
 `.modal-content` sheet (`.sheet__header` / `__body` / `__footer`).
@@ -1063,7 +1077,12 @@ keep the header / body / footer sheet. Full-screen tools (`FULLSCREEN_VIEWS` in
 **Buttons and fields size themselves.** `.btn` is 48px (`btn--lg` 54, `btn--sm`
 42), fields are 48px with one font. Don't put `py-*`, `h-*`, `text-xl` or
 `font-*` utilities on them - pick a size class. The Charades and Describe It
-play buttons (`h-20`) are the one deliberate exception.
+play buttons (`h-20`) are the one deliberate exception. A field's edge is
+`--border-field` (22%; `--border`'s 8% vanished on a white card). The keyboard
+and TV-remote focus ring is `var(--focus-w) solid var(--accent-ink)`, written
+where the ring is drawn - a token set to `var(--accent-ink)` on `:root` would
+resolve there and stay violet on every screen; a ring on a game's dark board
+may take its own colour, never its own width.
 
 ### Layout: the app shell
 

@@ -793,3 +793,40 @@ fixed layer so it costs no repaints.
   About 1.3 KB gzipped on the first visit. **To see it**: `?season=ramadan` or `?season=eid`
   on a local preview (localhost, 127.0.0.1, `.localhost`, `.test`; ignored on the live
   hosts), or `introSeason('ramadan' | 'eid')` from a test while the loader is up.
+
+## The design rules of 8 Oct 2026 (the owner accepted all nine)
+
+A check of the written rules against the code (`/ui-system`), with a before/after
+sheet of the real tokens (`ui-review/style-before-after.html`, not committed). What changed:
+
+1. **The text floor.** `--fs-xs` 11 → 12px. Measured at 375px: 18 of the 26 texts on
+   the first-visit home and 82 of 168 on مع بعض were under 12px. No text under 12px,
+   except a game's board art. About 90 sizes typed under 12px in the games' own
+   sections stay until each game is next touched (Stop's ✓ and شطرنج الأربعة's points
+   moved now).
+2. **Small coloured text takes the `-ink`.** About ten rules used `--success` /
+   `--danger` as small text (green on white 3.77:1); they read `--success-ink` /
+   `--danger-ink` now. Big clocks and scores keep the bright colour (large text).
+3. **One focus ring:** `var(--focus-w) solid var(--accent-ink)`, 3px. It was 2px of
+   `--accent`, 2.87:1 on the amber screens, and 25 rings in the games picked 2px or 3px
+   by hand. Rings on a game's dark board keep their white or gold, at `--focus-w`.
+   Trap: a `--focus-ring: var(--accent-ink)` on `:root` resolves there, so it stays
+   violet under every `data-accent`; write `var(--accent-ink)` where the ring is drawn.
+4. **A field's edge** is `--border-field` (22%, light 1.61:1, dark 2.05:1); `--border`
+   (8%, 1.18:1) left a white field on a white card with no visible box. A full 3:1
+   edge would need about 45%, which read heavy.
+5. **One error line**, `.field__error` (13px, `--danger-ink`, hidden when empty, no
+   margin inside a simple dialog); `.field-error` (11px, `--danger`) went - the
+   password popup was its one use.
+6. **"Never hardcode a colour" is the frame's rule**: the 1,491 colour literals were
+   almost all games' own looks. A game's palette is declared once as custom
+   properties at the top of its section.
+7. **Sizes and weights from the scales** (`--fs-*`, `--tv-*`, `--fw-*`), in rem, never
+   px: px doesn't grow with Settings → Screen size. For new code; 102 distinct typed
+   sizes are left as they are.
+8. **The legacy `.btn-blue` … `.btn-gray` aliases were deleted**: nothing used them.
+9. **The weight scale `--fw-*` is written down** (rule 7) rather than dropped.
+
+The 12px floor pushed «اعمل مسابقتك»'s question list 6px wider than the phone at 375:
+`.ql` was a grid with no columns, so its one column took the rows' widest content (an
+answer that doesn't wrap). It is `minmax(0, 1fr)` now - any grid of rows wants it.

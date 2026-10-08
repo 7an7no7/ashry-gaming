@@ -66,6 +66,9 @@
   --border:        rgba(15, 23, 42, 0.08);
   --border-strong: rgba(15, 23, 42, 0.14);
   --hairline:      rgba(15, 23, 42, 0.06);
+  /* A field's edge: --border (8%) all but vanished for a white field on a white
+     card or popup (1.18:1). 22% keeps the calm look; 3:1 would need ~45%. */
+  --border-field:  rgba(15, 23, 42, 0.22);
 
   /* --- Text --- */
   --text:   var(--n-700);
@@ -142,7 +145,10 @@
   --fs-h3:      1rem;      /* 16 */
   --fs-body:    0.9375rem; /* 15 */
   --fs-sm:      0.8125rem; /* 13 */
-  --fs-xs:      0.6875rem; /* 11 */
+  /* The floor (8 Oct 2026): 11px Cairo was hard to read at a party - 18 of the
+     26 texts on the first-visit home were under 12px. No text goes under this,
+     except a game's board art (coordinates, pips). */
+  --fs-xs:      0.75rem;   /* 12 */
   --lh-tight: 1.15;
   --lh-snug:  1.35;
   --lh-body:  1.6;
@@ -211,6 +217,10 @@
   --header-h: 3.5rem;
   --nav-h: 3.875rem;
   --tap: 2.75rem;               /* minimum touch target */
+  /* The keyboard / TV-remote focus ring's width. Its colour is var(--accent-ink),
+     written where the ring is drawn: a token set to it here would resolve on :root
+     and stay violet on every screen. */
+  --focus-w: 3px;
   --safe-top:    env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left:   env(safe-area-inset-left, 0px);
@@ -234,6 +244,7 @@ body.dark {
   --border:        rgba(255, 255, 255, 0.09);
   --border-strong: rgba(255, 255, 255, 0.18);
   --hairline:      rgba(255, 255, 255, 0.06);
+  --border-field:  rgba(255, 255, 255, 0.22);
 
   --text:   #e8eef7;
   --text-2: #a3b1c4;      /* n-400 was 4.04:1 on the segmented track */
@@ -893,26 +904,6 @@ body.theme-transition *:not(#app-loader):not(#app-loader *) {
 /* Icon-only, square */
 .btn--icon { width: var(--btn-h); min-width: var(--btn-h); padding: 0; }
 
-/* --- Legacy colour classes ------------------------------------------------
-   The old markup picked button colours decoratively (btn-blue, btn-orange…),
-   which is why three unrelated actions in a row could end up three different
-   colours. Call sites now use the tiers above; these aliases stay as a safety
-   net so a class left behind anywhere still renders as a proper button rather
-   than as bare text. Colour comes from the screen's accent. (.btn-red went on
-   22 Sep 2026: white on --danger is 3.67:1 in dark mode, and nothing used it.
-   Meaning comes from .btn--danger, on --danger-btn / --danger-on.)
-   -------------------------------------------------------------------------- */
-.btn-blue, .btn-green, .btn-purple, .btn-orange, .btn-indigo {
-  background: var(--accent);
-  color: var(--accent-on);
-  box-shadow: 0 6px 18px -6px var(--accent-glow), var(--sh-inset);
-}
-.btn-gray {
-  background: transparent;
-  color: var(--text-2);
-  border-color: var(--border);
-}
-
 /* Ripple, painted by JS on pointerdown.
    This has to be a standalone class, not one scoped under .btn: the JS attaches
    ripples to every RIPPLE_TARGETS host (.game-card, .tool-item, .nav-item,
@@ -1508,6 +1499,9 @@ html[lang="ar"] .eyebrow { text-transform: none; letter-spacing: normal; font-si
 .setup-reset > .btn { color: var(--accent-ink); }
 /* A mistake said at its field (the join screen: roomJoinFieldError, JS_Room.html). */
 .field__error { margin: var(--sp-2) var(--sp-1) 0; font-size: var(--fs-sm); font-weight: 700; color: var(--danger-ink); line-height: 1.4; }
+.field__error:empty { display: none; }
+/* In a simple dialog the gap does the spacing. */
+.modal-content--simple .field__error { margin: 0; }
 input[aria-invalid="true"] { border-color: var(--danger); }
 input[aria-invalid="true"]:focus { border-color: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent); }
 
@@ -1515,7 +1509,7 @@ input, select, textarea {
   width: 100%;
   min-height: 3rem;
   padding: 0 var(--sp-4);
-  border: 1.5px solid var(--border);
+  border: 1.5px solid var(--border-field);
   border-radius: var(--r-md);
   background: var(--surface-solid);
   color: var(--text);
@@ -1735,8 +1729,6 @@ select {
 
 /* Fields that hold one big number (points, minutes, a guess). */
 .field-big { font-size: 1.5rem; font-weight: 900; text-align: center; }
-.field-error { font-size: var(--fs-xs); font-weight: 700; color: var(--danger); }
-.field-error:empty { display: none; }
 .input-group > select { flex: 1; min-width: 0; }
 .input-group > .iconbtn { width: 3rem; height: auto; flex: none; }
 

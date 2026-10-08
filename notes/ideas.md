@@ -98,3 +98,13 @@ Wider ideas of the same day (data move code, lighter page, TV read-aloud, a week
 ## The owner's picks of 7 Oct 2026 (A1, A2, B1, B2, B3, C2, C3, D1, D2, E1, E2, F1, G1)
 
 From https://claude.ai/artifact/Y9z4DcAwYMzMrSeGwPxjbh. The owner's answers: A1 moves everything, a code good for 24 hours and usable more than once, merged on the new phone; E2 runs on every push to master; C2 and D1 change looks, so a sheet first: https://claude.ai/artifact/Vgk5PyCFxaKMga2AfpVmfS (C2: A shape in the middle, B corner badge, C the piece is the shape - my pick A; D1: A a shelf, B the «جربوا دي» poster deals untried games, C a ✨ on every untried card - my pick B). Built 7 Oct: F1 (`?open=join|daily|tonight` shortcuts, screenshots, `id`, categories in docs/manifest.webmanifest; screenshots in docs/screens/), B3 (`lzPrefetch` on pointerdown / a mouse resting 150 ms, JS_Lazy.html), C3 (`syncModalInert`, JS_Core.html: the shell `inert` while a popup is open, only the top popup live, focus in and back - the owner's pick replaces the 30 Sep "no focus trap").
+
+## Calmer game setups (8 Oct 2026, waiting for the owner's picks)
+
+The owner: the setup screens of games with many settings and switches look crowded; make them uncluttered and simple. The look sheet (real renders, 375px): https://claude.ai/artifact/CgToWDqVNMpgTZVBHtxtnc
+Measured: the busiest setups are 1,400-1,815px long on a phone (chess 54 buttons, trivia, monkey, Stop, snakes, the spy, bank, X-O); the first option starts about 470-550px down, under the poster; every option is a grey tile with its explanation always showing; the poster's mode chips repeat the mode switch.
+1. How the options sit: A one list (rows, hairlines) · B summary rows («name ··· value ▾», tap to open) · C the main 2-3 out, the rest under «خيارات أكتر» with their values (my pick).
+2. The explanation under a switch: A only while the switch is on (my pick) · B an ⓘ bubble · C one line + «أكتر».
+3. The top of the screen: A a short poster - the icon beside the name, the repeated mode chips gone (my pick) · B the mode switch as the poster's foot · C no poster.
+4. Big pickers (chess opponents, bank pieces, snakes maps): A one sliding row · B one line, tap to change · C smaller, four to a row (my pick).
+Nothing is removed in any look: options only fold (the owner's rule of 26 Sep 2026).

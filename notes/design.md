@@ -834,3 +834,4 @@ answer that doesn't wrap). It is `minmax(0, 1fr)` now - any grid of rows wants i
 ## Calmer setups (the owner's picks of 8 Oct 2026: 1C 2A 3A 4C)
 
 A setup shows the 2-3 options most tables change; the rest go under «⚙️ خيارات أكتر» (`details.setup-more`, its line from `setupMoreSummarise`) - a new setup with more than three options does the same. An explanation under a switch shows only while it is on, so write it as what turning it on does. On an upright phone the poster is the short one (icon beside the name); its mode pills don't repeat the one phone / own phones switch. Big pickers stay one tap a choice at 44px, packed tighter (chess's faces four to a row). Styles: section 76 of Style_Talk.html.
+Every setup reads the same way, top to bottom: the poster, the mode switch (if any), the options as tiles, «خيارات أكتر», the players, then Start in a sticky bar inside the card (unified 8 Oct 2026).

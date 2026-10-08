@@ -498,7 +498,7 @@ function gwBarHtml(state, seat) {
   }
   if (s.stage === 'flip') {
     return `<p class="gw-bar__say">${escapeHTML(gwT('gw_flip_now'))}</p>
-      <button type="button" class="btn btn--primary btn--lg" onclick="duelAct('done', { seq: ${seq} })">${escapeHTML(gwT('gw_done'))}</button>`;
+      <button type="button" class="btn btn--primary btn--lg" onclick="gwSendStep(this, 'done', ${seq})">${escapeHTML(gwT('gw_done'))}</button>`;
   }
   if (gwLocal.panel === 'typed') {
     return `<p class="gw-bar__say">${escapeHTML(gwT('gw_typed_title', { name: duelIso(other) }))}</p>
@@ -524,7 +524,7 @@ function gwBarHtml(state, seat) {
   // No list (the owner, 29 Sep 2026): you think of the question. Out loud first - it is a party game.
   return `<p class="gw-bar__say gw-bar__say--quiet">${escapeHTML(gwT('gw_ask_hint'))}</p>
     <div class="gw-bar__row">
-      <button type="button" class="btn btn--primary" onclick="duelAct('loud', { seq: ${seq} })">${escapeHTML(gwT('gw_loud'))}</button>
+      <button type="button" class="btn btn--primary" onclick="gwSendStep(this, 'loud', ${seq})">${escapeHTML(gwT('gw_loud'))}</button>
       <button type="button" class="btn btn--secondary" onclick="gwPanel('typed')">${escapeHTML(gwT('gw_typed'))}</button>
       <button type="button" class="btn btn--secondary" onclick="gwPanel('guess')">${escapeHTML(gwT('gw_guess'))}</button>
     </div>`;
@@ -583,7 +583,7 @@ function gwTeamBarHtml(state, seat) {
   }
   if (s.stage === 'flip') {
     return `<p class="gw-bar__say">${escapeHTML(gwT('gw_flip_now'))}</p>
-      <button type="button" class="btn btn--primary btn--lg" onclick="duelAct('done', { seq: ${seq} })">${escapeHTML(gwT('gw_done'))}</button>`;
+      <button type="button" class="btn btn--primary btn--lg" onclick="gwSendStep(this, 'done', ${seq})">${escapeHTML(gwT('gw_done'))}</button>`;
   }
   // A guess proposed on this team: the proposer waits (and can cancel), a teammate agrees or not.
   const pr = s.propose;
@@ -774,17 +774,50 @@ function gwAnswerCardHtml(state, seat) {
       </div>
     </div>
     <div class="btn-row gw-ask-me__btns">
-      <button type="button" class="btn btn--success btn--lg" onclick="gwSendAnswer(true)">${escapeHTML(gwT('gw_yes'))}</button>
-      <button type="button" class="btn btn--danger btn--lg" onclick="gwSendAnswer(false)">${escapeHTML(gwT('gw_no'))}</button>
+      <button type="button" class="btn btn--success btn--lg" onclick="gwSendAnswer(true, this)">${escapeHTML(gwT('gw_yes'))}</button>
+      <button type="button" class="btn btn--danger btn--lg" onclick="gwSendAnswer(false, this)">${escapeHTML(gwT('gw_no'))}</button>
     </div>`;
 }
 
 /** Yes or no, as the player says: the phone doesn't know the question, so it doesn't judge the answer. */
-function gwSendAnswer(yes) {
+function gwSendAnswer(yes, btn) {
   const state = duelRoomState();
   if (!state || state.game !== 'guesswho') return;
   haptic('medium');
-  duelAct('answer', { yes: yes, seq: state.shared.turnSeq });
+  // Shown at once (the owner, 8 Oct 2026: felt slow): both off, the chosen pressed in, the other dimmed.
+  const pair = btn && btn.parentNode ? [...btn.parentNode.querySelectorAll('button')] : [];
+  pair.forEach((b) => { b.disabled = true; if (b === btn) { b.classList.add('is-picked'); b.style.opacity = '1'; b.style.transform = 'scale(0.94)'; } });
+  gwAfterSend(duelAct('answer', { yes: yes, seq: state.shared.turnSeq }), pair);
+}
+
+/**
+ * Buttons shown pressed until the server answers: a refused tap (the redraw never came, so they are still
+ * on the page) gets them back. duelAct's own catch has already said why.
+ */
+function gwAfterSend(p, btns, undo) {
+  Promise.resolve(p).then(() => setTimeout(() => {
+    const still = btns.filter((b) => b && b.isConnected);
+    if (!still.length) return;
+    still.forEach((b) => { b.disabled = false; b.classList.remove('is-picked', 'is-pending'); b.style.opacity = ''; b.style.transform = ''; });
+    if (undo) undo();
+  }, 0));
+}
+
+/** «سألت بصوت عالي» and «خلصت»: pressed at once, and the line says the next step before the server does. */
+function gwSendStep(btn, action, seq) {
+  const state = duelRoomState();
+  if (!state || state.game !== 'guesswho' || (btn && btn.disabled)) return;
+  haptic('light');
+  const bar = btn && btn.closest('.gw-bar');
+  const btns = bar ? [...bar.querySelectorAll('button')] : [btn];
+  btns.forEach((b) => { b.disabled = true; });
+  if (btn) { btn.classList.add('is-pending'); btn.style.opacity = '0.6'; btn.style.transform = 'scale(0.94)'; }
+  const seat = gwMySeat(state);
+  const other = duelIso(gwNames(state)[1 - seat] || '');
+  const say = bar && bar.querySelector('.gw-bar__say');
+  const was = say ? say.textContent : '';
+  if (say) say.textContent = action === 'loud' ? gwT('gw_wait_answer', { name: other }) : gwT('gw_turn_of', { name: other });
+  gwAfterSend(duelAct(action, { seq: seq }), btns, () => { if (say && say.isConnected) say.textContent = was; });
 }
 
 function gwSendTyped(form) {

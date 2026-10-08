@@ -30,7 +30,8 @@ const EX_BADGE_KINDS = ['count', 'all', 'seq', 'pick', 'pickcount', 'mirror', 's
 
 const ex = {
   gap: Infinity,        // the smallest (receivedAt − serverNow) seen: the network's share
-  timer: null,          // the countdown, meters, the pulse and the counter, painted in place
+  timer: null,          // the reveal's countdown, painted in place
+  raf: 0,               // the meters, the pulse and the counter, every frame while an order is read and played
   fx: [],               // the reveal's timers
   seen: new Set(),      // play-once keys (a sound, a buzz)
   local: { key: '', down: false, taps: 0 },   // this phone's own hand this order
@@ -575,6 +576,8 @@ function exImpact(el, seat) {
 }
 
 /* --- the clocks painted in place (the countdown, the meter, the pulse, the counter) - */
+/** A class set only when it changes: exTick runs every frame (a write that changes nothing is still a mutation). */
+function exCls(node, cls, on) { if (node && node.classList.contains(cls) !== !!on) node.classList.toggle(cls, !!on); }
 function exTick(el, state) {
   const s = state.shared || {};
   if (!(s.phase === 'ready' || s.phase === 'go')) return;
@@ -594,17 +597,17 @@ function exTick(el, state) {
     const left = s.goAt - now;
     const n = Math.ceil(left / 1000);
     setText(big, n <= 3 ? String(n) : '');
-    if (big) big.classList.toggle('is-count', n <= 3);
+    if (big) exCls(big, 'is-count', n <= 3);
     if (n <= 3 && exOnce('cd|' + key + '|' + n)) {
       if (big && !motionOff() && big.animate) big.animate([{ scale: 1.5, opacity: 0.2 }, { scale: 1, opacity: 1 }], { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)' });
       if (voice) exSound('tick');
     }
     if (meter) meter.style.transform = 'scaleX(' + Math.max(0, Math.min(1, left / Math.max(1, s.goAt - (s.readAt || s.goAt - 3000)))).toFixed(3) + ')';
-    if (card) card.classList.add('is-read');
-    if (pad) { pad.classList.remove('is-live', 'is-done'); pad.classList.add('is-wait'); }
+    if (card) exCls(card, 'is-read', true);
+    if (pad) { exCls(pad, 'is-live', false); exCls(pad, 'is-done', false); exCls(pad, 'is-wait', true); }
     setText(lab, t.ex_wait_pad);
   } else {
-    if (card) card.classList.remove('is-read');
+    if (card) exCls(card, 'is-read', false);
     if (ex.goShown !== key) {
       ex.goShown = key;
       if (big && !motionOff() && big.animate) big.animate([{ scale: 1.8, opacity: 0 }, { scale: 1, opacity: 1 }], { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' });
@@ -615,9 +618,9 @@ function exTick(el, state) {
     const done = now > s.endAt;
     if (meter) meter.style.transform = 'scaleX(' + Math.max(0, 1 - (now - s.goAt) / span).toFixed(3) + ')';
     if (pad) {
-      pad.classList.toggle('is-wait', false);
-      pad.classList.toggle('is-live', !done);
-      pad.classList.toggle('is-done', done);
+      exCls(pad, 'is-wait', false);
+      exCls(pad, 'is-live', !done);
+      exCls(pad, 'is-done', done);
     }
     setText(lab, done ? t.ex_pad_done : t.ex_pad_lab);
     let bigTxt = o.kind === 'total' ? (big ? big.textContent : '') : t.ex_now;
@@ -626,11 +629,11 @@ function exTick(el, state) {
     if (o.kind === 'pulse' && o.beat) {
       const k = Math.floor((now - s.goAt) / o.beat);
       const cur = (o.seq || [])[k];
-      el.querySelectorAll('[data-ex-seat]').forEach((seat) => seat.classList.toggle('is-lit', seat.dataset.exSeat === cur && !done));
+      el.querySelectorAll('[data-ex-seat]').forEach((seat) => exCls(seat, 'is-lit', seat.dataset.exSeat === cur && !done));
       const mi = (o.seq || []).indexOf(Room.me);
       if (mi !== -1 && exInRoster(state)) {
         const mine = mi === k;
-        if (pad) pad.classList.toggle('is-beat', mine && !done);
+        if (pad) exCls(pad, 'is-beat', mine && !done);
         hintTxt = mine ? t.ex_pulse_now : k < mi ? exFill(t.ex_pulse_you, { n: mi - k }) : '';
       }
       bigTxt = cur ? exIso(exNameOf(state, cur)) : '';
@@ -646,7 +649,7 @@ function exTick(el, state) {
         const m = state.you && state.you.mine;
         if (m && typeof m.n === 'number' && exInRoster(state)) {
           hintTxt = c === m.n ? t.ex_lift_now : exFill(t.ex_lift_on, { n: m.n });
-          if (pad) pad.classList.toggle('is-beat', c === m.n && !done);
+          if (pad) exCls(pad, 'is-beat', c === m.n && !done);
           if (c === m.n && exOnce('lift|' + key)) haptic('light');
         }
         if (voice && exOnce('cnt|' + key + '|' + c)) exSound('tick');
@@ -655,7 +658,7 @@ function exTick(el, state) {
     if (o.kind === 'hold' && done && voice && exOnce('bell|' + key)) exSound('bell');
     if (o.kind === 'hold') bigTxt = done ? t.ex_bell : t.ex_now;
     if (o.kind !== 'total') setText(big, bigTxt);
-    if (big) big.classList.remove('is-count');
+    if (big) exCls(big, 'is-count', false);
     setText(hint, hintTxt);
   }
 }
@@ -687,6 +690,8 @@ function exAfter(state, el, rebuilt, revealFirst) {
   if (typeof animateScoreboards === 'function' && s.phase === 'gameover') animateScoreboards(state);
   if (ex.timer) clearInterval(ex.timer);
   ex.timer = null;
+  if (ex.raf) cancelAnimationFrame(ex.raf);
+  ex.raf = 0;
   const paint = () => {
     const st = Room.state;
     if (!st || st.game !== 'exact') { exStopAll(); return; }
@@ -702,7 +707,13 @@ function exAfter(state, el, rebuilt, revealFirst) {
     }
   };
   paint();
-  if (s.phase === 'ready' || s.phase === 'go' || s.phase === 'reveal') ex.timer = setInterval(paint, s.phase === 'reveal' ? 250 : 80);
+  // The order's meter, the pulse's lit seat and the counter follow every frame while it is read and played
+  // (an 80 ms interval stepped them: the owner, 8 Oct 2026, felt choppy); the reveal's countdown keeps its 250 ms.
+  if (s.phase === 'reveal') ex.timer = setInterval(paint, 250);
+  else if (s.phase === 'ready' || s.phase === 'go') {
+    const loop = () => { if (!ex.raf) return; paint(); if (ex.raf) ex.raf = requestAnimationFrame(loop); };
+    ex.raf = requestAnimationFrame(loop);
+  }
 }
 
 function exClearFx() {
@@ -714,6 +725,8 @@ function exStopAll() {
   exClearFx();
   if (ex.timer) clearInterval(ex.timer);
   ex.timer = null;
+  if (ex.raf) cancelAnimationFrame(ex.raf);
+  ex.raf = 0;
 }
 onLeaveScreen((from) => { if (from === 'room-exact' || from === 'room-tv') exStopAll(); });
 onRoomClocksReset(() => exStopAll());

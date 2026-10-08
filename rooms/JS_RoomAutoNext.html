@@ -148,4 +148,37 @@ if (typeof Room !== 'undefined' && Room.onChange) Room.onChange(() => setTimeout
   // A slot drawn while its screen was still hidden comes on show here: start the loop again.
   if (autoNextVisibleSlots().length) autoNextLoop(); else autoNextPaint();
 }, 0));
+
+/* «⚙️ غيّر الإعدادات» (the owner, 8 Oct 2026): the same game again with other options, without the
+   way round through the list. Every game draws its own «لعبة تانية» (roomAct('backToHub'), 108 places),
+   so the button is put beside each one the host sees, on the phones and the TV, once per drawing; the
+   room action 'reconfigure' banks the night and opens the game's lobby, its options unfolded. */
+function roomReconfigureTap(btn) {
+  const st = Room.state;
+  if (!st || !st.game) return;
+  if (typeof lobbyOptsOpen === 'object') lobbyOptsOpen[st.game] = true;
+  if (typeof roomActPress === 'function') roomActPress(btn, 'reconfigure', {}); else roomAct('reconfigure', {});
+}
+function roomReconfigureAdd() {
+  const st = typeof Room !== 'undefined' ? Room.state : null;
+  if (!st || !st.game || !st.youAreHost || st.program) return;
+  const t = TRANSLATIONS[appState.lang] || {};
+  document.querySelectorAll('[id^="view-room-"]:not(.hidden) button[onclick*="backToHub"]').forEach(b => {
+    if (!/roomAct\(\s*'backToHub'/.test(b.getAttribute('onclick') || '')) return;
+    const next = b.nextElementSibling;
+    if (next && next.dataset && next.dataset.reconf) return;
+    const n = b.cloneNode(false);
+    n.removeAttribute('id');
+    n.dataset.reconf = '1';
+    n.setAttribute('onclick', 'roomReconfigureTap(this)');
+    n.textContent = t.room_reconfigure || '';
+    b.after(n);
+  });
+}
+let roomReconfigureQueued = false;
+if (typeof MutationObserver === 'function') new MutationObserver(() => {
+  if (roomReconfigureQueued) return;
+  roomReconfigureQueued = true;
+  requestAnimationFrame(() => { roomReconfigureQueued = false; roomReconfigureAdd(); });
+}).observe(document.documentElement, { childList: true, subtree: true });
 </script>

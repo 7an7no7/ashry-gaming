@@ -287,7 +287,7 @@ function stopReviewTable(state, t, canAdjust) {
       + `<span class="stop-cell-foot">${mark ? `<span class="stop-mark ${check ? 'is-check' : 'is-ok'}" aria-hidden="true">${mark}</span>` : ''}<span class="stop-pts ${cls}">${r.pts}</span></span>`;
     const state2 = (r.manual ? ' is-manual' : '') + (check ? ' is-check' : '');
     return canAdjust
-      ? `<button type="button" class="stop-rcell${state2}" onclick="adjustStopRoom('${jsStringAttr(pid)}', '${c}', ${base})">${inner}</button>`
+      ? `<button type="button" class="stop-rcell${state2}" onclick="adjustStopRoom('${jsStringAttr(pid)}', '${c}', ${base}, this)">${inner}</button>`
       : `<div class="stop-rcell${state2}">${inner}</div>`;
   };
   const anySolo = roster.some(pid => s.cats.some(c => s.results[pid][c] && s.results[pid][c].solo));
@@ -432,10 +432,34 @@ function submitStopRoom(stop) {
 }
 
 /** The host taps a cell: 10 → 5 → 0 → 10. */
-function adjustStopRoom(pid, cat, current) {
+function adjustStopRoom(pid, cat, current, btn) {
+  // A second tap before the server answered cycles on from what the cell shows now.
+  if (btn && btn.dataset.pts !== undefined) current = Number(btn.dataset.pts);
   const next = current === 10 ? 5 : current === 5 ? 0 : 10;
   haptic('light');
-  roomAct('adjust', { playerId: pid, cat: cat, pts: next });
+  // The cell shows its new number at once, dimmed until the server's table
+  // redraws it (the owner, 8 Oct 2026: felt slow); a refusal puts it back.
+  const pts = btn && btn.querySelector('.stop-pts');
+  const was = pts ? { text: pts.textContent, cls: pts.className } : null;
+  if (pts) {
+    pts.textContent = String(next);
+    pts.className = 'stop-pts' + (next >= 10 ? ' is-10' : next === 5 ? ' is-5' : '');
+    btn.dataset.pts = String(next);
+    btn.classList.add('is-pending');
+    btn.style.opacity = '0.7';
+  }
+  Room.act('adjust', { playerId: pid, cat: cat, pts: next }).then(() => {
+    if (btn && btn.isConnected) { btn.classList.remove('is-pending'); btn.style.opacity = ''; }
+  }, err => {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    if (pts && btn.isConnected) {
+      pts.textContent = was.text;
+      pts.className = was.cls;
+      delete btn.dataset.pts;
+      btn.classList.remove('is-pending');
+      btn.style.opacity = '';
+    }
+  });
 }
 
 function paintStopRoomTimer(endsAt) {

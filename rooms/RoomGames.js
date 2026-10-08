@@ -777,6 +777,18 @@ const applyRoomAction = (room, playerId, action, payload) => {
   if (programAction(room, playerId, action, payload)) return;
   if (programGuard(room, playerId, action, payload)) return;
 
+  // «⚙️ غيّر الإعدادات» (the owner, 8 Oct 2026): the same game again with other options - the night
+  // is banked as «لعبة تانية» banks it, and the room lands in that game's lobby, not the list.
+  if (action === 'reconfigure') {
+    requireHost(room, playerId);
+    const game = room.game;
+    if (!game) throw new Error('اختر لعبة أولاً');
+    if (room.program) throw new Error('البرنامج هيكمّل لوحده');
+    applyRoomAction(room, playerId, 'backToHub', {});
+    applyRoomAction(room, playerId, 'chooseGame', { game: game });
+    return;
+  }
+
   if (action === 'chooseGame') {
     requireHost(room, playerId);
     const game = String(payload.game || '');
@@ -1490,15 +1502,17 @@ const activeRoster = (room, roster) => {
 // The pause after each result, its reveal counted in: the trivia answer is told
 // over ~3.7 s (triviaRevealPlan), a vote's bars ~3 s (voteRevealTimes),
 // فيبج's cards one by one (fibRevealPlan).
-const AUTONEXT_TRIVIA_MS = 10000;
-const AUTONEXT_VOTE_MS = 12000;
-const AUTONEXT_HERD_MS = 12000;
-const AUTONEXT_TT_MS = 13000;
-const AUTONEXT_HUM_MS = 10000;
+// About 7-8 s after each reveal ends (the owner, 8 Oct 2026: felt slow).
+const AUTONEXT_TRIVIA_MS = 8000;    // 10000 -> 8000 (the owner, 8 Oct 2026: felt slow)
+const AUTONEXT_VOTE_MS = 9000;      // 12000 -> 9000 (the owner, 8 Oct 2026: felt slow)
+const AUTONEXT_HERD_MS = 9000;      // 12000 -> 9000 (the owner, 8 Oct 2026: felt slow)
+const AUTONEXT_TT_MS = 10000;       // 13000 -> 10000 (the owner, 8 Oct 2026: felt slow)
+const AUTONEXT_HUM_MS = 8000;       // 10000 -> 8000 (the owner, 8 Oct 2026: felt slow)
 // فيبج: the lies turn over 0.9 s apart, then the truth (+1.5 s), the board (+1 s): ~3.7 s + 0.9 s a lie.
+// 9000 + 3700 -> 5300 + 3700 (the owner, 8 Oct 2026: felt slow): 9 s, plus 0.9 s a lie after the first.
 const AUTONEXT_FIB_MS = (s) => {
   const lies = ((s.vote || {}).results || []).length - 1;
-  return 9000 + 3700 + 900 * Math.max(0, lies - 1);
+  return 5300 + 3700 + 900 * Math.max(0, lies - 1);
 };
 const AUTONEXT_GAMES = {
   trivia:     { action: 'nextQuestion', deals: false, ms: AUTONEXT_TRIVIA_MS, ready: (s) => s.phase === 'results', key: (s) => 'q' + s.qIndex, args: (s) => ({ qIndex: s.qIndex }) },

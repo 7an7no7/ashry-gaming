@@ -36,7 +36,8 @@ const vt = {
   tab: 'lock',       // «الكل» on a narrow phone: the lock or the notebook
   loop: 0, el: null, tv: false,
   momentTimer: null, toastTimer: null, autoTimer: null,
-  lampAt: 0, tickSec: -1
+  lampAt: 0, tickSec: -1,
+  pend: null         // the state a tap was shown on at once (a light's dot, «لِف وافتح» pressed): cleared by the next one
 };
 
 const vtT = () => TRANSLATIONS[appState.lang] || {};
@@ -203,7 +204,7 @@ function vtStageHtml(state, mine, locks) {
     ${open ? `<div class="vt-opened">${vtPadSvg(true)}<span>${escapeHTML(t.vt_open_lock)}</span></div>` : ''}
     ${many ? `<button type="button" class="vt-arr vt-arr--p" data-vt="pv" aria-label="${escapeHTML(t.vt_prev)}">‹</button><button type="button" class="vt-arr vt-arr--n" data-vt="nx" aria-label="${escapeHTML(t.vt_next)}">›</button>
     <div class="vt-dots">${locks.map((l) => `<i class="${l.i === lock.i ? 'is-on' : mine.side.open[l.i] ? 'is-ok' : ''}"></i>`).join('')}</div>` : ''}
-  </div>${!open && s.phase === 'play' && vtKeysOf(state, mine.key) > 0 ? `<button type="button" class="vt-usekey" data-vt="key">🗝️ ${escapeHTML(vtFill(t.vt_key_use, { n: vtKeysOf(state, mine.key) }))}</button>` : ''}`;
+  </div>${!open && (s.phase === 'play' || s.phase === 'ready') && vtKeysOf(state, mine.key) > 0 ? `<button type="button" class="vt-usekey" data-vt="key"${s.phase === 'play' ? '' : ' disabled style="opacity:0.5"'}>🗝️ ${escapeHTML(vtFill(t.vt_key_use, { n: vtKeysOf(state, mine.key) }))}</button>` : ''}`;
 }
 
 /** «المفتاح الاحتياطي» (804): the spare keys a side has hanging. */
@@ -438,10 +439,26 @@ function vtWire(el) {
 
 function vtSend(action, payload) {
   const s = (Room.state && Room.state.shared) || {};
+  if (vt.pend) vt.pend.at = Room.state;
   // `m`: the side's mistakes this phone has seen, so a double tap's second miss isn't counted again.
   const mine = Room.state ? vtMine(Room.state) : null;
   const m = mine && mine.side && typeof mine.side.mistakes === 'number' ? { m: mine.side.mistakes } : {};
-  roomAct(action, Object.assign({ safe: s.safeNo }, m, payload));
+  Room.act(action, Object.assign({ safe: s.safeNo }, m, payload)).catch((err) => {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    vtUnpend();
+  });
+}
+/** What a tap showed at once, put back: the next state has the truth (or the server refused). */
+function vtUnpend() {
+  const p = vt.pend;
+  vt.pend = null;
+  if (!p) return;
+  (p.els || []).forEach((n) => {
+    if (!n) return;
+    n.classList.remove('is-pending', 'is-hit');
+    n.style.opacity = ''; n.style.transform = ''; n.style.background = '';
+    if (n.tagName === 'BUTTON') n.disabled = false;
+  });
 }
 
 /** The stage moves to another of my locks (d: +1 / -1), or straight to lock i. */
@@ -508,10 +525,25 @@ function vtTap(hit) {
     if (b) b.textContent = dg[n];
     haptic('light'); vtClick(0.7 + n * 0.2);
   } else if (act === 'try') {
+    if (hit.disabled) return;
     haptic('medium'); vtClick(0.5);
+    // «لِف وافتح» pressed and off until the verdict (the owner, 8 Oct 2026: felt slow).
+    vtUnpend();
+    hit.disabled = true; hit.classList.add('is-pending');
+    hit.style.opacity = '0.6'; hit.style.transform = 'scale(0.94)';
+    vt.pend = { els: [hit] };
     vtSend('dial', { i, code: (vt.dial[key] || [0, 0, 0]).slice() });
   } else if (act === 'light') {
     haptic('light'); vtClick(1.4);
+    // Shown at once (the owner, 8 Oct 2026: felt slow): the button pressed, the next dot lit faint until the server's answer.
+    // Quick taps add up: each lights the next dot not yet lit.
+    if (vt.pend && vt.pend.light !== key) vtUnpend();
+    const dot = slide.querySelector('.vt-ldots i:not(.is-on):not(.is-pending)');
+    hit.classList.add('is-hit');
+    hit.style.transform = 'translateY(0.2em)';
+    if (dot) { dot.classList.add('is-pending'); dot.style.background = '#1f9d55'; dot.style.opacity = '0.5'; }
+    if (!vt.pend) vt.pend = { els: [], light: key };
+    vt.pend.els.push(hit, dot);
     vtSend('light', { i, c: hit.dataset.c });
   }
 }
@@ -540,6 +572,7 @@ function vtPaint(state, el) {
   const mine = vtMine(state);
   const side = mine ? mine.side : null;
   const locks = vtMyLocks(state);
+  if (vt.pend && vt.pend.at && vt.pend.at !== state) vtUnpend();
   // The title: the level, or which safe of the set.
   const lvl = root.querySelector('[data-vt-lvl]');
   if (lvl) {

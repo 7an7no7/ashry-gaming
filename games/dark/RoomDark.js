@@ -35,7 +35,7 @@
    ========================================================================= */
 const DARK_INTRO_MS = 2600;      // a level's first moments: the map is shown, the mover gets ready
 const DARK_TRAP_MS = 2000;       // the trap's moment before the mover is back at the start
-const DARK_WIN_MS = 4600;        // the celebration before the next level
+const DARK_WIN_MS = 3500;        // the celebration before the next level: 4600 -> 3500 (the owner, 8 Oct 2026: felt slow)
 const DARK_STEP_GAP = 110;       // a step closer than this to the last one is a double tap, dropped
 const DARK_STICK_DT = 0.35;      // at most this many seconds of joystick are walked in one message
 const DARK_NEAR_GAP = 1200;      // a near miss is told at most this often

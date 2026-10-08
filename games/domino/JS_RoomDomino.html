@@ -305,7 +305,7 @@ function domLayoutTable(root, state, held) {
     const pts = live && helpPts ? dominoMoveScore(table, pick, e.end, mode) : 0;
     const on = live;
     return `<button type="button" class="dom-end ${on ? 'is-live' : ''}" data-dom-at="end:${e.end}" ${on ? '' : 'tabindex="-1" aria-hidden="true"'}
-        style="${place(e.x - 0.5, e.y - 0.5)};--u:${u}px" onclick="domPlayAt('${e.end}')"
+        style="${place(e.x - 0.5, e.y - 0.5)};--u:${u}px" onclick="domPlayAt('${e.end}', this)"
         aria-label="${escapeHTML(domT('dom_end_' + e.end))}">${pts ? `<span class="dom-end__pts">+${pts}</span>` : ''}</button>`;
   }).join('');
   box.innerHTML = `<div class="dom-line" style="width:${bw.toFixed(1)}px;height:${bh.toFixed(1)}px">${tiles}${ends}</div>`;
@@ -468,7 +468,7 @@ function domBarHtml(state) {
     const buttons = ends.map(end => {
       const e = dominoEnds(table).find(x => x.end === end);
       const pts = st.helpPoints ? dominoMoveScore(table, pick, end, st.mode) : 0;
-      return `<button type="button" class="btn btn--primary dom-bar__end--${end}" dir="${domDir()}" onclick="domPlayAt('${end}')">${escapeHTML(domT('dom_end_' + end))}${e ? ` <span class="dom-bar__v metric">${e.value}</span>` : ''}${pts ? ` <span class="dom-bar__pts">+${pts}</span>` : ''}</button>`;
+      return `<button type="button" class="btn btn--primary dom-bar__end--${end}" dir="${domDir()}" onclick="domPlayAt('${end}', this)">${escapeHTML(domT('dom_end_' + end))}${e ? ` <span class="dom-bar__v metric">${e.value}</span>` : ''}${pts ? ` <span class="dom-bar__pts">+${pts}</span>` : ''}</button>`;
     }).join('');
     return bar(`<p class="dom-prompt is-mine">${escapeHTML(domT('dom_pick_end', { tile: domTileLabel(pick) }))}</p>
       <div class="dom-bar__ends" dir="ltr">${buttons}</div>
@@ -491,8 +491,8 @@ function domBarHtml(state) {
     }
   }
   const action = canDraw
-    ? `<button type="button" class="btn btn--secondary btn--auto" onclick="domDraw()">✋ ${escapeHTML(domT('dom_draw', { n: s.bone }))}</button>`
-    : `<button type="button" class="btn btn--secondary btn--auto" onclick="domKnock()">👊 ${escapeHTML(domT('dom_knock'))}</button>`;
+    ? `<button type="button" class="btn btn--secondary btn--auto" onclick="domDraw(this)">✋ ${escapeHTML(domT('dom_draw', { n: s.bone }))}</button>`
+    : `<button type="button" class="btn btn--secondary btn--auto" onclick="domKnock(this)">👊 ${escapeHTML(domT('dom_knock'))}</button>`;
   // One line: what to do, and the way out when nothing fits (refused while something does).
   return `<div class="dom-bar dom-bar--inline">
       <p class="dom-prompt is-mine">⭐ ${escapeHTML(lead ? domT('dom_you_lead') : domT('dom_your_turn'))}</p>
@@ -502,10 +502,34 @@ function domBarHtml(state) {
 
 /* --- the moves ------------------------------------------------------------------------ */
 
-function domSend(action, payload) {
+/**
+ * A move goes out pressed in at once: the tile played stays raised (is-picked is-sent), the
+ * button pressed and the bar's other ways greyed, and the hand takes no other tap, until the
+ * room answers; a refusal draws the turn again (the owner, 8 Oct 2026: felt slow).
+ */
+function domSend(action, payload, btn) {
   const s = domShared(Room.state);
+  if (domLocal.sending) return;
   domLocal.pick = null;
-  roomAct(action, Object.assign({ seq: s.turnSeq }, payload || {}));
+  domLocal.sending = true;
+  const root = document.getElementById('view-room-domino');
+  const marked = [];
+  const press = (el, cls) => { if (el) { el.classList.add(...cls); marked.push([el, cls]); } };
+  if (root && payload && payload.tile) press(root.querySelector('[data-dom-at="hand:' + payload.tile + '"]'), ['is-picked', 'is-sent']);
+  if (btn) press(btn, ['is-pending']);
+  const off = root ? Array.from(root.querySelectorAll('.dom-bar button, .dom-end.is-live')).filter(b => !b.disabled) : [];
+  off.forEach(b => { b.disabled = true; });
+  const sent = Room.act(action, Object.assign({ seq: s.turnSeq }, payload || {}));
+  Promise.resolve(sent).then(() => {
+    domLocal.sending = false;
+    marked.forEach(([el, cls]) => el.classList.remove(...cls));
+  }, (err) => {
+    domLocal.sending = false;
+    if (!err || !err.quiet) showToast((err && err.message) || 'تعذر تنفيذ الإجراء', 'error');
+    marked.forEach(([el, cls]) => el.classList.remove(...cls));
+    off.forEach(b => { b.disabled = false; });
+    domRedraw();
+  });
 }
 
 function domRedraw() {
@@ -517,7 +541,7 @@ function domRedraw() {
 /** A tile tapped: it goes, or its ends glow, or it is refused (it doesn't fit, or it isn't your turn). */
 function domTap(tile, el) {
   const state = Room.state;
-  if (!state) return;
+  if (!state || domLocal.sending) return;
   const s = domShared(state);
   if (!domMyTurn(state)) {
     domShakeEl(el);
@@ -538,14 +562,15 @@ function domTap(tile, el) {
   domRedraw();
 }
 
-function domPlayAt(end) {
+function domPlayAt(end, btn) {
   const tile = domLocal.pick;
-  if (!tile || !domMyTurn(Room.state || {})) return;
+  if (!tile || domLocal.sending || !domMyTurn(Room.state || {})) return;
   haptic('medium');
-  domSend('play', { tile: tile, end: end });
+  domSend('play', { tile: tile, end: end }, btn);
 }
 
 function domCancelPick() {
+  if (domLocal.sending) return;
   domLocal.pick = null;
   domRedraw();
 }
@@ -556,20 +581,20 @@ function domCanPlayNow(state) {
   return dominoCanPlay(s.table || dominoNewTable(), (state.you || {}).hand || []);
 }
 
-function domDraw() {
+function domDraw(btn) {
   const state = Room.state;
-  if (!state || !domMyTurn(state)) return;
+  if (!state || domLocal.sending || !domMyTurn(state)) return;
   if (domCanPlayNow(state)) { domShakeEl(document.querySelector('#view-room-domino .dom-hand')); showToast(domT('dom_you_can_play'), 'info'); return; }
   haptic('light');
-  domSend('draw');
+  domSend('draw', null, btn);
 }
 
-function domKnock() {
+function domKnock(btn) {
   const state = Room.state;
-  if (!state || !domMyTurn(state)) return;
+  if (!state || domLocal.sending || !domMyTurn(state)) return;
   if (domCanPlayNow(state)) { domShakeEl(document.querySelector('#view-room-domino .dom-hand')); showToast(domT('dom_you_can_play'), 'info'); return; }
   haptic('medium');
-  domSend('pass');
+  domSend('pass', null, btn);
 }
 
 /** The host plays for a phone that went quiet, the way the clock would. */

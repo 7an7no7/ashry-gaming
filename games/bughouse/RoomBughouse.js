@@ -40,7 +40,7 @@
 
 const BUG_CLOCKS = ['2+0', '3+0', '5+0'];
 const BUG_START_MS = 3000;            // the boards on the screen before the clocks start
-const BUG_THINK_MS = { easy: [1800, 3200], hard: [1100, 2300] };
+const BUG_THINK_MS = { easy: [1200, 2200], hard: [1100, 2300] };   // easy [1800, 3200] -> [1200, 2200] (the owner, 8 Oct 2026: felt slow)
 
 const bugSeatBoard = (k) => k >> 1;
 const bugSeatColor = (k) => k & 1;

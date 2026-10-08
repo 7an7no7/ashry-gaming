@@ -237,11 +237,30 @@ function laserSendPlace(now) {
   if (now || Date.now() - lsr.sentAt > 400) go(); else lsr.sendTimer = setTimeout(go, 400);
 }
 
-async function laserReady(on) {
+function laserReady(on, btn) {
   haptic(on ? 'medium' : 'light');
   clearTimeout(lsr.sendTimer);
-  if (on) await Room.act('place', { round: laserRound(), x: lsr.x, y: lsr.y, a: lsr.a, a2: lsr.a2 }).catch(() => {});
-  roomAct('ready', { round: laserRound(), on: !!on });
+  // Pressed in at once, the tools and the arena resting, until the server's state redraws them (the
+  // owner, 8 Oct 2026: «جاهز» only buzzed); a refusal puts them back. The spot goes first on the same
+  // socket, so the server has it before the ready (messages keep their order), without waiting for it.
+  const view = document.getElementById('view-room-laser');
+  const rest = view ? Array.from(view.querySelectorAll('.laser-tools button, .laser-actions button')) : [];
+  const saved = rest.map(b => ({ el: b, disabled: b.disabled }));
+  const cv = view && view.querySelector('[data-laser-arena]');
+  const mineCls = !!cv && cv.classList.contains('is-mine');
+  rest.forEach(b => { b.disabled = true; });
+  if (btn) { btn.classList.add('is-pending'); btn.style.opacity = '0.7'; btn.style.transform = 'scale(0.94)'; }
+  if (cv && on) { cv.classList.remove('is-mine'); cv.style.opacity = '0.75'; }
+  const restore = () => {
+    saved.forEach(b => { if (b.el.isConnected) b.el.disabled = b.disabled; });
+    if (btn) { btn.classList.remove('is-pending'); btn.style.opacity = ''; btn.style.transform = ''; }
+    if (cv) { cv.style.opacity = ''; cv.classList.toggle('is-mine', mineCls); }
+  };
+  if (on) Room.act('place', { round: laserRound(), x: lsr.x, y: lsr.y, a: lsr.a, a2: lsr.a2 }).catch(() => {});
+  Room.act('ready', { round: laserRound(), on: !!on }).catch(err => {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    restore();
+  });
 }
 
 /** ⟲ ⟳: a small turn of the aim (on the canvas a bigger angle turns clockwise). */
@@ -253,18 +272,39 @@ function laserNudge(d) {
   laserSendPlace(false);
 }
 
-function laserShield(on) {
+function laserShield(on, btn) {
   lsr.shield = !!on;
   haptic('medium');
   if (lsr.paint) lsr.paint();
+  // The button turns at once, not on the server's state (the owner, 8 Oct 2026).
+  if (btn) {
+    const t = laserT();
+    btn.setAttribute('aria-pressed', String(!!on));
+    btn.classList.toggle('btn--warning', !!on);
+    btn.classList.toggle('btn--secondary', !on);
+    btn.textContent = on ? t.laser_shield_on : t.laser_shield;
+    btn.setAttribute('onclick', 'laserShield(' + !on + ', this)');
+    const view = btn.closest('#view-room-laser');
+    if (view) view.querySelectorAll('.laser-turn').forEach(b => { b.disabled = !!on; });
+    if (view) view.querySelectorAll('.laser-use').forEach(b => { if (b.getAttribute('data-laser-held') !== 'shield') b.disabled = !!on; });
+  }
   roomAct('shield', { round: laserRound(), on: !!on });
 }
 
 /** A pickup held, used this round or kept. */
-function laserUse(on) {
+function laserUse(on, btn) {
   lsr.use = !!on;
   haptic('medium');
   if (lsr.paint) lsr.paint();
+  // The button turns at once, not on the server's state (the owner, 8 Oct 2026).
+  if (btn) {
+    const t = laserT();
+    const held = btn.getAttribute('data-laser-held') || '';
+    btn.setAttribute('aria-pressed', String(!!on));
+    btn.classList.toggle('is-on', !!on);
+    if (held) btn.textContent = (on ? t.laser_using : t.laser_use) + ' ' + laserPkName(t, held);
+    btn.setAttribute('onclick', 'laserUse(' + !on + ', this)');
+  }
   roomAct('use', { round: laserRound(), on: !!on });
 }
 
@@ -1651,8 +1691,8 @@ ROOM_GAMES.laser = {
     if (s.phase === 'hide' && standing) {
       const shieldBtn = shieldUsed
         ? `<span class="laser-chip">${escapeHTML(t.laser_shield_used)}</span>`
-        : `<button type="button" class="btn btn--sm btn--auto ${shieldOn ? 'btn--warning' : 'btn--secondary'}" aria-pressed="${shieldOn}" onclick="laserShield(${!shieldOn})" ${ready ? 'disabled' : ''}>${escapeHTML(shieldOn ? t.laser_shield_on : t.laser_shield)}</button>`;
-      const useBtn = held ? `<button type="button" class="btn btn--sm btn--auto laser-use ${useOn ? 'is-on' : ''}" style="--laser-c:${LASER_PK_COL[held]}" aria-pressed="${useOn}" onclick="laserUse(${!useOn})" ${ready || (shieldOn && !shieldUsed && held !== 'shield') ? 'disabled' : ''}>${escapeHTML((useOn ? t.laser_using : t.laser_use) + ' ' + laserPkName(t, held))}</button>` : '';
+        : `<button type="button" class="btn btn--sm btn--auto ${shieldOn ? 'btn--warning' : 'btn--secondary'}" aria-pressed="${shieldOn}" onclick="laserShield(${!shieldOn}, this)" ${ready ? 'disabled' : ''}>${escapeHTML(shieldOn ? t.laser_shield_on : t.laser_shield)}</button>`;
+      const useBtn = held ? `<button type="button" class="btn btn--sm btn--auto laser-use ${useOn ? 'is-on' : ''}" style="--laser-c:${LASER_PK_COL[held]}" aria-pressed="${useOn}" data-laser-held="${escapeHTML(held)}" onclick="laserUse(${!useOn}, this)" ${ready || (shieldOn && !shieldUsed && held !== 'shield') ? 'disabled' : ''}>${escapeHTML((useOn ? t.laser_using : t.laser_use) + ' ' + laserPkName(t, held))}</button>` : '';
       const hint = ready ? t.laser_ready_wait : (useOn && held === 'second' ? t.laser_pk_hint_second : shieldOn ? t.laser_shield_on_hint : (s.cracked || []).length ? t.laser_hide_hint + ' · ' + t.laser_floor_cracked : t.laser_hide_hint)
         + (!ready && s.turret ? ' · ' + t.laser_turret_hint : '');
       // 871: this phone stood still two rounds and was moved; it says so, kindly.
@@ -1665,8 +1705,8 @@ ROOM_GAMES.laser = {
         </div>
         ${useBtn ? `<div class="laser-tools">${useBtn}</div>` : ''}
         <div class="laser-actions">${ready
-          ? `<button class="btn btn--ghost" onclick="laserReady(false)">${escapeHTML(t.laser_unready)}</button>`
-          : `<button class="btn btn--primary btn--lg laser-ready" data-laser-ready onclick="laserReady(true)">${escapeHTML(t.laser_ready)}</button>`}</div>${practiceNote}`;
+          ? `<button class="btn btn--ghost" onclick="laserReady(false, this)">${escapeHTML(t.laser_unready)}</button>`
+          : `<button class="btn btn--primary btn--lg laser-ready" data-laser-ready onclick="laserReady(true, this)">${escapeHTML(t.laser_ready)}</button>`}</div>${practiceNote}`;
     } else if (s.phase === 'hide' && ghost) {
       below = `${gotLine}<p class="laser-hint">${escapeHTML(mineSet ? t.laser_ghost_set : t.laser_ghost_hint)}</p>
         ${mineSet ? `<div class="laser-actions"><button class="btn btn--ghost btn--sm" onclick="laserMineClear()">${escapeHTML(t.laser_mine_clear)}</button></div>` : ''}`;

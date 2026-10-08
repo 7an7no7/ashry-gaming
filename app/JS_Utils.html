@@ -655,10 +655,12 @@ function setupMoreToggled(el) {
           if (pickerInterval) { clearInterval(pickerInterval); pickerInterval = null; }
           finalizePickerResult(players[winnerIdx]);
       };
-      // Matches the .wheel transition; a timer rather than transitionend so a
+      // The .wheel transition is 3.6 s of a steep ease-out: it looks stopped by about
+      // 2.8 s, so the name comes then. A timer rather than transitionend so a
       // reduced-motion user (no transition, no event) still gets a result.
       clearTimeout(pickerSettleTimer);
-      pickerSettleTimer = setTimeout(settle, prefersReducedMotion() ? 200 : 3700);
+      // 3700 -> 2800 (the owner, 8 Oct 2026: felt slow)
+      pickerSettleTimer = setTimeout(settle, prefersReducedMotion() ? 200 : 2800);
   }
 
   // Leaving mid-spin: no fanfare and confetti later on another screen, and the
@@ -2174,7 +2176,18 @@ function helpJumpTo(key) {
   playSound('click');
 }
 
+/* Typing in Help's search waits for a pause (~120 ms) before the list is filtered: every
+   letter used to fold every entry's rules and rebuild the list (the owner, 8 Oct 2026). */
+let helpSearchTimer = 0;
+function filterHelpSoon(value) {
+  const clear = document.getElementById('help-search-clear');
+  if (clear) clear.classList.toggle('hidden', !value);
+  clearTimeout(helpSearchTimer);
+  helpSearchTimer = setTimeout(() => filterHelp(value), 120);
+}
+
 function filterHelp(value) {
+  clearTimeout(helpSearchTimer);
   helpSearchTerm = helpNormalise(value);
   const clear = document.getElementById('help-search-clear');
   if (clear) clear.classList.toggle('hidden', !value);
@@ -2182,7 +2195,7 @@ function filterHelp(value) {
   // A new set of results rises in (JS_Motion.html section 13); the same set stays still.
   const box = document.getElementById('help-sections');
   if (box && typeof motionRiseIn === 'function') {
-    const sig = [...box.querySelectorAll('.help-game-card')].map(c => c.id).join(',');
+    const sig = [...box.querySelectorAll('.help-game-card:not(.hidden)')].map(c => c.id).join(',');
     if (box.dataset.sig !== sig) {
       box.dataset.sig = sig;
       motionRiseIn(box, { step: 28, dur: 260, dist: 8, max: 6 });
@@ -2230,22 +2243,24 @@ function helpLeadHtml(key, t) {
   return desc ? `<p class="help-lead">${escapeHTML(desc)}</p>` : '';
 }
 
-function renderHelpContent() {
+/* The list is built once per language (helpListEnsure) and a search only hides and
+   shows its cards (the owner, 8 Oct 2026: every open built every entry's rules, and
+   every letter typed folded all their text and built the list again). Each entry's
+   text is folded once (helpFoldCache). */
+let helpListKey = '';
+const helpFoldCache = {};
+function helpListEnsure() {
+  const box = document.getElementById('help-sections');
+  if (!box) return null;
   const lang = appState.lang;
   const t = TRANSLATIONS[lang];
   const rules = GAME_RULES[lang] || {};
-  const searching = !!helpSearchTerm;
-
+  const key = lang + ':' + Object.keys(rules).length;
+  if (helpListKey === key && box.firstElementChild) return box;
   const titleOf = (e) => t[e.title] || e.key;
-
   /** One accordion row. The accent comes from data-accent on the card. */
-  const createItem = (e) => {
-    const content = rules[e.key];
-    // An entry with no rules written yet is left out entirely rather than
-    // rendered as an accordion that opens onto nothing.
-    if (!content) return '';
-    return `
-      <details class="help-game-card" id="help-card-${e.key}" data-accent="${e.accent}">
+  const createItem = (e) => `
+      <details class="help-game-card" id="help-card-${e.key}" data-key="${e.key}" data-accent="${e.accent}">
         <summary>
           <span class="help-game-card__icon" aria-hidden="true">${iconHtml(e.icon)}</span>
           <span class="help-game-card__text">
@@ -2256,26 +2271,14 @@ function renderHelpContent() {
         </summary>
         <div class="help-game-text" style="padding: 0 var(--sp-3) var(--sp-3)">
           ${helpLeadHtml(e.key, t)}
-          ${content}
+          ${rules[e.key]}
         </div>
       </details>`;
-  };
-
-  // Searching looks inside the rules too, not just the names — people search
-  // for the thing they are stuck on ("assassin", "قاتلة"), not the title.
-  const matches = (e) => {
-    if (!searching) return true;
-    const body = String(rules[e.key] || '').replace(/<[^>]+>/g, ' ');
-    const g = (typeof CATALOG_BY_ID !== 'undefined') ? CATALOG_BY_ID[e.key] : null;
-    const desc = g ? (t[g.desc] || '') : '';
-    return helpNormalise(titleOf(e) + ' ' + desc + ' ' + body).indexOf(helpSearchTerm) !== -1;
-  };
-
-  let shown = 0;
-  const html = helpSections().map(sec => {
-    const entries = sec.entries.filter(matches).filter(e => rules[e.key]);
+  // An entry with no rules written yet is left out entirely rather than
+  // rendered as an accordion that opens onto nothing.
+  box.innerHTML = helpSections().map(sec => {
+    const entries = sec.entries.filter(e => rules[e.key]);
     if (!entries.length) return '';
-    shown += entries.length;
     return `
       <section class="section help-section">
         <div class="section__head">
@@ -2287,19 +2290,70 @@ function renderHelpContent() {
         ${entries.map(createItem).join('')}
       </section>`;
   }).join('');
+  helpListKey = key;
+  return box;
+}
+/** What an entry answers to in the search: its name, its line and its rules, folded. */
+function helpFoldOf(entryKey) {
+  const lang = appState.lang;
+  const k = lang + ':' + entryKey;
+  if (helpFoldCache[k] !== undefined) return helpFoldCache[k];
+  const t = TRANSLATIONS[lang];
+  const e = helpEntry(entryKey);
+  const body = String((GAME_RULES[lang] || {})[entryKey] || '').replace(/<[^>]+>/g, ' ');
+  const g = (typeof CATALOG_BY_ID !== 'undefined') ? CATALOG_BY_ID[entryKey] : null;
+  const desc = g ? (t[g.desc] || '') : '';
+  return (helpFoldCache[k] = helpNormalise(((e && t[e.title]) || entryKey) + ' ' + desc + ' ' + body));
+}
+/** A search's marks taken out again: the text as it was written. */
+function helpUnmarkAll(box) {
+  const parents = new Set();
+  box.querySelectorAll('mark.help-mark').forEach(m => {
+    const p = m.parentNode;
+    p.replaceChild(document.createTextNode(m.textContent), m);
+    parents.add(p);
+  });
+  parents.forEach(p => p.normalize());
+}
 
-  const box = document.getElementById('help-sections');
-  if (box) box.innerHTML = html;
+function renderHelpContent() {
+  const lang = appState.lang;
+  const t = TRANSLATIONS[lang];
+  const rules = GAME_RULES[lang] || {};
+  const searching = !!helpSearchTerm;
+
+  const box = helpListEnsure();
+  let shown = 0;
+  if (box) {
+    helpUnmarkAll(box);
+    // Every card closed, as a fresh list was (a single hit is opened again below).
+    box.querySelectorAll('details.help-game-card[open]').forEach(d => { d.open = false; });
+    const set = (el, off) => { if (el.classList.contains('hidden') !== off) el.classList.toggle('hidden', off); };
+    box.querySelectorAll('.help-section').forEach(sec => {
+      let n = 0;
+      sec.querySelectorAll('.help-game-card').forEach(card => {
+        // Searching looks inside the rules too, not just the names — people search
+        // for the thing they are stuck on ("assassin", "قاتلة"), not the title.
+        const ok = !searching || helpFoldOf(card.dataset.key).indexOf(helpSearchTerm) !== -1;
+        set(card, !ok);
+        if (ok) n++;
+      });
+      set(sec, !n);
+      const count = sec.querySelector('.section__count');
+      if (count && n && count.textContent !== String(n)) count.textContent = String(n);
+      shown += n;
+    });
+  }
   const empty = document.getElementById('help-empty');
   if (empty) empty.classList.toggle('hidden', !(searching && shown === 0));
 
   // The words searched for, marked inside the rules (the owner's pick 1244).
-  if (searching && box) box.querySelectorAll('.help-game-text').forEach(el => helpMarkHits(el, helpSearchTerm));
+  if (searching && box) box.querySelectorAll('.help-game-card:not(.hidden) .help-game-text').forEach(el => helpMarkHits(el, helpSearchTerm));
 
   // A single hit gets opened for you rather than asking for one more tap
   // (and its first mark is scrolled to: helpScrollToMark, on its toggle).
   if (searching && shown === 1) {
-    const only = document.querySelector('#help-content-area .help-game-card');
+    const only = document.querySelector('#help-content-area .help-game-card:not(.hidden)');
     if (only) only.open = true;
   }
 

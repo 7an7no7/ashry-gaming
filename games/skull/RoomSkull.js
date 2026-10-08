@@ -41,8 +41,9 @@
 const SKULL_EVENTS = 40;
 const SKULL_GRACE_MS = 1500;
 const SKULL_GUESS_MS = 8000;          // «هيعملها؟»: the window before the flips
-const SKULL_BETWEEN_MS = 6500;        // the result on every screen, then the next round
+const SKULL_BETWEEN_MS = 4800;        // the result on every screen, then the next round; 6500 -> 4800 (the owner, 8 Oct 2026: felt slow)
 const SKULL_BOT_MS = [1100, 1900];
+const SKULL_BOT_FLIP_MS = [700, 1000]; // a computer bettor's flips, one after another; was SKULL_BOT_MS 1100-1900 (the owner, 8 Oct 2026: felt slow)
 const SKULL_BOT_PLACE_MS = [450, 900];
 const SKULL_BOT_GUESS_MS = [700, 1700];
 
@@ -704,7 +705,7 @@ ROOM_BOT_GAMES.skull = {
       return id ? { pid: id, key: 'guess|' + s.round, delay: skullRand(SKULL_BOT_GUESS_MS) } : null;
     }
     if (!s.turn || !isRoomBot(room, s.turn.pid)) return null;
-    return { pid: s.turn.pid, key: 'turn|' + s.turnSeq, delay: skullRand(SKULL_BOT_MS) };
+    return { pid: s.turn.pid, key: 'turn|' + s.turnSeq, delay: skullRand(s.phase === 'flip' ? SKULL_BOT_FLIP_MS : SKULL_BOT_MS) };
   },
   decide(room, pid) {
     const s = room.shared || {};

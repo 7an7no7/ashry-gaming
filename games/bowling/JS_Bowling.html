@@ -716,6 +716,7 @@ function bowlGfxThrow(standing, shot) {
   const g = bowlGfx;
   return new Promise(resolve => {
     if (g.st !== 'ready') { resolve(null); return; }
+    if (g.mode === 'set' && g.set) bowlSetFinish();
     g.gen++;
     const gen = g.gen;
     bowlClearGuide();
@@ -774,7 +775,7 @@ function bowlGfxSet(next, opts) {
     const carry = snap.some(s => s.kind === 'up') && !o.fresh;
     const quick = motionOff() || document.hidden;
     g.cancel = () => resolve(false);
-    g.set = { t: -(o.hold || 0) / 1000, snap, next: next.slice(), fresh: !!o.fresh, carry, quick,
+    g.set = { t: -(o.hold || 0) / 1000, snap, next: next.slice(), fresh: !!o.fresh, carry, quick, early: o.early || null, earlyOn: false,
       done: () => { if (gen === g.gen) { g.cancel = null; resolve(true); } else resolve(false); } };
     g.mode = 'set';
     bowlRumbleStop();
@@ -791,6 +792,9 @@ function bowlSetFrame(dt) {
   if (t < 0) return;
   if (!st.sound && t >= 0) { st.sound = true; if (g.loud) bowlSound('sweep'); }
   if (st.quick) st.t = T.back[1];
+  // The ball on its way back to the line: the next swipe may start now (opts.early; the owner,
+  // 8 Oct 2026: the wait for the whole pinsetter felt slow). A finger down finishes the set at once.
+  if (t >= T.back[0] && !st.earlyOn) { st.earlyOn = true; if (st.early) st.early(); }
   const spots = bowlPinSpots();
   // The ball went into the pit; it comes back up the return later.
   if (t < T.back[0]) g.ball.visible = false;
@@ -1089,8 +1093,17 @@ function bowlTrailPoint(e) {
   return { sx: e.clientX, sy: e.clientY, t, lx: l ? l.x : null, ly: l ? l.y : null };
 }
 
+/** The set's last part (the ball rolling back to the line) jumps to its end: a swipe has begun. */
+function bowlSetFinish() {
+  const g = bowlGfx;
+  if (g.mode !== 'set' || !g.set) return;
+  g.set.t = BOWL_SET_T.back[1];
+  bowlSetFrame(0);
+}
+
 function bowlPointerDown(e) {
   const g = bowlGfx;
+  if (g.input.on && !g.input.trail && g.mode === 'set' && g.set && g.set.earlyOn) bowlSetFinish();
   if (!g.input.on || g.mode !== 'idle' || g.input.trail) return;
   e.preventDefault();
   bowlDemoDone();
@@ -1876,7 +1889,9 @@ function bowlRoomIdle(state) {
     return;
   }
   if (bowlGfx.st === 'ready') {
-    if (bowlGfx.mode !== 'idle' || !bowlRoom.idleKey || bowlRoom.idleKey !== bowlRoom.key + '|' + bowlRoom.shownSeq) {
+    // (The set's last part, its swipe already on, is left to finish: bowlRoomLanded's early.)
+    const ending = bowlGfx.mode === 'set' && bowlGfx.set && bowlGfx.set.earlyOn;
+    if ((bowlGfx.mode !== 'idle' && !ending) || !bowlRoom.idleKey || bowlRoom.idleKey !== bowlRoom.key + '|' + bowlRoom.shownSeq) {
       bowlRoom.idleKey = bowlRoom.key + '|' + bowlRoom.shownSeq;
       bowlGfxRack(bowlRoomRack(state), { snap: bowlGfx.mode === 'idle' });
     }
@@ -1974,8 +1989,20 @@ function bowlRoomLanded(last) {
   }
   const next = cards[turn.pid].standing;
   const fresh = next.every(Boolean);
-  bowlGfxSet(next, { fresh, hold: last.kind === 'strike' ? 1100 : 700 }).then(() => {
+  // hold 700 -> 400, a strike 1100 -> 700 (the owner, 8 Oct 2026: felt slow); and the swipe comes back
+  // while the ball rolls back to the line (early), not after it.
+  const early = () => {
     if (key !== bowlRoom.key) return;
+    const st = Room.state;
+    if (!st || st.game !== 'bowling' || (bowlShared(st).throwSeq || 0) !== bowlRoom.shownSeq || !bowlRoomMyTurn(st)) return;
+    bowlRoom.busy = false;
+    bowlRoom.idleKey = bowlRoom.key + '|' + bowlRoom.shownSeq;
+    bowlGfxInput(true, bowlRoomShot, !!(bowlShared(st).settings || {}).guide);
+    bowlRoomPaint(st);
+  };
+  bowlGfxSet(next, { fresh, hold: last.kind === 'strike' ? 700 : 400, early: early }).then(() => {
+    // A ball thrown during the set's last part is on the lane already: it carries on from there.
+    if (key !== bowlRoom.key || bowlRoom.playing) return;
     bowlRoom.busy = false;
     bowlRoomNext();
   });

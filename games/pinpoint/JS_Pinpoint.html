@@ -190,7 +190,25 @@ function guessPinpoint(i) {
     if (pinRaceSending) return;
     pinRaceSending = true;
     s.lastPick = i;
-    raceMove('pinpoint', { k: s.round, i: i }).finally(() => { pinRaceSending = false; });
+    // Pressed in at once, the other choices off, until the server's word (the owner, 8 Oct
+    // 2026: a pick showed nothing for a round trip). A redraw drops the marks; the box a
+    // wrong pick keeps (pinDropChoice) is put back in .finally, as is one the server refused.
+    document.querySelectorAll('#solo-choices .solo-choice').forEach(b => {
+      const mine = Number(b.dataset.i) === i;
+      b.dataset.pinWait = b.disabled ? '1' : '0';
+      b.disabled = true;
+      b.classList.toggle('is-pending', mine);
+      b.setAttribute('style', mine ? 'border-color: var(--accent); background: var(--accent-soft); transform: scale(0.96);' : 'opacity: 0.55;');
+    });
+    raceMove('pinpoint', { k: s.round, i: i }).finally(() => {
+      pinRaceSending = false;
+      document.querySelectorAll('#solo-choices [data-pin-wait]').forEach(b => {
+        b.disabled = b.dataset.pinWait === '1';
+        delete b.dataset.pinWait;
+        b.classList.remove('is-pending');
+        b.removeAttribute('style');
+      });
+    });
     return;
   }
   if (i === r.answer) {

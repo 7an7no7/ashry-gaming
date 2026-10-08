@@ -60,7 +60,8 @@
                { round, setter, setterName, reveal, avg, solved, of } (svHardestNote, svCrownHardest);
                kept in room._svHardest until then, so no past secret sits in shared mid-game
    ========================================================================= */
-const SV_GRACE_MS = 1500;
+// The phone shows «الوقت خلص» at its own 0 (svShowTimeUp, JS_RoomSolve.html); this is only the wait for a guess in flight.
+const SV_GRACE_MS = 500;   // 1500 -> 500 (the owner, 8 Oct 2026: felt slow)
 const SV_SOLVE_POINTS = 10;
 const SV_SPEED_BONUS = [5, 4, 3, 2, 1];
 const SV_SETTER_POINTS = 5;

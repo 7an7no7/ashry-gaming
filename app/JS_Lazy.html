@@ -18,7 +18,7 @@
    (lzBootWrite, at the end of the body), so nothing waits for it.
    ========================================================================= */
 var LZ = window.LZ_MANIFEST || null;
-var lz = { loaded: {}, loading: {}, pending: {}, from: {}, boot: {}, tags: {}, stale: {}, busy: 0, barTimer: null, fail: null, nav: 0 };
+var lz = { loaded: {}, loading: {}, pending: {}, from: {}, boot: {}, tags: {}, stale: {}, busy: 0, barTimer: null, fail: null, nav: 0, mark: null, markPos: false };
 var LZ_TIMEOUT_MS = 15000;
 function lzView() { try { return appState.currentView; } catch (e) { return null; } }
 /* Every change of screen counts (setView): away and back to the same screen is still a move. */
@@ -115,16 +115,48 @@ function lzWait(ids, retry, key) {
     lzBusy(-1);
     if (lz.pending[key] !== retry) return;
     delete lz.pending[key];
+    if (key === 'nav') lzUnmark();
     if (lzLeft(key)) return;
     retry();
   }, function () {
     lzBusy(-1);
     if (lz.pending[key] !== retry) return;
     delete lz.pending[key];
+    if (key === 'nav') lzUnmark();
     if (lzLeft(key)) return;
     lzFailed(ids, retry, key);
   });
   return true;
+}
+/* The card tapped while its game's code comes (the owner, 8 Oct 2026: a tap that only
+   rippled for as long as the chunk took): marked at once - .is-loading, aria-busy and the
+   pill's small spinner in its corner - and let go when the game opens, the wait gives up,
+   or another card is tapped meanwhile. Called by a door right after lzWait said "wait". */
+function lzMark(el) {
+  lzUnmark();
+  if (!el || !el.isConnected || !el.classList) return;
+  el.classList.add('is-loading');
+  el.setAttribute('aria-busy', 'true');
+  var spin = document.createElement('span');
+  spin.className = 'lz-status__spin';
+  spin.setAttribute('aria-hidden', 'true');
+  spin.setAttribute('data-lz-mark', '');
+  spin.style.cssText = 'position:absolute;top:var(--sp-2);inset-inline-end:var(--sp-2);z-index:2;pointer-events:none';
+  var pos = '';
+  try { pos = getComputedStyle(el).position; } catch (e) {}
+  if (pos === 'static') { el.style.position = 'relative'; lz.markPos = true; }
+  el.appendChild(spin);
+  lz.mark = el;
+}
+function lzUnmark() {
+  var el = lz.mark;
+  lz.mark = null;
+  if (!el) return;
+  el.classList.remove('is-loading');
+  el.removeAttribute('aria-busy');
+  var spin = el.querySelector(':scope > [data-lz-mark]');
+  if (spin) spin.remove();
+  if (lz.markPos) { el.style.position = ''; lz.markPos = false; }
 }
 function lzLeft(key) {
   if (key !== 'nav') return false;
@@ -322,6 +354,18 @@ function lzBootChunks() {
     var best = null, at = 0;
     Object.keys(stamps).forEach(function (k) { if (Number(stamps[k]) > at) { at = Number(stamps[k]); best = k; } });
     if (best && LZ.games[best]) want = want.concat(LZ.games[best]);
+    // A daily set aside for a free game (the «كمّل» card's 'daily'): whether it is still going is
+    // its own game's code to say, so those games come with the page too - the card used to be
+    // put in a moment later and push the home down (8 Oct 2026). The ones kept aside today
+    // (JS_Solo.html, soloDailyKept) with no result yet: exactly what homeContNeed waits for.
+    if (best === 'daily' && typeof soloDailyKept === 'function' && typeof soloRealToday === 'function') {
+      var kept = soloDailyKept(), today = soloRealToday();
+      Object.keys(kept).forEach(function (id) {
+        if (!kept[id] || kept[id].day !== today || !LZ.games[id]) return;
+        if (typeof soloDailyResult === 'function' && soloDailyResult(id, today)) return;
+        want = want.concat(LZ.games[id]);
+      });
+    }
   } catch (e) {}
   return lzClosure(want);
 }

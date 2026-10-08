@@ -146,17 +146,19 @@ function triviaFrame(state, t, iAnswered) {
     const mine = (trivia.picked && trivia.picked.q === s.qIndex && trivia.picked.deal === roomDealKey(state)) ? trivia.picked.choice : null;
     const present = state.players.map(p => p.id);
     const expected = (s.roster || []).filter(id => present.indexOf(id) !== -1).length;
+    // Past the clock's 0: drawn over (greyed, «الوقت خلص!») while the server's short grace runs.
+    const over = !!s.endsAt && roomServerNow() >= s.endsAt;
     return header + `
       <div class="btn-stack">
         ${s.choices.map((c, i) => `
           <button class="ballot-option trivia-choice trivia-choice--${i} ${mine === i ? 'is-picked' : ''}"
-                  ${iAnswered || !inRound ? 'disabled' : ''} onclick="chooseTriviaAnswer(${i})">
+                  ${iAnswered || !inRound || over ? 'disabled' : ''} onclick="chooseTriviaAnswer(${i})">
             <span class="trivia-letter">${letters[i]}</span>
             <span class="ballot-option__label">${escapeHTML(c)}</span>
           </button>`).join('')}
       </div>
       <div class="vote-progress">
-        <span>${iAnswered ? '🔒 ' + (t.trivia_locked || '') : (inRound ? '' : (t.vote_spectating || ''))}</span>
+        <span class="trivia-progress-line">${iAnswered ? '🔒 ' + (t.trivia_locked || '') : (over && inRound ? '⏱️ ' + (t.tb_time_up || '') : (inRound ? '' : (t.vote_spectating || '')))}</span>
         <span>${(s.answered || []).length}/${expected} ${t.trivia_answered || ''}</span>
       </div>
       ${state.youAreHost ? `
@@ -297,6 +299,7 @@ function startTriviaClock(s) {
     onEnd: () => {
       trivia.clock = null;
       trivia.fired = true;
+      triviaShowTimeUp(endsAt);
       const close = () => {
         const st = Room.state;
         if (!st || st.game !== 'trivia' || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
@@ -306,10 +309,27 @@ function startTriviaClock(s) {
       // answer tapped as the clock hit zero is still on its way, and counts);
       // anyone else a moment later if the host hasn't. The server closes it as
       // well (roomTimeout), even if every phone is asleep.
-      if (Room.isHost) setTimeout(close, 2000);
-      else setTimeout(close, 3000);
+      // 2000 / 3000 -> 1000 / 1600 (the owner, 8 Oct 2026: felt slow), with TRIVIA_GRACE_MS.
+      if (Room.isHost) setTimeout(close, 1000);
+      else setTimeout(close, 1600);
     }
   });
+}
+
+// The clock's 0 on this phone: the choices grey out and «الوقت خلص!» shows at once,
+// not when the server closes the question a moment later (an answer in flight still counts).
+function triviaShowTimeUp(endsAt) {
+  const st = Room.state;
+  if (!st || st.game !== 'trivia' || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
+  const root = document.getElementById('view-room-trivia');
+  if (!root) return;
+  root.querySelectorAll('.trivia-choice').forEach(b => { b.disabled = true; });
+  const answered = (st.shared.answered || []).indexOf(Room.me) !== -1;
+  const inRound = (st.shared.roster || []).indexOf(Room.me) !== -1;
+  const line = root.querySelector('.trivia-progress-line');
+  if (line && inRound && !answered && !(trivia.picked && trivia.picked.q === st.shared.qIndex)) {
+    line.textContent = '⏱️ ' + (TRANSLATIONS[appState.lang].tb_time_up || '');
+  }
 }
 
 function stopTriviaClock() {

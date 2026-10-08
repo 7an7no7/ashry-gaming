@@ -697,7 +697,15 @@ function startCodenamesClock(endsAt) {
       const st = Room.state;
       if (left > 0 && left <= 5 && appState.currentView === 'room-codenames' && st && st.game === 'codenames' && st.shared.endsAt === endsAt) playSound('tick');
     },
-    onEnd: () => { cnLocal.clock = null; }
+    onEnd: () => {
+      cnLocal.clock = null;
+      // The end shown at this phone's 0, not when the server passes the turn a moment later.
+      const st = Room.state;
+      const el = document.getElementById('cn-timer');
+      if (el && st && st.game === 'codenames' && st.shared.endsAt === endsAt && !st.shared.winner) {
+        el.textContent = '⏱️ ' + (TRANSLATIONS[appState.lang].cn_time_up || '');
+      }
+    }
   });
 }
 

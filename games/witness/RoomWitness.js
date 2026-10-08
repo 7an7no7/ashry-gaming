@@ -33,7 +33,7 @@
    here starts with witness / WITNESS_ (Witness.js holds the faces' rules).
    ========================================================================= */
 const WITNESS_LOOK_LEAD_MS = 400;    // the face reaches the phone over the network: the 8 s count from its arrival
-const WITNESS_GRACE_MS = 600;        // a clock's moment on the server after the phones' own
+const WITNESS_GRACE_MS = 400;        // a clock's moment on the server after the phones' own; 600 -> 400 (the owner, 8 Oct 2026: felt slow)
 
 const witnessHere = (room, id) => room.players.some(p => p.id === id);
 /** The roster still in the room. */

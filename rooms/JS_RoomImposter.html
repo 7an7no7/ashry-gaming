@@ -284,7 +284,7 @@ function renderImposterGuess(el, state, t) {
         : mine ? (undercover ? (t.imp_und_guess_hint || '') : (t.imp_guess_hint || '')) : (undercover ? (t.imp_und_guessing || '') : (t.imp_guessing || '')))}</p>
     </div>
     ${mine
-      ? `<div class="btn-stack">${(s.options || []).map(w => `<button class="ballot-option" onclick="roomAct('guess', { word: '${jsStringAttr(w)}' })"><span class="ballot-option__label">${escapeHTML(w)}</span></button>`).join('')}</div>`
+      ? `<div class="btn-stack">${(s.options || []).map(w => `<button class="ballot-option" onclick="ballotOptionSend(this, 'guess', { word: '${jsStringAttr(w)}' })"><span class="ballot-option__label">${escapeHTML(w)}</span></button>`).join('')}</div>`
       : `<div class="chip-set" style="justify-content:center">${(s.options || []).map(w => `<span class="chip chip--plain"><span class="chip__label">${escapeHTML(w)}</span></span>`).join('')}</div>`}
     ${roomMoveOnHtml(state, `<div class="btn-stack" style="margin-top: var(--sp-3)"><button class="btn btn--ghost btn--sm" onclick="roomAct('skipGuess')">${escapeHTML(t.fa_skip_guess || '')}</button></div>`)}
     ${renderRoomPlayerStrip(state)}`;
@@ -520,12 +520,40 @@ function roomHostRow(buttons) {
     `<button type="button" class="btn btn--${b[2] || 'ghost'} btn--xs btn--auto" onclick="${b[1]}">${escapeHTML(b[0])}</button>`).join('')}</div>`;
 }
 
-/** Thin wrapper so inline handlers can fire a room action and surface errors. */
+/** Thin wrapper so inline handlers can fire a room action and surface errors. Resolves true when the server took it. */
 async function roomAct(action, payload) {
   try {
     await Room.act(action, payload || {});
+    return true;
   } catch (err) {
     if (!err.quiet) showToast(err.message || 'تعذر تنفيذ الإجراء', 'error');
+    return false;
   }
+}
+
+/**
+ * roomAct for a button that should look pressed at once (the owner, 8 Oct 2026: felt slow):
+ * `btn` is pressed in and greyed-busy, and every button beside it that also goes through
+ * roomActPress (a verdict's pair) is disabled, until the server answers; a refusal puts them
+ * back, an accepted move is redrawn by the state that follows. onclick="roomActPress(this, 'x', {...})".
+ */
+function roomActPress(btn, action, payload) {
+  if (!btn || btn.getAttribute('aria-busy') === 'true') return Promise.resolve(false);
+  const box = btn.parentElement;
+  const pair = box ? Array.from(box.querySelectorAll('button[onclick*="roomActPress"]')) : [btn];
+  const was = pair.map(b => b.disabled);
+  pair.forEach(b => { if (b !== btn) b.disabled = true; });
+  btn.setAttribute('aria-busy', 'true');
+  btn.style.pointerEvents = 'none';
+  btn.style.transform = 'scale(0.94)';
+  btn.style.opacity = '0.75';
+  return roomAct(action, payload).then(ok => {
+    if (btn.isConnected) {
+      btn.removeAttribute('aria-busy');
+      btn.style.pointerEvents = btn.style.transform = btn.style.opacity = '';
+    }
+    if (!ok) pair.forEach((b, i) => { if (b.isConnected) b.disabled = was[i]; });
+    return ok;
+  });
 }
 </script>

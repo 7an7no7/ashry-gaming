@@ -133,7 +133,11 @@ const Room = (() => {
     // The game's code loads with its chunk (JS_Lazy.html): the state is held
     // back until it has come, then everyone hears the latest one.
     if (state && state.game && typeof lzWait === 'function' &&
-        lzWait(lzChunksOfRoom(state.game), () => emit(true), 'room')) return;
+        lzWait(lzChunksOfRoom(state.game), () => emit(true), 'room')) {
+      // A lobby doesn't wait for it: the chosen game's card is drawn now, its options then.
+      if (typeof roomLobbyEarly === 'function') roomLobbyEarly(state);
+      return;
+    }
     lastSignature = sig;
     listeners.forEach(fn => { try { fn(state); } catch (e) { console.error('room listener', e); } });
   };
@@ -607,11 +611,47 @@ window.addEventListener('pageshow', (event) => { if (event.persisted && Room.isI
    simply not drawn — the 4-letter room code is always shown as well and is
    usually the faster way in anyway.
    ========================================================================== */
+/* The library loads `async`: a QR asked for before it came keeps its square (an empty white
+   card) and is drawn the moment it arrives, not at the next state that happens to redraw the
+   lobby (the owner, 8 Oct 2026). Looked for every 250 ms for 12 s; then the card goes. */
+const joinQrWait = { want: {}, timer: null, until: 0, gaveUp: false };
+function joinQrLater(containerId, url) {
+  joinQrWait.want[containerId] = url;
+  if (!joinQrWait.timer) joinQrWait.until = Date.now() + 12000;
+  if (joinQrWait.timer) return;
+  const look = () => {
+    joinQrWait.timer = null;
+    const ready = typeof qrcode !== 'undefined';
+    if (!ready && Date.now() < joinQrWait.until) { joinQrWait.timer = setTimeout(look, 250); return; }
+    const want = joinQrWait.want;
+    joinQrWait.want = {};
+    Object.keys(want).forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el || el.dataset.qrWait !== want[id]) return;   // drawn again or gone meanwhile
+      if (ready) renderJoinQR(id, want[id]);
+      else { delete el.dataset.qrWait; el.style.aspectRatio = ''; el.classList.add('hidden'); }
+    });
+    // Not come at all (offline, blocked): later lobbies don't hold an empty card again.
+    if (!ready) joinQrWait.gaveUp = true;
+  };
+  joinQrWait.timer = setTimeout(look, 250);
+}
+
 function renderJoinQR(containerId, url) {
   const el = document.getElementById(containerId);
   if (!el) return;
   el.innerHTML = '';
-  if (!url || typeof qrcode === 'undefined') { el.classList.add('hidden'); return; }
+  delete el.dataset.qrWait;
+  el.style.aspectRatio = '';
+  if (!url) { el.classList.add('hidden'); return; }
+  if (typeof qrcode === 'undefined') {
+    if (joinQrWait.gaveUp) { el.classList.add('hidden'); return; }
+    el.dataset.qrWait = url;
+    el.style.aspectRatio = '1';
+    el.classList.remove('hidden');
+    joinQrLater(containerId, url);
+    return;
+  }
   try {
     const qr = qrcode(0, 'M');
     qr.addData(url);
@@ -681,7 +721,7 @@ function roomMoveOnHtml(state, html, orElse) {
   return `<span class="room-moveon">${html}</span>` + (orElse ? `<span class="room-moveon-not">${orElse}</span>` : '');
 }
 
-/* برنامج السهرة's result pause (~9 s, then the table): the server refuses another round of the game
+/* برنامج السهرة's result pause (~6 s, then the table): the server refuses another round of the game
    just played (programGuard, RoomProgram.js), so its buttons aren't drawn meanwhile - the program's
    bar has «⏭» for the host. True when `code` (a button's markup or onclick) is one of those. */
 const ROOM_PROG_HELD = /'(playAgain|restart|tourNew|nextRound|nextQuestion|nextGame)'/;
@@ -1100,8 +1140,10 @@ async function roomCreateFor(gameId) {
   const inRoom = Room.state && Room.state.code;
   if (inRoom) {
     const t = TRANSLATIONS[appState.lang] || {};
-    showConfirmModal(String(t.room_new_leaves || '').replace('{code}', inRoom), async () => {
-      await Room.leave();
+    showConfirmModal(String(t.room_new_leaves || '').replace('{code}', inRoom), () => {
+      // Left here at once (Room.leave clears this phone first); the server is told without waiting
+      // for its answer (the owner, 8 Oct 2026: up to 12 s offline before anything moved).
+      Room.leave();
       roomCreateFor(gameId);
     }, { yes: 'cf_new_room', tone: 'accent', icon: '🚪' });
     return;
@@ -1536,19 +1578,10 @@ function roomTakenOther(name) {
 async function roomClaimStart(code, name) {
   const t = TRANSLATIONS[appState.lang] || {};
   roomClaimStop(false);
-  let res;
-  try {
-    res = await Room.claimAsk(code, name);
-  } catch (err) {
-    closeModal('room-sheet-modal');
-    // The name is free after all (its seat left meanwhile): join as anyone would.
-    if (String(err.raw || '') === 'CLAIM_NONE') { roomJoinFromForm(); return; }
-    // (audit 7 Oct 2026, R6) a room closed meanwhile reads as such, never the raw code.
-    showToast(String(err.raw || '') === 'ROOM_NOT_FOUND' ? roomErrText('notfound') : (err.message || roomErrText('join')), 'error');
-    roomTakenOther(name);
-    return;
-  }
-  roomClaimLive = { code: code, name: name, claim: res.claim, token: res.token, timer: null };
+  // The waiting card at once, before the room has the ask (the owner, 8 Oct 2026: nothing
+  // showed until /claim answered); «إلغاء» meanwhile drops the ask as soon as it is made.
+  const live = { code: code, name: name, claim: null, token: null, timer: null };
+  roomClaimLive = live;
   const body = document.getElementById('room-sheet-body');
   if (body) {
     body.innerHTML = `
@@ -1559,10 +1592,31 @@ async function roomClaimStart(code, name) {
         <button type="button" class="btn btn--ghost" onclick="roomClaimStop(true); closeModal('room-sheet-modal')">${escapeHTML(t.cancel || '')}</button>
       </div>`;
   }
+  let res;
+  try {
+    res = await Room.claimAsk(code, name);
+  } catch (err) {
+    if (roomClaimLive !== live) return;   // cancelled meanwhile: nothing was asked
+    roomClaimLive = null;
+    closeModal('room-sheet-modal');
+    // The name is free after all (its seat left meanwhile): join as anyone would.
+    if (String(err.raw || '') === 'CLAIM_NONE') { roomJoinFromForm(); return; }
+    // (audit 7 Oct 2026, R6) a room closed meanwhile reads as such, never the raw code.
+    showToast(String(err.raw || '') === 'ROOM_NOT_FOUND' ? roomErrText('notfound') : (err.message || roomErrText('join')), 'error');
+    roomTakenOther(name);
+    return;
+  }
+  // Cancelled while the ask was on its way: the host's question goes at once.
+  if (roomClaimLive !== live) { Room.claimCancel(code, res.claim, res.token); return; }
+  live.claim = res.claim;
+  live.token = res.token;
   roomClaimWait();
 }
 
-/** Asks for the answer every 2 s while the waiting card is up; the card closed some other way gives up. */
+// 2000 -> 1000 (the owner, 8 Oct 2026: felt slow): the host's yes reached the joiner up to 2 s late.
+const ROOM_CLAIM_POLL_MS = 1000;
+
+/** Asks for the answer every second while the waiting card is up; the card closed some other way gives up. */
 function roomClaimWait() {
   const live = roomClaimLive;
   if (!live) return;
@@ -1595,7 +1649,7 @@ function roomClaimWait() {
       return;
     }
     roomClaimWait();
-  }, 2000);
+  }, ROOM_CLAIM_POLL_MS);
 }
 
 /** Stops waiting; `tell`: the room is told this phone gave up, so the host's question goes. */
@@ -1604,7 +1658,8 @@ function roomClaimStop(tell) {
   roomClaimLive = null;
   if (!live) return;
   clearTimeout(live.timer);
-  if (tell) Room.claimCancel(live.code, live.claim, live.token);
+  // Not asked yet (the ask still on its way): roomClaimStart cancels it when it comes back.
+  if (tell && live.claim) Room.claimCancel(live.code, live.claim, live.token);
 }
 
 /* The host's side: «منى رجع؟ رجّعه مكانه» on the host's phone or the TV hosting the room, or on
@@ -1726,20 +1781,49 @@ async function roomLeave() {
   const msg = mid && t.room_leave_mid
     ? t.room_leave_mid.replace('{game}', entry ? (t[entry.key] || entry.id) : s.game)
     : (appState.lang === 'ar' ? 'هتخرج من الغرفة؟' : 'Leave this room?');
-  showConfirmModal(msg, async () => {
-    await Room.leave();
+  showConfirmModal(msg, () => {
+    // Home at once: Room.leave forgets the room on this phone first, then tells the server
+    // without being waited for (the owner, 8 Oct 2026: up to 12 s offline before anything moved).
+    Room.leave();
     setView('menu');
   }, Object.assign({ yes: 'cf_leave', tone: 'accent', icon: '🚪' }, mid ? { no: 'cf_stay' } : {}));
+}
+
+/* Start pressed and its answer not here yet: the button stays pressed in and greyed (the owner,
+   8 Oct 2026: Start showed nothing until the splash), and a second tap does nothing. */
+let roomStartBusy = false;
+function roomStartPress(btn, on) {
+  if (!btn) return;
+  if (on) {
+    btn.setAttribute('aria-busy', 'true');
+    btn.style.transform = 'scale(0.94)';
+    btn.style.opacity = '0.75';
+  } else {
+    btn.removeAttribute('aria-busy');
+    btn.style.transform = btn.style.opacity = '';
+  }
 }
 
 async function roomStartGame() {
   const game = ROOM_GAMES[Room.state && Room.state.game];
   if (!game) return showToast(roomErrText('game'), 'error');
+  if (roomStartBusy) return;
   // Its options have been set once on this phone: folded from the next lobby on.
   rememberOptions('lobbyOptsSeen', { [Room.state.game]: 1 });
+  const btn = document.getElementById('room-start-btn');
+  roomStartBusy = true;
+  if (btn) btn.disabled = true;
+  roomStartPress(btn, true);
   try {
     await Room.act('start', game.startPayload ? game.startPayload() : {});
+    roomStartBusy = false;
+    roomStartPress(btn, false);
   } catch (err) {
+    roomStartBusy = false;
+    roomStartPress(btn, false);
+    if (btn) btn.disabled = false;
+    // The lobby says whether it may go (startBlock, a game's code still coming).
+    if (Room.state && appState.currentView === 'room-lobby') renderRoomLobby(Room.state);
     // Too few people in: the line under Start already says how many more, so point at
     // it (a blocked Start's way) rather than a toast. The server still decides: trivia,
     // the emoji riddles and the proverbs start with one.
@@ -1758,6 +1842,9 @@ async function roomStartGame() {
 const lobbySeen = { code: '', ids: null };
 
 function renderRoomLobby(state, opts) {
+  // The host's pick drawn before the server has it (roomPickNow): its card, no options yet.
+  const picked = roomPickOver(state);
+  if (picked) state = picked;
   lobbySkeleton(false);
   const codeEl = document.getElementById('room-code-display');
   // A new code drops in letter by letter; the same code is left alone.
@@ -1830,7 +1917,8 @@ function renderRoomLobby(state, opts) {
   const startBtn = document.getElementById('room-start-btn');
   const waitNote = document.getElementById('room-wait-note');
   const setup = document.getElementById('room-host-setup');
-  const game = ROOM_GAMES[state.game];
+  // No options from a pick the server hasn't answered: they are drawn from its state.
+  const game = picked ? null : ROOM_GAMES[state.game];
 
   // No game picked yet: the lobby shows the hub instead of a start button.
   const inHub = !state.game;
@@ -1866,7 +1954,9 @@ function renderRoomLobby(state, opts) {
     // A game that can't start yet for another reason says why there (startBlock: عربيات التصادم
     // with no big screen online), and its Start is greyed until then; the server refuses it too.
     const block = !short && game && state.youAreHost && typeof game.startBlock === 'function' ? (game.startBlock(state) || '') : '';
-    if (startBtn) startBtn.disabled = !!block;
+    // Greyed too while the game's code (or the server's answer to the pick) is on its way,
+    // and while a Start already pressed waits for the server (roomStartGame).
+    if (startBtn) startBtn.disabled = !!block || (!inHub && !game) || roomStartBusy;
     needEl.classList.toggle('hidden', !short && !block);
     if (short) needEl.textContent = (tt.room_need_more || '').replace('{n}', String(short));
     else if (block) needEl.textContent = block;
@@ -1922,7 +2012,7 @@ function renderRoomLobby(state, opts) {
         lobbyOptsSummarise(setup);
       }
     }
-    roomLobbySumShare(state, setup);
+    if (!picked) roomLobbySumShare(state, setup);
     // An option changed in place (a switch, a list) says so in the folded line too.
     if (!setup.dataset.sumWatched) {
       setup.dataset.sumWatched = '1';
@@ -2023,18 +2113,74 @@ function roomLobbyTab(tab) {
 /* The room's game picker morphs too (the owner, 3 Oct 2026: "the same morph to the
    room game picker"): the poster the host taps grows into the chosen game's card,
    and «تغيير» shrinks that card back into its poster in the list. The pick is a
-   round trip to the server, so the view transition holds the old picture while
-   it goes (a view transition's update may wait) and morphs once the lobby has
-   drawn the new one. Where it can't run, the pick is made as before. */
+   round trip to the server; the lobby draws it at once from the catalog (roomPickNow:
+   the chosen card, or the list again), so the morph runs straight away instead of
+   holding a frozen picture until the answer (the owner, 8 Oct 2026: felt slow), and
+   the game's options follow once the server and the game's code are here. Where the
+   morph can't run, the pick is drawn the same way without it. */
 function roomPickGame(id, el) {
-  const act = () => roomAct('chooseGame', { game: id });
+  const act = () => roomPickNow(id);
   if (roomPickMorph(el, act, () => document.querySelector('#room-host-setup .chosen-game'))) return;
   act();
 }
 
+/* The pick this phone has drawn before the server has it: `game` (null = back to the list;
+   undefined = none waiting). renderRoomLobby draws it over an older state of this room until
+   the server's state has the same game, the move is refused, or 4 s pass. */
+const roomPickLocal = { game: undefined, code: '', timer: null, seq: 0 };
+function roomPickClear() {
+  clearTimeout(roomPickLocal.timer);
+  roomPickLocal.timer = null;
+  roomPickLocal.game = undefined;
+  roomPickLocal.code = '';
+}
+function roomPickRedraw() {
+  if (Room.state && appState.currentView === 'room-lobby') routeRoomState(Room.state);
+}
+/** Sends the pick (a game, or null for «تغيير») and draws it in the lobby at once. */
+function roomPickNow(game) {
+  const st = Room.state;
+  if (!st) return;
+  // The game's code on its way now: its options follow the server's answer sooner.
+  if (game && typeof lzEnsure === 'function') lzEnsure(lzChunksOfRoom(game)).catch(() => {});
+  roomPickClear();
+  const seq = ++roomPickLocal.seq;
+  roomPickLocal.game = game || null;
+  roomPickLocal.code = st.code;
+  roomPickLocal.timer = setTimeout(() => { if (roomPickLocal.seq === seq) { roomPickClear(); roomPickRedraw(); } }, 4000);
+  const sent = game ? roomAct('chooseGame', { game: game }) : roomAct('backToHub');
+  if (appState.currentView === 'room-lobby') renderRoomLobby(st);
+  sent.then((ok) => {
+    if (roomPickLocal.seq !== seq || roomPickLocal.game === undefined) return;
+    roomPickClear();
+    // Refused (roomAct said why): the lobby as the server has it.
+    if (!ok) roomPickRedraw();
+  });
+}
+
+/** A state still on the room's choice before this phone's pick: the pick drawn over it. */
+function roomPickOver(state) {
+  const pick = roomPickLocal;
+  if (pick.game === undefined || !state) return null;
+  if (state.code !== pick.code || state.phase !== 'lobby' || !state.youAreHost || (state.game || null) === pick.game) {
+    roomPickClear();
+    return null;
+  }
+  return Object.assign({}, state, { game: pick.game });
+}
+
+/* A game chosen while its code is still on its way (emit and routeRoomState wait for the
+   chunk): the lobby draws the chosen game's card from the catalog at once, and only its
+   options wait for the code (the owner, 8 Oct 2026: other phones kept the old lobby). */
+function roomLobbyEarly(state) {
+  if (!state || state.phase !== 'lobby' || state.youAreScreen || state.program) return;
+  if (appState.currentView !== 'room-lobby') return;
+  try { renderRoomLobby(state); } catch (e) { console.warn('room lobby early', e); }
+}
+
 function roomChangeGame(btn) {
   const id = Room.state && Room.state.game;
-  const act = () => roomAct('backToHub');
+  const act = () => roomPickNow(null);
   const back = () => {
     const el = id && document.querySelector('#room-host-setup .room-poster[data-game="' + id + '"]');
     if (!el) return null;
@@ -2065,10 +2211,9 @@ function roomPickMorph(fromEl, act, findTarget) {
     vt = document.startViewTransition(async () => {
       name(fromEl, '');
       name(fromIcon, '');
-      // Hold the old picture a moment at most (a slow ack or a refused pick must not freeze the lobby):
-      // past that the morph runs, and the lobby simply redraws when the ack arrives.
-      await Promise.race([act(), new Promise((r) => setTimeout(r, 350))]);
-      // The lobby draws the pick once the game's code is here (routeRoomState): wait for it, a moment at most.
+      // The pick is drawn at once (roomPickNow), so nothing waits on the server here.
+      act();
+      // Normally already drawn; a moment at most otherwise.
       for (let i = 0; i < 15 && !target; i++) {
         target = findTarget();
         if (!target) await new Promise((r) => setTimeout(r, 16));
@@ -2810,7 +2955,10 @@ function routeRoomState(state) {
   if (typeof markRoomPlayed === 'function') markRoomPlayed(state);
   roomRouteFrom = appState.currentView;
   if (state && state.game && typeof lzWait === 'function' &&
-      lzWait(roomChunksOf(state), roomRouteAgain, 'route')) return;
+      lzWait(roomChunksOf(state), roomRouteAgain, 'route')) {
+    roomLobbyEarly(state);
+    return;
+  }
   // برنامج السهرة (JS_RoomProgram.html, a chunk of its own): its code before anything of it is drawn.
   if (state && state.program && typeof lzWait === 'function' &&
       lzWait(['program'], roomRouteAgain, 'route-prog')) return;

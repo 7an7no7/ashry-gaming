@@ -131,7 +131,7 @@ const bankShared = (state) => (state && state.shared) || {};
 const bankInGame = (state) => !state.youAreScreen && (bankShared(state).seats || []).indexOf(Room.me) !== -1;
 
 /** A move from this phone: a turn's move carries the turn it was made in, managing a place what the phone saw. */
-function bankRoomDo(action, p) {
+function bankRoomDo(action, p, btn) {
   const state = Room.state;
   if (!state || state.game !== 'bank') return;
   const s = bankShared(state);
@@ -141,10 +141,45 @@ function bankRoomDo(action, p) {
   bankRoomLocal.sent = stamp;
   haptic('light');
   if (action === 'roll') document.querySelectorAll('#view-room-bank .bank-die').forEach(d => d.classList.add('is-rolling'));
-  return Promise.resolve(roomAct(action, payload)).then(() => {
+  // The tapped button presses in at once and its row rests until the server answers (the owner,
+  // 8 Oct 2026: a tap that showed nothing felt slow); the next state redraws them, a refusal puts them back.
+  const pressed = bankRoomPress(btn);
+  const done = () => {
     if (bankRoomLocal.sent === stamp) bankRoomLocal.sent = '';
     document.querySelectorAll('#view-room-bank .bank-die.is-rolling').forEach(d => d.classList.remove('is-rolling'));
+  };
+  return Room.act(action, payload).then(() => {
+    done();
+    // Taken: the next frame redraws the bar. Should nothing redraw it (a frame the same as before), it comes back.
+    if (pressed) {
+      const back = () => {
+        if (!pressed[0].el.isConnected) return;
+        if (bankFx.busyUntil > Date.now()) { setTimeout(back, bankFx.busyUntil - Date.now() + 200); return; }
+        bankRoomUnpress(pressed);
+      };
+      setTimeout(back, 3000);
+    }
+  }).catch(err => {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    done();
+    if (pressed) bankRoomUnpress(pressed);
   });
+}
+
+/** Presses a bar or row's button in, and rests the buttons beside it; returns what to put back. */
+function bankRoomPress(btn) {
+  if (!btn || !btn.isConnected || btn.tagName !== 'BUTTON') return null;
+  const row = btn.closest('.btn-row, .bank-mrow__acts, .bank-offer, .bank-bar') || btn.parentElement;
+  const all = [btn].concat(row ? Array.from(row.querySelectorAll('button[onclick^="bankDo("]')).filter(b => b !== btn) : []);
+  const saved = all.map(b => ({ el: b, disabled: b.disabled }));
+  all.forEach(b => { b.disabled = true; });
+  btn.classList.add('is-pending');
+  btn.style.opacity = '0.7';
+  btn.style.transform = 'scale(0.94)';
+  return saved;
+}
+function bankRoomUnpress(saved) {
+  saved.forEach(b => { b.el.disabled = b.disabled; b.el.classList.remove('is-pending'); b.el.style.opacity = ''; b.el.style.transform = ''; });
 }
 
 function bankRoomSkip() {
@@ -282,6 +317,9 @@ ROOM_GAMES.bank = {
     if (changed && bankFx.busyUntil > Date.now()) {
       bankDeferRedraw();
       bankRefreshInPlace(el, state, false);
+      // The buttons on screen are the last frame's: they rest until the new one is drawn, as on one
+      // phone (paintBank; the owner, 8 Oct 2026).
+      el.querySelectorAll('button[onclick^="bankDo("]').forEach(b => { b.disabled = true; });
       return;
     }
     bankUiFor(s);

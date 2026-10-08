@@ -82,12 +82,51 @@ function quizExtrasHtml(state, t, canType) {
   if (!canType) return '';
   const mine = quizMine(state);
   const near = mine && mine.near ? `<div class="waiting-note"><span class="tx-warning">🔥 ${escapeHTML(t.quiz_near || '')}</span></div>` : '';
-  const choices = Array.isArray(s.choices) && s.choices.length ? `
+  const up = Array.isArray(s.choices) && s.choices.length;
+  // Before they come down (s.choicesAt), their place is kept: three greyed buttons and
+  // when they come, so the box and the guesses below don't jump at 12 s (the owner, 8 Oct 2026).
+  const choices = up || s.choicesAt ? `
     <div class="card card--tight">
-      <p class="field__hint" style="text-align:center">${escapeHTML(t.quiz_choices_hint || '')}</p>
-      <div class="btn-stack">${s.choices.map((c, i) => `<button type="button" class="btn btn--secondary" onclick="roomAct('pick', { i: ${i}, qIndex: ${Number(s.qIndex) || 0} })">${escapeHTML(c)}</button>`).join('')}</div>
+      <p class="field__hint" style="text-align:center">${escapeHTML((up ? t.quiz_choices_hint : t.quiz_choices_soon) || '')}</p>
+      <div class="btn-stack">${up
+        ? s.choices.map((c, i) => `<button type="button" class="btn btn--secondary quiz-choice" onclick="quizPick(this, ${i}, ${Number(s.qIndex) || 0})">${escapeHTML(c)}</button>`).join('')
+        : [0, 1, 2].map(() => `<button type="button" class="btn btn--secondary quiz-choice" disabled aria-hidden="true">…</button>`).join('')}</div>
     </div>` : '';
   return near + choices;
+}
+
+/** A choice tapped: shown picked at once, the others greyed; put back if the server refuses. */
+function quizPick(btn, i, qIndex) {
+  const box = btn && btn.closest('.btn-stack');
+  const all = box ? Array.from(box.querySelectorAll('.quiz-choice')) : [];
+  if (btn.getAttribute('aria-disabled') === 'true') return;
+  all.forEach(b => { if (b !== btn) b.disabled = true; });
+  btn.classList.remove('btn--secondary');
+  btn.classList.add('btn--primary', 'is-picked');
+  btn.setAttribute('aria-disabled', 'true');
+  btn.style.pointerEvents = 'none';
+  Room.act('pick', { i: i, qIndex: qIndex }).catch(err => {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    if (!btn.isConnected) return;
+    all.forEach(b => { b.disabled = false; });
+    btn.classList.remove('btn--primary', 'is-picked');
+    btn.classList.add('btn--secondary');
+    btn.removeAttribute('aria-disabled');
+    btn.style.pointerEvents = '';
+  });
+}
+
+/** The clock's 0 on this phone: the box greys out and «الوقت خلص!» shows at once (the server closes a moment later). */
+function quizShowTimeUp() {
+  const input = document.getElementById('quiz-input');
+  if (input) {
+    input.disabled = true;
+    const send = input.parentElement && input.parentElement.querySelector('button');
+    if (send) send.disabled = true;
+  }
+  document.querySelectorAll('.quiz-choice').forEach(b => { b.disabled = true; });
+  const note = document.getElementById('quiz-timeup');
+  if (note) note.hidden = false;
 }
 
 function armQuizClock(endsAt) {
@@ -106,6 +145,8 @@ function armQuizClock(endsAt) {
     onTick: paint,
     onEnd: () => {
       quiz.clock = null;
+      const st0 = Room.state;
+      if (st0 && st0.shared && st0.shared.phase === 'answering' && st0.shared.endsAt === endsAt) quizShowTimeUp();
       const close = () => {
         const st = Room.state;
         if (!st || (st.game !== 'emoji' && st.game !== 'proverbs') || st.shared.phase !== 'answering' || st.shared.endsAt !== endsAt) return;
@@ -113,7 +154,8 @@ function armQuizClock(endsAt) {
       };
       // The host closes after the server's grace (QUIZ_GRACE_MS), so an answer sent
       // as the clock hit zero still counts; anyone else a moment later; the server too.
-      if (Room.isHost) setTimeout(close, 2000); else setTimeout(close, 3000);
+      // 2000 / 3000 -> 1000 / 1600 (the owner, 8 Oct 2026: felt slow), with QUIZ_GRACE_MS.
+      if (Room.isHost) setTimeout(close, 1000); else setTimeout(close, 1600);
     }
   });
 }
@@ -170,6 +212,7 @@ function quizGame(game) {
         const done = (s.solved || []).indexOf(Room.me) !== -1;
         const used = (s.tried || []).indexOf(Room.me) !== -1;
         const canType = inRound && !done && !used;
+        const over = !!s.endsAt && roomServerNow() >= s.endsAt;
         // The feed and the count of who has answered are refreshed in place:
         // a rebuild would take what you are typing with it.
         renderRoomFrame(el, ['quiz', s.qIndex, canType, done, used, state.youAreHost, appState.lang].join('|'), () => `
@@ -177,9 +220,10 @@ function quizGame(game) {
           <div class="card" style="text-align:center">${quizCardHtml(game, s.card)}</div>
           ${canType ? `
             <div class="input-group">
-              <input type="text" id="quiz-input" autocomplete="off" maxlength="60" placeholder="${escapeHTML(t[ui.ph] || '')}" onkeydown="if(event.key==='Enter') quizSend()">
-              <button class="btn btn--primary" onclick="quizSend()">${escapeHTML(t.send || '')}</button>
-            </div>`
+              <input type="text" id="quiz-input" autocomplete="off" maxlength="60" placeholder="${escapeHTML(t[ui.ph] || '')}" onkeydown="if(event.key==='Enter') quizSend()"${over ? ' disabled' : ''}>
+              <button class="btn btn--primary" onclick="quizSend()"${over ? ' disabled' : ''}>${escapeHTML(t.send || '')}</button>
+            </div>
+            <div id="quiz-timeup" class="waiting-note"${over ? '' : ' hidden'}>⏱️ ${escapeHTML(t.quiz_time_up || '')}</div>`
             : `<div class="waiting-note">${escapeHTML(done ? (t.quiz_you_got_it || '') : used ? (t.quiz_one_try_used || '') : (t.vote_spectating || ''))}</div>`}
           <div id="quiz-extras"></div>
           <div id="quiz-feed" class="quiz-feed"></div>

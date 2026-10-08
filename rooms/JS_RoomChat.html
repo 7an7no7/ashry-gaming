@@ -97,7 +97,7 @@ function renderRoomChat(state, opening) {
   // «جديد» (the ideas of 7 Oct 2026, 1304): a thin line above the first message unread when the
   // sheet opened (roomChat.newFrom), kept while it stays open.
   const newLine = `<div class="chat-new" data-chat-new><span>${escapeHTML(t.chat_new || '')}</span></div>`;
-  const html = msgs.length
+  let html = msgs.length
     ? msgs.map(m => (roomChat.newFrom && m.id === roomChat.newFrom ? newLine : '') + (() => {
         if (m.sys) {
           const text = chatEventText(m, t);
@@ -113,7 +113,8 @@ function renderRoomChat(state, opening) {
             <div class="chat-msg__text ${big ? 'chat-msg__text--big' : ''}">${escapeHTML(m.text || '')}</div>
           </div>`;
       })()).join('')
-    : `<div class="empty"><span class="empty__icon" aria-hidden="true">💬</span>${escapeHTML(t.chat_empty || '')}</div>`;
+    : roomChatSending.length ? '' : `<div class="empty"><span class="empty__icon" aria-hidden="true">💬</span>${escapeHTML(t.chat_empty || '')}</div>`;
+  html += roomChatSendingHtml(t);
   if (list._chatHtml !== html) { list.innerHTML = html; list._chatHtml = html; }
   const line = opening && roomChat.newFrom ? list.querySelector('[data-chat-new]') : null;
   if (line) list.scrollTop += line.getBoundingClientRect().top - list.getBoundingClientRect().top - 8;
@@ -130,7 +131,7 @@ function paintChatComposer(state) {
   if (quick && quick.dataset.lang !== appState.lang) {
     quick.dataset.lang = appState.lang;
     quick.innerHTML = String(t.chat_quick || '').split('|').map(q => q.trim()).filter(Boolean).map(q =>
-      `<button type="button" class="chat-quick__chip" onclick="sendRoomChat('${jsStringAttr(q)}')">${escapeHTML(q)}</button>`).join('');
+      `<button type="button" class="chat-quick__chip" onclick="sendRoomChat('${jsStringAttr(q)}', this)">${escapeHTML(q)}</button>`).join('');
     if (typeof watchScrollFade === 'function') watchScrollFade(quick);
   }
 
@@ -236,26 +237,58 @@ function closeRoomChat() {
   syncRoomChat(Room.state);
 }
 
+/* Lines sent and not yet answered (the owner, 8 Oct 2026: a sent line stayed in the field and
+   nothing showed until the server): drawn faint at the foot of the list, «…» for their time,
+   until the room's own copy arrives; a refused one goes back into the field. */
+const roomChatSending = [];
+let roomChatSendSeq = 0;
+function roomChatSendingHtml(t) {
+  const st = Room.state;
+  const me = st && (st.players || []).find(p => p.id === Room.me);
+  return roomChatSending.map(m => {
+    const big = CHAT_EMOJI_ONLY.test(m.text);
+    const team = m.team && CHAT_TEAM_ICON[m.team] ? m.team : '';
+    return `
+      <div class="chat-msg is-mine ${team ? 'chat-msg--team chat-msg--' + team : ''}" aria-busy="true" style="opacity:0.6">
+        <div class="chat-msg__meta">${team ? `<span class="chat-msg__team">${CHAT_TEAM_ICON[team]} ${escapeHTML(t.chat_team_badge || '')}</span> · ` : ''}${escapeHTML((me && me.name) || '')} · <span class="metric">…</span></div>
+        <div class="chat-msg__text ${big ? 'chat-msg__text--big' : ''}">${escapeHTML(m.text)}</div>
+      </div>`;
+  }).join('');
+}
+function roomChatRepaint() {
+  if (roomChatOpen() && Room.state) renderRoomChat(Room.state);
+}
+
 /** What was typed, or a quick reaction when one is passed; to the team when that channel is chosen. */
-async function sendRoomChat(quick) {
+async function sendRoomChat(quick, chip) {
   const input = document.getElementById('chat-input');
   const typed = quick === undefined;
   const text = String(typed ? ((input && input.value) || '') : quick).trim();
   if (!text) return;
-  // The field is cleared only once the server has the line, so a second Enter (or tap
-  // on send) meanwhile would send it twice: one typed line at a time.
-  if (typed && roomChat.sending) return;
   const payload = { text: text };
   if (roomChat.to === 'team' && chatTeamOf(Room.state)) payload.to = 'team';
-  if (typed) roomChat.sending = true;
+  // The field empties at once (so a second Enter has nothing to send twice) and the line is
+  // drawn as sending; a reaction chip presses in until the room has it.
+  if (typed && input) { input.value = ''; input.focus(); }
+  if (chip) { chip.disabled = true; chip.style.transform = 'scale(0.94)'; chip.style.opacity = '0.6'; }
+  const mine = payload.to ? chatTeamOf(Room.state) : null;
+  const line = { id: ++roomChatSendSeq, text: text, team: mine ? mine.team : '' };
+  roomChatSending.push(line);
+  roomChatRepaint();
+  const list = document.getElementById('chat-list');
+  if (list && roomChatOpen()) list.scrollTop = list.scrollHeight;
   try {
     await Room.act('chat', payload);
-    if (typed && input) { input.value = ''; input.focus(); }
     playSound('tick');
   } catch (e) {
     showToast(e.message || '', 'error');
+    // The typed line back where it was, unless something new has been typed since.
+    if (typed && input && !input.value.trim()) input.value = text;
   } finally {
-    if (typed) roomChat.sending = false;
+    const i = roomChatSending.indexOf(line);
+    if (i !== -1) roomChatSending.splice(i, 1);
+    if (chip) { chip.disabled = false; chip.style.transform = chip.style.opacity = ''; }
+    roomChatRepaint();
   }
 }
 

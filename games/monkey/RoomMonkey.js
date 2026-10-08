@@ -9,7 +9,7 @@
    ========================================================================== */
 const MONKEY_ROOM_MODES = ['letters', 'chain', 'names'];
 const MONKEY_TIMERS = [0, 15, 30, 45, 60];
-const MONKEY_GRACE_MS = 1500;
+const MONKEY_GRACE_MS = 500;   // 1500 -> 500 (the owner, 8 Oct 2026: felt slow); the phone shows the end at its own 0
 
 const monkeyRoomAction = (room, playerId, action, payload) => {
   if (action === 'start' || action === 'playAgain') {

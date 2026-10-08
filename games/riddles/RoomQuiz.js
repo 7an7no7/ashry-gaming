@@ -9,7 +9,8 @@
 const QUIZ_COUNTS = [5, 10, 15, 20];
 const QUIZ_POINTS = 10;
 const QUIZ_SPEED_BONUS = 5;
-const QUIZ_GRACE_MS = 2000;
+// The phone shows «الوقت خلص» at its own 0 (JS_RoomQuiz.html); this is only the wait for an answer in flight.
+const QUIZ_GRACE_MS = 1000;   // 2000 -> 1000 (the owner, 8 Oct 2026: felt slow)
 /* The ideas of 7 Oct 2026 for كمّل المثل: `closeRetry` - a close answer is not spent, the
    player gets one more try worth half (611); `choicesMs` - after 12 s three choices come
    down for whoever hasn't answered, a right pick worth half, a wrong one spends the answer

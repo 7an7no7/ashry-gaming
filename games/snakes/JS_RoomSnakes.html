@@ -208,11 +208,14 @@ function snkRoomRoll() {
   snkHintSync(null, false);
   const btn = document.querySelector('#view-room-snakes [data-snk-roll]');
   if (btn) btn.disabled = true;
+  // The board's die tumbles on the tap, not a round trip later (the owner, 8 Oct 2026: felt slow).
+  snkTumbleStart((typeof snakesPieceOf === 'function' && snakesPieceOf(s, Room.me)) || Room.me);
   Promise.resolve(roomAct('roll', { seq: s.turnSeq })).then(() => {
     // Dropped by the server (the table was still watching): the button comes back.
     setTimeout(() => {
       if (snkRoomLocal.sent !== stamp) return;
       snkRoomLocal.sent = '';
+      snkTumbleStop(true);
       const st = Room.state;
       if (st && st.game === 'snakes' && snkShared(st).turnSeq === s.turnSeq) snkRoomIdle();
     }, 600);

@@ -53,9 +53,9 @@
                night's leaderboard banks them
    ========================================================================= */
 const TOUR_MIN = 4;             // people, not computer players
-const TOUR_DRAW_MS = 4500;      // the draw flies onto every screen before the first matches start
-const TOUR_NEXT_MS = 6000;      // a match whose two players are known starts after this
-const TOUR_REPLAY_MS = 4000;    // a drawn game is replayed after this
+const TOUR_DRAW_MS = 3000;      // the draw flies onto every screen before the first matches start; 4500 -> 3000 (the owner, 8 Oct 2026: felt slow; the flight ends by 2.1 s for 16)
+const TOUR_NEXT_MS = 3500;      // a match whose two players are known starts after this; 6000 -> 3500 (the owner, 8 Oct 2026: felt slow; the name flies in 1-1.4 s)
+const TOUR_REPLAY_MS = 2800;    // a drawn game is replayed after this; 4000 -> 2800 (the owner, 8 Oct 2026: felt slow)
 const TOUR_POINTS = [3, 2, 1];  // the champion, the runner-up, each semi-finalist
 
 /** The adapter of a winner-stays duel of RoomDuels.js (كونكت ٤, نقط ومربعات, إكس أو). */

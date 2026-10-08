@@ -64,6 +64,7 @@ const draw = {
   liveAt: 0,           // drawer: when the live line was last shared
   live: null,          // viewer: the drawer's line in progress { s, n, c, w, p }
   liveShown: false,    // viewer: that line is painted on the canvas
+  liveRaf: 0,          // viewer: the frame drawing the live line out (8 Oct 2026)
   round: null          // the round (deal) the redo list belongs to
 };
 
@@ -352,6 +353,7 @@ function paintStrokes(strokes) {
   // A line the drawer is still drawing goes back on top.
   if (draw.live && draw.live.n >= strokes.length) {
     drawStroke(ctx, draw.live, c.width);
+    draw.live.shown = draw.live.p.length;   // all of it is on the canvas now
     draw.liveShown = true;
   } else {
     draw.live = null;
@@ -693,15 +695,40 @@ function onDrawLive(d) {
   let live = draw.live;
   if (!live || live.s !== d.s) {
     if (d.i !== 0) return;       // missed its start; the finished stroke will show it
-    live = draw.live = { s: d.s, n: d.n, c: String(d.c || '#111'), w: Number(d.w) || 4, p: [] };
+    live = draw.live = { s: d.s, n: d.n, c: String(d.c || '#111'), w: Number(d.w) || 4, p: [], shown: 0, from: 0, t0: 0 };
   }
   // Pieces overlap by one point; any other start arrived out of order.
   const start = Math.max(0, live.p.length - 2);
   if (d.i !== start) return;
   const pts = d.p.map(v => Math.max(0, Math.min(DRAW_GRID, Math.round(Number(v) || 0))));
   live.p = live.p.slice(0, start).concat(pts);
-  drawStroke(draw.ctx, { c: live.c, w: live.w, p: live.p.slice(start) }, draw.canvas.width);
+  live.shown = Math.min(live.shown, live.p.length);
   draw.liveShown = true;
+  // The piece is drawn out over the next DRAW_LIVE_MS rather than at once, so
+  // the line flows under the watchers' eyes instead of jumping in chunks
+  // (the owner, 8 Oct 2026: felt slow).
+  live.from = live.shown;
+  live.t0 = performance.now();
+  if (motionOff()) { drawLiveStep(live, live.p.length); return; }
+  if (!draw.liveRaf) draw.liveRaf = requestAnimationFrame(drawLiveFrame);
+}
+
+/** Paints the live line from what is shown up to `to` (a number of its numbers). */
+function drawLiveStep(live, to) {
+  to = Math.min(live.p.length, to - (to % 2));
+  if (to <= live.shown || to - Math.max(0, live.shown - 2) < 4 || !draw.ctx || !draw.canvas) return;
+  drawStroke(draw.ctx, { c: live.c, w: live.w, p: live.p.slice(Math.max(0, live.shown - 2), to) }, draw.canvas.width);
+  live.shown = to;
+}
+
+/** One frame of the live line's easing: as much of it as DRAW_LIVE_MS has let through. */
+function drawLiveFrame(now) {
+  draw.liveRaf = 0;
+  const live = draw.live;
+  if (!live || live.shown >= live.p.length) return;
+  const k = Math.min(1, (now - live.t0) / DRAW_LIVE_MS);
+  drawLiveStep(live, live.from + Math.ceil((live.p.length - live.from) * k));
+  if (k < 1 && live.shown < live.p.length) draw.liveRaf = requestAnimationFrame(drawLiveFrame);
 }
 
 Room.onLive(onDrawLive);

@@ -25,7 +25,8 @@
    ========================================================================= */
 
 const BANK_GRACE_MS = 1500;
-const BANK_QUIET_MS = 60000;      // a turn held this long with nothing happening may be played for (JS_RoomBank.html)
+const BANK_ROOM_BOT_MS = [700, 1150];   // a computer player's beat: ROOM_BOT_DELAY_MS 1000-1700 -> 700-1150 (the owner, 8 Oct 2026: felt slow)
+const BANK_QUIET_MS = 60000;     // a turn held this long with nothing happening may be played for (JS_RoomBank.html)
 
 /** The players who would play if the game started now: the host's choice, or the first six. */
 const bankLobbySeated = (room) => lobbySeatedOf(room.players, room.shared && room.shared.lobby, BANK_MAX_PLAYERS);
@@ -277,8 +278,15 @@ ROOM_BOT_GAMES.bank = {
   pending: (room) => {
     const s = room.shared || {};
     if (s.phase !== 'play') return null;
-    if (s.offer && isRoomBot(room, s.offer.to)) return { pid: s.offer.to, key: 'offer' + s.offer.id };
-    return s.turn && s.turn.pid && isRoomBot(room, s.turn.pid) ? { pid: s.turn.pid, key: s.turnSeq + '|' + s.eventSeq } : null;
+    // ROOM_BOT_DELAY_MS 1000-1700 -> BANK_ROOM_BOT_MS 700-1150, 400 when all that is left is ending the
+    // turn (the owner, 8 Oct 2026: felt slow).
+    const [lo, hi] = BANK_ROOM_BOT_MS;
+    const beat = () => lo + Math.floor(Math.random() * (hi - lo));
+    if (s.offer && isRoomBot(room, s.offer.to)) return { pid: s.offer.to, key: 'offer' + s.offer.id, delay: beat() };
+    if (!(s.turn && s.turn.pid && isRoomBot(room, s.turn.pid))) return null;
+    const pid = s.turn.pid;
+    const ends = s.turn.stage === 'act' && !s.offer && !bankPlacesOf(s, pid).some(i => bankCanBuild(s, pid, i) || (s.own[i] && s.own[i].mort));
+    return { pid: pid, key: s.turnSeq + '|' + s.eventSeq, delay: ends ? 400 : beat() };
   },
   decide: (room, pid) => {
     const s = room.shared;

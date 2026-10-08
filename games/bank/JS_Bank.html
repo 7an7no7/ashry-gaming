@@ -335,7 +335,7 @@ function bankBarHtml(c) {
   const tn = g.turn || {};
   const mine = tn.pid === c.me && g.phase === 'play' && !c.tv;
   const name = c.names[tn.pid] || '';
-  const btn = (label, action, payload, kind, disabled) => `<button type="button" class="btn btn--${kind || 'secondary'} ${kind === 'primary' ? '' : 'btn--sm'} btn--auto" ${disabled ? 'disabled' : ''} onclick="bankDo('${action}', ${payload ? escapeHTML(JSON.stringify(payload)) : 'null'})">${escapeHTML(label)}</button>`;
+  const btn = (label, action, payload, kind, disabled) => `<button type="button" class="btn btn--${kind || 'secondary'} ${kind === 'primary' ? '' : 'btn--sm'} btn--auto" ${disabled ? 'disabled' : ''} onclick="bankDo('${action}', ${payload ? escapeHTML(JSON.stringify(payload)) : 'null'}, this)">${escapeHTML(label)}</button>`;
   let line = '';
   let sub = '';
   let buttons = '';
@@ -410,11 +410,11 @@ function bankOfferHtml(c) {
     return `<div class="card card--accent bank-offer">
         <p class="bank-offer__title">🤝 ${escapeHTML(bankT('bank_offer_from', { name: c.names[o.from] || '' }))}</p>
         <div class="bank-offer__sides"><div><span>${escapeHTML(bankT('bank_you_get'))}</span><b>${escapeHTML(give)}</b></div><div><span>${escapeHTML(bankT('bank_you_give'))}</span><b>${escapeHTML(get)}</b></div></div>
-        <div class="btn-row"><button class="btn btn--primary btn--auto" onclick="bankDo('answer', { yes: true, id: ${o.id} })">${escapeHTML(bankT('bank_accept'))}</button><button class="btn btn--ghost btn--auto" onclick="bankDo('answer', { yes: false, id: ${o.id} })">${escapeHTML(bankT('bank_refuse'))}</button></div>
+        <div class="btn-row"><button class="btn btn--primary btn--auto" onclick="bankDo('answer', { yes: true, id: ${o.id} }, this)">${escapeHTML(bankT('bank_accept'))}</button><button class="btn btn--ghost btn--auto" onclick="bankDo('answer', { yes: false, id: ${o.id} }, this)">${escapeHTML(bankT('bank_refuse'))}</button></div>
       </div>`;
   }
   if (o.from === c.me) {
-    return `<div class="bank-offer bank-offer--mine">⏳ ${escapeHTML(bankT('bank_offer_waiting', { name: c.names[o.to] || '' }))} <button class="btn btn--ghost btn--xs btn--auto" onclick="bankDo('cancelOffer')">${escapeHTML(bankT('cancel'))}</button></div>`;
+    return `<div class="bank-offer bank-offer--mine">⏳ ${escapeHTML(bankT('bank_offer_waiting', { name: c.names[o.to] || '' }))} <button class="btn btn--ghost btn--xs btn--auto" onclick="bankDo('cancelOffer', null, this)">${escapeHTML(bankT('cancel'))}</button></div>`;
   }
   return `<div class="bank-offer bank-offer--tv">🤝 ${escapeHTML(bankT('bank_offer_between', { a: c.names[o.from] || '', b: c.names[o.to] || '' }))}</div>`;
 }
@@ -440,7 +440,7 @@ function bankManageHtml(c) {
     return `<div class="bank-mrow ${o.mort ? 'is-mort' : ''}">
         <span class="bank-mrow__band" style="background:${color}"></span>
         <button type="button" class="bank-mrow__name" onclick="bankSelect(${i})">${escapeHTML(bankSqName(i))}<small>${escapeHTML(status)}</small></button>
-        <span class="bank-mrow__acts">${acts.map(a => `<button type="button" class="btn btn--${a[2]} btn--xs btn--auto" ${a[3] ? 'disabled' : ''} onclick="bankDo('${a[1]}', { sq: ${i} })">${escapeHTML(a[0])}</button>`).join('')}</span>
+        <span class="bank-mrow__acts">${acts.map(a => `<button type="button" class="btn btn--${a[2]} btn--xs btn--auto" ${a[3] ? 'disabled' : ''} onclick="bankDo('${a[1]}', { sq: ${i} }, this)">${escapeHTML(a[0])}</button>`).join('')}</span>
       </div>`;
   }).join('');
   return `<div class="bank-panel">
@@ -685,9 +685,9 @@ function bankCurrentGame() {
 function bankCurrentMe() { return appState.currentView === 'play-bank' ? 'me' : (typeof Room !== 'undefined' ? Room.me : null); }
 
 /** A button on the board or in the bar: the game against the phone, or the room. */
-function bankDo(action, payload) {
+function bankDo(action, payload, btn) {
   if (appState.currentView === 'play-bank') return bankLocalDo(action, payload || {});
-  if (typeof bankRoomDo === 'function') return bankRoomDo(action, payload || {});
+  if (typeof bankRoomDo === 'function') return bankRoomDo(action, payload || {}, btn);
 }
 
 /* --- «🪄 غطّي الدين» (the owner's pick 970, 7 Oct 2026) ------------------------------------------

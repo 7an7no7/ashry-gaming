@@ -46,8 +46,9 @@ const PROGRAM_PLACE_POINTS = NIGHT_PLACES;   // 1st, 2nd, 3rd: 5, 3, 2 (the nigh
 const PROGRAM_PLAYED_POINTS = NIGHT_PLAYED;  // everyone else who played: 1
 const PROGRAM_FIRST_MS = 8000;            // the line-up before the first game
 const PROGRAM_BETWEEN_MS = 10000;         // the standings card between two games
-const PROGRAM_RESULT_MS = 9000;           // a game's own result, before the standings
-const PROGRAM_RESULT_LONG = { telephone: 6000, witness: 12000, box: 12000, hear: 12000, mafia: 12000 };
+const PROGRAM_RESULT_MS = 6000;           // a game's own result, before the standings: 9000 -> 6000 (the owner, 8 Oct 2026: felt slow)
+// The long ones 12000 -> 9000 (the owner, 8 Oct 2026: felt slow); ارسم واكتب keeps its 6 s.
+const PROGRAM_RESULT_LONG = { telephone: 6000, witness: 9000, box: 9000, hear: 9000, mafia: 9000 };
 const PROGRAM_OPTS_MAX = 4000;            // characters of one game's start payload
 const PROGRAM_AWARDS_MAX = 8;
 const PROGRAM_AWARDS_EACH = 2;            // awards one person can take

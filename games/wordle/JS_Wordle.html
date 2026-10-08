@@ -437,21 +437,43 @@ function foldWordleWord(word) {
     return String(word).replace(/[أإآ]/g, 'ا');
 }
 
+/**
+ * The row being typed, redrawn in place while the row above still turns over: a whole
+ * redraw would replace the turning row and cut its flip (the owner, 8 Oct 2026: keys
+ * typed during the flip used to be dropped). `pop` as in renderWordleBoard.
+ */
+function wordlePaintTypingRow(pop) {
+    const row = document.querySelectorAll('#wordle-grid .wordle-row')[appState.wordle.guesses.length];
+    if (!row) { renderWordleBoard({ pop: pop }); return; }
+    let html = '';
+    for (let i = 0; i < appState.wordle.wordLength; i++) {
+        const char = appState.wordle.currentGuess[i];
+        html += char
+            ? `<div class="wordle-cell wordle-cell--filled${pop === i ? ' animate-pop' : ''}">${char}</div>`
+            : '<div class="wordle-cell wordle-cell--empty"></div>';
+    }
+    row.innerHTML = html;
+}
+
 function handleWordleKey(key) {
     if(appState.wordle.status !== 'playing') return;
-    if (Date.now() < wordleRevealUntil) return;     // the last row is still turning over
+    // The last row still turning over: letters go into the next row at once (drawn in
+    // place, so the flip goes on); only Enter waits for the row to land.
+    const turning = Date.now() < wordleRevealUntil;
 
     if(key === 'ENTER') {
+        if (turning) return;
         submitWordleGuess();
     } else if(key === 'BACK') {
         if(appState.wordle.currentGuess.length > 0) {
             appState.wordle.currentGuess = appState.wordle.currentGuess.slice(0, -1);
-            renderWordleBoard();
+            if (turning) wordlePaintTypingRow(); else renderWordleBoard();
         }
     } else {
         if(appState.wordle.currentGuess.length < appState.wordle.wordLength) {
             appState.wordle.currentGuess += foldWordleWord(key);
-            renderWordleBoard({ pop: appState.wordle.currentGuess.length - 1 });
+            const pop = appState.wordle.currentGuess.length - 1;
+            if (turning) wordlePaintTypingRow(pop); else renderWordleBoard({ pop: pop });
         }
     }
 }

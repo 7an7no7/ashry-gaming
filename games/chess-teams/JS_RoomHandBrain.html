@@ -116,25 +116,35 @@ function hbTickStop() { if (hbLocal.tick) clearInterval(hbLocal.tick); hbLocal.t
 
 /* --- the Brain and the Hand ------------------------------------------------------------------- */
 
-function hbNameKind(kind) {
+function hbNameKind(kind, btn) {
   const state = Room.state;
   const s = hbShared(state);
   if (!state || s.phase !== 'play' || s.stage !== 'name' || hbActorOf(state) !== Room.me) return;
   if (hbKindsOf(s.chess.g).indexOf(kind) === -1) { chSound('refuse'); return; }
   haptic('light');
-  roomAct('name', { kind: kind, n: s.chess.moves });
+  // The tapped kind lit at once, the others off, until the server's answer (the owner, 8 Oct 2026: felt slow).
+  const row = btn && btn.closest('.hb-kinds');
+  const all = row ? [...row.querySelectorAll('.hb-kind')] : [];
+  const was = all.map(b => b.disabled);
+  all.forEach(b => { b.disabled = true; });
+  if (btn) { btn.classList.add('is-picked'); btn.setAttribute('aria-pressed', 'true'); btn.style.opacity = '1'; }
+  Room.act('name', { kind: kind, n: s.chess.moves }).catch((err) => {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    all.forEach((b, i) => { b.disabled = was[i]; });
+    if (btn) { btn.classList.remove('is-picked'); btn.removeAttribute('aria-pressed'); btn.style.opacity = ''; }
+  });
 }
 
 /* --- a wrong call taken back (the review of 1 Oct 2026) ---------------------------------
    The Brain may change the call for 3 s, or until the Hand picks up a piece
    ('recall' / 'touch' in RoomHandBrain.js, both carrying the call's number). */
-const HB_RECALL_PAGE_MS = 3000;     // as HB_RECALL_MS in RoomHandBrain.js
+const HB_RECALL_PAGE_MS = 3000;     // as HB_RECALL_MS in RoomHandBrain.js; the call's own s.named.ms when it carries one (1 s for a computer Hand or a forced move)
 
 /** How long the Brain may still change the call (by the server's time), or 0. */
 function hbRecallLeft(state) {
   const s = hbShared(state);
   if (s.phase !== 'play' || s.stage !== 'move' || !s.named || s.named.touched || typeof s.named.at !== 'number' || !s.chess || s.chess.result) return 0;
-  return Math.max(0, s.named.at + HB_RECALL_PAGE_MS - roomServerNow());
+  return Math.max(0, s.named.at + (s.named.ms || HB_RECALL_PAGE_MS) - roomServerNow());
 }
 
 function hbRecallKind(kind) {
@@ -371,7 +381,7 @@ function hbBarHtml(state) {
     const side = bd.g.turn ? 8 : 0;
     parts.push(`<div class="hb-kinds" role="group" aria-label="${escapeHTML(chT('hb_you_brain'))}">${HB_NAME_ORDER.map(k => {
       const on = kinds.indexOf(k) !== -1;
-      return `<button type="button" class="hb-kind" ${on ? '' : 'disabled'} onclick="hbNameKind(${k})">
+      return `<button type="button" class="hb-kind" ${on ? '' : 'disabled'} onclick="hbNameKind(${k}, this)">
           <span class="hb-kind__pc" aria-hidden="true">${chPieceSvg(k | side)}</span><span class="hb-kind__name">${escapeHTML(hbPieceName(k))}</span>
         </button>`;
     }).join('')}</div>`);

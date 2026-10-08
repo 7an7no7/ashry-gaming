@@ -203,10 +203,26 @@ function sklFlip(pid) {
   if (!st || !sklMine(st) || sklS(st).phase !== 'flip') return;
   const s = sklS(st);
   const key = s.turnSeq + '|' + pid;
-  if (sklLocal.sent === key) return;
+  if (sklLocal.sent === key || sklLocal.flipping) return;
   sklLocal.sent = key;
+  sklLocal.flipping = true;
   haptic('medium');
-  roomAct('flip', { target: pid, seq: s.turnSeq });
+  // The pile's top disc lifts at once and the pile stops pulsing, until the room answers
+  // (it used to show nothing for the round trip; the owner, 8 Oct 2026: felt slow).
+  const pile = document.querySelector('#view-room-skull [data-pc-at="pile:' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]');
+  const top = pile ? pile.querySelector('.skl-pile__disc:last-of-type') : null;
+  if (pile) { pile.classList.add('is-sent'); pile.style.animation = 'none'; }
+  if (top) { top.style.translate = '0 -0.7rem'; top.style.transition = 'translate 120ms ease-out'; }
+  const undo = () => {
+    sklLocal.flipping = false;
+    if (pile) { pile.classList.remove('is-sent'); pile.style.animation = ''; }
+    if (top) { top.style.translate = ''; top.style.transition = ''; }
+  };
+  Room.act('flip', { target: pid, seq: s.turnSeq }).then(undo, (err) => {
+    undo();
+    if (sklLocal.sent === key) sklLocal.sent = '';
+    if (!err || !err.quiet) showToast((err && err.message) || 'تعذر تنفيذ الإجراء', 'error');
+  });
 }
 
 function sklLose(btn) {

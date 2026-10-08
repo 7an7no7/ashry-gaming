@@ -77,7 +77,12 @@ function mafiaTickClock(s) {
   if (mafiaLocal.clockKey === s.endsAt && mafiaLocal.clock && mafiaLocal.clock.isRunning()) return;
   mafiaStopClock();
   mafiaLocal.clockKey = s.endsAt;
-  mafiaLocal.clock = createClock({ seconds: Math.max(1, Math.ceil((s.endsAt - roomServerNow()) / 1000)), onTick: paint, onEnd: paint });
+  // At the phone's own 0 it says so at once; the server's night or vote follows a moment later (8 Oct 2026).
+  const over = () => {
+    const t = TRANSLATIONS[appState.lang] || {};
+    ['mafia-clock', 'tv-mafia-clock'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = t.mafia_time_up || '0:00'; });
+  };
+  mafiaLocal.clock = createClock({ seconds: Math.max(1, Math.ceil((s.endsAt - roomServerNow()) / 1000)), onTick: paint, onEnd: over });
 }
 
 function mafiaStopClock() {
@@ -262,7 +267,7 @@ function mafiaNightHtml(state, t) {
     <div class="card mafia-night">
       <div class="mafia-night__task">🌙 ${escapeHTML(heading)}</div>
       <div class="mafia-targets">
-        ${targets.map(id => `<button type="button" class="mafia-target${you.pick === id ? ' is-on' : ''}" onclick="mafiaNightTap('${jsStringAttr(id)}')">
+        ${targets.map(id => `<button type="button" class="mafia-target${you.pick === id ? ' is-on' : ''}" onclick="mafiaNightTap('${jsStringAttr(id)}', this)">
             ${escapeHTML(mafiaNameOf(state, id))}${id === Room.me ? ` <span class="badge">${escapeHTML(t.vote_you || '')}</span>` : ''}</button>`).join('')}
       </div>
       <p class="field__hint" style="text-align:center">${you.pick ? '✓ ' + escapeHTML(picked) : '&nbsp;'}</p>
@@ -274,7 +279,7 @@ function mafiaNightHtml(state, t) {
  * own, the Detective's second check or themselves, the Doctor's last save) is
  * dropped here without a word: an error on screen would say the role out loud.
  */
-function mafiaNightTap(id) {
+function mafiaNightTap(id, btn) {
   const st = Room.state;
   const s = st && st.game === 'mafia' && st.shared;
   if (!s || s.phase !== 'night') return;
@@ -284,8 +289,20 @@ function mafiaNightTap(id) {
   if (you.role === 'detective' && (id === Room.me || you.pick)) return;
   if (you.role === 'doctor' && id === you.lastSave) return;
   if (you.pick === id) return;
+  // The name lights at once, before the server answers (the owner, 8 Oct 2026:
+  // felt slow); the next state draws the real pick, a failure puts it back.
+  const list = btn && btn.closest ? btn.closest('.mafia-targets') : null;
+  const was = list ? [...list.querySelectorAll('.mafia-target.is-on')] : [];
+  if (list) {
+    was.forEach(b => b.classList.remove('is-on'));
+    btn.classList.add('is-on');
+  }
   // A failure says only that it failed: the server's reason can name the role.
   Room.act('nightPick', { target: id }).catch(() => {
+    if (list && btn.isConnected) {
+      btn.classList.remove('is-on');
+      was.forEach(b => b.classList.add('is-on'));
+    }
     const t = TRANSLATIONS[appState.lang] || {};
     showToast(t.room_action_failed || (appState.lang === 'en' ? "That didn't go through, try again" : 'ماوصلش، جرّب تاني'), 'error');
   });

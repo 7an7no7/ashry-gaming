@@ -378,7 +378,25 @@ async function missionDone() {
   const me = st && st.mission && st.mission.me;
   if (!me) return;
   missionHoldUp();
-  try { await Room.act('missionDone', { n: me.n }); haptic('medium'); } catch (err) { showToast(err.message || '', 'error'); }
+  // The file goes to its waiting look at once - the stamp, its line, the buzz - not when the
+  // server answers (the owner, 8 Oct 2026: felt slow); all put back if it refuses.
+  const wrap = document.querySelector('.msn-file-wrap');
+  const acts = wrap ? Array.from(wrap.querySelectorAll('.msn-acts button')) : [];
+  const was = acts.map(b => b.disabled);
+  const line = wrap && wrap.querySelector('.msn-state');
+  const lineWas = line ? line.textContent : '';
+  if (wrap) wrap.classList.add('is-waiting');
+  acts.forEach(b => { b.disabled = true; });
+  if (line) line.textContent = missionT().mission_state_wait || '';
+  haptic('medium');
+  try { await Room.act('missionDone', { n: me.n }); } catch (err) {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    if (wrap && wrap.isConnected) {
+      wrap.classList.remove('is-waiting');
+      acts.forEach((b, i) => { b.disabled = was[i]; });
+      if (line) line.textContent = lineWas;
+    }
+  }
 }
 function missionCancel() { roomAct('missionCancel', {}); }
 async function missionSwap() {
@@ -839,7 +857,9 @@ function missionTvSync(state) {
   el.innerHTML = missionTvRevealHtml(state);
   document.body.appendChild(el);
   const lines = el.querySelectorAll('.msn-strings line').length;
-  const champAt = (typeof motionOff === 'function' && motionOff()) ? 0 : Math.min(12000, 1500 + lines * 800 + 2500);
+  // The champion right after the last string, not 4 s of an empty board later:
+  // 1500 + lines × 800 + 2500 -> (lines − 1) × 800 + 500 + 2000 (the owner, 8 Oct 2026: felt slow).
+  const champAt = (typeof motionOff === 'function' && motionOff()) ? 0 : Math.min(12000, lines ? (lines - 1) * 800 + 500 + 2000 : 800);
   setTimeout(() => {
     const box = document.getElementById('msn-tv-reveal');
     if (!box) return;

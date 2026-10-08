@@ -903,7 +903,7 @@ function skrPickFocusOf(state, pick) {
 function skrPickFocus(pid) {
   const state = Room.state;
   const pick = skrLocal.pick;
-  if (!state || !pick) return;
+  if (!state || !pick || pick.sent) return;
   const target = skrPickTargets(state, pick).find(x => x.pid === pid);
   if (!target || !target.ok) return;
   const need = skrNeed(pick);
@@ -1101,6 +1101,7 @@ function skrStartPick(kind) {
 }
 
 function skrCancelPick() {
+  if (skrPickSent()) return;
   const pick = skrLocal.pick;
   // A power's own pick goes back a step (the choice of على كيفك / كعب داير) or starts over.
   skrLocal.pick = pick && pick.kind === 'power' && pick.as ? skrNewPick('power', { power: 'asYouLike' }) : null;
@@ -1108,7 +1109,7 @@ function skrCancelPick() {
 }
 
 function skrPickMode(mode) {
-  if (!skrLocal.pick) return;
+  if (!skrLocal.pick || skrPickSent()) return;
   const st = Room.state;
   const mine = st ? (((st.shared || {}).hands || {})[Room.me] || []).length : 2;
   skrLocal.pick.mode = mode;
@@ -1126,7 +1127,7 @@ function skrAsYouLikeChoices(state) {
 
 /** Nothing on the pile to copy: على كيفك goes down as a plain بصرة. */
 function skrPickAsBasra() {
-  if (!skrLocal.pick) return;
+  if (!skrLocal.pick || skrPickSent()) return;
   skrLocal.pick = skrNewPick('power', { power: 'basra', as: '' });
   haptic('light');
   skrRedraw();
@@ -1134,7 +1135,7 @@ function skrPickAsBasra() {
 
 /** Points at one of them: the card, so the table can see what was copied. */
 function skrPickAs(card) {
-  if (!skrLocal.pick || skrAsYouLikeChoices(Room.state).indexOf(card) === -1) return;
+  if (!skrLocal.pick || skrPickSent() || skrAsYouLikeChoices(Room.state).indexOf(card) === -1) return;
   const power = (SKREW_CARDS[card] || {}).power;
   if (!power) return;
   skrLocal.pick = skrPickOnly(skrNewPick('power', { power: power, as: card }));
@@ -1144,7 +1145,7 @@ function skrPickAs(card) {
 
 function skrPickIndex(i) {
   const pick = skrLocal.pick;
-  if (!pick || pick.kind !== 'khoshaf') return;
+  if (!pick || pick.kind !== 'khoshaf' || pick.sent) return;
   if (pick.index === i) { skrConfirm(); return; }
   pick.index = i;
   haptic('light');
@@ -1156,6 +1157,7 @@ function skrTapSlot(owner, slot) {
   const state = Room.state;
   if (!state || state.game !== 'screw') return;
   const pick = skrLocal.pick;
+  if (pick && pick.sent) return;
   if (!pick || !skrSlotOk(state, pick, owner, slot)) { skrSlotToast(state, owner, slot); return; }
   const need = skrNeed(pick);
   if (pick.kind === 'match') {
@@ -1202,7 +1204,7 @@ function skrTapSlot(owner, slot) {
 function skrTapSeat(pid) {
   const state = Room.state;
   const pick = skrLocal.pick;
-  if (!state || !pick || !skrSeatOk(state, pick, pid)) return;
+  if (!state || !pick || pick.sent || !skrSeatOk(state, pick, pid)) return;
   pick.player = pick.player === pid ? null : pid;
   haptic('light');
   skrRedraw();
@@ -1228,13 +1230,27 @@ function skrSlotToast(state, owner, slot) {
 async function skrConfirm() {
   const state = Room.state;
   const pick = skrLocal.pick;
-  if (!state || !pick || !skrPickReady(state, pick)) return;
+  if (!state || !pick || pick.sent || !skrPickReady(state, pick)) return;
   const [action, payload] = skrPickPayload(state, pick);
   if (!action) return;
-  skrLocal.pick = null;
+  // The pick stays drawn, marked sent (confirm greyed, the rest dimmed), until the room
+  // answers. It used to be cleared first, so for the round trip the bar went back to the
+  // turn's first buttons, live - as if the move had been undone (the owner, 8 Oct 2026: felt slow).
+  pick.sent = true;
   haptic('medium');
   skrRedraw();
-  await roomAct(action, payload);
+  try {
+    await Room.act(action, payload);
+  } catch (err) {
+    if (!err || !err.quiet) showToast((err && err.message) || 'تعذر تنفيذ الإجراء', 'error');
+  }
+  // Answered or refused: the sent pick goes (the new state has usually reset it already).
+  if (skrLocal.pick === pick) { skrLocal.pick = null; skrRedraw(); }
+}
+
+/** A pick already sent takes no more taps until the room answers. */
+function skrPickSent() {
+  return !!(skrLocal.pick && skrLocal.pick.sent);
 }
 
 /* --- the table, piece by piece ------------------------------------------------------ */
@@ -1275,8 +1291,8 @@ function skrSlotHtml(state, owner, h, ctx, index) {
   const hist = ctx.help ? skrHistory(state, h, ctx.marks) : null;
   const cls = ['skr-slot'];
   if (pick) {
-    if (skrSlotPicked(pick, owner, h.id)) cls.push('is-picked');
-    else if (skrSlotOk(state, pick, owner, h.id)) cls.push('is-target');
+    if (skrSlotPicked(pick, owner, h.id)) cls.push(pick.sent ? 'is-picked is-sent' : 'is-picked');
+    else if (!pick.sent && skrSlotOk(state, pick, owner, h.id)) cls.push('is-target');
     else cls.push('is-dim');
   }
   if (face) cls.push('is-up');
@@ -1338,7 +1354,8 @@ function skrSeatHtml(state, pid, ctx) {
   if (flash) cls.push('is-flash');
   const pick = ctx.pick;
   const seatTarget = pick && skrSeatOk(state, pick, pid);
-  if (seatTarget) cls.push(pick.player === pid ? 'is-picked' : 'is-target');
+  if (seatTarget && pick.player === pid) cls.push(pick.sent ? 'is-picked is-sent' : 'is-picked');
+  else if (seatTarget && !pick.sent) cls.push('is-target');
   const last = ctx.help ? skrLastMove(state, pid) : '';
   const lastHtml = last ? `<span class="skr-seat__last">${escapeHTML(last)}</span>` : '';
   // Seat layout أ: the avatar, the name and the signs on one line above the cards (on the TV the last move too).
@@ -1399,7 +1416,7 @@ function skrTargetsHtml(state, pick, ctx) {
     if (need.other ? focus === x.pid : picked) cls.push('is-focus');
     if (need.other && picked) cls.push('is-done');
     const sign = x.guarded ? '🔒' : need.other && picked ? '✓' : need.other ? `<small class="metric">${x.cards}</small>` : '';
-    return `<button type="button" class="${cls.join(' ')}" ${x.ok ? '' : 'disabled'} aria-pressed="${cls.indexOf('is-focus') !== -1}" onclick="skrPickFocus('${jsStringAttr(x.pid)}')">${skrTeamDot(s, x.pid)}<span class="skr-target__name">${escapeHTML(skrName(state, x.pid, true))}</span>${sign ? `<span class="skr-target__sign">${sign}</span>` : ''}</button>`;
+    return `<button type="button" class="${cls.join(' ')}" ${x.ok && !pick.sent ? '' : 'disabled'} aria-pressed="${cls.indexOf('is-focus') !== -1}" onclick="skrPickFocus('${jsStringAttr(x.pid)}')">${skrTeamDot(s, x.pid)}<span class="skr-target__name">${escapeHTML(skrName(state, x.pid, true))}</span>${sign ? `<span class="skr-target__sign">${sign}</span>` : ''}</button>`;
   }).join('');
   const progress = each ? `<span class="badge metric">${pick.other.length}/${okCount}</span>` : '';
   let cards = '';
@@ -1610,8 +1627,8 @@ function skrPickBarHtml(state, pick, ctx) {
       + partners.map(pid => skrPartnerRowHtml(state, pid, ctx || {})).join('');
     body = `${rows}${ready && summary ? `<p class="skr-summary">${escapeHTML(summary)}</p>` : ''}
       <div class="btn-row">
-        <button type="button" class="btn btn--primary" onclick="skrConfirm()" ${ready ? '' : 'disabled'}>✓ ${escapeHTML(t.confirm || 'تأكيد')}</button>
-        <button type="button" class="btn btn--ghost btn--auto" onclick="skrCancelPick()">${escapeHTML(t.cancel || 'إلغاء')}</button>
+        <button type="button" class="btn btn--primary${pick.sent ? ' is-pending' : ''}" onclick="skrConfirm()" ${ready && !pick.sent ? '' : 'disabled'}>${pick.sent ? '⏳' : '✓'} ${escapeHTML(t.confirm || 'تأكيد')}</button>
+        <button type="button" class="btn btn--ghost btn--auto" onclick="skrCancelPick()" ${pick.sent ? 'disabled' : ''}>${escapeHTML(t.cancel || 'إلغاء')}</button>
       </div>`;
   }
   const guardNote = need.guarded && s.caller ? `<p class="skr-hint">🔒 ${escapeHTML(skrProtected(s).length > 1
@@ -1626,8 +1643,8 @@ function skrKhoshafHtml(state, pick) {
   const t = TRANSLATIONS[appState.lang] || {};
   const cards = (state.you || {}).khoshaf || [];
   return `<p class="skr-prompt is-mine">🥣 ${escapeHTML(skrT('skr_khoshaf_pick', 'اختار كارت من الأربعة، والباقي يروح تحت الورق', 'Take one of the four; the rest go under the deck'))}</p>
-    <div class="skr-khoshaf">${cards.map((c, i) => `<button type="button" class="skr-pickcard ${pick && pick.index === i ? 'is-picked' : ''}" onclick="skrPickIndex(${i})">${skrCardHtml(c, { size: 'lg' })}</button>`).join('')}</div>
-    <button type="button" class="btn btn--primary" onclick="skrConfirm()" ${skrPickReady(state, pick) ? '' : 'disabled'}>✓ ${escapeHTML(t.confirm || 'تأكيد')}</button>`;
+    <div class="skr-khoshaf">${cards.map((c, i) => `<button type="button" class="skr-pickcard ${pick && pick.index === i ? (pick.sent ? 'is-picked is-sent' : 'is-picked') : ''}" ${pick && pick.sent ? 'disabled' : ''} onclick="skrPickIndex(${i})">${skrCardHtml(c, { size: 'lg' })}</button>`).join('')}</div>
+    <button type="button" class="btn btn--primary${pick && pick.sent ? ' is-pending' : ''}" onclick="skrConfirm()" ${skrPickReady(state, pick) && !pick.sent ? '' : 'disabled'}>${pick && pick.sent ? '⏳' : '✓'} ${escapeHTML(t.confirm || 'تأكيد')}</button>`;
 }
 
 /* --- بوم: every other player throws one of their own cards ---------------------------- */

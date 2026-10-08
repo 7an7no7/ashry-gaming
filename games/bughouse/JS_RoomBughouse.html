@@ -32,7 +32,7 @@
 
 // drop: the piece of your hand picked up (a letter); sel: the board piece picked up; early: your
 // move drawn before the server answers; swap: the partner's board big; seenGive: captures already flown.
-const bhLocal = { drop: '', sel: '', selKey: '', early: null, offset: null, seenAt: null, tick: null, waitStart: false, swap: false, seenGive: {}, seenDrop: {}, lastTick: 0, turnSince: {}, hostTimer: null, handSeen: '' };
+const bhLocal = { drop: '', sel: '', selKey: '', early: null, offset: null, seenAt: null, tick: null, waitStart: false, swap: false, seenGive: {}, seenDrop: {}, lastTick: 0, turnSince: {}, hostTimer: null, handSeen: '', startTimer: null };
 
 const BH_KINDS = ['q', 'r', 'b', 'n', 'p'];
 
@@ -64,6 +64,41 @@ function bhNoteClock(state) {
 function bhStarted(state) {
   const s = bhShared(state);
   return !s.startAt || Date.now() - (bhLocal.offset || 0) >= s.startAt;
+}
+
+/** The look's whole seconds left (3, 2, 1), or 0 once the clocks run. */
+function bhLookLeft(state) {
+  const s = bhShared(state);
+  if (s.phase !== 'play' || !s.startAt) return 0;
+  return Math.max(0, Math.ceil((s.startAt - (Date.now() - (bhLocal.offset || 0))) / 1000));
+}
+
+/**
+ * The look at the boards: its 3-2-1 in the status line, and the boards opened to taps the moment it ends,
+ * not on the next tick (the owner, 8 Oct 2026: «دورك» with a board that ignored taps felt slow).
+ */
+function bhLookArm(state) {
+  if (bhLocal.startTimer) clearTimeout(bhLocal.startTimer);
+  bhLocal.startTimer = null;
+  const s = bhShared(state);
+  if (s.phase !== 'play' || bhStarted(state)) return;
+  const ms = s.startAt - (Date.now() - (bhLocal.offset || 0));
+  bhLocal.startTimer = setTimeout(() => {
+    bhLocal.startTimer = null;
+    const st = Room.state;
+    if (!st || st.game !== 'bughouse' || !bhShared(st).boards) return;
+    if (!bhStarted(st)) { bhLookArm(st); return; }
+    bhLocal.waitStart = false;
+    if (appState.currentView === 'room-bughouse' || appState.currentView === 'room-tv') bhRedraw(true);
+  }, Math.max(0, ms) + 5);
+}
+
+/** The look's count painted in place (from the clocks' tick). */
+function bhLookPaint(st) {
+  const n = bhLookLeft(st);
+  if (!n) return;
+  const txt = chT('bh_look', { n });
+  document.querySelectorAll('#view-room-bughouse .bh-status, #view-room-tv .bh-tv__status').forEach(p => { if (p.textContent !== txt) p.textContent = txt; });
 }
 
 function bhClockLeft(state, b, side) {
@@ -130,6 +165,7 @@ function bhTickStart() {
     const s = bhShared(st);
     // The look at the boards is over: the board takes moves now.
     if (bhLocal.waitStart && bhStarted(st)) { bhLocal.waitStart = false; bhRedraw(true); }
+    else if (bhLocal.waitStart) bhLookPaint(st);
     if (v !== 'room-bughouse') return;
     const seat = bhSeat(st);
     if (s.phase !== 'play' || seat < 0) return;
@@ -511,6 +547,7 @@ const bhBoardName = (b) => chT('bh_board', { n: String(b + 1) });
 function bhStatus(state, forTv) {
   const s = bhShared(state);
   if (s.phase === 'over' && s.result) return bhResultLine(state);
+  if (bhLookLeft(state)) return chT('bh_look', { n: bhLookLeft(state) });
   const seat = forTv ? -1 : bhSeat(state);
   if (seat < 0) return chT('bh_watch_status');
   const b = seat >> 1;
@@ -637,6 +674,7 @@ function bhRender(state, still) {
   const o = bhOrient(state, big);
   const liveMe = seat >= 0 && (seat >> 1) === big && s.phase === 'play' && bhBoardView(state, big).g.turn === (seat & 1) && !bhLocal.early && bhStarted(state);
   if (s.phase === 'play' && !bhStarted(state)) bhLocal.waitStart = true;
+  bhLookArm(state);
   chViewShow(el.querySelector('[data-ch-host]'), bhModel(state, big, still));
   const myTurn = liveMe;
   bhSetHtml(el, '[data-bh-head]', `<p class="duel-status bh-status ${s.phase === 'over' ? 'is-done' : ''} ${myTurn ? 'is-mine' : ''}">${escapeHTML(bhStatus(state))}</p>${bhSubsHtml(state)}`);
@@ -746,6 +784,8 @@ ROOM_GAMES.bughouse = {
 
 onRoomClocksReset(() => {
   bhTickStop();
+  if (bhLocal.startTimer) clearTimeout(bhLocal.startTimer);
+  bhLocal.startTimer = null;
   bhLocal.sel = '';
   bhLocal.drop = '';
   bhLocal.early = null;
@@ -786,13 +826,14 @@ TV_GAMES.bughouse = {
       if (box._bhHtml !== html) { box.innerHTML = html; box._bhHtml = html; }
     });
     const over = s.phase === 'over' && s.result;
-    bhSetHtml(view, '[data-bh-tvhead]', `<div class="tv-title tv-center-text bh-tv__status">${escapeHTML(over ? bhResultLine(state) : chT('bh_tv_status'))}</div>${bhSubsHtml(state)}`);
+    bhSetHtml(view, '[data-bh-tvhead]', `<div class="tv-title tv-center-text bh-tv__status">${escapeHTML(over ? bhResultLine(state) : bhLookLeft(state) ? chT('bh_look', { n: bhLookLeft(state) }) : chT('bh_tv_status'))}</div>${bhSubsHtml(state)}`);
     const foot = [];
     foot.push(bhHostRow(state, true));
     if (over && state.youAreHost) foot.push(`<div class="tv-actions">${tvBtn('🔁 ' + chT('bh_again'), 'bhPlayAgain()', 'primary')}</div>`);
     bhSetHtml(view, '[data-bh-tvfoot]', foot.join(''));
     bhPaintClocks(state);
     if (s.phase === 'play' && !bhStarted(state)) bhLocal.waitStart = true;
+    bhLookArm(state);
     if (s.phase === 'play') bhTickStart(); else bhTickStop();
     bhPlayMotion(view, state, -1);
     if (over && motionFirst('bhtvover|' + roomDealKey(state) + '|' + s.round)) {

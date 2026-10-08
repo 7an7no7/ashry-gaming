@@ -1092,7 +1092,9 @@ function snkFrame(now) {
   c.time = t;
   snkStillNow = snkStill();
   const resting = !c.animating && !c.building;
-  if (!resting || now - snkView.lastFrame > 78) {
+  // At rest: 78 -> 45 ms on a phone, 33 on the TV (the owner, 8 Oct 2026: the sway looked choppy).
+  const restMs = document.body.classList.contains('is-tv-view') ? 33 : 45;
+  if (!resting || now - snkView.lastFrame > restMs) {
     snkView.lastFrame = now;
     const draw = c.th ? c.th.renderDown : snkRenderSnake;
     c.snakes.forEach(sn => draw(c, sn, t));
@@ -1275,8 +1277,40 @@ async function snkHopTo(c, g, p, to, passQ) {
   return true;
 }
 
+/** In a room the die starts tumbling over your piece on the tap, before the server's answer (the owner,
+ *  8 Oct 2026: a tap that showed nothing felt slow); snkRollDie takes it over with the real value, and
+ *  a tap the server dropped puts it away (snkTumbleStop(true)). */
+let snkTumbleRun = null;
+function snkTumbleStart(pid) {
+  snkTumbleStop(false);
+  const c = snkView.c, p = c && c.players[pid];
+  if (!c || !c.die || !p || motionOff()) return;
+  const d = c.die, pips = d.querySelector('.snk-pips');
+  const x = snkClamp(p.x, 30, 570), y = Math.max(20, p.y - 62), t0 = performance.now();
+  const run = { raf: 0, c: c, d: d, last: 0, until: t0 + 4000 };
+  d.setAttribute('opacity', 1);
+  const step = now => {
+    if (snkTumbleRun !== run) return;
+    if (snkView.c !== c || now > run.until) { snkTumbleStop(true); return; }
+    const r = (now - t0) / 1000;
+    if (now - run.last > 70) { run.last = now; pips.innerHTML = snkPipsSvg(1 + Math.floor(Math.random() * 6)); }
+    snkTR(d, x, y - Math.abs(Math.sin(r * Math.PI * 2.5)) * 12, 1.1, r * 540);
+    run.raf = requestAnimationFrame(step);
+  };
+  snkTumbleRun = run;
+  run.raf = requestAnimationFrame(step);
+}
+function snkTumbleStop(hide) {
+  const run = snkTumbleRun;
+  if (!run) return;
+  snkTumbleRun = null;
+  cancelAnimationFrame(run.raf);
+  if (hide) run.d.setAttribute('opacity', 0);
+}
+
 async function snkRollDie(c, g, p, v) {
   const d = c.die, pips = d.querySelector('.snk-pips');
+  snkTumbleStop(false);
   d.setAttribute('opacity', 1);
   const x = snkClamp(p.x, 30, 570), y = Math.max(20, p.y - 62);
   snkSound(c, 'ludoRoll', p.mine);
@@ -3904,8 +3938,8 @@ function snkSyncIdle(root, k) {
     if (t1 && t1.textContent !== lines[0]) t1.textContent = lines[0];
     if (t2 && t2.textContent !== (lines[1] || '')) t2.textContent = lines[1] || '';
     if (dot) dot.style.background = SNK_HEX[k.g.colors[up]] || 'transparent';
-    // Your roll button waits out of sight while someone else's roll is still being shown.
-    if (btn) btn.classList.toggle('hidden', !!playing && up !== k.me);
+    // Your roll button stays in its place, greyed (disabled above), while someone else's roll is still
+    // being shown: it used to be hidden and pop into the bar (the owner, 8 Oct 2026: felt slow).
   }
   const reach = !k.tv && !!btn && ready && !playing && k.g.phase === 'play' && !!k.g.turn && k.g.turn.pid === k.me;
   snkHintSync(k, reach);

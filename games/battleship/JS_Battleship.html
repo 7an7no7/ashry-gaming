@@ -1301,7 +1301,8 @@ function bsMake3D(THREE, root) {
     }
     paintSea(side);
     model.seas[side].animateSink = null;
-    busyUntil = Math.max(busyUntil, Date.now() + (shot.res === 'sunk' ? 1600 : 500));
+    // After a hit or a miss 500 -> 300 ms (the owner, 8 Oct 2026: the handover felt slow); a sink keeps its 1.6 s.
+    busyUntil = Math.max(busyUntil, Date.now() + (shot.res === 'sunk' ? 1600 : 300));
     if (typeof model.onLand === 'function') { try { model.onLand(shot); } catch (e) {} }
   }
 
@@ -1317,8 +1318,9 @@ function bsMake3D(THREE, root) {
     sweepFrame.position.set(p.x, 0.04, p.z);
     beam.visible = sweepFrame.visible = true;
     const start = performance.now(), dur = 1900;
-    // The camera stays a moment after the beam, so the count is seen on the area it is about.
-    busyUntil = Math.max(busyUntil, Date.now() + dur + 1300);
+    // The camera stays a moment after the beam, so the count is seen on the area it is about - on the
+    // screens that show the count (the sweeper's, the TV); elsewhere 1300 -> 300 ms (the owner, 8 Oct 2026).
+    busyUntil = Math.max(busyUntil, Date.now() + dur + (model && model.scanSeen === false ? 300 : 1300));
     bsSoundLoud('radar');
     anims.push({
       until: start + dur + 50,
@@ -1414,7 +1416,7 @@ function bsMake3D(THREE, root) {
     // The camera waits for a shot in the air to land before it moves.
     const wait = Math.max(0, busyUntil - Date.now());
     if (fresh || !prevModel) aimCamera(true);
-    else if (wait) setTimeout(() => aimCamera(false), wait + 250);
+    else if (wait) setTimeout(() => aimCamera(false), wait);   // + 250 dropped (the owner, 8 Oct 2026: the handover felt slow)
     else aimCamera(false);
     placeLabels();
   }
@@ -2228,8 +2230,10 @@ function bsRadarToast(n) {
  * aimed at (o.wait: a shell of yours still flying), so the thumb learns where it is.
  */
 function bsRadarBarHtml(o) {
-  const idle = (label) => `<button type="button" class="btn btn--primary btn--lg bs-fire" disabled>${escapeHTML(bsT(label))}</button>`;
-  if (o.wait) return idle('bs_pick');
+  const idle = (label, vars) => `<button type="button" class="btn btn--primary btn--lg bs-fire" disabled>${escapeHTML(bsT(label, vars))}</button>`;
+  // Waiting (a shell in the air, or the other's turn): the same bar, greyed, so nothing jumps when the
+  // turn comes (the owner, 8 Oct 2026); the radar button stays, greyed, while it is still unused.
+  if (o.wait) return idle(o.label || 'bs_pick', o.vars) + (o.radar ? `<button type="button" class="btn btn--secondary btn--sm bs-radar-btn" disabled>📡 ${escapeHTML(bsT('bs_radar_use'))}</button>` : '');
   if (o.mode) {
     const go = o.aim >= 0
       ? `<button type="button" class="btn btn--primary btn--lg bs-fire bs-sweep" onclick="${o.sweep}">📡 ${escapeHTML(bsT('bs_radar_go', { coord: bsCoordIso(o.aim) }))}</button>`
@@ -2514,7 +2518,11 @@ function bsPhoneMaybeAi() {
   const s = bsPhoneState();
   if (s.phase !== 'play' || s.turn !== 1 || bsPhoneTimer || appState.currentView !== 'play-battleship') return;
   const still = motionOff();
-  const wait = bsViewBusyLeft() + (still ? 400 : 1150) + Math.floor(Math.random() * 450);
+  // Its first shot of a turn keeps the longer aim; another after its own hit, 1150-1600 -> 700-1000 ms
+  // (the owner, 8 Oct 2026: its runs felt slow).
+  const last = s.shots ? s.last : null;
+  const run = !!last && last.seat === 1 && (last.res === 'hit' || last.res === 'sunk');
+  const wait = bsViewBusyLeft() + (still ? 400 : run ? 700 + Math.floor(Math.random() * 300) : 1150 + Math.floor(Math.random() * 450));
   bsPhoneTimer = setTimeout(() => {
     bsPhoneTimer = null;
     const st = bsPhoneState();
@@ -2562,6 +2570,7 @@ function bsPhoneModel(s, o, flying) {
     shotKey: last ? s.gameId + '|' + s.shots : '',
     scan: s.scan ? { side: s.scan.seat === 0 ? 1 : 0, cell: s.scan.cell } : null,
     scanKey: s.scan ? s.gameId + '|r' + s.scan.mv : '',
+    scanSeen: !!s.scan && s.scan.seat === 0,
     onScan: bsPhoneScanned,
     aim: myFire && s.aim >= 0 ? { side: 1, cell: s.aim, area: !!s.radarMode } : null,
     peek: play ? { label: focus === 1 ? bsT('bs_peek_mine') : bsT('bs_peek_enemy'), onClick: () => bsPhonePeek(focus === 1 ? 0 : 1) } : null,
@@ -2614,8 +2623,13 @@ function bsPhoneBarHtml(s, flying) {
     if (flying) return '';
     return `<button type="button" class="btn btn--primary btn--lg" onclick="bsPhoneNewGame()">${escapeHTML(bsT('duel_next_game'))}</button>`;
   }
-  if (s.turn !== 0) return '';
-  if (flying || bsPhoneLocal.sweeping) return bsRadarBarHtml({ wait: true });
+  if (s.phase !== 'play') return '';
+  const radarLeft = bsRadarReady(s.radarOn, s.scans, 0);
+  // Whose turn the bar names: while a shell flies, the one who fired it (the turn may have passed
+  // already, and saying so would tell the splash before it lands).
+  const up = flying && s.last ? s.last.seat : s.turn;
+  if (up !== 0) return bsRadarBarHtml({ wait: true, label: 'duel_turn_of', vars: { name: bsT('xo_phone') }, radar: radarLeft });
+  if (flying || bsPhoneLocal.sweeping || s.turn !== 0) return bsRadarBarHtml({ wait: true, radar: radarLeft });
   return bsRadarBarHtml({
     radar: bsRadarReady(s.radarOn, s.scans, 0), mode: !!s.radarMode, aim: s.aim,
     fire: 'bsPhoneFire()', sweep: 'bsPhoneSweepMine()', on: 'bsPhoneRadarMode(true)', off: 'bsPhoneRadarMode(false)'
@@ -2998,6 +3012,7 @@ function bsRoomModel(state, tv) {
     shotKey: s.last ? [state.code, s.round, s.shots].join('|') : '',
     scan: s.scan ? { side: sideOf(1 - s.scan.seat), cell: s.scan.cell } : null,
     scanKey: s.scan ? [state.code, s.round, s.scan.mv].join('|') : '',
+    scanSeen: !!s.scan && (!!tv || s.scan.seat === seat),
     onScan: bsRoomScanned,
     aim: myTurn && focus === 1 && aim >= 0 ? { side: 1, cell: aim, area: !!bsRoomLocal.radar } : null,
     peek: play && !tv && seat !== -1 ? { label: focus === 1 ? bsT('bs_peek_mine') : bsT('bs_peek_enemy'), onClick: () => bsRoomPeek(focus === 1 ? 0 : 1) }
@@ -3069,8 +3084,13 @@ function bsRoomBarHtml(state, flying) {
         <button type="button" class="btn btn--primary btn--lg" onclick="bsRoomReady()">${escapeHTML(bsT('bs_ready'))}</button>
       </div>`;
   }
-  if (s.phase !== 'play' || s.turn !== seat) return '';
-  if (flying || bsRoomLocal.sent || bsRoomLocal.sweeping) return bsRadarBarHtml({ wait: true });
+  if (s.phase !== 'play') return '';
+  const radarLeft = bsRoomRadarReady(state, seat);
+  // Whose turn the bar names: while a shell flies, the one who fired it (the turn may have passed
+  // already, and saying so would tell the splash before it lands).
+  const up = flying && s.last ? s.last.seat : s.turn;
+  if (up !== seat) return bsRadarBarHtml({ wait: true, label: 'duel_turn_of', vars: { name: duelIso(duelRoomNames(state)[up] || '') }, radar: radarLeft });
+  if (flying || bsRoomLocal.sent || bsRoomLocal.sweeping || s.turn !== seat) return bsRadarBarHtml({ wait: true, radar: radarLeft });
   const aim = bsRoomAimOf(state);
   return bsRadarBarHtml({
     radar: bsRoomRadarReady(state, seat), mode: !!bsRoomLocal.radar, aim: aim,

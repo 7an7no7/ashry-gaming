@@ -25,7 +25,7 @@
 const MAFIA_MIN_PLAYERS = 5;
 const MAFIA_DISCUSS_MINUTES = [2, 3, 5];
 const MAFIA_NIGHT_SECONDS = [30, 45, 60];
-const MAFIA_GRACE_MS = 1500;
+const MAFIA_GRACE_MS = 800;   // 1500 -> 800 (the owner, 8 Oct 2026: felt slow)
 const MAFIA_SKIP = 'nobody';
 
 /** The Mafia for a table of n: one to six players, two to nine, three beyond. */

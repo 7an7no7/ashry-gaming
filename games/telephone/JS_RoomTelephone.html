@@ -54,7 +54,21 @@ function armTeleClock(endsAt) {
   if (tele.clockKey === endsAt && tele.clock && tele.clock.isRunning()) return;
   stopTeleClock();
   tele.clockKey = endsAt;
-  tele.clock = createClock({ seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)), onTick: paint, onEnd: () => { tele.clock = null; } });
+  tele.clock = createClock({
+    seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
+    onTick: paint,
+    onEnd: () => {
+      tele.clock = null;
+      // At this phone's own 0 it sends what it has, as Stop does (the owner, 8 Oct 2026: felt
+      // slow): the server takes a submit while 'working', and the step ends once all are in,
+      // instead of waiting its grace, then 'collecting', then the phones.
+      const st = Room.state;
+      const s = st && st.game === 'telephone' && st.shared;
+      if (!s || s.phase !== 'working' || s.endsAt !== endsAt || !st.you || !st.you.task) return;
+      if ((s.submitted || []).indexOf(Room.me) !== -1) return;
+      teleSubmit(true);
+    }
+  });
 }
 function stopTeleClock() {
   if (tele.clock) tele.clock.stop();

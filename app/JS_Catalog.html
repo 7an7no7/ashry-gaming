@@ -243,7 +243,8 @@ function catalogOpen(id, fromEl, grow) {
   if (!g) return;
   if (catalogOff(id)) { gameOffToast(); return; }
   // Its code first (JS_Lazy.html), then this again: the home stays until it has run.
-  if (typeof lzWait === 'function' && lzWait(lzChunksOfGame(id), () => catalogOpen(id, fromEl, grow))) return;
+  // The card says so at once while it waits (lzMark: a spinner on it, 8 Oct 2026).
+  if (typeof lzWait === 'function' && lzWait(lzChunksOfGame(id), () => catalogOpen(id, fromEl, grow))) { lzMark(fromEl); return; }
   rememberRecent(id);
   if (typeof catalogReturn !== 'undefined') {
     catalogReturn.id = id;
@@ -463,6 +464,7 @@ function paintHomeMoreChip() {
 }
 
 function toggleHomeMore() {
+  homeDirty();
   const view = document.getElementById('view-menu');
   const open = () => {
     homeMoreOpen = !homeMoreOpen;
@@ -719,7 +721,7 @@ function catalogQuickStart(id, fromEl) {
   if (!g) return;
   if (catalogOff(id)) { gameOffToast(); return; }
   if (!go) { catalogOpen(id, fromEl); return; }
-  if (typeof lzWait === 'function' && lzWait(lzChunksOfGame(id), () => catalogQuickStart(id, fromEl))) return;
+  if (typeof lzWait === 'function' && lzWait(lzChunksOfGame(id), () => catalogQuickStart(id, fromEl))) { lzMark(fromEl); return; }
   // The icon flies to the setup's hero only if the game stops there (the names
   // sheet over it); a game that starts at once has no hero to land on.
   const fly = typeof catalogIconFlight === 'function' ? catalogIconFlight(g, fromEl) : null;
@@ -759,6 +761,7 @@ function homeStartScreenCard(t) {
 
 /** «كل الألعاب (N) ▾» on a first visit: the whole home, opened in place. */
 function toggleHomeAll() {
+  homeDirty();
   const box = document.getElementById('home-all');
   const btn = document.getElementById('home-all-btn');
   if (!box) return;
@@ -1000,6 +1003,8 @@ function homeContHide(key) {
 function renderHome() {
   const view = document.getElementById('view-menu');
   if (!view) return;
+  // Drawn again while showing: its shelves keep where they are now (homeShelvesRestore).
+  if (view.getClientRects().length) homeShelvesSave();
   const t = TRANSLATIONS[appState.lang];
   // Only games: a recent tool (kept before tools stopped being remembered) would
   // be a hidden tile, and a row of them a heading with nothing under it.
@@ -1155,6 +1160,19 @@ function renderHome() {
       <button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="homeEmptyRules()"><span aria-hidden="true">📘</span> ${escapeHTML(t.home_empty_rules || '')}</button>
     </div></div>`;
   if (compact) {
+    // Back on the home with nothing else changed (the language, the filters, the
+    // search, the sections, the daily strip: every byte of them the same as drawn
+    // last), only what changes on a return is drawn again - «كمّل», the recent row
+    // and the featured poster - and the rest stays as it is (the owner, 8 Oct 2026:
+    // the whole home rebuilt inside the view transition froze the old frame and
+    // made the card's shrink-back stutter; the shelves jumped back to their start).
+    const fixed = 'c|' + appState.lang + '|' + together + search + dailyStrip + groups + empty;
+    if (fixed === homeFixedSig && view.querySelector('#home-recent') && view.querySelector('.home-tools')) {
+      homeRefreshLive(view, t, recentRow);
+      return;
+    }
+    homeFixedSig = fixed;
+    homeRecentSig = recentRow;
     // The game left in the middle, then the ones played lately, then the rest
     // (ideas batch: shell: the recent row as a slim row at the top).
     view.innerHTML = homeContHtml(t) + recentRow + catalogFeatured(t) + together + search + dailyStrip + groups + empty;
@@ -1194,17 +1212,93 @@ function renderHome() {
         <span>${escapeHTML((t.home_all_games || '').replace('{n}', String(total)))}</span>
         <span class="home-all-toggle__chev" aria-hidden="true">▾</span>
       </button>`;
-    view.innerHTML = start +
+    const whole = start +
       `<div id="home-all" class="home-all" ${homeAllOpen ? '' : 'hidden'}>${together}${search}${dailyStrip}${groups}${empty}</div>`;
+    // The same first-visit home as drawn last: nothing to draw (as above).
+    const fixed = 's|' + appState.lang + '|' + whole;
+    if (fixed === homeFixedSig && view.querySelector('.home-start')) {
+      homeRenderedLang = appState.lang;
+      if (!view.classList.contains('is-settled')) settleStagger(view, 'menu');
+      return;
+    }
+    homeFixedSig = fixed;
+    homeRecentSig = '';
+    view.innerHTML = whole;
   }
   homeRenderedLang = appState.lang;
   applyHomeFilter({ animate: false });
   settleStagger(view, 'menu');
   view.querySelectorAll('.hscroll-fade').forEach(watchScrollFade);
   // Measured once the screen is showing: setView draws it while it is hidden.
-  requestAnimationFrame(() => syncShelves(view));
+  requestAnimationFrame(() => { syncShelves(view); homeShelvesRestore(); });
   wireShelfResize();
 }
+
+/* What the home last drew, to skip drawing it again (renderHome). homeFixedSig is
+   everything but «كمّل», the recent row and the poster; anything that changes the
+   home's markup in place (a chip, the search, a shelf opened, «كل الألعاب») calls
+   homeDirty, so the next return draws it whole from the state it is in. */
+let homeFixedSig = '';
+let homeRecentSig = '';
+function homeDirty() { homeFixedSig = ''; }
+
+/** The three things a return changes, drawn again in place; the rest of the home untouched. */
+function homeRefreshLive(view, t, recentRow) {
+  homeContRefresh();
+  const fresh = [];
+  const oldRecent = view.querySelector('#home-recent');
+  if (oldRecent && recentRow !== homeRecentSig) {
+    oldRecent.outerHTML = recentRow;
+    const el = view.querySelector('#home-recent');
+    if (el) { fresh.push(el); el.querySelectorAll('.hscroll-fade').forEach(watchScrollFade); }
+  }
+  homeRecentSig = recentRow;
+  // A different game each time the home opens (catalogFeatured): the poster always.
+  const feat = catalogFeatured(t);
+  const oldFeat = view.querySelector('.home-feat');
+  if (oldFeat) {
+    if (feat) oldFeat.outerHTML = feat; else oldFeat.remove();
+  } else if (feat) {
+    const after = view.querySelector('#home-recent');
+    if (after) after.insertAdjacentHTML('afterend', feat);
+  }
+  const newFeat = view.querySelector('.home-feat');
+  if (newFeat) fresh.push(newFeat);
+  homeRenderedLang = appState.lang;
+  if (fresh.length) applyHomeFilter({ animate: false, roots: fresh });
+  if (!view.classList.contains('is-settled')) settleStagger(view, 'menu');
+}
+
+/* Each shelf (and the recent row) keeps how far it was scrolled sideways (the
+   owner, 8 Oct 2026: they jumped back to their start on every return). Read as
+   the home is left (it is still showing then), put back once it shows again. */
+const homeShelfScroll = { lang: '', at: {} };
+function homeShelfKey(el) {
+  if (el.classList.contains('recent-row')) return 'recent';
+  const sec = el.closest('section[data-group]');
+  return sec ? 'g:' + sec.dataset.group : '';
+}
+function homeShelvesSave() {
+  const view = document.getElementById('view-menu');
+  if (!view) return;
+  const at = {};
+  view.querySelectorAll('.recent-row, .gcard-grid--shelf').forEach(el => {
+    const k = homeShelfKey(el);
+    if (k && el.scrollLeft) at[k] = el.scrollLeft;
+  });
+  homeShelfScroll.lang = appState.lang;
+  homeShelfScroll.at = at;
+}
+function homeShelvesRestore() {
+  if (appState.currentView !== 'menu' || homeShelfScroll.lang !== appState.lang) return;
+  const view = document.getElementById('view-menu');
+  if (!view) return;
+  view.querySelectorAll('.recent-row, .gcard-grid--shelf').forEach(el => {
+    const want = homeShelfScroll.at[homeShelfKey(el)];
+    if (want && el.scrollLeft !== want && !el.closest('.is-open')) el.scrollLeft = want;
+  });
+}
+if (typeof onLeaveScreen === 'function') onLeaveScreen((from) => { if (from === 'menu') homeShelvesSave(); });
 
 /* --- Shelves (section 39, from 900px wide) -----------------------------------
    On a laptop or a TV each section's posters are one row that scrolls sideways,
@@ -1217,6 +1311,7 @@ function shelfButtonHtml(t, open) {
   return `<button type="button" class="section__all" aria-expanded="${open}" onclick="toggleShelf(this)">${escapeHTML(open ? (t.home_shelf_less || '') : (t.home_shelf_all || ''))}</button>`;
 }
 function toggleShelf(btn) {
+  homeDirty();
   const sec = btn.closest('section');
   if (!sec) return;
   const t = TRANSLATIONS[appState.lang];
@@ -1254,6 +1349,7 @@ function wireShelfResize() {
 }
 
 function setHomeFilter(id) {
+  homeDirty();
   homeFilter = id;
   document.querySelectorAll('#view-menu [data-filter]').forEach(b => {
     const on = b.dataset.filter === id;
@@ -1265,6 +1361,7 @@ function setHomeFilter(id) {
 }
 
 function setHomePlayers(count) {
+  homeDirty();
   const next = (homePlayers === count && count !== 'off') ? 'off' : count;
   homePlayers = next;
   rememberOptions('homePlayers', next);
@@ -1279,6 +1376,7 @@ function setHomePlayers(count) {
 }
 
 function setHomeLocation(loc) {
+  homeDirty();
   homeLocation = loc;
   rememberOptions('homeLocation', loc);
   document.querySelectorAll('#view-menu [data-location]').forEach(b => {
@@ -1292,6 +1390,7 @@ function setHomeLocation(loc) {
 }
 
 function setHomeSearch(value) {
+  homeDirty();
   homeSearch = value || '';
   applyHomeFilter();
 }
@@ -1320,13 +1419,12 @@ function homeTabAgain(view) {
   setHomeFilter('all');
 }
 
-/* Back on the home from a game, the next person to pick the phone up sees all
-   the games: a search or a chip left behind hid most of them. Switching
-   between the three tabs keeps them. */
+/* Back on the home from a game the filter and the search stay as they were left, and so does the
+   place on the page (setView's viewScroll): the owner, 8 Oct 2026 - "I have to go up again to click
+   the filter, then back down to where I was". (It used to clear them so the next person saw every
+   game; the lit الرئيسية tapped again still clears them: homeTabAgain.) Kept as a hook. */
 function resetHomeFilters(from) {
-  if (['menu', 'together', 'tools'].indexOf(from) !== -1) return;
-  homeSearch = '';
-  homeFilter = 'all';
+  return from;
 }
 
 /** Hides the cards, rows and sections the chip and the search box rule out.
@@ -1358,6 +1456,19 @@ function applyHomeFilter(opts) {
     if (ok && searching) ok = catalogSearchHit(g, term, t, other);
     return ok;
   };
+  // Only some new pieces of a home otherwise left as it was (homeRefreshLive): the
+  // filters haven't changed, so the rest is already right. Classes written only
+  // where they change (a class write is a mutation even when it changes nothing).
+  if (opts && opts.roots) {
+    const set = (el, on) => { if (el.classList.contains('hidden') !== on) el.classList.toggle('hidden', on); };
+    opts.roots.forEach(root => {
+      const els = Array.from(root.querySelectorAll('[data-game]'));
+      if (root.matches('[data-game]')) els.unshift(root);
+      els.forEach(el => { const g = CATALOG_BY_ID[el.dataset.game]; if (g) set(el, !passes(g, homeFilter)); });
+      if (root.id === 'home-recent') set(root, searching || homeFilter !== 'all' || homePlayers !== 'off' || homeLocation !== 'together');
+    });
+    return;
+  }
   const decide = () => {
     const results = [];
     view.querySelectorAll('[data-game]').forEach(el => {

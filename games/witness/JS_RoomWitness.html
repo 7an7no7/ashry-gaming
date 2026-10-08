@@ -86,6 +86,7 @@ const WIT_TEXT = {
     wit_hint_5: "علامات؟",
     wit_artist_listen: "اسمع الشاهد {witness} وارسم",
     wit_done_btn: "خلّصت الرسم ✓",
+    wit_time_up: "الوقت خلص…",
     wit_plate: "المشتبه فيه · رسم {artist}",
     wit_jury_draw: "اسمعوا الوصف كويس: هتختاروا من طابور شبه بعض جدًا",
     wit_tv_drawing: "الرسام {artist} بيرسم من كلام الشاهد {witness}",
@@ -260,6 +261,7 @@ const WIT_TEXT = {
     wit_hint_5: "Marks?",
     wit_artist_listen: "Listen to {witness} and draw",
     wit_done_btn: "Done drawing ✓",
+    wit_time_up: "Time's up…",
     wit_plate: "Suspect · drawn by {artist}",
     wit_jury_draw: "Listen closely: you will pick from a lineup of look-alikes",
     wit_tv_drawing: "{artist} is drawing from what {witness} says",
@@ -721,18 +723,45 @@ function witPick(i) {
   roomAct('sketch', { round: st.shared.round, n: l.n, face: l.face });
 }
 
-function witDone() {
+/** A tap shown at once (the owner, 8 Oct 2026: felt slow): the button pressed in and off until
+    the server's next state redraws it; put back if the server refuses. */
+function witPress(btn, on) {
+  if (!btn) return;
+  btn.disabled = on;
+  btn.classList.toggle('is-pending', on);
+  btn.style.opacity = on ? '0.6' : '';
+  btn.style.transform = on ? 'scale(0.94)' : '';
+}
+/** The artist's builder greyed and out of reach (done, or the clock at 0), or given back. */
+function witBuilderOff(off) {
+  document.querySelectorAll('#view-room-witness [data-wit-builder]').forEach(b => {
+    b.style.opacity = off ? '0.5' : '';
+    b.style.pointerEvents = off ? 'none' : '';
+    b.setAttribute('aria-disabled', off ? 'true' : 'false');
+  });
+}
+function witSend(action, payload, btn, undo) {
+  witPress(btn, true);
+  Room.act(action, payload).catch(err => {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    witPress(btn, false);
+    if (undo) undo();
+  });
+}
+
+function witDone(btn) {
   const st = Room.state;
   if (!st || (st.shared || {}).phase !== 'draw') return;
   haptic('medium');
-  roomAct('done', { round: st.shared.round, face: wit.local ? wit.local.face : undefined });
+  witBuilderOff(true);
+  witSend('done', { round: st.shared.round, face: wit.local ? wit.local.face : undefined }, btn, () => witBuilderOff(false));
 }
 
-function witReady() {
+function witReady(btn) {
   const st = Room.state;
   if (!st) return;
   haptic('medium');
-  roomAct('ready', { round: st.shared.round });
+  witSend('ready', { round: st.shared.round }, btn);
 }
 
 /* --- the vote ---------------------------------------------------------------------- */
@@ -801,7 +830,7 @@ function witPhoneBody(state) {
       return `${witFolderHtml(state)}<div class="wit-side">
         <div class="wit-msg">${escapeHTML(witT('wit_you_witness'))}</div>
         <p class="wit-hint">${escapeHTML(witT('wit_ready_hint', { artist }))}</p>
-        <button type="button" class="btn btn--go btn--lg wit-go" onclick="witReady()">${escapeHTML(witT('wit_ready_btn'))}</button></div>`;
+        <button type="button" class="btn btn--go btn--lg wit-go" onclick="witReady(this)">${escapeHTML(witT('wit_ready_btn'))}</button></div>`;
     }
     return `${witFolderHtml(state)}<div class="wit-side">
       <div class="wit-msg">${escapeHTML(witT(role === 'artist' ? 'wit_ready_artist' : 'wit_ready_wait', { witness }))}</div>
@@ -822,7 +851,7 @@ function witPhoneBody(state) {
           ${witMugHtml(wit.local.face, witT('wit_plate', { artist }))}
           <div class="wit-builder" data-wit-builder>${witBuilderHtml()}</div>
         </div>
-        <div class="wit-foot"><button type="button" class="btn btn--go btn--lg" onclick="witDone()">${escapeHTML(witT('wit_done_btn'))}</button></div>`;
+        <div class="wit-foot"><button type="button" class="btn btn--go btn--lg" onclick="witDone(this)">${escapeHTML(witT('wit_done_btn'))}</button></div>`;
     }
     if (role === 'witness') {
       // The face is gone from this phone: what is left is to talk, and to watch the sketch grow.
@@ -994,9 +1023,20 @@ function witAfter(state, el) {
     const now = witServerNow();
     el.querySelectorAll('[data-wit-clock]').forEach(c => {
       const left = Math.max(0, Math.ceil((Number(c.dataset.witClock) - now) / 1000));
-      const txt = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+      // At 0 the phone shows the end at once, not after the server's grace (the owner, 8 Oct 2026: felt slow).
+      const txt = left > 0 ? Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') : witT('wit_time_up');
       if (c.textContent !== txt) c.textContent = txt;
       c.classList.toggle('is-low', left <= 10);
+      if (left === 0 && !c.dataset.witOver) {
+        c.dataset.witOver = '1';
+        const ph = (st.shared || {}).phase;
+        if (ph === 'draw') {
+          witBuilderOff(true);
+          el.querySelectorAll('.wit-foot .btn').forEach(b => { b.disabled = true; });
+        } else if (ph === 'vote') {
+          el.querySelectorAll('.wit-vote [onclick^="witVote("]').forEach(b => { b.disabled = true; b.style.pointerEvents = 'none'; });
+        }
+      }
     });
     el.querySelectorAll('[data-wit-ring]').forEach(r => {
       const until = Number(r.dataset.witRing), total = Number(r.dataset.witTotal) || 1;

@@ -183,8 +183,12 @@ function paintStreak(fresh) {
   const options = (cls) => `
         <div class="solo-choices${cls}" id="streak-options">
           ${q.options.map((o, i) => {
-            const c = answered ? (i === q.answer ? ' is-right' : (i === q.picked ? ' is-wrong' : '')) : '';
-            return `<button type="button" class="solo-choice${c}" data-i="${i}" onclick="answerStreak(${i})" ${answered ? 'disabled' : ''}><span dir="auto">${escapeHTML(o)}</span></button>`;
+            // A race's answer on its way to the server (no verdict yet): the pick pressed in, the rest dimmed.
+            const waiting = answered && q.answer === undefined;
+            const c = waiting ? (i === q.picked ? ' is-pending' : '')
+              : (answered ? (i === q.answer ? ' is-right' : (i === q.picked ? ' is-wrong' : '')) : '');
+            const look = waiting ? ` style="${streakPendingStyle(i === q.picked)}"` : '';
+            return `<button type="button" class="solo-choice${c}" data-i="${i}" onclick="answerStreak(${i})"${look} ${answered ? 'disabled' : ''}><span dir="auto">${escapeHTML(o)}</span></button>`;
           }).join('')}
         </div>`;
   if (s.race) {
@@ -313,6 +317,11 @@ function streakPop(right, lives) {
   }
 }
 
+/** A race's pick waiting for the server: the chosen answer pressed in, the others dimmed. */
+function streakPendingStyle(mine) {
+  return mine ? 'border-color: var(--accent); background: var(--accent-soft); transform: scale(0.96);' : 'opacity: 0.55;';
+}
+
 function answerStreak(i) {
   const s = streakState();
   const q = s.q;
@@ -321,6 +330,14 @@ function answerStreak(i) {
   // A race: the answer is on the server, which judges and hands the next question (JS_RoomRace.html).
   if (s.race) {
     q.picked = i;
+    // Pressed in at once, the others dimmed and off, until the server's verdict colours the card
+    // (the owner, 8 Oct 2026: a tap showed nothing for a round trip).
+    document.querySelectorAll('#streak-options .solo-choice').forEach(b => {
+      const mine = Number(b.dataset.i) === i;
+      b.disabled = true;
+      b.classList.toggle('is-pending', mine);
+      b.setAttribute('style', streakPendingStyle(mine));
+    });
     // A send that didn't go through (the network, a refusal) must not leave the question locked.
     raceMove('streak', { q: s.asked, i: i }).then(ok => {
       if (ok || streakState() !== s || s.q !== q || q.answer !== undefined) return;

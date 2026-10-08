@@ -39,7 +39,7 @@
 const EST_CLOCKS = [0, 30, 60];
 const EST_EVENTS = 40;
 const EST_GRACE_MS = 1500;
-const EST_TRICK_PAUSE_MS = 2300;    // a bot leading after a trick waits for it to be seen going to its taker
+const EST_TRICK_PAUSE_MS = 1700;    // a bot leading after a trick waits for it to be seen going to its taker (the gathering ends ~1.4-1.6 s); 2300 -> 1700 (the owner, 8 Oct 2026: felt slow)
 
 /*
  * «التالي لوحده» (the owner's pick of 7 Oct 2026, 933): a lobby switch, off by default -

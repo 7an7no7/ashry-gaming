@@ -1758,6 +1758,7 @@
    * Nothing at all where there is no offline copy (the preview, a browser with no worker).
    */
   let offlineReadyTimer = null;
+  let offlineReadyLast = null;   // { text, done, lang }: what the line said last
   async function paintOfflineReady() {
     clearTimeout(offlineReadyTimer);
     const el = document.getElementById('settings-offline-status');
@@ -1765,6 +1766,15 @@
     const lz = window.LZ_MANIFEST;
     const files = lz && lz.chunks ? Object.keys(lz.chunks).map(id => lz.chunks[id].f) : [];
     if (!window.STATIC_SITE || !files.length || typeof caches === 'undefined' || !navigator.serviceWorker) { el.hidden = true; return; }
+    // The line keeps its place while the cache is counted (the owner, 8 Oct 2026: it
+    // appeared after ~70 lookups and grew the sheet under its rising rows): what it
+    // said last time, or «…», where a worker is in charge.
+    if (el.hidden && navigator.serviceWorker.controller) {
+      const last = offlineReadyLast && offlineReadyLast.lang === appState.lang ? offlineReadyLast : null;
+      el.textContent = last ? last.text : '…';
+      el.classList.toggle('tx-success', !!(last && last.done));
+      el.hidden = false;
+    }
     let have = 0;
     try {
       if (await caches.has('g-chunks')) {
@@ -1783,6 +1793,7 @@
       : String(t.offline_loading || '').replace('{n}', '\u2066' + num(have) + '/' + num(files.length) + '\u2069');
     el.classList.toggle('tx-success', done);
     el.hidden = false;
+    offlineReadyLast = { text: el.textContent, done, lang: appState.lang };
     const sheet = document.getElementById('settings-modal');
     if (!done && sheet && !sheet.classList.contains('hidden')) offlineReadyTimer = setTimeout(paintOfflineReady, 1500);
   }
@@ -3767,6 +3778,8 @@
     }
     applyTranslations();
     if (main && goingBack && viewScroll[viewId]) main.scrollTop = viewScroll[viewId];
+    // The home's shelves back where they were scrolled sideways (JS_Catalog.html), before the flight measures.
+    if (viewId === 'menu' && previous !== 'menu' && typeof homeShelvesRestore === 'function') homeShelvesRestore();
     if (homeFlight) homeFlight();
     if ((viewId === 'menu' || viewId === 'together' || viewId === 'tools') && typeof installAskSoon === 'function') installAskSoon();
     if (typeof syncAllSegmented === 'function') requestAnimationFrame(syncAllSegmented);

@@ -171,9 +171,13 @@ function paintConnectBadge() {
   el.classList.toggle('hidden', !html);
 }
 
+// A race's four on their way to the server (submitConnectGuess): drawn pressed in, the grid
+// and «تأكيد» off until the verdict.
+let connRaceSending = false;
+
 function toggleConnectTile(word) {
   const c = connState();
-  if (c.phase === 'done') return;
+  if (c.phase === 'done' || (c.race && connRaceSending)) return;
   if (c.selected.includes(word)) {
     c.selected = c.selected.filter(w => w !== word);
   } else {
@@ -240,11 +244,19 @@ function submitConnectGuess() {
       haptic('light');
       return;
     }
+    // The four stay chosen, pressed in, until the server's word lands (the owner, 8 Oct 2026:
+    // they went plain at once and the verdict came a round trip later). The sync clears them
+    // with its verdict; a refusal, or an answer that changed nothing, gives them back here.
+    if (connRaceSending) return;
     const words = c.selected.slice();
     c.lastWords = words;
-    c.selected = [];
+    connRaceSending = true;
     renderConnections();
-    raceMove('connections', { words: words });
+    raceMove('connections', { words: words }).finally(() => {
+      if (!connRaceSending) return;
+      connRaceSending = false;
+      if (connState() === c) renderConnections();
+    });
     return;
   }
   const tiles = c.tiles.filter(t => c.selected.includes(t.word));
@@ -458,9 +470,14 @@ function renderConnections(finished) {
 
   const solvedWords = new Set(c.solved.flatMap(gi => (groups[gi] ? groups[gi].words : [])));
   const remaining = c.tiles.filter(x => (c.puzzle ? !c.solved.includes(x.group) : !solvedWords.has(x.word)));
-  const tilesHtml = remaining.map(x => `
-      <button class="connect-tile ${c.selected.includes(x.word) ? 'is-selected' : ''}" data-word="${escapeHTML(x.word)}"
-              onclick="toggleConnectTile('${jsStringAttr(x.word)}')">${escapeHTML(x.word)}</button>`).join('');
+  const sending = !!c.race && connRaceSending;
+  const tilesHtml = remaining.map(x => {
+    const sel = c.selected.includes(x.word);
+    const wait = sending ? ` disabled style="${sel ? 'opacity: 0.7; transform: scale(0.94);' : 'opacity: 0.55;'}"` : '';
+    return `
+      <button class="connect-tile ${sel ? 'is-selected' : ''}${sending && sel ? ' is-pending' : ''}" data-word="${escapeHTML(x.word)}"${wait}
+              onclick="toggleConnectTile('${jsStringAttr(x.word)}')">${escapeHTML(x.word)}</button>`;
+  }).join('');
 
   const gridHtml = solvedHtml + (remaining.length ? `<div class="connect-grid">${tilesHtml}</div>` : '');
   const over = finished || c.solved.length === total || c.phase === 'done';
@@ -470,7 +487,7 @@ function renderConnections(finished) {
     ? (c.race ? '' : `<button onclick="startConnections(false)" class="btn btn--primary btn--lg">${t.play_again || 'لعبة جديدة'}</button>`)
     : `<div class="connect-submit">
          <button onclick="submitConnectGuess()" class="btn btn--primary"
-               ${c.selected.length === 4 ? '' : 'disabled'}>${t.conn_submit || 'تأكيد'}</button>
+               ${c.selected.length === 4 && !sending ? '' : 'disabled'}>${t.conn_submit || 'تأكيد'}</button>
          ${connectDotsHtml(t, left, c.mistakes)}
        </div>
        <button onclick="shuffleConnections()" class="btn btn--ghost btn--sm">${t.conn_shuffle || 'خلط'}</button>`;
@@ -552,6 +569,9 @@ RACE_UI.connections = {
     const moreMistakes = (b.mistakes || 0) > s.mistakes;
     s.mistakes = b.mistakes || 0;
     s.tried = b.tried || [];
+    // The verdict on the four this phone sent: they leave the selection now, not at the tap.
+    if ((fresh.length || moreMistakes) && !(fx && fx.first)) { connRaceSending = false; s.selected = []; }
+    if (fx && fx.first) connRaceSending = false;
     if (fresh.length || moreMistakes || (fx && fx.first)) renderConnections();
     if (fresh.length && from) { playSound('success'); haptic('medium'); fresh.forEach(gi => flyConnectGroup(gi, from)); }
     else if (moreMistakes && !(fx && fx.first)) connectMiss(b.last === 'one', s.lastWords || []);

@@ -224,7 +224,7 @@ const masterOf = (team) => (team === 'red' ? 'r1' : 'b1');
 const operativeOf = (team) => (team === 'red' ? 'r2' : 'b2');
 const firstTurn = cn.shared.turn;
 check(cn.shared.endsAt === clock + 60000, 'codenames: the spymaster gets the 60 seconds the host chose');
-check(roomDeadline(cn) === cn.shared.endsAt + 1500, 'codenames: the server looks again once the clue time is up');
+check(roomDeadline(cn) === cn.shared.endsAt + 800, 'codenames: the server looks again once the clue time is up');
 clock = cn.shared.endsAt + 2000;
 check(roomTimeout(cn, clock) === true && cn.shared.turn !== firstTurn && cn.shared.clue === null,
       'codenames: no clue in time passes the turn');
@@ -6495,7 +6495,7 @@ Date.now = duelTestClock;
     'solve/flags: while the round is played the table sees how many guesses each board made, not their pins or how close');
   check(SV.flagsStep(12000) === 0 && SV.flagsStep(9000) === 1 && SV.flagsStep(3000) === 2 && SV.flagsStep(1500) === 3 && SV.flagsStep(0) === 4,
     'solve/flags: the map\'s five colours run from far to close');
-  check(roomDeadline(r) === s.endsAt + 1500, 'solve: the clock is a server deadline');
+  check(roomDeadline(r) === s.endsAt + 500, 'solve: the clock is a server deadline');
   clock = s.endsAt + 2000;
   roomTimeout(r, clock);
   check(s.phase === 'result' && s.scores.c === 15 && s.result.rows.find((x) => x.id === 'b').state === 'lost' && s.result.reveal.code === code && !s.result.setterPts,
@@ -9833,8 +9833,9 @@ Date.now = duelTestClock;
     check(r.shared.teams[0][0] === 'a' && botsOf(r).indexOf(r.shared.teams[0][1]) !== -1, 'handbrain recall: (a person\'s Brain, a computer Hand)');
     const t0 = clock;
     applyRoomAction(r, 'a', 'name', { kind: 2, n: 0 });
-    check(r._botAt >= t0 + 3000, 'handbrain recall: the computer Hand waits until the Brain can\'t change the call any more');
-    clock = t0 + 2000;
+    // 1 s against a computer Hand since 8 Oct 2026 (HB_RECALL_FAST_MS; a person's Hand keeps 3 s).
+    check(r._botAt >= t0 + 1800, 'handbrain recall: the computer Hand waits until the Brain can\'t change the call any more');
+    clock = t0 + 500;
     applyRoomAction(r, 'a', 'recall', { kind: 1, n: 0, call: r.shared.callSeq });
     clock = r._botAt;
     roomTimeout(r, clock);
@@ -9844,7 +9845,7 @@ Date.now = duelTestClock;
     const t1 = clock;
     applyRoomAction(r2, 'a', 'name', { kind: 1, n: 0 });
     const f = roomForcedMove(r2);
-    check(!!f && f.pid === 'b' && f.delay >= 3000 && r2._botAt >= t1 + 3000, 'handbrain recall: the Hand\'s only move is made for them only once the Brain\'s 3 s are over');
+    check(!!f && f.pid === 'b' && f.delay >= 1800 && r2._botAt >= t1 + 1800, 'handbrain recall: the Hand\'s only move is made for them only once the Brain\'s window is over');
   }
   // Flag: the clock is the team's.
   {
@@ -11305,7 +11306,7 @@ Date.now = duelTestClock;
     'race/queens: the solution wins - first, in 20 seconds - and the round goes on');
   clock += 5000; applyRoomAction(r, 'b', 'move', { marks: solved, round: 1 });
   clock += 5000; applyRoomAction(r, 'c', 'move', { marks: solved, round: 1 });
-  check(s.solved.length === 3 && s.closeAt === clock + 10000 && s.endsAt === s.closeAt && roomDeadline(r) === s.closeAt + 1500,
+  check(s.solved.length === 3 && s.closeAt === clock + 10000 && s.endsAt === s.closeAt && roomDeadline(r) === s.closeAt + 500,
     'race Fast 3: the third to finish closes the round ten seconds later (the clock brought forward)');
   clock += 4000; applyRoomAction(r, 'd', 'move', { marks: solved, round: 1 });
   check(s.progress.d.state === 'won' && s.phase === 'solving', 'race Fast 3: a finish inside the grace counts, the round still open');
@@ -11343,7 +11344,7 @@ Date.now = duelTestClock;
   const solved3 = (() => { const m = new Array(49).fill(0); sol3.forEach((c, row) => { m[row * 7 + c] = 2; }); return m; })();
   clock += 40000; applyRoomAction(r, 'b', 'move', { marks: solved3, round: 2 });
   const due = roomDeadline(r);
-  check(due === s.endsAt + 1500 && s.endsAt === s.startAt + 180000, 'race: the fixed clock is the round\'s deadline');
+  check(due === s.endsAt + 500 && s.endsAt === s.startAt + 180000, 'race: the fixed clock is the round\'s deadline');
   clock = due;
   roomTimeout(r, clock);
   check(s.phase === 'result' && s.progress.a.state === 'lost' && s.progress.b.state === 'won' && s.scores.b === 14 + 15 && s.scores.a === 15,
@@ -12641,7 +12642,7 @@ Date.now = duelTestClock;
     check(s.phase === 'result', 'reaction: everyone in (a time or ✖) closes the round at once');
     const pts = (id) => s.rows.find((x) => x.id === id).pts;
     check(pts('d') === 3 && pts('a') === 2 && pts('c') === 1 && pts('b') === 0 && s.rows[3].id === 'b', 'reaction: the fastest three get 3 / 2 / 1, the ✖ last with nothing');
-    check(s.board[0].id === 'd' && s.board[0].score === 3 && s.nextAt === clock + 4500, 'reaction: the board is the points so far; the next round in 4.5 s');
+    check(s.board[0].id === 'd' && s.board[0].score === 3 && s.nextAt === clock + 3500, 'reaction: the board is the points so far; the next round in 3.5 s');
     check(threw(() => applyRoomAction(r, 'b', 'nextRound', { round: 1 })), 'reaction: only the host moves a round on');
     applyRoomAction(r, 'a', 'nextRound', { round: 0 });
     check(s.phase === 'result', 'reaction: a stale next round is dropped');
@@ -12953,7 +12954,7 @@ Date.now = duelTestClock;
     check(!s.live.down.a && s.live.down.b && s.live.order.join() === 'a,b,c', 'exact: a hand lifted is up again; the order is by stamp');
     applyRoomAction(r, 'x', 'down', { round: 1, at: clock });
     const res = close(r);
-    check(s.phase === 'reveal' && res.ok && s.level === 2 && s.lives === 3 && res.food === 0 && s.clean.a === 1 && s.nextAt === clock + 3600,
+    check(s.phase === 'reveal' && res.ok && s.level === 2 && s.lives === 3 && res.food === 0 && s.clean.a === 1 && s.nextAt > clock && s.nextAt <= clock + 3600,
       'exact: three hands, three wanted: the table goes up a level and the verdict stays a moment');
     check(res.presses.map((p) => p.id).join() === 'a,b,c' && res.presses[0].ms === 0, 'exact: the verdict lists the hands in the order they came down');
     check(threw(() => applyRoomAction(r, 'b', 'nextRound', { round: 1 })) && s.phase === 'reveal', 'exact: only the host moves on');
@@ -15786,7 +15787,7 @@ Date.now = duelTestClock;
   check(off.shared.phase === 'results' && !('nextAt' in off.shared) && due(off) === null, 'autonext/trivia: off: no nextAt, nothing on the clock (as before)');
   const tv = an('trivia', ['a', 'b', 'c'], { count: 5, autoNext: true });
   triviaAnswer(tv);
-  check(tv.shared.phase === 'results' && tv.shared.nextAt === clock + 10000 && tv.shared.nextMs === 10000 && due(tv) === tv.shared.nextAt, 'autonext/trivia: on: the result sets nextAt 10 s ahead');
+  check(tv.shared.phase === 'results' && tv.shared.nextAt === clock + 8000 && tv.shared.nextMs === 8000 && due(tv) === tv.shared.nextAt, 'autonext/trivia: on: the result sets nextAt 8 s ahead');
   check(roomTimeout(tv, clock + 5000) === false && tv.shared.qIndex === 0, 'autonext/trivia: before nextAt nothing happens');
   fire(tv);
   check(tv.shared.phase === 'answering' && tv.shared.qIndex === 1 && !('nextAt' in tv.shared), 'autonext/trivia: nextAt passing deals the next question');
@@ -15831,9 +15832,18 @@ Date.now = duelTestClock;
   check(typeof tv.shared.nextAt === 'number', 'autonext/trivia: play again keeps the switch');
 
   // لو خيروك
+  // «⚙️ غيّر الإعدادات» (8 Oct 2026): the same game's lobby, the night banked, only the host.
+  {
+    const rc = an('wouldyou', ['a', 'b', 'c'], {});
+    ['a', 'b', 'c'].forEach((pid) => applyRoomAction(rc, pid, 'vote', { option: 'a', round: 1 }));
+    check(threw(() => applyRoomAction(rc, 'b', 'reconfigure', {})), 'reconfigure: only the host');
+    applyRoomAction(rc, 'a', 'reconfigure', {});
+    check(rc.game === 'wouldyou' && rc.phase === 'lobby' && !rc.shared.vote && Object.keys(rc.night || {}).length === 3,
+      'reconfigure: the room is back in the same game\'s lobby, its night banked');
+  }
   const wy = an('wouldyou', ['a', 'b', 'c'], { autoNext: true });
   ['a', 'b', 'c'].forEach((pid) => applyRoomAction(wy, pid, 'vote', { option: 'a', round: 1 }));
-  check(wy.shared.vote.phase === 'results' && wy.shared.nextAt === clock + 12000, 'autonext/wouldyou: the result sets nextAt');
+  check(wy.shared.vote.phase === 'results' && wy.shared.nextAt === clock + 9000, 'autonext/wouldyou: the result sets nextAt');
   fire(wy);
   check(wy.shared.round === 2 && wy.shared.vote.phase === 'voting' && !('nextAt' in wy.shared), 'autonext/wouldyou: the next question deals itself');
   applyRoomAction(wy, 'a', 'vote', { option: 'a', round: 2 });
@@ -15865,7 +15875,7 @@ Date.now = duelTestClock;
   ['a', 'b', 'c'].forEach((pid) => applyRoomAction(fb, pid, 'submitLie', { lie: 'كذبة ' + pid + ' ' + Math.random().toString(36).slice(2, 6) }));
   const votable = (pid) => fb.shared.vote.options.find((o) => (fb._voteOwners || {})[o.id] !== pid).id;
   ['a', 'b', 'c'].forEach((pid) => applyRoomAction(fb, pid, 'vote', { option: votable(pid) }));
-  check(fb.shared.phase === 'results' && fb.shared.nextMs === 9000 + 3700 + 900 * 2, 'autonext/fibbage: the pause counts the lies\' reveal in (3 lies: 14.5 s)');
+  check(fb.shared.phase === 'results' && fb.shared.nextMs === 5300 + 3700 + 900 * 2, 'autonext/fibbage: the pause counts the lies\' reveal in (3 lies: 10.8 s)');
   fire(fb);
   check(fb.shared.round === 2 && fb.shared.phase === 'writing', 'autonext/fibbage: the next question deals itself');
 
@@ -15874,7 +15884,7 @@ Date.now = duelTestClock;
   ['a', 'b', 'c'].forEach((pid, i) => applyRoomAction(hd, pid, 'submit', { text: 'جواب' + i, round: 1 }));
   check(hd.shared.phase === 'reveal' && !('nextAt' in hd.shared) && due(hd) === null, 'autonext/herd: the reveal waits for the host (merging)');
   applyRoomAction(hd, 'a', 'score', {});
-  check(hd.shared.phase === 'result' && hd.shared.nextAt === clock + 12000, 'autonext/herd: the result sets nextAt');
+  check(hd.shared.phase === 'result' && hd.shared.nextAt === clock + 9000, 'autonext/herd: the result sets nextAt');
   fire(hd);
   check(hd.shared.round === 2 && hd.shared.phase === 'writing' && !('nextAt' in hd.shared), 'autonext/herd: the next round deals itself');
 
@@ -15883,7 +15893,7 @@ Date.now = duelTestClock;
   ['a', 'b', 'c'].forEach((id) => applyRoomAction(t2, id, 'submit', { statements: ['t1' + id, 't2' + id, 'lie' + id], lie: 2 }));
   const t2Vote = () => t2.shared.roster.filter((id) => id !== t2.shared.subjectId).forEach((pid) => applyRoomAction(t2, pid, 'vote', { option: 'i0', turn: t2.shared.turn }));
   t2Vote();
-  check(t2.shared.phase === 'result' && t2.shared.nextAt === clock + 13000, 'autonext/twotruths: the result sets nextAt');
+  check(t2.shared.phase === 'result' && t2.shared.nextAt === clock + 10000, 'autonext/twotruths: the result sets nextAt');
   applyRoomAction(t2, 'a', 'next', { turn: 5 });
   check(t2.shared.turn === 0 && t2.shared.phase === 'result', 'autonext/twotruths: a stale «التالي» is dropped');
   fire(t2);
@@ -15963,7 +15973,7 @@ Date.now = duelTestClock;
   check(r0.program.phase === 'result', 'program: a skip aimed at the pause before does nothing');
   check(threwP(() => applyRoomAction(r0, 'b', 'programSkip', { seq: seq0 })), 'program: a player can\'t skip while the host is here');
   // The pause after the result, on the clock: the standings.
-  tickTo(r0, 9000);
+  tickTo(r0, 6000);   // PROGRAM_RESULT_MS 9000 -> 6000 (8 Oct 2026)
   check(r0.program.phase === 'between' && r0.game === null && r0.phase === 'lobby' && roomDeadline(r0) === clock + 10000, 'program: the result gives way to the table for 10 s');
   check(!!r0.night && r0.night.a === 5, 'program: the room\'s own night table («ليالينا») still banks the game');
   // Pause and go on; the host away lets a player press them.

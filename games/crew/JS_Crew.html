@@ -561,7 +561,7 @@ function crewWhoSheet(guessNew) {
     <div class="sheet__title">${escapeHTML(c.name)}</div>
     <p class="sheet__subtitle">${escapeHTML(t.crew_who || '')}</p>
     <div class="crew-who">${c.members.map(m => `
-      <button type="button" class="crew-who__m ${match && match.id === m.id ? 'is-guess' : ''}" onclick="crewClaim('${jsStringAttr(m.id)}')">
+      <button type="button" class="crew-who__m ${match && match.id === m.id ? 'is-guess' : ''}" onclick="crewClaim('${jsStringAttr(m.id)}', this)">
         ${crewAvatar(m.name)}<span>${escapeHTML(m.name)}</span>
       </button>`).join('')}
     </div>
@@ -577,12 +577,52 @@ function crewWhoSheet(guessNew) {
     </div>`);
 }
 
-async function crewClaim(memberId) {
+/* A tap that waits on the server says so at once (the owner, 8 Oct 2026): the
+   button tapped carries the lit ring and a small spinner, its neighbours are
+   greyed and can't be tapped, until the answer; put back if it is refused. */
+function crewPending(btn, siblings) {
+  const was = [];
+  (siblings || []).forEach(b => {
+    was.push([b, b.disabled, b.style.opacity]);
+    b.disabled = true;
+    if (b !== btn) b.style.opacity = '0.55';
+  });
+  if (btn) {
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    const spin = document.createElement('span');
+    spin.className = 'lz-status__spin';
+    spin.setAttribute('aria-hidden', 'true');
+    spin.setAttribute('data-crew-spin', '');
+    btn.appendChild(spin);
+  }
+  return () => {
+    was.forEach(([b, dis, op]) => { b.disabled = dis; b.style.opacity = op; });
+    if (btn) {
+      btn.disabled = false;
+      btn.removeAttribute('aria-busy');
+      const spin = btn.querySelector('[data-crew-spin]');
+      if (spin) spin.remove();
+    }
+  };
+}
+
+async function crewClaim(memberId, btn) {
   const t = crewT();
   const c = crewJoinPeek;
   if (!c) return;
+  // The name pressed in (the guess ring moves to it), the others greyed, «أنا جديد» too.
+  const sheet = btn && btn.closest('#crew-modal-box');
+  const others = sheet ? [...sheet.querySelectorAll('.crew-who__m, #crew-f-go')] : [];
+  const guessed = others.filter(b => b.classList.contains('is-guess'));
+  others.forEach(b => b.classList.toggle('is-guess', b === btn));
+  const restore = crewPending(btn, others);
   const res = await crewApi('join', { code: c.code, claim: memberId });
-  if (!res || !res.ok) return crewFieldError(roomErrLocal((res && res.error) || '') || t.crew_err_net);
+  if (!res || !res.ok) {
+    restore();
+    others.forEach(b => b.classList.toggle('is-guess', guessed.indexOf(b) !== -1));
+    return crewFieldError(roomErrLocal((res && res.error) || '') || t.crew_err_net);
+  }
   const m = (res.crew.members || []).find(x => x.id === res.memberId);
   crewJoined(res, m ? m.name : '');
   showToast(crewFmt(t.crew_welcome, { name: res.crew.name }), 'success');
@@ -641,7 +681,7 @@ function crewOpenMembers() {
   if (!d) return;
   const mgr = crewIsMgr(d);
   const rows = d.members.map(m => `
-    <div class="crew-mem ${m.id === d.you ? 'is-you' : ''}">
+    <div class="crew-mem ${m.id === d.you ? 'is-you' : ''}" data-mem="${escapeHTML(m.id)}">
       ${crewAvatar(m.name)}
       <span class="crew-mem__name">${escapeHTML(m.name)}
         ${m.id === d.managerId ? `<span class="badge lobby-row__host"><span aria-hidden="true">👑</span> ${escapeHTML(t.crew_manager || '')}</span>` : ''}
@@ -664,7 +704,7 @@ function crewOpenMembers() {
     <div class="modal-list crew-mems">${rows}</div>${pairHere}
     <div class="modal-actions">
       ${mgr ? `<button type="button" class="btn btn--secondary" onclick="crewRenameCrew()">✏️ ${escapeHTML(t.crew_rename || '')}</button>` : ''}
-      ${mgr ? `<button type="button" class="btn btn--secondary" onclick="crewPairCode()"><span aria-hidden="true">📱</span> ${escapeHTML(t.crew_pair_add || '')}</button>` : ''}
+      ${mgr ? `<button type="button" class="btn btn--secondary" onclick="crewPairCode(this)"><span aria-hidden="true">📱</span> ${escapeHTML(t.crew_pair_add || '')}</button>` : ''}
       <button type="button" class="btn btn--danger-soft" onclick="crewLeave()">${escapeHTML(t.crew_leave || '')}</button>
       <button type="button" class="btn btn--ghost" onclick="closeModal('crew-modal')">${escapeHTML(t.close || t.cancel || '')}</button>
     </div>`);
@@ -716,23 +756,47 @@ function crewHandOver(id) {
   const d = crewPage.data[crewPage.code] || {};
   const m = (d.members || []).find(x => x.id === id) || {};
   closeModal('crew-modal');
-  showConfirmModal(crewFmt(t.crew_hand_over_q, { name: m.name || '' }), () => crewMove('handOver', { id }, true), { yes: 'cf_hand_over', tone: 'accent', icon: '👑' });
+  showConfirmModal(crewFmt(t.crew_hand_over_q, { name: m.name || '' }), () => crewMoveOn(id, 'handOver'), { yes: 'cf_hand_over', tone: 'accent', icon: '👑' });
 }
 function crewRemove(id) {
   const t = crewT();
   const d = crewPage.data[crewPage.code] || {};
   const m = (d.members || []).find(x => x.id === id) || {};
   closeModal('crew-modal');
-  showConfirmModal(crewFmt(t.crew_remove_q, { name: m.name || '' }), () => crewMove('removeMember', { id }, true), { yes: 'cf_remove', tone: 'danger', icon: '👋' });
+  showConfirmModal(crewFmt(t.crew_remove_q, { name: m.name || '' }), () => crewMoveOn(id, 'removeMember'), { yes: 'cf_remove', tone: 'danger', icon: '👋' });
+}
+/* After the confirm, the members sheet comes straight back with that member's row
+   waiting (a spinner, every button greyed) while the server answers (8 Oct 2026: it
+   showed nothing until then); a refusal draws the sheet as it was, with the toast. */
+async function crewMoveOn(id, action) {
+  crewOpenMembers();
+  const box = document.getElementById('crew-modal-box');
+  const row = box && box.querySelector('.crew-mem[data-mem="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+  if (box) {
+    // Greyed, all but the way out («إغلاق» still closes the sheet).
+    crewPending(null, [...box.querySelectorAll('.crew-mem__acts button, .modal-actions button:not(.btn--ghost)')]);
+    const acts = row && row.querySelector('.crew-mem__acts');
+    if (acts) {
+      const spin = document.createElement('span');
+      spin.className = 'lz-status__spin';
+      spin.setAttribute('aria-hidden', 'true');
+      acts.prepend(spin);
+    }
+  }
+  const res = await crewMove(action, { id }, true);
+  const modal = document.getElementById('crew-modal');
+  if (!res && modal && !modal.classList.contains('hidden')) crewOpenMembers();
 }
 /* «ضيف موبايلك التاني» (the review of 1 Oct 2026): the manager's power is a key's, so the
    manager's other phone - in by tapping their name - pairs with a 6-digit code this phone makes
    (Crew.js, crewPairMake / crewPairUse; ten minutes, five tries). */
-async function crewPairCode() {
+async function crewPairCode(btn) {
   const t = crewT();
   const code = crewPage.code;
+  const sheet = btn && btn.closest('#crew-modal-box');
+  const restore = crewPending(btn, sheet ? [...sheet.querySelectorAll('.modal-actions button:not(.btn--ghost), .crew-mem__acts button')] : []);
   const res = await crewAct(code, 'pairCode');
-  if (!res || !res.ok || !res.pair) { showToast(roomErrLocal((res && res.error) || '') || t.crew_err_net, 'error'); return; }
+  if (!res || !res.ok || !res.pair) { restore(); showToast(roomErrLocal((res && res.error) || '') || t.crew_err_net, 'error'); return; }
   crewModal(`
     <div class="modal-icon" aria-hidden="true">📱</div>
     <div class="sheet__title">${escapeHTML(t.crew_pair_title || '')}</div>

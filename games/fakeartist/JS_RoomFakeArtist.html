@@ -26,7 +26,8 @@ const fakeArt = {
   liveSeq: 0,          // the drawer's side: which line this is, and how much of it is shared
   liveSent: 0,
   liveAt: 0,
-  live: null           // a watcher's side: { u, s, p } of the line being drawn now
+  live: null,          // a watcher's side: { u, s, p } of the line being drawn now
+  liveRaf: 0           // a watcher's side: the frame drawing that line out (8 Oct 2026)
 };
 
 ROOM_GAMES.fakeartist = {
@@ -294,7 +295,7 @@ function paintFakeArtist(strokes) {
   if (fakeArt.line) faStroke(ctx, fakeArt.colour, fakeArt.line);
   // Someone else's line still under their finger survives a rebuild of the frame.
   const live = faLiveNow();
-  if (live) faStroke(ctx, live.c, live.p);
+  if (live) { faStroke(ctx, live.c, live.p); live.shown = live.p.length; }
 }
 
 /* --- the line as it is drawn (idea 530, 7 Oct 2026) ---------------------------
@@ -352,13 +353,37 @@ function faOnLive(d) {
   if (!live || live.u !== u || live.s !== d.s) {
     if (d.i !== 0) return;       // missed its start; the line sent will show it
     // The artist's colour from the room, never from the message.
-    live = fakeArt.live = { u: u, s: d.s, c: (s.colors || {})[s.currentDrawerId] || '#111827', p: [] };
+    live = fakeArt.live = { u: u, s: d.s, c: (s.colors || {})[s.currentDrawerId] || '#111827', p: [], shown: 0, from: 0, t0: 0 };
   }
   const start = Math.max(0, live.p.length - 2);
   if (d.i !== start) return;
   const pts = d.p.map(v => Math.max(0, Math.min(FA_GRID, Math.round(Number(v) || 0))));
   live.p = live.p.slice(0, start).concat(pts);
-  faStroke(fakeArt.ctx, live.c, live.p.slice(start));
+  live.shown = Math.min(live.shown, live.p.length);
+  // Drawn out over the next FA_LIVE_MS rather than at once, so the line flows
+  // instead of jumping in chunks (the owner, 8 Oct 2026: felt slow).
+  live.from = live.shown;
+  live.t0 = performance.now();
+  if (motionOff()) { faLiveStep(live, live.p.length); return; }
+  if (!fakeArt.liveRaf) fakeArt.liveRaf = requestAnimationFrame(faLiveFrame);
+}
+
+/** Paints a watcher's live line from what is shown up to `to` (a number of its numbers). */
+function faLiveStep(live, to) {
+  to = Math.min(live.p.length, to - (to % 2));
+  if (to <= live.shown || to - Math.max(0, live.shown - 2) < 4 || !fakeArt.ctx) return;
+  faStroke(fakeArt.ctx, live.c, live.p.slice(Math.max(0, live.shown - 2), to));
+  live.shown = to;
+}
+
+/** One frame of the live line's easing: as much of it as FA_LIVE_MS has let through. */
+function faLiveFrame(now) {
+  fakeArt.liveRaf = 0;
+  const live = faLiveNow();
+  if (!live || live.shown >= live.p.length) return;
+  const k = Math.min(1, (now - live.t0) / FA_LIVE_MS);
+  faLiveStep(live, live.from + Math.ceil((live.p.length - live.from) * k));
+  if (k < 1 && live.shown < live.p.length) fakeArt.liveRaf = requestAnimationFrame(faLiveFrame);
 }
 
 Room.onLive(faOnLive);

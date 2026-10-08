@@ -6,6 +6,7 @@ gameText({
     ar: {
       mafia_lobby_hint: "كل واحد يعرف دوره على موبايله. التطبيق هو الراوي: بيحكي الليل والنهار ويعدّ الأصوات.",
       mafia_need_five: "المافيا محتاجة 5 لاعبين على الأقل.",
+      mafia_time_up: "⏱️ الوقت خلص",
       mafia_mode: "طريقة اللعب",
       mafia_mode_classic: "كلاسيك",
       mafia_mode_roles: "بأدوار",
@@ -99,6 +100,7 @@ gameText({
     en: {
       mafia_lobby_hint: "Everyone sees their role on their own phone. The app narrates: night, day and the votes.",
       mafia_need_five: "Mafia needs at least 5 players.",
+      mafia_time_up: "⏱️ Time's up",
       mafia_mode: "How to play",
       mafia_mode_classic: "Classic",
       mafia_mode_roles: "Roles",

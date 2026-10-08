@@ -29,6 +29,8 @@ gameText({
       quiz_close_other: "{name} قرّب",
       quiz_near: "قرّبت! جرّب تاني، بنص النقط",
       quiz_choices_hint: "أو اختار من التلاتة، بنص النقط (وكتابة اختيار منهم برضه بالنص)",
+      quiz_choices_soon: "تلات اختيارات هتنزل هنا كمان شوية، بنص النقط",
+      quiz_time_up: "الوقت خلص!",
     },
     en: {
       quiz_count_label: "How many",
@@ -56,6 +58,8 @@ gameText({
       quiz_close_other: "{name} is close",
       quiz_near: "Close! One more try, for half the points",
       quiz_choices_hint: "Or pick one of the three, for half the points (typing one of them is half too)",
+      quiz_choices_soon: "Three choices come down here soon, for half the points",
+      quiz_time_up: "Time's up!",
     }
   },
   rules: {

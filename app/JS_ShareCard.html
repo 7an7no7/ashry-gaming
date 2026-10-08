@@ -357,7 +357,38 @@ async function drawShareBoardCard(o) {
  * Returns 'shared', 'downloaded', 'copied' or 'failed' - which is what the
  * tests read, and what tells a caller whether to say anything.
  */
-async function shareResultCard(o) {
+/* The «شارك» tapped says so while the card is drawn (fonts, icons, the PNG), and a
+   second tap meanwhile is the same share, not a second one (the owner, 8 Oct 2026):
+   the button is disabled with «…» until the share sheet or the download. */
+let shareCardRunning = null;
+function shareResultCard(o) {
+  if (shareCardRunning) return shareCardRunning;
+  // The button of the tap that asked (an inline onclick): read before anything waits.
+  const ev = typeof window !== 'undefined' ? window.event : null;
+  const tgt = ev && ev.target && ev.target.closest ? ev.target.closest('button') : null;
+  const btn = tgt && !tgt.disabled ? tgt : null;
+  let label = null, width = '';
+  if (btn) {
+    label = btn.innerHTML;
+    width = btn.style.minWidth;
+    btn.style.minWidth = btn.offsetWidth + 'px';
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    btn.textContent = '…';
+  }
+  const done = () => {
+    shareCardRunning = null;
+    if (!btn) return;
+    btn.innerHTML = label;
+    btn.style.minWidth = width;
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+  };
+  shareCardRunning = shareResultCardRun(o);
+  shareCardRunning.then(done, done);
+  return shareCardRunning;
+}
+async function shareResultCardRun(o) {
   const t = TRANSLATIONS[appState.lang] || {};
   const fallback = () => {
     shareOrCopy(appLink(), o.text || o.title || '', t.solo_copied || t.link_copied || '');

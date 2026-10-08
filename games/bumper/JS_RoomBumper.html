@@ -30,6 +30,7 @@ const BMP_R = 38;                         // a car's bumper, a circle
 const BMP_RING_R = 440;                   // الحلبة: the platform's radius
 const BMP_COLORS = ['#e5383b', '#3f73d6', '#e9b52a', '#35a35a', '#8b5cf6', '#f97316', '#ec4899', '#06b6d4'];
 const BMP_SEND_MS = 66;                   // the controller's beat: ~15 a second
+const BMP_MOVE_SEND_MS = 33;              // a stick that moved goes out from its own move, at most this often (the owner, 8 Oct 2026: steering lagged a beat)
 const BMP_KEEP_MS = 800;                  // an input that hasn't changed is resent this often
 const BMP_PING_MS = 1500;
 const BMP_STALE_MS = 1500;                // the TV lets go of a stick not heard from this long
@@ -88,7 +89,7 @@ const BMP_BALL_R = 46;                    // the ball: bigger than a car's bumpe
 const BMP_RAIL = 18;                      // the rail's inner face
 const BMP_GOAL_HALF = 150;                // the goal mouth: 3 m
 const BMP_GOAL_D = 120;                   // the net's depth: a ball fits in whole
-const BMP_GOAL_SHOW_MS = 2600;            // «جوووول!» on the screen before the kick-off
+const BMP_GOAL_SHOW_MS = 1800;            // «جوووول!» on the screen before the kick-off: 2600 -> 1800 (the owner, 8 Oct 2026: felt slow; its two animations below follow)
 const BMP_KICK_MS = 3000;                 // the 3-2-1 before the kick-off
 const BMP_GOLDEN_MS = 60000;              // a draw at the whistle: a golden goal, a minute at most
 const BMP_BALL_SECS = [120, 180, 300];
@@ -708,7 +709,12 @@ function bmpWirePad() {
       bmpSendNow();
       e.preventDefault();
     });
-    pad.addEventListener('pointermove', (e) => { if (e.pointerId === active) move(e); });
+    pad.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== active) return;
+      move(e);
+      // bmpSendNow sends only a changed (rounded) stick, so a still finger costs nothing.
+      if (Date.now() - (bmp.lastSentAt || 0) >= BMP_MOVE_SEND_MS) bmpSendNow();
+    });
     const up = (e) => {
       if (e.pointerId !== active) return;
       active = null;
@@ -862,6 +868,23 @@ function bmpBoost() {
   Room.sendLive({ k: 'b' });
   haptic('heavy');
   bmpPaintPhone();
+  bmpBoostRing();
+}
+/** The boost's ring refills every frame through its cooldown, not in the paint's 200 ms steps
+ *  (the owner, 8 Oct 2026: it looked choppy). */
+let bmpBoostRaf = 0;
+function bmpBoostRing() {
+  cancelAnimationFrame(bmpBoostRaf);
+  const step = () => {
+    bmpBoostRaf = 0;
+    const boost = document.getElementById('bmp-boost');
+    if (!boost) return;
+    const left = Math.max(0, BMP_BOOST_MS - (Date.now() - bmp.boostAt));
+    boost.style.setProperty('--cd', (left / BMP_BOOST_MS).toFixed(4));
+    boost.classList.toggle('is-cool', left > 0);
+    if (left > 0) bmpBoostRaf = requestAnimationFrame(step);
+  };
+  bmpBoostRaf = requestAnimationFrame(step);
 }
 let bmpHornAt = 0;
 function bmpHorn() {
@@ -1111,7 +1134,7 @@ const BMP_BALL_CSS = `.bmp-sides { display: grid; grid-template-columns: 1fr 1fr
 .bmp-band [data-bmp-sc="red"] { background: var(--team-red); }
 [data-bmp-sc].is-bump, [data-bmp-score].is-bump { animation: bmp-score 600ms cubic-bezier(.3, 1.6, .5, 1); }
 @keyframes bmp-score { 35% { transform: scale(1.45); } }
-.bmp-goal-toast { --team: var(--team-red); position: absolute; inset-inline: 0; top: 0; z-index: var(--z-float, 30); padding: var(--sp-3); border-radius: 20px; text-align: center; color: #fff; background: linear-gradient(135deg, var(--team), color-mix(in srgb, var(--team) 62%, black)); font: 900 2rem/1.2 var(--font-display, inherit); box-shadow: 0 18px 30px -12px color-mix(in srgb, var(--team) 60%, transparent); animation: bmp-goal-in 2600ms both; pointer-events: none; }
+.bmp-goal-toast { --team: var(--team-red); position: absolute; inset-inline: 0; top: 0; z-index: var(--z-float, 30); padding: var(--sp-3); border-radius: 20px; text-align: center; color: #fff; background: linear-gradient(135deg, var(--team), color-mix(in srgb, var(--team) 62%, black)); font: 900 2rem/1.2 var(--font-display, inherit); box-shadow: 0 18px 30px -12px color-mix(in srgb, var(--team) 60%, transparent); animation: bmp-goal-in 1800ms both; pointer-events: none; }
 .bmp-goal-toast.bmp-goal-toast--blue, .bmp-banner.bmp-banner--blue { --team: var(--team-blue); }
 .bmp-goal-toast small { display: block; font: 700 0.95rem var(--font, inherit); }
 @keyframes bmp-goal-in { 0% { opacity: 0; transform: scale(0.5) rotate(-8deg); } 8% { opacity: 1; transform: scale(1.08) rotate(-3deg); } 14%, 86% { opacity: 1; transform: rotate(-3deg); } 100% { opacity: 0; transform: rotate(-3deg) scale(1.04); } }
@@ -1133,7 +1156,7 @@ const BMP_BALL_CSS = `.bmp-sides { display: grid; grid-template-columns: 1fr 1fr
 .bmp-bug__clock b { font-size: 3.4vmin; line-height: 1; }
 .bmp-bug__clock small { font: 600 1.3vmin var(--font, inherit); opacity: 0.8; }
 .bmp-goalhost { position: absolute; inset: 0; z-index: 4; pointer-events: none; display: grid; place-items: center; overflow: hidden; }
-.bmp-banner { --team: var(--team-red); width: 120%; padding: 3vmin 0; display: flex; flex-direction: column; align-items: center; color: #fff; transform: rotate(-4deg); background: linear-gradient(90deg, color-mix(in srgb, var(--team) 62%, black), var(--team) 30%, var(--team) 70%, color-mix(in srgb, var(--team) 62%, black)); box-shadow: 0 3vmin 8vmin -2vmin color-mix(in srgb, var(--team) 70%, transparent); animation: bmp-sweep 2600ms cubic-bezier(.2, .8, .2, 1) both; }
+.bmp-banner { --team: var(--team-red); width: 120%; padding: 3vmin 0; display: flex; flex-direction: column; align-items: center; color: #fff; transform: rotate(-4deg); background: linear-gradient(90deg, color-mix(in srgb, var(--team) 62%, black), var(--team) 30%, var(--team) 70%, color-mix(in srgb, var(--team) 62%, black)); box-shadow: 0 3vmin 8vmin -2vmin color-mix(in srgb, var(--team) 70%, transparent); animation: bmp-sweep 1800ms cubic-bezier(.2, .8, .2, 1) both; }
 .bmp-banner b { font: 900 13vmin/1 var(--font-display, inherit); text-shadow: 0 0.6vmin 0 rgb(0 0 0 / 0.2); }
 .bmp-banner > span { font: 700 3vmin var(--font-display, inherit); margin-top: 1vmin; }
 @keyframes bmp-sweep { 0% { opacity: 0; transform: translateX(-60%) rotate(-4deg) scale(0.9); } 14% { opacity: 1; transform: translateX(0) rotate(-4deg) scale(1.04); } 20%, 84% { opacity: 1; transform: rotate(-4deg); } 100% { opacity: 0; transform: translateX(60%) rotate(-4deg); } }

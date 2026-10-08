@@ -139,7 +139,15 @@ function minesTap(i) {
       if (!cells.length) return;
     }
     s.lastTap = i;
-    raceMove('mines', { cells: cells });
+    // Pressed in at once until the server opens them (the owner, 8 Oct 2026: a tap showed
+    // nothing for a round trip). The redraw that opens them drops the mark; a refusal, or an
+    // answer that opened nothing, drops it when the move settles.
+    const pressed = cells.map(k => document.querySelector(`#mines-grid .mines-cell[data-i="${k}"]`)).filter(Boolean);
+    pressed.forEach(c => { c.classList.add('is-pending'); c.style.opacity = '0.6'; c.style.transform = 'scale(0.94)'; });
+    raceMove('mines', { cells: cells }).finally(() => pressed.forEach(c => {
+      if (!c.isConnected) return;
+      c.classList.remove('is-pending'); c.style.opacity = ''; c.style.transform = '';
+    }));
     return;
   }
   if (s.phase === 'ready') {

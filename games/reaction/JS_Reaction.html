@@ -82,6 +82,7 @@ function startReactionRound() {
     };
     paintWait();
     exitBtn.classList.add('hidden');
+    exitBtn.disabled = false;
 
     r.status = 'waiting';
     r.firstTapInfo = null; // 👈 Reset the tie-breaker memory
@@ -261,15 +262,24 @@ function showReactionResult(winner, timeMs, isFalseStart, falseStartPlayer, isTi
         [msg1, msg2].forEach((m) => { const n = m.querySelector('[data-rx-ms]'); if (n) countUp(n, 0, timeMs); });
     }
 
+    // «خروج» and «دوس تاني» are drawn at once, greyed, so nothing pops in or resizes the halves a
+    // second later; the 1 s guard against a stray tap only wakes them (the owner, 8 Oct 2026).
+    const exitNow = document.getElementById('reaction-exit-btn');
+    exitNow.classList.remove('hidden');
+    exitNow.disabled = true;
+    const restartHTML = `<div class="rx-again" style="opacity:0.35">${escapeHTML(restartText)}</div>`;
+    if (msg1.children[0]) msg1.children[0].insertAdjacentHTML('beforeend', restartHTML);
+    if (msg2.children[0]) msg2.children[0].insertAdjacentHTML('beforeend', restartHTML);
+
     clearTimeout(appState.reaction.resultTimeoutId);
     appState.reaction.resultTimeoutId = setTimeout(() => {
         // Leaving during this second used to re-arm the panels behind the menu.
         if (appState.reaction.status !== 'ended') return;
-        document.getElementById('reaction-exit-btn').classList.remove('hidden');
-
-        const restartHTML = `<div class="rx-again ${motionOff() ? '' : 'rx-again--pulse'}">${escapeHTML(restartText)}</div>`;
-        if (msg1.children[0]) msg1.children[0].insertAdjacentHTML('beforeend', restartHTML);
-        if (msg2.children[0]) msg2.children[0].insertAdjacentHTML('beforeend', restartHTML);
+        exitNow.disabled = false;
+        [msg1, msg2].forEach(m => m.querySelectorAll('.rx-again').forEach(a => {
+            a.style.opacity = '';
+            if (!motionOff()) a.classList.add('rx-again--pulse');
+        }));
 
         // Starting again is an ordinary tap.
         p1.onpointerdown = null;

@@ -885,3 +885,6 @@ for a family table and are open to change; each says so. Styles: section 72 at t
     `rooms/JS_Faces.html` (the chunk `faces`, SHELL_USES_OK).
 
 **The lobby's options follow the setups' rules** (8 Oct 2026): the options most tables change in view, seats/sides/teams/pieces always in view, house rules under `lobbyMoreHtml('<game>-more', …)`; a switch that is off shows no explanation.
+
+**«⚙️ غيّر الإعدادات»** (the owner, 8 Oct 2026): beside every «لعبة تانية» the host sees (phone and TV), put there by `roomReconfigureAdd` (JS_RoomAutoNext.html, a MutationObserver on the room views; every game draws its own «لعبة تانية»). Room action `reconfigure` (RoomGames.js): host only, not inside برنامج السهرة; backToHub (the night banked) then chooseGame of the same game; the phone opens its options fold.
+**Every frequent tap answers at once** (8 Oct 2026): a move's button presses in (disabled + pending) the moment it is tapped and is given back if the server refuses (`roomActPress`, JS_RoomImposter.html, for host buttons); a clock at 0 says «الوقت خلص» on the phone at once. A new room game does the same.

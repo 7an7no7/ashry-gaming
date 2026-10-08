@@ -39,6 +39,19 @@ const EXACT_EARLY_CLOSE_MS = 300;// an order already decided closes this long af
 const EXACT_OK_MS = 3600;        // a won order's verdict, then the next
 const EXACT_BAD_MS = 5400;       // a lost one's: the slap, the bee, the spill
 const EXACT_OVER_MS = 4200;      // the last spill before the end
+/**
+ * When the next order comes after a verdict (the owner, 8 Oct 2026: felt slow - it was a flat 3.6 s / 5.4 s):
+ * when the phones' moments end (JS_RoomExact.html's exReveal: the hands slam down at a gap each from 0.35 s,
+ * 0.7 s for the trap, the verdict 0.38 s after the last, each wrong hand 0.32 s, the food 0.6 s after) plus
+ * a beat of 1.2 s to read it; never longer than it was.
+ */
+const exactNextMs = (res, kind) => {
+  const n = (res.presses || []).length;
+  const gap = n ? Math.min(230, 1500 / n) : 0;
+  const T = (kind === 'none' ? 700 : 350) + n * gap + 380;
+  const bad = Object.keys(res.bad || {}).length;
+  return Math.round(Math.min(res.ok ? EXACT_OK_MS : EXACT_BAD_MS, T + 600 + 320 * bad + 1200));
+};
 const EXACT_MAX_EVENTS = 60;     // taps a phone may send in one order
 const EXACT_REFILL_EVERY = 5;    // every 5th level cleared refills a spilt glass
 const EXACT_GOLD_AT = 5;         // «الإيد الدهب» (7 Oct 2026): a hand right this many orders in a row wears a gold ring (+1 while it does)
@@ -480,7 +493,7 @@ const exactClose = (room) => {
   s.phase = 'reveal';
   s.live = s.live || { down: {}, taps: {}, order: [] };
   room.secrets = {};
-  s.nextAt = Date.now() + (res.final ? EXACT_OVER_MS : res.ok ? EXACT_OK_MS : EXACT_BAD_MS);
+  s.nextAt = Date.now() + (res.final ? EXACT_OVER_MS : exactNextMs(res, (s.order || {}).kind));
   s.board = exactBoard(room);
 };
 

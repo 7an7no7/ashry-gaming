@@ -788,7 +788,11 @@ function dkFrame(ts) {
   const role = dkRole(st);
   const s = st.shared || {};
   // 30 frames a second while something moves; 6 on a phone at rest (the owner's battery rule; the TV never rests).
-  const moving = s.phase !== 'play' || (s.vel && (s.vel[0] || s.vel[1])) || dk.stick.on || Date.now() - dk.touchAt < 1500 || Date.now() - dk.pulseAt < 1500 || Date.now() - dk.bumpAt < 800;
+  // Moving traps and another guide's lens still gliding count too: only a still map rests (the owner,
+  // 8 Oct 2026: they went choppy on a phone left alone 10 s).
+  const dynMap = s.phase === 'play' && ((dkMapOf(st) || {}).dyn || []).length > 0;
+  const lensGlide = Object.keys(dk.lens).some(id => { const l = dk.lens[id]; return !!l && (Math.abs(l.x - l.sx) > 0.02 || Math.abs(l.y - l.sy) > 0.02); });
+  const moving = s.phase !== 'play' || dynMap || lensGlide || (s.vel && (s.vel[0] || s.vel[1])) || dk.stick.on || Date.now() - dk.touchAt < 1500 || Date.now() - dk.pulseAt < 1500 || Date.now() - dk.bumpAt < 800;
   const resting = role !== 'screen' && Date.now() - dk.touchAt > DK_REST_AFTER && !moving;
   const gap = resting ? 166 : 33;
   if (ts - dk.lastFrame >= gap - 2) {

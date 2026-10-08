@@ -96,27 +96,7 @@ function renderDaily() {
   // Today's puzzles come first (the owner, 3 Oct 2026): how far the day is, then
   // the list; the streak, sharing and the archive under it. «شارك» shows once
   // every puzzle of the day is done - before that it was a grey button on top.
-  const list = DAILY_GAMES.map(g => {
-    const cat = CATALOG_BY_ID[g.id];
-    const result = soloDailyResult(g.id);
-    const going = !result && soloDailyInProgress(g.id);
-    // Switched off for a fix: greyed with «🛠️ بنصلّحها» in place of «العب» (playDaily only says why).
-    const off = !result && typeof catalogOff === 'function' && catalogOff(g.id);
-    // 1095 (7 Oct 2026): three states at a glance - «العب» in the game's colour, «كمّل»
-    // amber with a ring (started), done: its result in green and the row dimmed.
-    const badge = going
-      ? `<span class="badge daily-row__go is-going"><i class="daily-ring" aria-hidden="true"></i>${escapeHTML(t.daily_continue || 'كمّل')}</span>`
-      : `<span class="badge daily-row__go">${escapeHTML(t.daily_play || '')}</span>`;
-    return `
-          <button type="button" class="tool-item daily-row${result ? ' is-done' : off ? ' is-off' : going ? ' is-going' : ''}" data-accent="${cat.accent}" data-game="${g.id}" onclick="playDaily('${g.id}')" ${result ? 'disabled' : ''}>
-            <span class="tool-icon" aria-hidden="true">${typeof iconHtml === 'function' ? iconHtml(cat.icon) : cat.icon}</span>
-            <span class="tool-info">
-              <span class="tool-name">${escapeHTML(t[cat.title] || g.id)}</span>
-              <span class="tool-desc">${escapeHTML(result ? (t.daily_done_today || '') : (t[cat.desc] || ''))}</span>
-            </span>
-            <span class="daily-row__status">${result ? escapeHTML(g.line(result)) : off ? gameOffBadge(t) : badge}</span>
-          </button>`;
-  }).join('');
+  const list = DAILY_GAMES.map(g => dailyRowHtml(g, t)).join('');
   el.innerHTML = `
     <div class="daily-head daily-head--progress card">
       <div class="daily-head__progress">
@@ -153,14 +133,77 @@ function renderDaily() {
     afterReveal(top, () => { playSound('success'); if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.3 } }); });
   }
   // A board left half done lives in its game's own state, which only its chunk
-  // can read: until it loads, «كمّل» read «العب». Fetch the chunks of today's
-  // unfinished games once, then draw the list again (as the home's «كمّل» card does).
+  // can read. Until it loads the row goes by the day's stamp (dailyStartedToday):
+  // «كمّل» from the first paint (8 Oct 2026: it used to read «العب» and swap). The
+  // chunks of today's unfinished games are fetched once, and only a row whose
+  // state the game's own code says otherwise is drawn again.
   const need = DAILY_GAMES.filter(g => !SOLO_GAMES[g.id] && !soloDailyResult(g.id))
     .reduce((all, g) => all.concat(typeof lzChunksOfGame === 'function' ? lzChunksOfGame(g.id) : []), []);
   if (need.length && !renderDaily.asked && typeof lzEnsure === 'function' && !lzReady(need)) {
     renderDaily.asked = true;
-    lzEnsure(need).then(() => { if (appState.currentView === 'setup-daily') renderDaily(); }, () => {});
+    lzEnsure(need).then(() => { if (appState.currentView === 'setup-daily') dailyRowsFix(); }, () => {});
   }
+}
+
+/** One row of the hub: «العب», «كمّل» (started), done (its result), or switched off. */
+function dailyRowHtml(g, t) {
+  const cat = CATALOG_BY_ID[g.id];
+  const result = soloDailyResult(g.id);
+  // A game whose code isn't here yet can't say whether its own board is a daily under
+  // way (only a board set aside is in the day's keeping): the stamp says it was started.
+  const going = !result && (soloDailyInProgress(g.id) || (!SOLO_GAMES[g.id] && dailyStartedToday(g.id)));
+  // Switched off for a fix: greyed with «🛠️ بنصلّحها» in place of «العب» (playDaily only says why).
+  const off = !result && typeof catalogOff === 'function' && catalogOff(g.id);
+  // 1095 (7 Oct 2026): three states at a glance - «العب» in the game's colour, «كمّل»
+  // amber with a ring (started), done: its result in green and the row dimmed.
+  const badge = going
+    ? `<span class="badge daily-row__go is-going"><i class="daily-ring" aria-hidden="true"></i>${escapeHTML(t.daily_continue || 'كمّل')}</span>`
+    : `<span class="badge daily-row__go">${escapeHTML(t.daily_play || '')}</span>`;
+  return `
+          <button type="button" class="tool-item daily-row${result ? ' is-done' : off ? ' is-off' : going ? ' is-going' : ''}" data-accent="${cat.accent}" data-game="${g.id}" onclick="playDaily('${g.id}')" ${result ? 'disabled' : ''}>
+            <span class="tool-icon" aria-hidden="true">${typeof iconHtml === 'function' ? iconHtml(cat.icon) : cat.icon}</span>
+            <span class="tool-info">
+              <span class="tool-name">${escapeHTML(t[cat.title] || g.id)}</span>
+              <span class="tool-desc">${escapeHTML(result ? (t.daily_done_today || '') : (t[cat.desc] || ''))}</span>
+            </span>
+            <span class="daily-row__status">${result ? escapeHTML(g.line(result)) : off ? gameOffBadge(t) : badge}</span>
+          </button>`;
+}
+
+/** The games' code has come: a row its stamp guessed wrong is drawn again, alone. */
+function dailyRowsFix() {
+  const box = document.querySelector('#daily-stage .daily-list');
+  if (!box) { renderDaily(); return; }
+  const t = TRANSLATIONS[appState.lang];
+  DAILY_GAMES.forEach(g => {
+    const row = box.querySelector('.daily-row[data-game="' + g.id + '"]');
+    if (!row) return;
+    const html = dailyRowHtml(g, t);
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html.trim();
+    const next = tpl.content.firstElementChild;
+    if (next && next.className !== row.className) row.replaceWith(next);
+  });
+}
+
+/* Which dailies were started today (playDaily): the hub's «كمّل» before their games'
+   code is here. A hint for the first paint, for today only; the game's own state
+   decides once its code has come (dailyRowsFix). */
+const DAILY_STARTED_KEY = 'ashryDailyStarted_v1';
+function dailyStartedToday(id) {
+  try {
+    const s = JSON.parse(localStorage.getItem(DAILY_STARTED_KEY) || 'null');
+    return !!(s && s.day === soloRealToday() && (s.ids || []).indexOf(id) !== -1);
+  } catch (e) { return false; }
+}
+function dailyMarkStarted(id) {
+  try {
+    const today = soloRealToday();
+    const s = JSON.parse(localStorage.getItem(DAILY_STARTED_KEY) || 'null');
+    const ids = s && s.day === today ? (s.ids || []) : [];
+    if (ids.indexOf(id) === -1) ids.push(id);
+    localStorage.setItem(DAILY_STARTED_KEY, JSON.stringify({ day: today, ids }));
+  } catch (e) {}
 }
 
 /** True the first time this phone shows today's dailies all done (1097), kept by day so a reload doesn't greet again. */
@@ -182,6 +225,7 @@ function playDaily(id) {
   soloHubReturn = true;
   soloHubGame = id;
   if (typeof rememberRecent === 'function') rememberRecent(id);
+  dailyMarkStarted(id);
   g.start();
 }
 

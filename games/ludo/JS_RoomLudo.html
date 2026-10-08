@@ -201,6 +201,20 @@ function ludoServerGap(state) {
   return isFinite(ludoRoomLocal.gap) ? ludoRoomLocal.gap : 0;
 }
 
+/** --ludo-left registered as an inherited number (the yard's ::before reads it), once; false where
+ *  the browser can't, and the ring then steps once a second as before. */
+let ludoRingReg = null;
+function ludoRingSmooth() {
+  if (ludoRingReg !== null) return ludoRingReg;
+  try {
+    CSS.registerProperty({ name: '--ludo-left', syntax: '<number>', inherits: true, initialValue: '1' });
+    ludoRingReg = true;
+  } catch (e) {
+    ludoRingReg = !!(e && e.name === 'InvalidModificationError');   // registered already
+  }
+  return ludoRingReg;
+}
+
 /** Draws the turn clock; the server plays the turn when it runs out. */
 function ludoTickClock(state) {
   const s = ludoShared(state);
@@ -219,8 +233,26 @@ function ludoTickClock(state) {
     });
     // The ring round the player up (their chip, and their yard on the TV): the share of the turn left.
     const share = isFinite(full) && full > 0 ? Math.max(0, Math.min(1, left / full)) : 1;
+    // It drains smoothly to the turn's end in one transition, not a step a second (the owner, 8 Oct
+    // 2026: it jumped): --ludo-left is registered as a number so a transition can run it.
+    const smooth = ludoRingSmooth() && endsAt && isFinite(full) && full > 0 && !motionOff();
     document.querySelectorAll('[data-ludo-ring]').forEach(el => {
-      el.style.setProperty('--ludo-left', String(share));
+      if (smooth) {
+        const key = endsAt + '|' + full;
+        if (el._ludoEnd !== key) {
+          const remain = Math.max(0, endsAt + gap - Date.now()), whole = full * 1000;
+          el._ludoEnd = key;
+          el.style.transition = 'none';
+          el.style.setProperty('--ludo-left', String(Math.min(1, remain / whole)));
+          void getComputedStyle(el).getPropertyValue('--ludo-left');
+          el.style.transition = `--ludo-left ${Math.min(remain, whole)}ms linear ${Math.max(0, remain - whole)}ms`;
+          el.style.setProperty('--ludo-left', '0');
+        }
+      } else {
+        el._ludoEnd = '';
+        el.style.transition = '';
+        el.style.setProperty('--ludo-left', String(share));
+      }
       el.classList.toggle('is-low', left <= 5);
     });
     return left;

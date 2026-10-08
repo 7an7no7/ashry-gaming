@@ -14,7 +14,8 @@ const TRIVIA_SPEED_BONUS = 5;
 const TRIVIA_SECONDS = 15;
 // An answer tapped as the clock hits zero is still on its way, and still
 // counts. Once this has passed too, the server closes the question itself.
-const TRIVIA_GRACE_MS = 2000;
+// The phone shows «الوقت خلص!» at its own 0 (JS_RoomTrivia.html), so this is only the wait for an answer in flight.
+const TRIVIA_GRACE_MS = 1000;   // 2000 -> 1000 (the owner, 8 Oct 2026: felt slow)
 
 // The categories a host can pick (a question's `c` in TriviaQuestions.js);
 // TRIVIA_ROOM_CATS in JS_RoomTrivia.html draws them.

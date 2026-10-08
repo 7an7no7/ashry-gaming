@@ -127,7 +127,30 @@ function mindPlay(btn) {
   // tap is aimed at a card already down, and the server drops it rather than
   // playing the next one.
   const mine = ((Room.state && Room.state.you) || {}).cards || [];
-  roomAct('play', mine.length ? { card: mine[0] } : {});
+  // The card goes down under the finger at once, dimmed and pressed, and can't be
+  // tapped again (the owner, 8 Oct 2026: felt slow); the server's answer draws the
+  // pile and flies it, a refusal gives it back.
+  if (btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.classList.add('is-pending');
+    btn.style.opacity = '0.6';
+    btn.style.transform = 'scale(0.94)';
+  }
+  // Put back if the screen wasn't redrawn (a tap the server dropped as stale changes nothing).
+  const restore = () => {
+    if (btn && btn.isConnected) {
+      btn.disabled = false;
+      btn.classList.remove('is-pending');
+      btn.style.opacity = '';
+      btn.style.transform = '';
+    }
+  };
+  Room.act('play', mine.length ? { card: mine[0] } : {}).then(restore, err => {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    mindLocal.from = null;
+    restore();
+  });
 }
 
 /** The card the table just saw, flying from this phone's hand onto the pile. */

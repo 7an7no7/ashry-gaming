@@ -160,8 +160,8 @@ ROOM_GAMES.buzzer = {
       const host = !state.youAreHost ? '' : `
         <div class="view-actions talk__actions bz-bar" role="group" aria-label="${escapeHTML(t.bz_host_controls || '')}">
           <div class="room-bar__pair">
-            <button class="btn btn--success btn--lg" onclick="roomAct('correct', { id: '${jsStringAttr(first ? first.id : '')}' })" ${first ? '' : 'disabled'}>✓ ${escapeHTML(t.bz_correct || '')}</button>
-            <button class="btn btn--danger btn--lg" onclick="roomAct('wrong', { id: '${jsStringAttr(first ? first.id : '')}', penalty: buzzerPenalty() })" ${first ? '' : 'disabled'}>✗ ${escapeHTML(t.bz_wrong || '')}${buzzerPenalty() ? ' (−1)' : ''}</button>
+            <button class="btn btn--success btn--lg" onclick="bzVerdictTap('correct', '${jsStringAttr(first ? first.id : '')}', this)" ${first ? '' : 'disabled'}>✓ ${escapeHTML(t.bz_correct || '')}</button>
+            <button class="btn btn--danger btn--lg" onclick="bzVerdictTap('wrong', '${jsStringAttr(first ? first.id : '')}', this)" ${first ? '' : 'disabled'}>✗ ${escapeHTML(t.bz_wrong || '')}${buzzerPenalty() ? ' (−1)' : ''}</button>
           </div>
           <div class="talk__pair">
             <button class="btn btn--ghost btn--sm" onclick="roomAct('reset', { round: ${Number(s.round) || 1} })">🔄 ${escapeHTML(t.bz_reset || '')}</button>
@@ -213,6 +213,25 @@ function bzAdjust(id, delta, was) {
 }
 
 /** «تصفير النقاط» wipes the whole evening's tally: asked first (the phone and the TV). */
+/* The host's ✓ صح / ✗ غلط: the pair greys and the tapped one stays pressed until
+   the server answers (the owner, 8 Oct 2026: felt slow); a refusal gives them back. */
+function bzVerdictTap(kind, id, btn) {
+  const pair = btn && btn.closest('.room-bar__pair');
+  const btns = pair ? [...pair.querySelectorAll('.btn')] : [];
+  btns.forEach(b => { b.disabled = true; });
+  if (btn) { btn.classList.add('is-pending'); btn.style.opacity = '0.6'; btn.style.transform = 'scale(0.94)'; }
+  const payload = kind === 'wrong' ? { id: id, penalty: buzzerPenalty() } : { id: id };
+  // Put back if the screen wasn't redrawn (a tap the server dropped as stale changes nothing).
+  const restore = () => {
+    btns.forEach(b => { if (b.isConnected) b.disabled = false; });
+    if (btn && btn.isConnected) { btn.classList.remove('is-pending'); btn.style.opacity = ''; btn.style.transform = ''; }
+  };
+  Room.act(kind, payload).then(restore, err => {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    restore();
+  });
+}
+
 function bzResetScores() {
   const t = TRANSLATIONS[appState.lang] || {};
   showConfirmModal(t.bz_reset_confirm || '', () => roomAct('playAgain'), { yes: 'cf_reset_scores', tone: 'danger', icon: '🔄' });

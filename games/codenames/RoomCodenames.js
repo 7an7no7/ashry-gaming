@@ -11,7 +11,8 @@ const CODENAMES_MAX_CUSTOM = 60;
 // guessesLeft after a clue of 0 or ∞: the team goes on until it misses or passes.
 const CODENAMES_UNLIMITED = -1;
 // A move sent as the clock hits zero is still on its way; after this the server passes the turn.
-const CODENAMES_GRACE_MS = 1500;
+// The phone shows «الوقت خلص» at its own 0 (JS_RoomCodenames.html).
+const CODENAMES_GRACE_MS = 800;   // 1500 -> 800 (the owner, 8 Oct 2026: felt slow)
 
 /** A device showing the room on a big screen instead of playing in it. */
 const isRoomScreen = (room, id) => (room.screens || []).some(s => s.id === id);

@@ -26,7 +26,11 @@
    TV is the room's one voice (the host's phone when there is none). Every
    name here starts with bx / BX_; styles in section 59 of Style.html.
    ========================================================================= */
-const BX_T = 10.6;          // the show's length in seconds (BOX_SHOW_MS on the server)
+const BX_T = 10.6;          // the show's longest length in seconds (BOX_SHOW_MS on the server): the scorpion's
+/** This box's show, in seconds: the server's s.result.showMs (8.5 s, the scorpion 10.6; the owner, 8 Oct 2026: felt slow). */
+const bxShowLen = (R) => Math.min(BX_T, ((R && R.showMs) || BX_T * 1000) / 1000);
+/** When the box's effect has moved the money (the scorpion's at 8.8 s, every other at 6.6 s, each over 1.1 s or 0.6 s). */
+const bxEffectAt = (R) => { const sc = R && R.kind === 'scorpion' && !(R.deal !== null && R.deal !== undefined && R.winnerId); return sc ? [8.8, 0.6] : [6.6, 1.1]; };
 const BX_TB = 5.6;          // the moment the lid flies
 const BX_CROP = [300, 30, 680, 590];   // a phone's close-up of the box: x, y, w, h in the scene
 const BX_SCEN = [0, 0, 1280, 720];
@@ -380,7 +384,11 @@ function bxRunShow(root, state) {
   const pay = R.winnerId ? R.bid : 0;
   // «عرض الحاج» taken: the box is only shown, its effect never happens (the ideas of 7 Oct 2026).
   const dealt = R.deal !== null && R.deal !== undefined && !!R.winnerId;
-  const tEffect = R.kind === 'scorpion' && !dealt ? 8.8 : 6.6, dEffect = R.kind === 'scorpion' && !dealt ? 0.6 : 1.1;
+  const [tEffect, dEffect] = bxEffectAt(R);
+  // The show ends by the box (TE): the buttons, the line and the countdown come then; the canvas plays its last particles out to BX_T.
+  const TE = bxShowLen(R);
+  let ended = false;
+  const endNow = (st) => { if (ended) return; ended = true; bxShowEnded(stage, st); };
   // What the box itself moved (not the bid, the insurance or the deal): the lines and the floating numbers.
   const eff = (pred) => ((R.moves || []).find(m => !m.at && pred(m)) || {}).n || 0;
   const insured = {};
@@ -502,7 +510,7 @@ function bxRunShow(root, state) {
       }
       if (W && R.kind === 'key') spark(W.x, W.y - 40, 24, '255,214,110', 300);
     }
-    if (ev(BX_T - 0.2)) snd('end');
+    if (ev(TE - 0.2)) snd('end');
   }
   function update(dt) {
     for (const p of P) {
@@ -663,7 +671,8 @@ function bxRunShow(root, state) {
   if (target >= BX_T) { P = []; FT = []; }
   popTidy();
   frame(S.t); draw();
-  if (target >= BX_T) { stage.dataset.bxDone = key; bxShowEnded(stage, state); return; }
+  if (target >= TE) endNow(state);
+  if (target >= BX_T) { stage.dataset.bxDone = key; return; }
   S.live = true;
   let prev = performance.now();
   const loop = (ts) => {
@@ -675,7 +684,8 @@ function bxRunShow(root, state) {
     while (S.t < to - 1e-6 && S.t < BX_T) { const d = Math.min(step, to - S.t); S.last = S.t; S.t += d; events(); update(d); }
     popTidy();
     frame(S.t); draw();
-    if (S.t >= BX_T) { stage.dataset.bxDone = key; bxShowEnded(stage, Room.state || state); if (bx.show === show) bx.show = null; return; }
+    if (S.t >= TE) endNow(Room.state || state);
+    if (S.t >= BX_T) { stage.dataset.bxDone = key; if (bx.show === show) bx.show = null; return; }
     show.raf = requestAnimationFrame(loop);
   };
   show.raf = requestAnimationFrame(loop);
@@ -753,6 +763,8 @@ function bxConfirm() {
   l.step = 'wait';
   bxSaveLocal();
   haptic('medium');
+  // The waiting step drawn at once, not when the server answers (the owner, 8 Oct 2026: felt slow).
+  ROOM_GAMES.box.render(st);
   // A bid that didn't get there (no answer, the socket gone) puts this phone back on its bid,
   // rather than leave it on «you bid N» while the box opens with it as a pass.
   Room.act('bid', { box: s.box, amount: l.v, insure: !!l.ins }).catch((err) => {
@@ -925,7 +937,7 @@ function bxPhoneOpenHtml(state) {
     ? `<div class="bx-mine ${d > 0 ? 'is-up' : 'is-down'}"><span><b dir="ltr">${d > 0 ? '+' : '−'}${bxMoney(Math.abs(d))}</b> ${escapeHTML(bxCur())}</span></div>` : '';
   return `${bxStageHtml(state, { crop: true, u: 'P', kind: R.kind, coin: R.coin, tag: bxT('box_n', { n: (s.box || 0) + 1, m: s.boxes || 8 }) })}
     <div class="bx-bids bx-after" data-bx-from="0.6">${chips}</div>
-    <div class="bx-after" data-bx-from="9.4">${mine}</div>`;
+    <div class="bx-after" data-bx-from="${bxEffectAt(R).reduce((a, b) => a + b, 0)}">${mine}</div>`;
 }
 
 function bxOpenedHtml(state) {
@@ -972,7 +984,7 @@ function bxHostBtns(state, tv) {
   if (s.phase === 'open') {
     const last = (s.box || 0) + 1 >= (s.boxes || 8);
     const soon = `<div class="bx-soon">${escapeHTML(bxT(last ? 'box_final_in' : 'box_next_in'))} <b class="metric" data-bx-clock="${s.nextAt || 0}">…</b></div>`;
-    return `<div class="bx-after" data-bx-from="${BX_T}">${roomMoveOnHtml(state, `<div class="${tv ? 'tv-actions' : 'bx-host'}">${btn(bxT(last ? 'box_final' : 'box_next'), `roomAct('nextBox', { box: ${s.box} })`)}</div>`)}${soon}</div>`;
+    return `<div class="bx-after" data-bx-from="${bxShowLen(s.result)}">${roomMoveOnHtml(state, `<div class="${tv ? 'tv-actions' : 'bx-host'}">${btn(bxT(last ? 'box_final' : 'box_next'), `roomAct('nextBox', { box: ${s.box} })`)}</div>`)}${soon}</div>`;
   }
   if (s.phase === 'gameover' && state.youAreHost) {
     return `<div class="${tv ? 'tv-actions' : 'btn-row'}" style="margin-top:var(--sp-3)">${btn('▶ ' + (t.play_again || ''), "roomAct('playAgain', {})")}${btn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}</div>`;

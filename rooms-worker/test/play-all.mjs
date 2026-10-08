@@ -2136,7 +2136,7 @@ async function autonextRobots() {
   await all(everyone, (s) => s.shared.phase === 'answering' && s.shared.qIndex === 0, 'autonext: trivia starts');
   const answerAll = async () => { for (const b of people) await b.must('answer', { choice: 0, qIndex: b.state.shared.qIndex }); };
   await answerAll();
-  await all(everyone, (s) => s.shared.phase === 'results' && typeof s.shared.nextAt === 'number' && s.shared.nextMs === 10000, 'autonext: the result carries the count on every phone and the TV');
+  await all(everyone, (s) => s.shared.phase === 'results' && typeof s.shared.nextAt === 'number' && s.shared.nextMs === 8000, 'autonext: the result carries the count on every phone and the TV');
   await all(everyone, (s) => s.shared.phase === 'answering' && s.shared.qIndex === 1 && !('nextAt' in s.shared), 'autonext: the server deals the next question by itself', 16000);
   await answerAll();
   await all(everyone, (s) => s.shared.phase === 'results' && s.shared.qIndex === 1 && typeof s.shared.nextAt === 'number', 'autonext: question 2\'s count');
@@ -2169,7 +2169,7 @@ async function autonextRobots() {
   await H.must('start', { lang: 'ar', autoNext: true });
   await all(everyone, (s) => s.shared.round === 1 && s.shared.vote && s.shared.vote.phase === 'voting', 'autonext: لو خيروك starts');
   for (const b of people) await b.must('vote', { option: 'a', round: 1 });
-  await all(everyone, (s) => s.shared.vote.phase === 'results' && s.shared.nextMs === 12000, 'autonext: the vote\'s result carries the count');
+  await all(everyone, (s) => s.shared.vote.phase === 'results' && s.shared.nextMs === 9000, 'autonext: the vote\'s result carries the count');
   await all(everyone, (s) => s.shared.round === 2 && s.shared.vote.phase === 'voting', 'autonext: the next question comes by itself', 18000);
   await H.must('backToHub');
 

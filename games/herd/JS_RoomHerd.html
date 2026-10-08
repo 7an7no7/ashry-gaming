@@ -10,7 +10,8 @@
    ========================================================================= */
 
 const HERD_OPTS_KEY = 'ashryHerdOpts';
-const herdLocal = { mergeFrom: null };
+// `mergeInto`: the second group of a merge sent and not yet answered - both stay lit (8 Oct 2026).
+const herdLocal = { mergeFrom: null, mergeInto: null };
 
 function herdOpts() {
   const base = { target: 8 };
@@ -46,7 +47,8 @@ function herdGroupsHtml(s, t, opts) {
   return `<div class="herd-groups">${(s.groups || []).map(g => {
     const top = s.majorityKey && g.key === s.majorityKey;
     const alone = g.ids.length === 1;
-    const picked = herdLocal.mergeFrom === g.key;
+    const picked = herdLocal.mergeFrom === g.key || herdLocal.mergeInto === g.key;
+    const busy = !!herdLocal.mergeInto;
     const inner = `
       <span class="herd-group__count metric">${g.ids.length}</span>
       <span class="herd-group__body">
@@ -54,23 +56,31 @@ function herdGroupsHtml(s, t, opts) {
         <span class="herd-group__names">${g.names.map(escapeHTML).join('، ')}</span>
       </span>
       ${top ? '<span class="herd-group__mark">🐄 +1</span>' : (alone && s.phase !== 'reveal' && g.ids[0] === s.sheepId ? '<span class="herd-group__mark">🐑</span>' : '')}`;
-    const cls = `herd-group${top ? ' is-top' : ''}${picked ? ' is-picked' : ''}`;
+    const cls = `herd-group${top ? ' is-top' : ''}${picked ? ' is-picked' : ''}${picked && busy ? ' is-pending' : ''}`;
     return o.merge
-      ? `<button type="button" class="${cls}" onclick="herdTapGroup('${jsStringAttr(g.key)}')">${inner}</button>`
+      ? `<button type="button" class="${cls}"${busy ? ' disabled' : ''} onclick="herdTapGroup('${jsStringAttr(g.key)}')">${inner}</button>`
       : `<div class="${cls}">${inner}</div>`;
   }).join('')}</div>`;
 }
 
 function herdTapGroup(key) {
   if (!Room.state || !Room.state.youAreHost) return;
+  if (herdLocal.mergeInto) return;       // a merge is on its way
   if (!herdLocal.mergeFrom) {
     herdLocal.mergeFrom = key;
   } else if (herdLocal.mergeFrom === key) {
     herdLocal.mergeFrom = null;
   } else {
+    // Both groups stay lit until the server has merged them (the owner, 8 Oct
+    // 2026: felt slow); the pick drops when it answers, merged or refused.
     const from = herdLocal.mergeFrom;
-    herdLocal.mergeFrom = null;
-    roomAct('merge', { from: from, into: key });
+    herdLocal.mergeInto = key;
+    roomAct('merge', { from: from, into: key }).then(() => {
+      if (herdLocal.mergeInto !== key) return;
+      herdLocal.mergeFrom = null;
+      herdLocal.mergeInto = null;
+      if (Room.state && Room.state.game === 'herd') routeRoomState(Room.state);
+    });
   }
   haptic('light');
   // Both signatures carry the pick, so drawing again is enough - on the phone or the TV.
@@ -135,6 +145,7 @@ ROOM_GAMES.herd = {
     if (s.phase === 'pick') {
       // 710 «اختار يا خروف»: the sheep's holder picks the question; everyone sees the three.
       herdLocal.mergeFrom = null;
+      herdLocal.mergeInto = null;
       const picker = s.picker === Room.me;
       const sig = ['herd-pick', s.round, picker, state.youAreHost, appState.lang, (s.choices || []).join('~')].join('|');
       const fresh = renderRoomFrame(el, sig, () => `
@@ -164,6 +175,7 @@ ROOM_GAMES.herd = {
 
     if (s.phase === 'writing') {
       herdLocal.mergeFrom = null;
+      herdLocal.mergeInto = null;
       const sig = ['herd-write', s.round, mine, inRound, state.youAreHost, appState.lang].join('|');
       renderRoomFrame(el, sig, () => head + (mine || !inRound ? `
         <div class="card" style="text-align:center">
@@ -188,7 +200,7 @@ ROOM_GAMES.herd = {
     }
 
     if (s.phase === 'reveal') {
-      const sig = ['herd-reveal', s.round, JSON.stringify((s.groups || []).map(g => g.key + ':' + g.ids.length)), s.merges || 0, herdLocal.mergeFrom, state.youAreHost, appState.lang].join('|');
+      const sig = ['herd-reveal', s.round, JSON.stringify((s.groups || []).map(g => g.key + ':' + g.ids.length)), s.merges || 0, herdLocal.mergeFrom, herdLocal.mergeInto, state.youAreHost, appState.lang].join('|');
       const fresh = renderRoomFrame(el, sig, () => head + `
         <p class="field__hint" style="text-align:center">${escapeHTML(state.youAreHost ? (herdLocal.mergeFrom ? (t.herd_merge_into || '') : (t.herd_merge_hint || '')) : (t.herd_host_checks || ''))}</p>
         ${herdGroupsHtml(s, t, { merge: state.youAreHost })}
@@ -276,7 +288,7 @@ async function herdSubmit() {
 function herdTvGroupsHtml(s, merge) {
   return `<div class="tv-legend herd-tv">${(s.groups || []).map(g => {
     const top = s.majorityKey && g.key === s.majorityKey;
-    const picked = merge && herdLocal.mergeFrom === g.key;
+    const picked = merge && (herdLocal.mergeFrom === g.key || herdLocal.mergeInto === g.key);
     const inner = `<b class="metric">${g.ids.length}</b> ${escapeHTML(g.label)}${top ? ' 🐄' : (g.ids.length === 1 && g.ids[0] === s.sheepId && s.phase !== 'reveal' ? ' 🐑' : '')}
       <span class="herd-tv__names">${g.names.map(escapeHTML).join('، ')}</span>`;
     return merge
@@ -289,7 +301,7 @@ TV_GAMES.herd = {
   sig: (state) => {
     const s = state.shared;
     return [s.phase, s.round, s.prompt || '', (s.choices || []).join('~'), s.merges || 0, (s.submitted || []).length, JSON.stringify((s.groups || []).map(g => g.key + ':' + g.ids.length)), s.sheepId, JSON.stringify(s.scores || {}),
-            s.phase === 'reveal' ? herdLocal.mergeFrom || '' : ''].join('|');
+            s.phase === 'reveal' ? (herdLocal.mergeFrom || '') + '>' + (herdLocal.mergeInto || '') : ''].join('|');
   },
   frame(state, t) {
     const s = state.shared;

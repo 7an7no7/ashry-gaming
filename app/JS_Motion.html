@@ -297,7 +297,9 @@ function playRoomGameStart(state) {
   // The game's one line from the catalog under its name (the ideas of 7 Oct 2026, 1318), so the
   // round starts with everyone knowing the aim; the splash then holds 1.5 s longer to read it.
   const cat = typeof CATALOG_BY_ID !== 'undefined' ? CATALOG_BY_ID[state.game === 'chess' ? 'shatranj' : state.game] : null;
-  const line = cat && cat.desc ? (t[cat.desc] || '') : '';
+  // «برنامج السهرة» deals it: its table already named the game, so the short splash, no line
+  // (the owner, 8 Oct 2026: felt slow; a timed game's clock is running under the splash).
+  const line = cat && cat.desc && !(state.program && state.program.phase !== 'final') ? (t[cat.desc] || '') : '';
   el.innerHTML =
     '<div class="game-splash__card">' +
       '<span class="game-splash__icon" aria-hidden="true">' + iconHtml(hub.icon) + '</span>' +
@@ -326,8 +328,8 @@ function playRoomGameStart(state) {
   el.addEventListener('click', () => leave(true));
   setTimeout(() => leave(false), line ? GAME_SPLASH_LINE_MS : 950);
 }
-// How long the splash stays with its line (950 ms as before, and 1.5 s to read the line).
-const GAME_SPLASH_LINE_MS = 2450;
+// How long the splash stays with its line (950 ms as before, and about 0.85 s more to read the line).
+const GAME_SPLASH_LINE_MS = 1800;   // 2450 -> 1800 (the owner, 8 Oct 2026: felt slow)
 
 /* --- 2b. A list rearranges; it does not redraw ------------------------------
    Every catalog in the app filters by toggling .hidden, which is display:none:

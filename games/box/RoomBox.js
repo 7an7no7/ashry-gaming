@@ -33,8 +33,9 @@ const BOX_COUNT = 8;
 const BOX_START_MONEY = 1000;       // everyone starts with 1,000 جنيه
 const BOX_TALK_MS = 60000;          // the minute of talk
 const BOX_LAST_CALL_MS = 20000;     // then the last call for bids
-const BOX_SHOW_MS = 10600;          // the opening show on every screen (JS_RoomBox.html's timeline)
-const BOX_AFTER_MS = 6000;          // the result stays this long after the show, then the next box
+const BOX_SHOW_MS = 10600;          // the opening show on every screen (JS_RoomBox.html's timeline): the scorpion's (its effect at 8.8 s)
+const BOX_SHOW_SHORT_MS = 8500;     // every other box's (its effect over at 7.7 s); 10600 -> 8500 (the owner, 8 Oct 2026: felt slow)
+const BOX_AFTER_MS = 3500;          // the result stays this long after the show, then the next box; 6000 -> 3500 (the owner, 8 Oct 2026: felt slow)
 const BOX_GRACE_MS = 600;           // a clock's moment on the server after the phones' own
 const BOX_SCORPION = 300;           // the scorpion scatters 300 of the winner's money
 const BOX_BILL = 50;                // the bill: 50 to every other player
@@ -44,6 +45,9 @@ const BOX_OFFER_MS = 8000;          // «عرض الحاج»: 8 s to take the mo
 const BOX_OFFERS = 2;               //   twice a game, at two random boxes, never the finale
 const BOX_INSURE = 50;              // «تأمين»: 50 ج while bidding; a scorpion or the thief then costs half
 const BOX_FINALE = BOX_COUNT - 1;   // «صندوق الختام»: the eighth box, announced; everything inside counts double
+
+/** How long this box's show lasts (s.result.showMs, which the phones read too): the scorpion's is the long one. */
+const boxShowMs = (r) => (r && r.kind === 'scorpion' && !(r.deal !== null && r.deal !== undefined && r.winnerId)) ? BOX_SHOW_MS : BOX_SHOW_SHORT_MS;
 
 const boxHere = (room, id) => room.players.some(p => p.id === id && !p.bot);
 /** The roster still in the room. */
@@ -240,7 +244,7 @@ const boxAction = (room, playerId, action, payload) => {
     if (staleTap(payload, 'box', s.box)) return;
     if (s.phase !== 'open') return;
     // The show is the star: it plays to its end before anyone moves on.
-    if (Date.now() < (s.openAt || 0) + BOX_SHOW_MS - 400) return;
+    if (Date.now() < (s.openAt || 0) + ((s.result && s.result.showMs) || BOX_SHOW_MS) - 400) return;
     boxNext(room);
     return;
   }
@@ -440,6 +444,7 @@ const boxApply = (room, took) => {
   Object.keys(money).forEach(id => { delta[id] = money[id] - (before[id] || 0); });
   s.result = { box: s.box, kind: b.kind, value: b.value, bids, winnerId, bid: top, tie, tieBy, coin, victimId, peekFor, before, delta, moves,
     insured, insPaid, x2, offer: offer ? offer.amount : null, deal };
+  s.result.showMs = boxShowMs(s.result);
   s.opened = s.opened.concat([{ kind: b.kind, value: b.value, winnerId, bid: top, coin, x2, deal }]);
   s.offer = null;
   h.pending = null;
@@ -447,7 +452,7 @@ const boxApply = (room, took) => {
   s.phase = 'open';
   s.talkEndsAt = s.bidEndsAt = null;
   s.openAt = Date.now();
-  s.nextAt = s.openAt + BOX_SHOW_MS + BOX_AFTER_MS;
+  s.nextAt = s.openAt + s.result.showMs + BOX_AFTER_MS;
   s.board = boxBoard(room);
   h.bids = {};
   h.clues = {};

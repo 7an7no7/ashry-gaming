@@ -61,6 +61,8 @@ const HB_SEATS = 4;
 const HB_CALLS_KEPT = 10;
 const HB_RECALL_MS = 3000;          // the Brain may change the call this long (the phone counts it down)
 const HB_RECALL_GRACE_MS = 800;     // and a change on its way when the count ends still counts
+const HB_RECALL_FAST_MS = 1000;     // the window when nobody has to think next: a computer Hand, or the one move the call leaves made for the Hand
+                                    // (3000 + 800 -> 1000 + 800 there; the owner, 8 Oct 2026: felt slow); s.named.ms, which the phones count
 const HB_HARD_NODES = 600;          // positions the hard computer Hand looks at for each move of the named kind
 const HB_HARD_BUDGET_MS = 90;       // its whole decision; past this the rest get one ply
 // A piece's kind as Chess.js numbers it: 1 pawn, 2 knight, 3 bishop, 4 rook, 5 queen, 6 king.
@@ -212,6 +214,7 @@ const hbName = (room, kind) => {
   const k = Number(kind);
   if (hbKinds(bd.g).indexOf(k) === -1) throw new Error('القطعة دي مالهاش نقلة دلوقتي');
   s.named = { kind: k, n: bd.moves, by: hbActor(s), at: Date.now(), touched: false };
+  s.named.ms = (isRoomBot(room, (s.teams[bd.g.turn] || [])[1]) || hbForcedOne(bd, k)) ? HB_RECALL_FAST_MS : HB_RECALL_MS;
   s.calls = (s.calls || []).concat([{ n: bd.moves, team: bd.g.turn, kind: k, by: s.named.by }]).slice(-HB_CALLS_KEPT);
   s.callSeq = (s.callSeq || 0) + 1;
   s.stage = 'move';
@@ -219,7 +222,7 @@ const hbName = (room, kind) => {
 
 /** Can the Brain still change the call? Until the Hand touches a piece, and HB_RECALL_MS (+ the network's grace). */
 const hbCanRecall = (s, now) => !!(s && s.phase === 'play' && s.stage === 'move' && s.named && !s.named.touched &&
-  typeof s.named.at === 'number' && now <= s.named.at + HB_RECALL_MS + HB_RECALL_GRACE_MS);
+  typeof s.named.at === 'number' && now <= s.named.at + (s.named.ms || HB_RECALL_MS) + HB_RECALL_GRACE_MS);
 
 /** The Brain changes the call: the same move, another kind; the window it had is not lengthened. */
 const hbRename = (room, kind) => {
@@ -240,7 +243,7 @@ const hbRecallWait = (room, now) => {
   const s = room.shared;
   if (!hbCanRecall(s, now) || isRoomBot(room, s.named.by)) return 0;
   // As long as hbCanRecall takes a change (its grace included), or a late change is dropped unseen.
-  return Math.max(0, s.named.at + HB_RECALL_MS + HB_RECALL_GRACE_MS + 50 - now);
+  return Math.max(0, s.named.at + (s.named.ms || HB_RECALL_MS) + HB_RECALL_GRACE_MS + 50 - now);
 };
 
 /** The Hand plays a move of the named kind. */
@@ -441,6 +444,16 @@ ROOM_BOT_GAMES.handbrain = {
   }
 };
 
+/** The named kind's one move, when it is made for the Hand (one move, no promotion, not one that ends the game), or null. */
+const hbForcedOne = (bd, kind) => {
+  const moves = hbMovesOf(bd.g, kind);
+  if (moves.length !== 1 || moves[0].promo) return null;
+  // A move that ends the game stays the player's own tap.
+  const info = chessPlay(chessCloneGame(bd.g), moves[0]);
+  if (!info || info.status.over) return null;
+  return moves;
+};
+
 ROOM_FORCED_GAMES.handbrain = (room) => {
   const s = room.shared;
   const pid = hbActor(s);
@@ -451,11 +464,8 @@ ROOM_FORCED_GAMES.handbrain = (room) => {
     const kinds = hbKinds(bd.g);
     return kinds.length === 1 ? { pid: pid, key: key, move: { action: 'name', payload: { kind: kinds[0], n: bd.moves } } } : null;
   }
-  const moves = hbMovesOf(bd.g, s.named.kind);
-  if (moves.length !== 1 || moves[0].promo) return null;
-  // A move that ends the game stays the player's own tap.
-  const info = chessPlay(chessCloneGame(bd.g), moves[0]);
-  if (!info || info.status.over) return null;
+  const moves = hbForcedOne(bd, s.named.kind);
+  if (!moves) return null;
   // Not while a person's Brain may still change the call (the key carries the call, so a change looks again).
   return {
     pid: pid, key: key + '|' + (s.callSeq || 0),

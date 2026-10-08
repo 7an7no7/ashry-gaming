@@ -141,7 +141,74 @@ function armMkClock(endsAt) {
   mkRoom.clock = createClock({
     seconds: Math.max(0, Math.ceil((endsAt - roomServerNow()) / 1000)),
     onTick: (left) => { paint(); if (left <= 5 && left > 0 && Room.state && Room.state.shared.turnId === Room.me) playSound('tick'); },
-    onEnd: () => { mkRoom.clock = null; paint(); }
+    onEnd: () => { mkRoom.clock = null; paint(); mkRoomTimeUp(endsAt); }
+  });
+}
+
+/* The phone's own 0 (the owner, 8 Oct 2026: felt slow): the turn's keys and box
+   grey out and «خلص الوقت» shows at once, while the server's grace (MONKEY_GRACE_MS)
+   lets a last letter in flight count; its verdict redraws the screen. */
+function mkRoomTimeUp(endsAt) {
+  const st = Room.state;
+  const s = st && st.game === 'monkey' && st.shared;
+  const el = document.getElementById('view-room-monkey');
+  if (!s || s.phase !== 'play' || s.endsAt !== endsAt || s.timedOut || !el || appState.currentView !== 'room-monkey') return;
+  el.querySelectorAll('.mk-keypad--room .key, #mk-name, .input-group .btn--send').forEach(b => { b.disabled = true; });
+  const head = el.querySelector('.play-head');
+  if (head && !el.querySelector('.mk-timeup-now')) {
+    const t = TRANSLATIONS[appState.lang] || {};
+    head.insertAdjacentHTML('afterend', `<div class="mk-verdict mk-timeup-now"><span class="mk-verdict__text tx-danger">⏰ ${escapeHTML(t.mk_timed_out || '')}</span></div>`);
+  }
+}
+
+/* A letter key answers the finger at once, as المشنقة's do (the owner, 8 Oct 2026):
+   the keypad greys, the key stays pressed in and the letter shows faint on the word
+   until the server's answer redraws it; a refusal gives it all back. */
+function mkRoomLetter(ch, btn) {
+  const pad = btn && btn.closest('.mk-keypad--room');
+  const keys = pad ? [...pad.querySelectorAll('.key')] : [];
+  const card = btn && btn.closest('.card');
+  const word = card && card.querySelector('.mk-word');
+  const empty = word && word.querySelector('.mk-word__empty');
+  keys.forEach(k => { k.disabled = true; });
+  if (btn) { btn.classList.add('is-pending'); btn.style.opacity = '0.6'; btn.style.transform = 'scale(0.94)'; }
+  let ghost = null;
+  if (word) {
+    if (empty) empty.hidden = true;
+    ghost = document.createElement('span');
+    ghost.className = 'mk-letter is-pending';
+    ghost.style.opacity = '0.4';
+    ghost.textContent = ch;
+    word.appendChild(ghost);
+  }
+  haptic('light');
+  // Put back if the screen wasn't redrawn (a refusal, or a tap the server dropped).
+  const restore = () => {
+    keys.forEach(k => { if (k.isConnected) k.disabled = false; });
+    if (btn && btn.isConnected) { btn.classList.remove('is-pending'); btn.style.opacity = ''; btn.style.transform = ''; }
+    if (ghost) ghost.remove();
+    if (empty) empty.hidden = false;
+  };
+  Room.act('letter', { ch: ch }).then(restore, err => {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    restore();
+  });
+}
+
+/** كذّاب! / مفيش عندي: the pair greys and the tapped one stays pressed until the server answers. */
+function mkRoomPairAct(action, btn) {
+  const pair = btn && btn.closest('.room-bar__pair');
+  const btns = pair ? [...pair.querySelectorAll('.btn')] : [];
+  const was = btns.map(b => b.disabled);
+  btns.forEach(b => { b.disabled = true; });
+  if (btn) { btn.classList.add('is-pending'); btn.style.opacity = '0.6'; btn.style.transform = 'scale(0.94)'; }
+  const restore = () => {
+    btns.forEach((b, i) => { if (b.isConnected) b.disabled = was[i]; });
+    if (btn && btn.isConnected) { btn.classList.remove('is-pending'); btn.style.opacity = ''; btn.style.transform = ''; }
+  };
+  Room.act(action, {}).then(restore, err => {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    restore();
   });
 }
 function stopMkClock() { if (mkRoom.clock) mkRoom.clock.stop(); mkRoom.clock = null; mkRoom.clockKey = null; }
@@ -150,12 +217,22 @@ onRoomClocksReset(() => { stopMkClock(); mkRoom.swapFor = null; });
 async function mkSendName() {
   const input = document.getElementById('mk-name');
   const text = (input && input.value || '').trim();
-  if (!text) return;
+  if (!text || (input && input.disabled)) return;
+  // The box and «إرسال» grey at once while the name is on its way (the owner, 8 Oct 2026: felt slow).
+  const send = input && input.parentNode ? input.parentNode.querySelector('.btn--send') : null;
+  const busy = (on) => {
+    if (input && input.isConnected) input.disabled = on;
+    if (send && send.isConnected) { send.disabled = on; send.classList.toggle('is-pending', on); send.style.opacity = on ? '0.6' : ''; }
+  };
+  busy(true);
   try {
     await Room.act('name', { text: text });
     if (input) input.value = '';
+    busy(false);
     playRoomFx('tick');
   } catch (e) {
+    busy(false);
+    if (input && input.isConnected) input.focus();
     playRoomFx('alarm');
     showToast(e.message || '', 'error');
   }
@@ -255,8 +332,8 @@ ROOM_GAMES.monkey = {
       </div>`);
     const canGiveUp = myTurn && !amMonkey;
     const mainPair = [
-      s.mode === 'letters' ? `<button type="button" class="btn btn--danger btn--lg" onclick="roomAct('liar')" ${word && !lastMine && !amMonkey ? '' : 'disabled'}>🤥 ${escapeHTML(t.mk_liar || '')}</button>` : '',
-      canGiveUp ? `<button type="button" class="btn btn--warning btn--lg" onclick="roomAct('giveUp')">🐵 ${escapeHTML(t.mk_giveup || '')}</button>` : ''
+      s.mode === 'letters' ? `<button type="button" class="btn btn--danger btn--lg" onclick="mkRoomPairAct('liar', this)" ${word && !lastMine && !amMonkey ? '' : 'disabled'}>🤥 ${escapeHTML(t.mk_liar || '')}</button>` : '',
+      canGiveUp ? `<button type="button" class="btn btn--warning btn--lg" onclick="mkRoomPairAct('giveUp', this)">🐵 ${escapeHTML(t.mk_giveup || '')}</button>` : ''
     ].filter(Boolean);
     const bar = mainPair.length || hostRow.trim()
       ? `<div class="view-actions talk__actions mk-bar">${mainPair.length ? `<div class="room-bar__pair">${mainPair.join('')}</div>` : ''}${hostRow}</div>` : '';
@@ -275,8 +352,8 @@ ROOM_GAMES.monkey = {
         // Arabic is one grid of 11 columns (32 letters: 11, 11, 10), so it fits its
         // card at every width; English keeps its three QWERTY rows.
         const keys = myTurn && !amMonkey ? (lang === 'en'
-          ? MONKEY_KEYS.en.map(row => `<div class="keypad__row">${row.split('').map(ch => `<button type="button" class="key" onclick="roomAct('letter', { ch: '${ch}' })">${ch}</button>`).join('')}</div>`).join('')
-          : MONKEY_KEYS.ar.join('').split('').map(ch => `<button type="button" class="key" onclick="roomAct('letter', { ch: '${ch}' })">${ch}</button>`).join('')) : '';
+          ? MONKEY_KEYS.en.map(row => `<div class="keypad__row">${row.split('').map(ch => `<button type="button" class="key" onclick="mkRoomLetter('${ch}', this)">${ch}</button>`).join('')}</div>`).join('')
+          : MONKEY_KEYS.ar.join('').split('').map(ch => `<button type="button" class="key" onclick="mkRoomLetter('${ch}', this)">${ch}</button>`).join('')) : '';
         stage = `
           <div class="card card--tight" style="text-align:center">
             <div class="mk-word__head">${cat}<span class="field__hint">${escapeHTML(myTurn ? (t.mk_your_letter || '') : (t.mk_turn_letter || '').replace('{name}', s.turnName || ''))}</span></div>

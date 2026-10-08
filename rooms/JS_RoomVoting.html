@@ -52,6 +52,34 @@ function ballotPick(btn, key, option) {
   if (box) box.querySelectorAll('.ballot-person').forEach(b => b.classList.toggle('is-picked', b === btn));
 }
 
+/**
+ * A ballot row tapped: it shows picked at once (a ring, pressed in) and the other rows grey
+ * out, before the server's answer redraws the ballot (the owner, 8 Oct 2026: felt slow);
+ * all put back if the server refuses. Inline styles: the rows' look varies by game.
+ */
+function ballotOptionSend(btn, action, payload) {
+  const box = btn && btn.closest('.btn-stack');
+  const rows = box ? Array.from(box.querySelectorAll('.ballot-option')) : [btn];
+  if (btn.classList.contains('is-picked')) return Promise.resolve(false);
+  const was = rows.map(b => b.disabled);
+  rows.forEach(b => { b.disabled = true; if (b !== btn) b.style.opacity = '0.5'; });
+  btn.classList.add('is-picked');
+  btn.setAttribute('aria-pressed', 'true');
+  btn.style.boxShadow = '0 0 0 3px var(--accent)';
+  btn.style.transform = 'scale(0.98)';
+  return roomAct(action, payload).then(ok => {
+    if (ok) return true;
+    rows.forEach((b, i) => {
+      if (!b.isConnected) return;
+      b.disabled = was[i];
+      b.style.opacity = b.style.boxShadow = b.style.transform = '';
+      b.classList.remove('is-picked');
+      b.removeAttribute('aria-pressed');
+    });
+    return false;
+  });
+}
+
 /** Are this vote's options the players themselves (مين أكتر واحد, the accusations)? */
 function ballotIsPeople(state) {
   const v = state.shared.vote;
@@ -99,7 +127,7 @@ function renderBallot(state, opts) {
         const mine = isOwnVoteOption(state, o);
         // ballot-option--iN: لو خيروك paints its two options the TV's two colours.
         return `<button class="ballot-option ballot-option--i${i} ${mine ? 'is-own' : ''}" ${mine ? 'disabled' : ''}
-                        onclick="roomAct('vote', { option: '${jsStringAttr(o.id)}'${stamp} })">
+                        onclick="ballotOptionSend(this, 'vote', { option: '${jsStringAttr(o.id)}'${stamp} })">
                   <span class="ballot-option__label">${escapeHTML(o.label)}</span>
                   ${mine ? `<span class="badge">${escapeHTML((opts && opts.ownLabel) || t.vote_your_answer || 'إجابتك')}</span>` : ''}
                 </button>`;

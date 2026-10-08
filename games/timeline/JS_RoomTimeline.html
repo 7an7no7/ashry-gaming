@@ -27,7 +27,7 @@ function tlPick(id) {
 }
 
 /** Puts the chosen card in a gap on the line. */
-function tlPlace(at) {
+function tlPlace(at, btn) {
   const card = tlLocal.pick;
   if (!card) return;
   // Where the card leaves from on this phone, for its flight onto the line (737).
@@ -35,7 +35,30 @@ function tlPlace(at) {
   tlLocal.fromRect = picked ? picked.getBoundingClientRect() : null;
   tlLocal.pick = null;
   haptic('medium');
-  roomAct('place', { card: card, at: at });
+  // At once, before the server's verdict (the owner, 8 Oct 2026: felt slow): every
+  // gap stops taking taps, the tapped one stays pressed and the card dims; the
+  // verdict redraws the line, a refusal gives the pick back.
+  const gaps = [...document.querySelectorAll('#view-room-timeline .tl-gap.is-live')];
+  gaps.forEach(g => { g.disabled = true; });
+  if (btn) { btn.classList.add('is-pending'); btn.style.opacity = '0.6'; btn.style.transform = 'scale(0.94)'; }
+  if (picked) { picked.classList.add('is-pending'); picked.style.opacity = '0.55'; }
+  Room.act('place', { card: card, at: at }).then(() => {
+    // Nothing redrawn (a tap the server dropped): the gaps go back to plain rules.
+    if (btn && btn.isConnected) {
+      const el = document.getElementById('view-room-timeline');
+      if (el) delete el.dataset.sig;
+      if (Room.state) routeRoomState(Room.state);
+    }
+  }, err => {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    tlLocal.fromRect = null;
+    const st = Room.state;
+    const s = st && st.game === 'timeline' && st.shared;
+    if (s && s.phase === 'play' && s.turnId === Room.me) tlLocal.pick = card;
+    const el = document.getElementById('view-room-timeline');
+    if (el) delete el.dataset.sig;
+    if (st) routeRoomState(st);
+  });
 }
 
 /** One event on the line: what happened, and the year under it. */
@@ -53,7 +76,7 @@ const tlCardHtml = (card, cls) =>
 function tlLineHtml(s, t, live, cls) {
   const line = s.timeline || [];
   const gap = (at) => (live
-    ? `<button type="button" class="tl-gap is-live" onclick="tlPlace(${at})" aria-label="${escapeHTML(t.tl_put_here || '')}">+</button>`
+    ? `<button type="button" class="tl-gap is-live" onclick="tlPlace(${at}, this)" aria-label="${escapeHTML(t.tl_put_here || '')}">+</button>`
     : '<span class="tl-gap" aria-hidden="true"></span>');
   let out = gap(0);
   line.forEach((card, i) => { out += tlCardHtml(card) + gap(i + 1); });

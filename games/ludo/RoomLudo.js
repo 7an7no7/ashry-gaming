@@ -28,6 +28,9 @@ const LUDO_GRACE_MS = 1500;       // the server's clock acts this long after the
 // The roll-off as the phones show it (ludoRollOffPanel, JS_Ludo.html): a round of dice each, then who starts.
 const LUDO_ROLLOFF_ROUND_MS = 1150;
 const LUDO_ROLLOFF_TAIL_MS = 1500;
+// A computer player's beat before a roll or a move: ROOM_BOT_DELAY_MS 1000-1700 -> 650-1050, as on one
+// phone (LUDO_BOT_MS; the owner, 8 Oct 2026: felt slow).
+const LUDO_ROOM_BOT_MS = [650, 1050];
 
 const ludoRoll6 = () => fairDie();
 
@@ -268,7 +271,12 @@ ROOM_BOT_GAMES.ludo = {
   max: LUDO_MAX_PLAYERS,
   pending: (room) => {
     const s = room.shared || {};
-    return s.phase === 'play' && s.turn && s.turn.pid && isRoomBot(room, s.turn.pid) ? { pid: s.turn.pid, key: s.turnSeq } : null;
+    if (!(s.phase === 'play' && s.turn && s.turn.pid && isRoomBot(room, s.turn.pid))) return null;
+    // ROOM_BOT_DELAY_MS 1000-1700 -> LUDO_ROOM_BOT_MS 650-1050, 900 for an only move, as on one phone
+    // (the owner, 8 Oct 2026: felt slow).
+    const only = s.turn.stage === 'move' && ludoOnlyMove(s, s.turn.pid) !== -1;
+    const [lo, hi] = LUDO_ROOM_BOT_MS;
+    return { pid: s.turn.pid, key: s.turnSeq, delay: only ? 900 : lo + Math.floor(Math.random() * (hi - lo)) };
   },
   decide: (room, pid) => {
     const s = room.shared;

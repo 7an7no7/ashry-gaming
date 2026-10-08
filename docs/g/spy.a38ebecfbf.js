@@ -31,6 +31,9 @@ onclick="setPlayMode('imposter', 'online')" data-i18n="mode_online">كل واح�
 </div>
 </div>
 </div>
+<details class="setup-more" ontoggle="setupMoreToggled(this)">
+<summary class="setup-more__head"><span>⚙️ <span data-i18n="setup_more">خيارات أكتر</span></span><span class="setup-more__sum"></span><span class="setup-more__chev" aria-hidden="true">▾</span></summary>
+<div class="setup-more__body">
 <div class="field">
 <label class="switch-row" for="imposter-undercover-on">
 <span class="field__label" data-i18n="imp_undercover">🎭 المختلف</span>
@@ -57,6 +60,8 @@ onclick="setPlayMode('imposter', 'online')" data-i18n="mode_online">كل واح�
 </div>
 </div>
 </div>
+</div>
+</details>
 <div class="group-picker">
 <select onchange="loadGroup(this.value)" class="saved-groups-select" aria-label="اختار مجموعة محفوظة" data-i18n-title="a11y_pick_group">
 <option value="">-- اختار مجموعة --</option>
@@ -142,7 +147,7 @@ onclick="setPlayMode('imposter', 'online')" data-i18n="mode_online">كل واح�
 <div class="sheet__title" data-i18n="locked_group">المجموعة مغلقة</div>
 <p class="sheet__subtitle" data-i18n="enter_password">أدخل كلمة المرور للاستمرار</p>
 <input type="password" id="category-password-input" data-i18n-ph="password_placeholder" placeholder="كلمة المرور" class="text-center">
-<p id="password-error" class="field-error"></p>
+<p id="password-error" class="field__error" role="alert"></p>
 <div class="modal-actions">
 <button onclick="verifyCategoryPassword()" class="btn btn--primary btn--lg" data-i18n="start">دخول</button>
 <button onclick="closeModal('password-modal')" class="btn btn--ghost" data-i18n="cancel">إلغاء</button>

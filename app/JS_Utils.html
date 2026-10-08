@@ -343,6 +343,9 @@ function blockStartAt(el, msg) {
   if (msg) showToast(msg, 'error');
   playSound('alarm');
   if (!el) return;
+  // An option folded under «خيارات أكتر» opens first, or the shake would be out of sight.
+  const fold = el.closest && el.closest('details.setup-more');
+  if (fold && !fold.open) fold.open = true;
   const main = document.getElementById('shell-main');
   if (main && main.contains(el)) {
     const r = el.getBoundingClientRect(), m = main.getBoundingClientRect();
@@ -377,6 +380,13 @@ function setupMoreSummarise(root) {
     });
     body.querySelectorAll('.chip-set .chip.is-active, .chip-set .is-active').forEach(c => {
       if (!c.closest('.hidden') && !c.classList.contains('segmented__item')) bits.push(c.textContent.trim().replace(/\s+/g, ' '));
+    });
+    // A counter says its name and number («عدد الجولات 2»): a bare number says nothing.
+    body.querySelectorAll('.stepper-row').forEach(row => {
+      if (row.closest('.hidden')) return;
+      const label = row.querySelector('.field__label');
+      const value = row.querySelector('.stepper__value');
+      if (label && value && value.value !== '') bits.push(label.textContent.trim().replace(/\s+/g, ' ') + ' ' + value.value);
     });
     body.querySelectorAll('label.switch-row').forEach(row => {
       if (row.closest('.hidden')) return;

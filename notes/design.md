@@ -830,3 +830,7 @@ sheet of the real tokens (`ui-review/style-before-after.html`, not committed). W
 The 12px floor pushed «اعمل مسابقتك»'s question list 6px wider than the phone at 375:
 `.ql` was a grid with no columns, so its one column took the rows' widest content (an
 answer that doesn't wrap). It is `minmax(0, 1fr)` now - any grid of rows wants it.
+
+## Calmer setups (the owner's picks of 8 Oct 2026: 1C 2A 3A 4C)
+
+A setup shows the 2-3 options most tables change; the rest go under «⚙️ خيارات أكتر» (`details.setup-more`, its line from `setupMoreSummarise`) - a new setup with more than three options does the same. An explanation under a switch shows only while it is on, so write it as what turning it on does. On an upright phone the poster is the short one (icon beside the name); its mode pills don't repeat the one phone / own phones switch. Big pickers stay one tap a choice at 44px, packed tighter (chess's faces four to a row). Styles: section 76 of Style_Talk.html.

@@ -93,3 +93,12 @@ Moved from GEMINI.md on 30 Sep 2026. GEMINI.md keeps the rules that apply to eve
     مصريين 🌟, لاعبين كورة 👟, في ماتش كورة 📣), since إيه اللي يجمعهم؟ offers them side by
     side; it never offers a category sharing four words with the answer
     (`notes/games/solo.md`).
+
+## 8 Oct 2026 - the owner on the audit's content swaps
+
+- **The films stay** (the owner, after the audit of 8 Oct 2026 replaced them): إبراهيم الأبيض, الجريمة, سهر الليالي,
+  عن العشق والهوى, بشتري راجل, الكيت كات, الخلية, جواب اعتقال and الاختيار are back in بدون كلام and فوازير
+  إيموجي, and the replacements (مراتي مدير عام, البيه البواب…) are gone again. Don't cut these films again.
+- **Arabic and English content are not swapped for each other**: an Arabic entry is not replaced by a foreign one
+  («ثورة يناير» stays in قبل ولا بعد, not a British royal wedding), and an English card is not rewritten to match
+  the Arabic one (the longest place name stays 85 letters in English, 168 in Arabic).

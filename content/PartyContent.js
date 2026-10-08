@@ -2488,7 +2488,7 @@ const MOST_LIKELY_TO = {
    -------------------------------------------------------------------------- */
 const FIBBAGE = {
   ar: [
-    { q: 'الاسم الرسمي الكامل لبانكوك فيه حوالي ___ حرف.', a: '168' },
+    { q: 'أطول اسم لمدينة في العالم فيه ___ حرف.', a: '168' },
     { q: 'قلب الجمبري موجود في ___ بتاعه.', a: 'راسه' },
     { q: 'العسل ما بيبوظش أبداً لأن فيه نسبة ___ قليلة جداً.', a: 'مياه' },
     { q: 'الأخطبوط عنده ___ قلوب.', a: 'ثلاثة' },
@@ -2682,7 +2682,7 @@ const FIBBAGE = {
     { q: 'أطول ماتش تنس في التاريخ استمر حوالي ___ ساعة.', a: '11' }
   ],
   en: [
-    { q: 'The full ceremonial name of Bangkok has about ___ letters.', a: '168' },
+    { q: 'The longest place name in the world has ___ letters.', a: '85' },
     { q: 'A shrimp\'s heart is located in its ___.', a: 'head' },
     { q: 'Honey never spoils because it contains almost no ___.', a: 'water' },
     { q: 'An octopus has ___ hearts.', a: 'three' },

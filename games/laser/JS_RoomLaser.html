@@ -1109,7 +1109,8 @@ function laserRun(state, el, tv) {
     // The arena moves (the map drawing itself, the pickups' pulse, the cracks, the radar, the hand, a
     // flash of the wall): a frame loop at most 30 times a second while any of it shows; the time
     // ring alone moves at the ticker's pace.
-    const moving = () => standing || (s.introUntil && s.introUntil > roomServerNow()) || (s.pickups || []).length || (s.cracked || []).length || watching
+    // A ghost's arena moves as a player's does (the owner, 8 Oct 2026: its ring jerked at the ticker's 4 a second).
+    const moving = () => standing || ghost || (s.introUntil && s.introUntil > roomServerNow()) || (s.pickups || []).length || (s.cracked || []).length || watching
       || (standing && !lsr.touched && s.round <= 1) || !!s.turret || (lsr.flash && performance.now() - lsr.flash.at < 700);
     let last = 0;
     const clock = el.querySelector('[data-laser-clock]');

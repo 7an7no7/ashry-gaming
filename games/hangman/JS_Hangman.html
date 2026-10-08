@@ -147,7 +147,7 @@ function hmKeysHtml(alpha, g, miss, on, press, x, lr, lock) {
     // The letter «اكشف حرف» bought is marked apart from the ones guessed (the owner, 3 Oct 2026).
     const cls = hit ? (l === lr ? 'key key--correct hm-key--bought' : 'key key--correct') : (bad ? 'key key--absent is-miss' : (off ? 'key key--absent hm-key--off' : 'key'));
     if (!on && lock && !hit && !bad && !off) return `<button type="button" class="key hm-key--locked" aria-disabled="true" onclick="${lock}(this)">${escapeHTML(alpha === 'en' ? l.toUpperCase() : l)}</button>`;
-    return `<button type="button" class="${cls}" ${hit || bad || off || !on ? 'disabled' : `onclick="${press}('${l}')"`}>${escapeHTML(alpha === 'en' ? l.toUpperCase() : l)}</button>`;
+    return `<button type="button" class="${cls}" ${hit || bad || off || !on ? 'disabled' : `onclick="${press}('${l}', this)"`}>${escapeHTML(alpha === 'en' ? l.toUpperCase() : l)}</button>`;
   }).join('')}</div>`;
 }
 
@@ -176,9 +176,10 @@ const hmLtr = (s) => String.fromCharCode(0x2066) + s + String.fromCharCode(0x206
 
 /** The two lifelines under the keys, each once a word, each −3 if the word is solved. */
 function hmLifeHtml(o) {
-  if (!o.on || !o.reveal) return '';
+  // On the word's hold (`wait`, 1200) they are drawn already, off, so nothing jumps in when it opens.
+  if (!(o.on || o.wait) || !o.reveal) return '';
   // The icon goes on a narrow phone (Style.html), so «شيل ٣ حروف غلط» keeps to one line.
-  const btn = (used, fn, label, ico) => `<button type="button" class="btn btn--secondary btn--sm hm-life__btn" ${used ? 'disabled' : `onclick="${fn}()"`}><span class="hm-life__ico" aria-hidden="true">${ico}</span>${escapeHTML(label)} <span class="hm-life__cost metric">${hmLtr('−' + HM_LIFE_COST)}</span></button>`;
+  const btn = (used, fn, label, ico) => `<button type="button" class="btn btn--secondary btn--sm hm-life__btn" ${used || !o.on ? 'disabled' : `onclick="${fn}()"`}><span class="hm-life__ico" aria-hidden="true">${ico}</span>${escapeHTML(label)} <span class="hm-life__cost metric">${hmLtr('−' + HM_LIFE_COST)}</span></button>`;
   return `<div class="hm-life" role="group" aria-label="${escapeHTML(hmT('hm_life_label'))}">
       ${btn(o.lr, o.reveal, hmT('hm_life_reveal'), '🔍')}
       ${btn(o.lx, o.remove, hmT('hm_life_remove'), '🧹')}
@@ -241,9 +242,9 @@ function hmBoardHtml(o) {
       ${done && o.after ? `<div class="hm-after">${o.after}</div>` : ''}
       ${done ? '' : hmKeysHtml(o.alpha, o.g, o.miss, !!o.on, o.press, o.x, o.lr, o.lock)}
       ${done ? '' : hmLifeHtml(o)}
-      ${done || !o.on ? '' : `<form class="hm-whole" onsubmit="event.preventDefault(); ${o.whole}(this)">
-          <input type="text" name="w" maxlength="28" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${escapeHTML(hmT('hm_whole_ph'))}" aria-label="${escapeHTML(hmT('hm_whole_ph'))}">
-          <button type="submit" class="btn btn--secondary btn--auto">${escapeHTML(hmT('hm_whole_btn'))}</button>
+      ${done || !(o.on || o.wait) ? '' : `<form class="hm-whole" onsubmit="event.preventDefault(); ${o.whole}(this)">
+          <input type="text" name="w" maxlength="28" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${escapeHTML(hmT('hm_whole_ph'))}" aria-label="${escapeHTML(hmT('hm_whole_ph'))}" ${o.on ? '' : 'disabled'}>
+          <button type="submit" class="btn btn--secondary btn--auto" ${o.on ? '' : 'disabled'}>${escapeHTML(hmT('hm_whole_btn'))}</button>
         </form>`}
     </div>`;
 }
@@ -747,11 +748,17 @@ function setHmRoomOpt(key, value) {
   duelLobbyRedraw();
 }
 
-function hmRoomGuess(letter) {
+function hmRoomGuess(letter, btn) {
   const s = ((Room.state || {}).shared) || {};
   hmRoom.lastGuess = letter;
   haptic('light');
-  roomAct('guess', { letter: letter, round: s.round });
+  // The key answers the finger at once (the owner, 8 Oct 2026: the server's ~0.1-0.2 s felt like lag);
+  // the redraw from the server's answer colours it, and a refused guess gives it back.
+  if (btn) { btn.disabled = true; btn.classList.add('is-pending'); }
+  Room.act('guess', { letter: letter, round: s.round }).catch((err) => {
+    if (!err || !err.quiet) showToast((err && err.message) || '', 'error');
+    if (btn && btn.isConnected) { btn.disabled = false; btn.classList.remove('is-pending'); }
+  });
 }
 
 function hmRoomWhole(form) {
@@ -1144,7 +1151,8 @@ function hmRowMoments(state, prog) {
  * result), so it is held the same way before the podium. Asked again for the same word it gives the
  * same hold (or none once it is over), so the TV's signature can ask first and its frame after.
  */
-const HM_HOLD_MS = 4500;
+// The endings run 2.6-3.2 s: the hold ends just after them (4.5 s felt like the game lagging: the owner, 8 Oct 2026).
+const HM_HOLD_MS = 3500;
 function hmRoomHold(state, tv) {
   const s = state.shared || {};
   if (!(s.phase === 'result' || (s.phase === 'gameover' && s.result)) || (typeof hmEndsStill === 'function' ? hmEndsStill() : motionOff())) return null;
@@ -1353,7 +1361,7 @@ ROOM_GAMES.hangman = {
           pattern: tb.pattern || hmBlankPattern(s), alpha: s.alpha, g: tb.g, miss: tb.miss || [], state: tb.state, word: tb.state === 'won' && s.result ? s.result.word : '',
           on: on, press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head, lock: mate ? 'hmNotCaptain' : '',
           hints: (tb.hints && tb.hints.length ? tb.hints : (s.cat ? [s.cat] : [])), hintsN: s.hintsN, max: s.max, x: tb.x, lr: tb.lr, lx: tb.lx,
-          reveal: on ? 'hmRoomReveal' : '', remove: 'hmRoomRemove', end: tb.end, endKey: hmEndKey(state, 'team'), endPlay: !!(fx.cheer || (fx.newMiss && tb.state === 'lost')),
+          reveal: on || (captainMe && onHold) ? 'hmRoomReveal' : '', wait: captainMe && onHold, remove: 'hmRoomRemove', end: tb.end, endKey: hmEndKey(state, 'team'), endPlay: !!(fx.cheer || (fx.newMiss && tb.state === 'lost')),
           fire: (s.streak || {})['t' + s.gt],
           after: tb.state && tb.state !== 'play' ? `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(tb.state === 'won' ? hmT('hm_won') : hmT('hm_lost_room'))}</p></div>` : ''
         });
@@ -1375,7 +1383,7 @@ ROOM_GAMES.hangman = {
           pattern: b.pattern, alpha: s.alpha, g: b.g, miss: b.miss, state: b.state, word: b.state === 'won' && s.result ? s.result.word : '',
           on: on, press: 'hmRoomGuess', whole: 'hmRoomWhole', newMiss: fx.newMiss, open: fx.open, head: head,
           hints: s.setter ? ((b.hints && b.hints.length) ? b.hints : (s.cat ? [s.cat] : [])) : [], hintsN: s.setter ? s.hintsN : 0,
-          max: s.max, x: b.x, lr: b.lr, lx: b.lx, reveal: on ? 'hmRoomReveal' : '', remove: 'hmRoomRemove',
+          max: s.max, x: b.x, lr: b.lr, lx: b.lx, reveal: on || (onHold && b.state === 'play') ? 'hmRoomReveal' : '', wait: onHold && b.state === 'play', remove: 'hmRoomRemove',
           end: b.end !== undefined ? b.end : ((s.progress || {})[Room.me] || {}).end, endKey: hmEndKey(state, Room.me),
           endPlay: !!(fx.cheer || (fx.newMiss && b.state === 'lost')), fire: (s.streak || {})[Room.me],
           after: b.state !== 'play' ? `<div class="card card--accent hm-end"><p class="sheet__title">${escapeHTML(b.state === 'won' ? hmT('hm_won') : hmT('hm_lost_room'))}</p>

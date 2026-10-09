@@ -148,6 +148,8 @@ cd tools && npm run test:changed    # only what the changes since master need (-
 cd tools && npm run export:trivia -- <path>  # the board bank as trivia_bank.js
 cd tools && npm run build:icons     # the brand mark (Logo.html) and the icons in docs/
 cd tools && npm run plays           # how often each game is started (ASHRY_ADMIN_KEY)
+cd tools && npm run check:oracle    # العرّاف: its data checked, then every entry played (writers of entries)
+cd tools && npm run oracle:misses   # what players thought of when العرّاف lost (ASHRY_ADMIN_KEY; -- --clear)
 cd rooms-worker && npm run dev      # local rooms server on :8787
 cd rooms-worker && npm test         # robot players, every room game, 4 segments at a time (needs npm run dev)
 cd rooms-worker && npm run test:rules  # trivia scoring, no server needed

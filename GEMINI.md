@@ -91,7 +91,7 @@ file and a new line.
 - الليزر (Laser, rooms: everyone hides and aims in secret, all appear and fire at once, a beam goes through everyone in its line, the hexagon shrinks every round, last one or last team standing; hearts, a shield, ghosts' mines, bouncing beams, sudden death, awards, four maps, pickups, pillars and mirror pillars, a turret, a practice round, a falling floor, the best shot's replay; `Laser.js`, `RoomLaser.js`, `JS_RoomLaser.html`, its styles in its chunk) - `notes/games/laser.md`.
 - 🧮 حسبة (Numbers; made by `npm run new:game` on 2026-10-09) - `notes/games/hesba.md`.
 - 🔡 شبكة الحروف (Letter Grid; made by `npm run new:game` on 2026-10-09) - `notes/games/boggle.md`.
-- 🔮 العرّاف (The Oracle; made by `npm run new:game` on 2026-10-09) - `notes/games/oracle.md`.
+- 🔮 العرّاف (The Oracle, one phone: the app guesses who or what you think of in 20 questions and 3 guesses; a drawn uncle with a tarboosh and a crystal ball and his moods; a probabilistic engine `Oracle.js` shared with `npm run check:oracle`, which plays every entry; the data `OracleQuestions.js` + `Oracle{People,Characters,Animals,Things}.js`, strictly checked by `npm run check`; its losses to `/oracle-miss`, read with `npm run oracle:misses`) - `notes/games/oracle.md` (its *Writing entries* is for whoever adds entries).
 
 ### The app around the games
 

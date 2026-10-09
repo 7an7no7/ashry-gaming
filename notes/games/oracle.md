@@ -1,15 +1,174 @@
-# العرّاف — The Oracle
+# 🔮 العرّاف — The Oracle
 
-Made by `npm run new:game` on 2026-10-09: games/oracle/ holds its code, its words and its rules.
-What is there now is the starting game every new game gets (a secret number each, tap «+1»
-until you reach it, the nearest wins). Replace it with the real game once the owner has
-answered its rules and picked its look from a sheet of three (GEMINI.md, *How we work*).
+The app guesses what you are thinking of (an Akinator of our own: an Egyptian uncle in a
+tarboosh with his crystal ball). One phone. Built 9 Oct 2026 (phase 1 of 2: the engine, the
+question list, the data format, the validator and the first 334 entries; other writers add
+~800 more in the same format - see *Writing entries* below).
 
-## The owner's spec
+## The owner's spec (notes/ideas.md, "New games of 9 Oct 2026", item 1436)
 
-(The rules as the owner answered them, one question at a time.)
+- One phone only. Kinds: famous people (Egyptian, Arab and world-famous; traits that don't
+  change only), cartoon and film characters, animals, things and jobs. The kind is asked as
+  part of the questions («هو إنسان؟»), never picked first.
+- Five answers: أيوه / لأ / مش عارف / غالباً أيوه / غالباً لأ. 20 questions; it may guess early
+  when sure; three guesses in all. A take-back of the last answer («رجّع»).
+- A first list of 1,000+ entries, each tagged with its traits, checked by the validator.
+- When it loses it asks «كنت بتفكر في مين؟»: the name and the answers go to the server's report
+  list for the owner to review and add (like «في غلطة؟»); nothing typed reaches other players.
+  The phone says «شكراً، هتعلّم».
+- English too: every entry and question has its English name.
+- The look: أ «العرّاف على المسرح» from the sheet https://claude.ai/artifact/LtDnAyWLkZExt5yxDBpxMH
+  (mock in notes/archive/sheets/oracle-looks.js.txt): the drawn uncle on the stage, the
+  question in his speech bubble, the answers stacked under him.
 
-## How it is built
+## Decided while building (not in the rules)
 
-- One phone: `JS_Oracle.html` (setupOracle, startOracle, VIEW_RESTORE for a reload)
-- Its words and rules: `oracle.text.js`.
+- **The fourth kind is two in the data**: things (`t`) and jobs (`j`), so job questions («بيشتغل
+  في مستشفى؟») don't have to be answered for a chair. On screen they are one kind («حاجة أو
+  شغلانة»).
+- **A guess doesn't use a question**: 20 questions and, apart from them, 3 guesses. After a wrong
+  guess the oracle is surprised («يا خبر! مش هو؟ طيب…») and goes on asking; once the 20 are
+  used he spends the guesses he has left one after the other. Out of guesses = he lost, even
+  with questions left.
+- **«رجّع» takes back the last answer only** (as often as wanted, one at a time). A wrong guess
+  is a fact and is not taken back. On a guess screen «رجّع» drops the guess and the last
+  question comes back.
+- **What he guesses is drawn, never a photo**: a person or a job is a silhouette with a badge
+  (the entry's icon: ⚽ a footballer, 🎤 a singer); a character, an animal or a thing is its own
+  emoji on a round tile.
+- **The record** on the setup: «العرّاف عرف N من M مرة» (`appState.oracleRecord`, this phone only).
+- The first three questions vary a little (any of the near-best), so two games don't open the
+  same; after that he always asks the best question.
+- A miss is sent once per game, the name cut at 40 characters; the answers go as question ids
+  and answer codes only.
+
+## How it plays
+
+Setup (`setup-oracle`): the oracle in his idle mood under a bubble «فكّر في حد مشهور أو شخصية أو
+حيوان أو حاجة… وأنا هعرفه!», the four kinds as chips, the line about 20 questions and 3 guesses,
+the record, «كمّل اللعبة» when a game is unfinished, «ابدأ».
+
+Play (`play-oracle`), look أ:
+- the count: «سؤال N من 20», three little crystal balls for the guesses left, twenty pips;
+- the stage: the question in his speech bubble (its number on a badge), the oracle under it;
+- the answers: أيوه (green) and لأ (red) big, then غالباً أيوه / غالباً لأ, then مش عارف; under them
+  «↶ رجّع: <the last question> <its answer>» and «خروج» (`playExit`: asks mid-game).
+- After an answer its tag flies into the bubble, the oracle closes his eyes («استنى… بركّز», the
+  ball dims, the answers wait, 650 ms), then the next question pops in. When he is sure: «جالي! ✨»
+  (the ball glows, 800 ms), then «بتفكر في… <name>؟» with its kind, and «أيوه، هو ده! 🎉» /
+  «لأ، مش هو» and how many guesses he has left after this one.
+- Won: «عرفتك! 😄», the oracle laughing, the card with the silhouette or icon, the name, the kind,
+  the questions it took (counting up) and which guess; confetti. «العب تاني», «خروج».
+- Lost: «غلبتني! 🙌 كنت بتفكر في مين؟», the oracle sad (a tear), a field «اسمه أو اسمها» and «ابعت»;
+  then «شكراً، هتعلّم». Under it how many questions and guesses and what he guessed.
+- His moods (`oracleArt(mood, ball)`): idle, think (eyes shut), sure (one brow up, a smirk),
+  surprised (round eyes, an O, a shake), sad (brows up in the middle, a frown, a tear), happy
+  (^^ and a grin). The ball: `?`, dim, glowing, a face in it.
+- Sideways: the count across the top, the oracle beside his bubble on one side, the answers on
+  the other. Laptop / TV: the stage and the answers side by side in the middle (60rem).
+- Reduced motion: no flight, no beats, nothing breathing; every state is drawn at once.
+- Reload: the whole game is `appState.oracle` (answers, wrong guesses, the step on show), so it
+  comes back to the same question or guess (`VIEW_RESTORE`); a beat cut by the reload is skipped.
+
+## How it works
+
+Files, all in `games/oracle/` and in the game's chunk (`CHUNKS.oracle`, `tools/lazy-split.mjs`;
+the `.js` ones are also in `SHARED_LISTS`, page only, like `ChessPuzzles.js`): nothing of it is
+in the shell but its card, its help entry, `art:oracle` (ICON_ART) and its `SETUP_PAINTERS` line.
+- `JS_Oracle.html`: the screens, the drawing, the moods, the motion, the miss.
+- `Oracle.js`: the engine, pure (no page): `oracleData()`, `oracleOdds()`, `oracleNextStep()`.
+- `OracleQuestions.js`: the questions. `OraclePeople.js`, `OracleCharacters.js`,
+  `OracleAnimals.js`, `OracleThings.js` (things and jobs): the entries.
+- `oracle.text.js`: its words and its rules.
+- Styles: section ORACLE at the end of `styles/Style_Talk.html` (`.orx-*`, all moved into the
+  chunk by css-split).
+
+**The engine.** Every entry has a truth for every question: Y (yes), M (maybe), U (unlisted:
+«غالباً لأ»), N (no), X (not about its kind: a firm no). Each answer multiplies an entry's
+likelihood by `ORACLE_LIKE[truth][answer]`:
+
+|   | أيوه | غالباً أيوه | مش عارف | غالباً لأ | لأ |
+|---|---|---|---|---|---|
+| Y | .80 | .10 | .05 | .03 | .02 |
+| M | .25 | .30 | .20 | .15 | .10 |
+| U | .07 | .08 | .15 | .20 | .50 |
+| N | .02 | .03 | .05 | .10 | .80 |
+| X | .01 | .02 | .05 | .07 | .85 |
+
+«مش عارف» changes nothing when it is said. Nothing is ever ruled out, so a wrong answer only
+costs a few questions. The next question is the one with the least expected doubt left (the
+entropy of the odds after each answer, weighted by how likely that answer is), over the entries
+within 1/10,000 of the leader. He guesses when the leader holds 72% of the odds with 3 guesses
+left, 80% with 2, 90% with 1 (`ORACLE_SURE`); with 3 questions or fewer left, a leader at 50%
+and three times the next one; and at question 20 always. A wrong guess sets that entry to 0.
+
+**The misses.** `POST /oracle-miss { name, answers, guesses, lang }` on the rooms server
+(`rooms-worker/src/index.js`, `oracleMissOf`): the name cleaned and cut at 40, the answers as
+`qid:a` (ids and answer codes only), the guesses' ids; kept in the `WordLog` named `oracle`
+(the same store as the plays and the reports: kept until read, 5,000 at most, `xl` words up to
+600 characters), rate-limited with the plays and the reports (`countAllowed`, 120 an hour per
+address). No player name, no address. The owner reads them with
+`ASHRY_ADMIN_KEY=… npm run oracle:misses` in `tools/` (`-- --answers` to see each game's
+answers by question, `-- --clear` to empty it): names folded together, most-sent first, and
+"(already an entry: … - check its traits)" when the name is one we have.
+
+**Tests.** `npm run check` (validate-content.js) runs the strict checks below. `npm run
+check:oracle` runs them and then plays every entry twice with a robot thinking of it (truthful,
+and one answer in ten wrong), printing how often he wins and the entries lost; it fails under
+90% truthful. On 9 Oct 2026, 201 questions, 334 entries: truthful 100% (9.3 questions on
+average), one in ten wrong 97.6%.
+
+## Writing entries
+
+Entries live in four files by kind. One line each:
+
+```js
+{ id: 'cheetah', icon: '🐆', ar: 'فهد', en: 'Cheetah', yes: 'mammal wild meat africa_a legs4 fur tail spots fast yellow', maybe: 'danger' },
+```
+
+- `id`: lowercase English letters, digits and `_`, unique across all files; never change one.
+- `icon`: one emoji. For a person: what they are known for (⚽ 🎤 🎬 👑 ✍️ 🔬), shown as a badge on
+  a drawn silhouette. Never a photo, never a flag that could offend.
+- `ar`, `en`: the name as a family would say it (Egyptian spelling: «تعلب», «دبّانة»). No name may
+  repeat another entry's (compared the way typed words are: hamza, ة/ه, ى/ي, «ال»).
+- `yes`: the ids of the questions (OracleQuestions.js) that are **true**: space-separated.
+- `maybe`: true **partly**, or what most people would answer «غالباً أيوه» (a lion is yellow-ish,
+  a tomato is in the kitchen, Cleopatra is Egyptian).
+- `no`: firmly false **where a player might think otherwise** (a dolphin is not a fish, a penguin
+  doesn't fly, Salah never played for Al Ahly). Use it to stop a likely mix-up.
+
+**The rule for what is not listed**: a question about the entry's kind that is in none of the
+three lists reads as «غالباً لأ» (U). A question about another kind (`kinds` on the question)
+is a firm «لأ» (X). So: list every trait that is true, the doubtful ones under `maybe`, and the
+false ones only where a player could be fooled. The kind questions (`human`, `real`, `fiction`,
+`animal`, `job`, `object`) are answered by the kind itself (`auto`); don't list them, except a
+character, which must say `human` in yes, maybe or no (and `animal` when it is one).
+
+`implies` on a question adds its traits for you: `ahly`, `zamalek`, `england`, `spain`,
+`keeper`, `striker`, `worldcup`, `afcon`, `ballon` → `football` → `athlete`; `egypt`, `levant`,
+`gulf`, `maghreb` → `arab`; `south` → `egypt`; `pharaoh` → `bc` → `before1800`; `born1930` →
+`born1950`; `poet` → `writer`; `princess` → `female`; `fruit`, `veg`, `dish` → `edible`;
+`screen` → `electric`.
+
+Only facts that don't change: where they are from, what they did, what they won, when they were
+born. Never alive or dead, still playing, married. No politicians of our time, nothing divisive,
+nothing adult, no religious figures. Kinds in the files: `OraclePeople.js` (`p`),
+`OracleCharacters.js` (`c`), `OracleAnimals.js` (`a`), `OracleThings.js` (`ORACLE_THINGS` `t`,
+`ORACLE_JOBS` `j`). A new file of entries is added to `oracleEntryLists()` in Oracle.js, to
+`ORACLE_FILES` in tools/oracle-data.cjs and to `CHUNKS.oracle` and `SHARED_LISTS` in
+tools/lazy-split.mjs.
+
+**A new question** only when entries can't be told apart without it, and it is about something
+that doesn't change: id, `kinds`, `ar` (ending in ؟), `en` (ending in ?), `auto`/`implies` if
+needed; at least one entry must say yes to it.
+
+**Check your work**: `cd tools && npm run check:oracle`. It fails on:
+- an id used twice, a field it doesn't know, a missing `ar`, `en` or `icon`, Latin letters in
+  `ar` or Arabic in `en`, a name used twice;
+- a trait that is no question, or a question not asked about the entry's kind;
+- one trait in two lists, a `no` that a `yes` implies, an `auto` yes listed again, fewer than
+  2 yes traits, a character that doesn't say whether it is human;
+- two entries with the same answers (one has to have a yes the other hasn't): add a trait;
+- the truthful games won under 90%.
+Then read its list of lost entries and what was guessed for them: that pair needs a trait apart.
+`npm run check:oracle -- --entry=salah` plays one entry question by question.

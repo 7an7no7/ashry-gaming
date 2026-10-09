@@ -1,5 +1,5 @@
 <style>
-/* Style_Talk.html - sections 60-66: the home on a big screen and the recent row, six older screens in the app's look, ارسم اللي بتسمعه, المهمة السرية, الخزنة, دندنها, رد الفعل, the polish of السلم والتعبان and المشنقة.
+/* Style_Talk.html - sections 60-66: the home on a big screen and the recent row, six older screens in the app's look, ارسم اللي بتسمعه, المهمة السرية, الخزنة, دندنها, رد الفعل, the polish of السلم والتعبان and المشنقة, and العرّاف (its section at the end).
    Part of the stylesheet that starts in Style.html: the parts are included in
    Controller.html in this order, and the cascade depends on it. */
 
@@ -2766,5 +2766,177 @@ body:is(.in-play, .in-room-game) .shell { --rail-w: 0px; }
   .tg-tile { min-height: 6rem; }
   .tg-chips { flex-direction: column; justify-content: center; }
   .tg-chip { justify-content: center; }
+}
+
+/* ==========================================================================
+   ORACLE. العرّاف (9 Oct 2026), look أ of the owner's sheet «العرّاف على المسرح»: the drawn
+   uncle in his tarboosh on the stage with his crystal ball, the question in his speech bubble,
+   the answers stacked under him (أيوه / لأ, then غالباً, then مش عارف) and «رجّع» last.
+   Sideways and on a laptop the stage and the answers stand side by side. games/oracle/JS_Oracle.html.
+   The drawing's own colours are here once, the same in both themes (it is a drawing).
+   ========================================================================== */
+.orx, .orx-setup {
+  --orx-skin: #d49c6e; --orx-skin-d: #b97f55; --orx-ink: #2b1d16; --orx-grey: #8d8f97;
+  --orx-robe: #2e4a9e; --orx-gold: #e0a526; --orx-gold-d: #b45309; --orx-fez: #c81e3a; --orx-fez-d: #9f1239;
+  --orx-lip: #8a3b2e; --orx-mouth: #7f1d1d;
+}
+.orx { display: flex; flex-direction: column; gap: var(--sp-3); color: var(--text); }
+.orx .metric { font-weight: var(--fw-black); }
+.orx-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.orx-svg .orx-skin { fill: var(--orx-skin); }
+.orx-svg .orx-skin-d { fill: var(--orx-skin-d); }
+.orx-svg .orx-skin-s { stroke: var(--orx-skin-d); }
+.orx-svg .orx-ink { fill: var(--orx-ink); }
+.orx-svg .orx-ink-s { stroke: var(--orx-ink); }
+.orx-svg .orx-robe { fill: var(--orx-robe); }
+.orx-svg .orx-trim { stroke: var(--orx-gold); }
+.orx-svg .orx-gold { fill: var(--orx-gold); }
+.orx-svg .orx-gold-d { fill: var(--orx-gold-d); }
+.orx-svg .orx-fez { fill: var(--orx-fez); }
+.orx-svg .orx-fez-d { fill: var(--orx-fez-d); }
+.orx-svg .orx-brow { stroke: var(--orx-grey); }
+.orx-svg .orx-tache { fill: var(--orx-grey); }
+.orx-svg .orx-lip { stroke: var(--orx-lip); }
+.orx-svg .orx-mouth { fill: var(--orx-mouth); }
+
+/* The count: question N of 20, the three guesses as little balls, twenty pips. */
+.orx-count-wrap { display: flex; flex-direction: column; gap: 6px; }
+.orx-count { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.orx-count__label { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); white-space: nowrap; }
+.orx-count__label b { color: var(--text); font-size: var(--fs-h3); }
+.orx-guesses { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-2); white-space: nowrap; }
+.orx-guesses > span { margin-inline-start: 2px; }
+.orx-guesses i { width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #e0f2fe, #6366f1); display: inline-block; }
+.orx-guesses i.is-used { background: var(--surface-3); box-shadow: inset 0 0 0 1.5px var(--border-field); }
+.orx-pips { display: flex; gap: 3px; }
+.orx-pips i { flex: 1; height: 6px; border-radius: 3px; background: var(--surface-3); }
+.orx-pips i.is-on { background: var(--accent); }
+.orx-pips i.is-now { background: var(--accent); opacity: 0.45; }
+
+/* The stage: the bubble over the oracle. */
+.orxA-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); justify-content: center; }
+.orxA-oracle { width: 13rem; height: 15rem; flex: none; }
+.orx-bubble { position: relative; background: var(--surface-solid); border: 1px solid var(--border); border-radius: 20px; padding: var(--sp-3) var(--sp-5);
+  box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.35); font-size: var(--fs-h1); font-weight: var(--fw-black); text-align: center; line-height: 1.35; max-width: 100%; }
+.orx-bubble::after { content: ''; position: absolute; inset-block-end: -9px; inset-inline-start: calc(50% - 9px); width: 16px; height: 16px; background: inherit;
+  border-inline-end: 1px solid var(--border); border-block-end: 1px solid var(--border); transform: rotate(45deg); }
+.orx-bubble small { display: block; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+.orx-bubble--soft { font-size: var(--fs-h2); color: var(--text-2); }
+.orx-bubble__n { position: absolute; inset-block-start: -11px; inset-inline-start: 14px; background: var(--accent); color: var(--accent-on); font-size: var(--fs-xs);
+  font-weight: var(--fw-black); border-radius: var(--r-full); padding: 1px 9px; }
+.orxA-guessrow { display: flex; align-items: center; gap: var(--sp-3); justify-content: center; margin-block: 4px 2px; }
+.orx-guess-name { overflow-wrap: anywhere; }
+.orx-bubble .orx-kind { display: block; }
+.orx-dots { display: inline-flex; gap: 5px; align-items: center; vertical-align: middle; color: var(--accent-ink); }
+.orx-dots i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: 0.35; }
+
+/* What the oracle guesses: a drawn silhouette with a badge (a person, a job), or the icon on a tile. */
+.orx-sil { position: relative; width: 4rem; height: 4rem; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: end center; flex: none; }
+.orx-sil svg { width: 100%; height: 100%; border-radius: 50%; }
+.orx-sil__badge { position: absolute; inset-block-end: -4px; inset-inline-end: -4px; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: var(--surface-solid);
+  display: grid; place-items: center; font-size: 1.05rem; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18); }
+.orx-sil--big { width: 6rem; height: 6rem; }
+.orx-sil--big .orx-sil__badge { width: 2.4rem; height: 2.4rem; font-size: 1.3rem; }
+.orx-tile { width: 4rem; height: 4rem; border-radius: 50%; background: var(--accent-soft); display: grid; place-items: center; flex: none; font-size: 2.1rem; line-height: 1; }
+.orx-tile--big { width: 6rem; height: 6rem; font-size: 3.2rem; }
+.orx-name { font-size: var(--fs-h1); font-weight: var(--fw-black); color: var(--text); line-height: 1.25; }
+.orx-kind { font-size: var(--fs-sm); color: var(--text-2); font-weight: var(--fw-semi); }
+.orx-note { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); text-align: center; }
+
+/* The answers, «رجّع», the end card. */
+.orxA-side { display: flex; flex-direction: column; gap: var(--sp-2); }
+.orxA-answers { display: flex; flex-direction: column; gap: var(--sp-2); transition: opacity var(--dur-2) var(--ease-out); }
+.orxA-answers.is-waiting { opacity: 0.4; }
+.orx-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+.orx-dk { align-self: center; }
+.orx-undo { align-self: center; display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--tap); padding: 0 var(--sp-3); border: 0; border-radius: var(--r-full);
+  background: transparent; color: var(--text-2); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold); max-width: 100%; cursor: pointer; }
+.orx-undo b { color: var(--text); font-weight: var(--fw-bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.orx-undo .orx-tag { flex: none; }
+.orx-tag { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: var(--r-full); font-size: var(--fs-xs); font-weight: var(--fw-bold); background: var(--surface-3); color: var(--text); white-space: nowrap; }
+.orx-tag--y, .orx-tag--py { background: var(--success-soft); color: var(--success-ink); }
+.orx-tag--n, .orx-tag--pn { background: var(--danger-soft); color: var(--danger-ink); }
+.orx-fly { position: fixed; z-index: var(--z-float-hi); padding: 6px 12px; border-radius: var(--r-full); font-weight: var(--fw-black); font-size: var(--fs-sm); pointer-events: none;
+  transform: translate(-50%, -50%); box-shadow: 0 8px 18px -6px rgba(0, 0, 0, 0.35); background: var(--surface-3); color: var(--text); white-space: nowrap; }
+.orx-fly--y, .orx-fly--py { background: var(--success-btn); color: var(--success-on); }
+.orx-fly--n, .orx-fly--pn { background: var(--danger-btn); color: var(--danger-on); }
+.orxA-end { background: var(--surface-solid); border: 1px solid var(--border); border-radius: 20px; padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3);
+  align-items: center; text-align: center; }
+.orxA-end--form { align-items: stretch; text-align: start; }
+.orx-stat { display: flex; justify-content: center; gap: var(--sp-6); }
+.orx-stat > div { display: flex; flex-direction: column; align-items: center; }
+.orx-stat .metric { font-size: var(--fs-display); line-height: 1; color: var(--accent-ink); }
+.orx-stat small { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); }
+.orx-end-actions { display: flex; flex-direction: column; gap: var(--sp-2); }
+.orx-end-actions .play-exit-row { padding-block: 0; }
+.orx-missform { display: flex; flex-direction: column; gap: var(--sp-2); }
+.orx-missform .field__label { margin-bottom: 0; }
+.orx-thanks { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); text-align: center; font-size: var(--fs-h3); }
+.orx-thanks__icon { font-size: 2rem; line-height: 1; }
+
+/* The setup: the oracle and his invitation, the four kinds he knows. */
+.orx-setup__stage { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.orx-setup__art { width: 9.5rem; height: 11rem; }
+.orx-bubble--setup { font-size: var(--fs-h2); }
+.orx-kinds { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.orx-kind-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: var(--r-full); background: var(--accent-soft); color: var(--accent-ink);
+  font-size: var(--fs-sm); font-weight: var(--fw-bold); }
+.orx-setup .btn + .btn { margin-top: var(--sp-2); }
+
+/* Motion: the bubble pops, a guess rises, the end card lands; the ball breathes and glows.
+   Transform and opacity only; the breathing stops under reduced motion (below). */
+@keyframes orx-pop { from { opacity: 0; transform: scale(0.86) translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes orx-rise { 0% { opacity: 0; transform: translateY(14px) scale(0.92); } 60% { opacity: 1; transform: translateY(-2px) scale(1.02); } 100% { opacity: 1; transform: none; } }
+@keyframes orx-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes orx-glow { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@keyframes orx-dot { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+@keyframes orx-shake { 0%, 100% { transform: none; } 25% { transform: rotate(-4deg); } 75% { transform: rotate(4deg); } }
+.orx-bubble.is-new { animation: orx-pop 320ms var(--ease-spring) both; }
+.orx-bubble.is-reveal, .orxA-end.is-reveal { animation: orx-rise 620ms var(--ease-out) both; }
+.orx-thanks.is-new { animation: orx-pop 320ms var(--ease-spring) both; }
+.orxA-oracle .orx-ball { transform-box: fill-box; transform-origin: 50% 50%; animation: orx-breathe 2.6s ease-in-out infinite; }
+.orxA-oracle .orx-aura { animation: orx-glow 1.6s ease-in-out infinite; }
+.orxA-oracle.is-glowing .orx-aura { animation-duration: 0.7s; }
+.orxA-oracle .orx-mood--surprised .orx-head { transform-box: fill-box; transform-origin: 50% 100%; animation: orx-shake 0.36s ease-in-out 2; }
+.orx-dots i { animation: orx-dot 0.9s ease-in-out infinite; }
+.orx-dots i:nth-child(2) { animation-delay: 0.15s; }
+.orx-dots i:nth-child(3) { animation-delay: 0.3s; }
+@media (prefers-reduced-motion: reduce) {
+  .orxA-oracle .orx-ball, .orxA-oracle .orx-aura, .orx-dots i, .orxA-oracle .orx-mood--surprised .orx-head { animation: none; }
+}
+
+/* A short phone held upright: a smaller oracle, so the answers stay on the screen. */
+@media (max-height: 740px) and (orientation: portrait) {
+  .orxA-oracle { width: 9.5rem; height: 11rem; }
+  .orx-bubble { font-size: var(--fs-h2); }
+}
+/* A phone on its side: the stage (the oracle beside his bubble) and the answers side by side. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .orx { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; gap: var(--sp-2) var(--sp-4); align-items: start; }
+  .orx > .orx-count-wrap { grid-column: 1 / -1; }
+  .orx--end { grid-template-rows: 1fr; }
+  .orxA-stage { flex-direction: row; gap: var(--sp-3); align-self: stretch; }
+  .orxA-oracle { width: 7rem; height: 8rem; order: -1; }
+  .orx-bubble { font-size: var(--fs-h2); padding: var(--sp-3) var(--sp-4); }
+  .orx-bubble::after { inset-block-end: auto; inset-block-start: calc(50% - 8px); inset-inline-start: -9px; border: 0;
+    border-inline-start: 1px solid var(--border); border-block-end: 1px solid var(--border); }
+  .orx .btn--lg { min-height: 46px; }
+  .orx .btn { min-height: 44px; }
+  .orx-sil--big, .orx-tile--big { width: 4.5rem; height: 4.5rem; }
+  .orx-tile--big { font-size: 2.4rem; }
+  .orxA-end { padding: var(--sp-3); gap: var(--sp-2); }
+  .orx-stat .metric { font-size: var(--fs-h1); }
+  .orx .play-exit-row { padding-block: var(--sp-1) 0; }
+  .orx-setup__stage { flex-direction: row-reverse; justify-content: center; }
+  .orx-setup__art { width: 6.5rem; height: 7.5rem; }
+}
+/* A laptop or a TV: the stage on one side, the answers on the other, in the middle of the screen. */
+@media (min-width: 900px) and (min-height: 560px) {
+  .orx { display: grid; grid-template-columns: 1.1fr 1fr; grid-template-rows: auto 1fr; gap: var(--sp-4) var(--sp-7); align-items: center;
+    max-width: 60rem; margin-inline: auto; width: 100%; }
+  .orx > .orx-count-wrap { grid-column: 1 / -1; }
+  .orx--end { grid-template-rows: 1fr; }
+  .orxA-oracle { width: 14rem; height: 16rem; }
+  .orxA-side { gap: var(--sp-3); }
 }
 </style>

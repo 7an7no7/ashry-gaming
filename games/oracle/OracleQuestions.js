@@ -109,6 +109,25 @@ const ORACLE_QUESTIONS = [
   { id: 'math',    kinds: 'p', ar: 'اشتهر بالرياضيات (الحساب والجبر والهندسة)؟', en: 'Known for mathematics?' },
 
   /* ---------- content creators: YouTubers, TikTokers, gamers (10 Oct 2026, OracleCreators.js) ---------- */
+  /* `creator` is firm: every person mainly known for making videos online says yes (a TV chef with a big
+     channel says maybe); the rest are about what their videos are, so every older person is a no but the
+     few marked (Mostafa Mahmoud explained science on TV, Shobeir talks football, Disney made films for children). */
+  { id: 'creator',   firm: true, kinds: 'p', ar: 'يوتيوبر أو صانع محتوى على النت؟', en: 'A YouTuber or online content creator?' },
+  { id: 'gaming_v',  kinds: 'p', ar: 'بيعمل فيديوهات ألعاب فيديو (جيمنج)؟', en: 'Makes video-game (gaming) videos?' },
+  { id: 'live_v',    kinds: 'p', ar: 'اشتهر بالبث المباشر (لايف) وهو بيلعب؟', en: 'Known for live streams while playing?' },
+  { id: 'cook_v',    kinds: 'p', ar: 'بيعمل فيديوهات أو برامج طبخ؟', en: 'Makes cooking videos or shows?' },
+  { id: 'explain_v', kinds: 'p', ar: 'بيشرح علوم أو معلومات بطريقة سهلة في فيديوهات أو برامج؟', en: 'Explains science or facts simply, in videos or shows?' },
+  { id: 'kids_v',    kinds: 'p', ar: 'بيعمل فيديوهات أو برامج للأطفال الصغيرين؟', en: 'Makes videos or shows for young children?' },
+  { id: 'tiktok',    kinds: 'p', ar: 'اشتهر على تيك توك؟', en: 'Famous on TikTok?' },
+  { id: 'challenge_v', kinds: 'p', ar: 'بيعمل تحديات أو مقالب في فيديوهاته؟', en: 'Does challenges or pranks in their videos?' },
+  { id: 'family_v',  kinds: 'p', ar: 'بيصوّر فيديوهاته مع عيلته؟', en: 'Films their videos with their family?' },
+  { id: 'group_v',   kinds: 'p', ar: 'قناة بيعملها أكتر من شخص (إخوات أو أصحاب أو اتنين متجوزين)؟', en: 'A channel made by more than one person (siblings, friends, a couple)?' },
+  { id: 'sports_v',  kinds: 'p', ar: 'فيديوهاته عن الرياضة أو الكورة أو التمارين؟', en: 'Their videos are about sport, football or workouts?' },
+  { id: 'beauty_v',  kinds: 'p', ar: 'بيعمل فيديوهات ميكب أو جمال؟', en: 'Makes make-up or beauty videos?' },
+  { id: 'travel_v',  kinds: 'p', ar: 'بيعمل فيديوهات سفر ورحلات لبلاد؟', en: 'Makes travel videos?' },
+  { id: 'tech_v',    kinds: 'p', ar: 'بيراجع موبايلات وأجهزة (تكنولوجيا)؟', en: 'Reviews phones and gadgets (tech)?' },
+  { id: 'vlog_v',    kinds: 'p', ar: 'بيصوّر يومه وحياته (فلوجات)؟', en: 'Films their days and life (vlogs)?' },
+  { id: 'podcast',   kinds: 'p', ar: 'بيقدّم بودكاست (لقاءات طويلة على النت)؟', en: 'Hosts a podcast (long online interviews)?' },
 
   /* ---------- the newer stars (10 Oct 2026) ---------- */
 

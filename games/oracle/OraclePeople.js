@@ -154,8 +154,8 @@ const ORACLE_PEOPLE = { kind: 'p', list: [
   { id: 'amitabh',     icon: '🎬', ar: 'أميتاب باتشان', en: 'Amitabh Bachchan', yes: 'born1950 actor tvhost born1970', maybe: 'action hollywood singer' },
   { id: 'spielberg',   icon: '🎥', ar: 'ستيفن سبيلبرج', en: 'Steven Spielberg', yes: 'usa born1950 born1970 director oscar' },
   { id: 'hitchcock',   icon: '🎥', ar: 'ألفريد هيتشكوك', en: 'Alfred Hitchcock', yes: 'europe born1930 born1950 born1970 director uk', maybe: 'usa oscar' },
-  { id: 'miyazaki',    icon: '🎥', ar: 'هاياو ميازاكي', en: 'Hayao Miyazaki', yes: 'asia born1950 born1970 director oscar', maybe: 'painter' },
-  { id: 'waltdisney',  icon: '🐭', ar: 'والت ديزني', en: 'Walt Disney', yes: 'usa born1930 born1950 born1970 oscar', maybe: 'painter director' },
+  { id: 'miyazaki',    icon: '🎥', ar: 'هاياو ميازاكي', en: 'Hayao Miyazaki', yes: 'asia born1950 born1970 director oscar', maybe: 'painter kids_v' },
+  { id: 'waltdisney',  icon: '🐭', ar: 'والت ديزني', en: 'Walt Disney', yes: 'usa born1930 born1950 born1970 oscar', maybe: 'painter director kids_v' },
   /* ---------- Egyptian and Arab singers and composers ---------- */
   { id: 'hamaki',      icon: '🎤', ar: 'محمد حماقي', en: 'Mohamed Hamaki', yes: 'egypt arab singer born1980' },
   { id: 'adaweya',     icon: '🎤', ar: 'أحمد عدوية', en: 'Ahmed Adaweya', yes: 'egypt arab born1950 singer born1970', maybe: 'actor' },
@@ -199,7 +199,7 @@ const ORACLE_PEOPLE = { kind: 'p', list: [
   { id: 'elmohamady',  icon: '⚽', ar: 'أحمد المحمدي', en: 'Ahmed Elmohamady', yes: 'egypt arab athlete football england afcon defender', maybe: 'midfield', no: 'ahly zamalek' },
   { id: 'ibrahimhassan', icon: '⚽', ar: 'إبراهيم حسن', en: 'Ibrahim Hassan', yes: 'egypt arab athlete football ahly zamalek afcon born1970 defender', maybe: 'coach' },
   { id: 'gabaski',     icon: '🧤', ar: 'محمد أبو جبل (جباسكي)', en: 'Mohamed Abou Gabal (Gabaski)', yes: 'egypt arab athlete football zamalek keeper', no: 'ahly afcon' },
-  { id: 'shobeir',     icon: '🧤', ar: 'أحمد شوبير', en: 'Ahmed Shobeir', yes: 'egypt arab tvhost athlete football ahly keeper born1970', no: 'zamalek' },
+  { id: 'shobeir',     icon: '🧤', ar: 'أحمد شوبير', en: 'Ahmed Shobeir', yes: 'egypt arab tvhost athlete football ahly keeper born1970', maybe: 'sports_v', no: 'zamalek' },
   { id: 'mostafamohamed', icon: '⚽', ar: 'مصطفى محمد', en: 'Mostafa Mohamed', yes: 'egypt arab athlete football zamalek striker', no: 'ahly afcon' },
   { id: 'marmoush',    icon: '⚽', ar: 'عمر مرموش', en: 'Omar Marmoush', yes: 'egypt arab athlete football england striker', no: 'ahly zamalek afcon' },
   { id: 'mido',        icon: '⚽', ar: 'ميدو (أحمد حسام)', en: 'Mido (Ahmed Hossam)', yes: 'egypt arab athlete football zamalek england spain striker afcon coach italy', maybe: 'tvhost', no: 'ahly' },
@@ -290,7 +290,7 @@ const ORACLE_PEOPLE = { kind: 'p', list: [
   /* ---------- writers and poets ---------- */
   { id: 'tawfikhakim', icon: '✍️', ar: 'توفيق الحكيم', en: 'Tawfiq al-Hakim', yes: 'egypt arab born1930 born1950 theater writer born1970' },
   { id: 'youssefidris', icon: '✍️', ar: 'يوسف إدريس', en: 'Yusuf Idris', yes: 'egypt arab born1930 born1950 writer medic born1970' },
-  { id: 'mostafamahmoud', icon: '🔭', ar: 'مصطفى محمود', en: 'Mostafa Mahmoud', yes: 'egypt arab born1930 born1950 tvhost writer medic born1970' },
+  { id: 'mostafamahmoud', icon: '🔭', ar: 'مصطفى محمود', en: 'Mostafa Mahmoud', yes: 'egypt arab born1930 born1950 tvhost writer medic born1970 explain_v' },
   { id: 'ahmedkhaledtawfik', icon: '📚', ar: 'أحمد خالد توفيق', en: 'Ahmed Khaled Tawfik', yes: 'egypt arab writer medic born1970' },
   { id: 'salahjahin',  icon: '📜', ar: 'صلاح جاهين', en: 'Salah Jahin', yes: 'egypt arab born1950 writer poet born1970', maybe: 'actor painter' },
   { id: 'abnudi',      icon: '📜', ar: 'عبد الرحمن الأبنودي', en: 'Abdel Rahman el-Abnudi', yes: 'egypt arab south born1950 writer poet born1970' },
@@ -348,7 +348,7 @@ const ORACLE_PEOPLE = { kind: 'p', list: [
   { id: 'lincoln',     icon: '🎩', ar: 'أبراهام لينكولن', en: 'Abraham Lincoln', yes: 'usa born1930 born1950 ruler born1970' },
   { id: 'columbus',    icon: '⛵', ar: 'كريستوفر كولومبوس', en: 'Christopher Columbus', yes: 'europe before1800 born1930 born1950 explorer born1970 before1500' },
   { id: 'gagarin',     icon: '🚀', ar: 'يوري جاجارين', en: 'Yuri Gagarin', yes: 'europe born1950 explorer born1970' },
-  { id: 'cousteau',    icon: '🤿', ar: 'جاك كوستو', en: 'Jacques Cousteau', yes: 'europe born1930 born1950 explorer born1970 france', maybe: 'tvhost science' },
+  { id: 'cousteau',    icon: '🤿', ar: 'جاك كوستو', en: 'Jacques Cousteau', yes: 'europe born1930 born1950 explorer born1970 france', maybe: 'tvhost science explain_v' },
   { id: 'howardcarter', icon: '⛏️', ar: 'هوارد كارتر', en: 'Howard Carter', yes: 'europe born1930 born1950 explorer born1970 uk', maybe: 'science' },
   /* ---------- painters ---------- */
   { id: 'michelangelo', icon: '🎨', ar: 'مايكل أنجلو', en: 'Michelangelo', yes: 'europe before1800 born1930 born1950 painter born1970 before1500', maybe: 'built' },

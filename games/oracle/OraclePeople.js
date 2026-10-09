@@ -331,7 +331,7 @@ const ORACLE_PEOPLE = { kind: 'p', list: [
   { id: 'pasteur',     icon: '🧪', ar: 'لويس باستير', en: 'Louis Pasteur', yes: 'france science born1930', maybe: 'medic' },
   { id: 'fleming',     icon: '🧫', ar: 'ألكسندر فليمنج', en: 'Alexander Fleming', yes: 'uk science medic nobel born1930' },
   { id: 'hawking',     icon: '🌌', ar: 'ستيفن هوكينج', en: 'Stephen Hawking', yes: 'uk science born1950' },
-  { id: 'eiffel',      icon: '🗼', ar: 'جوستاف إيفل', en: 'Gustave Eiffel', yes: 'france built born1930', maybe: 'science' },
+  { id: 'gustaveeiffel',      icon: '🗼', ar: 'جوستاف إيفل', en: 'Gustave Eiffel', yes: 'france built born1930', maybe: 'science' },
   /* ---------- history: rulers, leaders, explorers ---------- */
   { id: 'khufu',       icon: '👑', ar: 'خوفو', en: 'Khufu', yes: 'egypt pharaoh ruler built' },
   { id: 'hatshepsut',  icon: '👑', ar: 'حتشبسوت', en: 'Hatshepsut', yes: 'female egypt pharaoh ruler built' },

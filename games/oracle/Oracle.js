@@ -184,13 +184,20 @@ function oracleBestQuestions(data, answers, odds) {
   const asked = new Set((answers || []).map((x) => x[0]));
   const ranked = oracleRanked(odds);
   const top = ranked.length ? ranked[0].p : 0;
-  let live = ranked.filter((x) => x.p >= top * ORACLE_PRUNE);
+  // Weigh only what is still possible: an entry a firm answer ruled out doesn't count (10 Oct 2026).
+  let live = ranked.filter((x) => x.p >= top * ORACLE_PRUNE && !oracleContradicts(data, data.entries[x.e], answers));
+  if (!live.length) live = ranked.filter((x) => x.p >= top * ORACLE_PRUNE);
   const sum = live.reduce((s, x) => s + x.p, 0);
   live = live.map((x) => ({ e: x.e, p: x.p / sum }));
   const doubtNow = -live.reduce((s, x) => s + x.p * Math.log(x.p), 0);
   const out = [];
+  // A question every likely entry answers the same way tells nothing: never ask it (the owner,
+  // 10 Oct 2026: «حاجة؟» after the answers had already said what it was).
+  const likely = live.filter((x) => x.p >= 0.01 * live[0].p);
   data.questions.forEach((q, qi) => {
     if (asked.has(q.id)) return;
+    const first = oracleSaid(data.entries[likely[0].e].truth[qi]);
+    if (likely.every((x) => oracleSaid(data.entries[x.e].truth[qi]) === first)) return;
     out.push({ q: q.id, score: oracleExpectedDoubt(data, qi, live, doubtNow) });
   });
   return out.sort((a, b) => b.score - a.score);
@@ -228,6 +235,9 @@ function oracleNextStep(game, rand) {
   }
   return { ask: pick.q };
 }
+
+/** The answer someone who knows the entry gives to a truth: yes, maybe or no. */
+const oracleSaid = (t) => (t === ORACLE_Y ? 'y' : t === ORACLE_M ? 'm' : 'n');
 
 /** Does a firm «أيوه» / «لأ» (or «غالباً») rule this entry out? */
 function oracleContradicts(data, entry, answers) {

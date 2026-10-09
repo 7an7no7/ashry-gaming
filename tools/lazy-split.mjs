@@ -131,7 +131,7 @@ export const CHUNKS = {
   laser: ['JS_RoomLaser', 'Laser.js'],   // tools/new-game.mjs, 2026-10-06
   hesba: ['JS_HesbaLook', 'JS_Hesba', 'JS_RoomHesba', 'Hesba.js'],   // tools/new-game.mjs, 2026-10-09
   boggle: ['JS_Boggle', 'JS_RoomBoggle', 'Boggle.js'],   // its dictionary is the word lists, fetched with the word wheel's chunk when the game alone starts
-  oracle: ['JS_Oracle', 'OracleQuestions.js', 'OraclePeople.js', 'OracleCharacters.js', 'OracleAnimals.js', 'OracleThings.js', 'Oracle.js'],   // tools/new-game.mjs, 2026-10-09; its data and engine (page only)
+  oracle: ['JS_Oracle', 'OracleQuestions.js', 'OraclePeople.js', 'OracleCharacters.js', 'OracleAnimals.js', 'OracleThings.js', 'OracleCreators.js', 'OracleApps.js', 'OraclePlaces.js', 'Oracle.js'],   // tools/new-game.mjs, 2026-10-09; its data and engine (page only)
   blockway: ['JS_RoomBlockway', 'Blockway.js'],   // tools/new-game.mjs, 2026-10-09
 };
 

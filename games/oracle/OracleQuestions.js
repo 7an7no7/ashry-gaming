@@ -6,8 +6,8 @@
      id     a short name the entries use in their yes / no / maybe lists (never change one).
      kinds  the kinds it is asked about, one letter each: p a famous person, c a character
             (cartoon, film, tale, game), a an animal, t a thing (food, object, place, nature),
-            j a job. For an entry of any other kind the answer is a firm «لأ».
-     auto   (optional) the answer every entry of a kind has without saying it: 'p:y c:n' -
+            j a job, l a place (a country or a city). For an entry of any other kind the answer is a firm «لأ».
+     auto   (optional) the answer every entry of a kind has without saying it: 'p:y c:n l:m' (m: maybe) -
             an entry's own lists still win.
      implies (optional) the ids an entry with this trait has too ('ahly' implies 'football').
      firm   (optional) true: what the thing IS (its kind, a woman, Egyptian, an actor...). Its data
@@ -16,12 +16,15 @@
    The wording is about things that don't change: never «لسه عايش؟» or «لسه بيلعب؟». */
 const ORACLE_QUESTIONS = [
   /* ---------- what kind of thing it is (asked like any other question, never picked first) ---------- */
-  { id: 'human',   firm: true, kinds: 'pcatj', auto: 'p:y a:n t:n j:y', ar: 'هو إنسان؟', en: 'Is it a human?' },
-  { id: 'real',    firm: true, kinds: 'pcatj', auto: 'p:y c:n a:n t:n j:n', ar: 'شخص حقيقي مشهور؟', en: 'A real, famous person?' },
-  { id: 'fiction', firm: true, kinds: 'pcatj', auto: 'p:n c:y a:n t:n j:n', ar: 'شخصية من كارتون أو فيلم أو حكاية؟', en: 'A character from a cartoon, film or tale?' },
-  { id: 'animal',  firm: true, kinds: 'pcatj', auto: 'p:n a:y t:n j:n', ar: 'حيوان (أو طير أو سمكة أو حشرة)؟', en: 'An animal (or a bird, a fish, an insect)?' },
-  { id: 'job',     firm: true, kinds: 'pcatj', auto: 'p:n c:n a:n t:n j:y', ar: 'شغلانة (مهنة)؟', en: 'A job?' },
-  { id: 'object',  firm: true, kinds: 'pcatj', auto: 'p:n a:n t:y j:n', ar: 'حاجة، مش إنسان ولا حيوان؟', en: 'A thing, not a person or an animal?' },
+  { id: 'human',   firm: true, kinds: 'pcatjl', auto: 'p:y a:n t:n j:y l:n', ar: 'هو إنسان؟', en: 'Is it a human?' },
+  { id: 'real',    firm: true, kinds: 'pcatjl', auto: 'p:y c:n a:n t:n j:n l:n', ar: 'شخص حقيقي مشهور؟', en: 'A real, famous person?' },
+  { id: 'fiction', firm: true, kinds: 'pcatjl', auto: 'p:n c:y a:n t:n j:n l:n', ar: 'شخصية من كارتون أو فيلم أو حكاية؟', en: 'A character from a cartoon, film or tale?' },
+  { id: 'animal',  firm: true, kinds: 'pcatjl', auto: 'p:n a:y t:n j:n l:n', ar: 'حيوان (أو طير أو سمكة أو حشرة)؟', en: 'An animal (or a bird, a fish, an insect)?' },
+  { id: 'job',     firm: true, kinds: 'pcatjl', auto: 'p:n c:n a:n t:n j:y l:n', ar: 'شغلانة (مهنة)؟', en: 'A job?' },
+  { id: 'object',  firm: true, kinds: 'pcatjl', auto: 'p:n a:n t:y j:n l:m', ar: 'حاجة، مش إنسان ولا حيوان؟', en: 'A thing, not a person or an animal?' },
+  { id: 'countrycity', firm: true, kinds: 'pcatjl', auto: 'p:n c:n a:n t:n j:n l:y', ar: 'بلد أو مدينة؟', en: 'A country or a city?' },
+
+  /* ---------- places: countries and cities (10 Oct 2026, OraclePlaces.js) ---------- */
 
   /* ---------- people (and some characters) ---------- */
   { id: 'female',  firm: true, kinds: 'pc', ar: 'ست أو بنت؟', en: 'A woman or a girl?' },
@@ -104,6 +107,10 @@ const ORACLE_QUESTIONS = [
   { id: 'midfield', kinds: 'p', implies: ['football'], ar: 'لاعب وسط (في الكورة)؟', en: 'A midfielder (in football)?' },
   { id: 'dance',   kinds: 'p', ar: 'اشتهر بالرقص أو الاستعراض؟', en: 'Known for dancing or musical shows?' },
   { id: 'math',    kinds: 'p', ar: 'اشتهر بالرياضيات (الحساب والجبر والهندسة)؟', en: 'Known for mathematics?' },
+
+  /* ---------- content creators: YouTubers, TikTokers, gamers (10 Oct 2026, OracleCreators.js) ---------- */
+
+  /* ---------- the newer stars (10 Oct 2026) ---------- */
 
   /* ---------- characters ---------- */
   { id: 'cartoon', firm: true, kinds: 'c', ar: 'كارتون (رسوم متحركة)؟', en: 'A cartoon (animated)?' },
@@ -240,7 +247,7 @@ const ORACLE_QUESTIONS = [
   { id: 'nature',  kinds: 't', ar: 'من الطبيعة، محدّش صنعه؟', en: 'From nature, not made by people?' },
   { id: 'sky',     kinds: 't', ar: 'في السما؟', en: 'In the sky?' },
   { id: 'plant',   kinds: 't', ar: 'نبات أو شجرة أو ورد؟', en: 'A plant, a tree or a flower?' },
-  { id: 'place',   kinds: 't', ar: 'مكان أو مبنى؟', en: 'A place or a building?' },
+  { id: 'place',   kinds: 'tl', auto: 'l:y', ar: 'مكان أو مبنى؟', en: 'A place or a building?' },
   { id: 'ramadan', kinds: 't', ar: 'له علاقة برمضان أو العيد؟', en: 'To do with Ramadan or Eid?' },
   { id: 'write',   kinds: 't', ar: 'بنكتب بيه أو عليه؟', en: 'Used to write with, or on?' },
   { id: 'sharp',   kinds: 't', ar: 'بيقطع (حادّ)؟', en: 'Does it cut (sharp)?' },
@@ -288,6 +295,8 @@ const ORACLE_QUESTIONS = [
   { id: 'flame',   kinds: 't', ar: 'فيه نار (لهب)؟', en: 'Has a flame?' },
   { id: 'holdsdrink', kinds: 't', ar: 'بنحط فيه حاجة نشربها؟', en: 'Holds something we drink?' },
   { id: 'rainy',   kinds: 't', ar: 'له علاقة بالمطر أو الشتا؟', en: 'To do with rain or winter?' },
+
+  /* ---------- games and apps (10 Oct 2026, OracleApps.js) ---------- */
 
   /* ---------- jobs ---------- */
   { id: 'uniform', kinds: 'j', ar: 'بيلبس يونيفورم أو زي معيّن؟', en: 'Wears a uniform?' },

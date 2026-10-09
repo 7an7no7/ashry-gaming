@@ -16,7 +16,7 @@
 
 const ORACLE_MAX_Q = 20;
 const ORACLE_GUESSES = 3;
-const ORACLE_KINDS = ['p', 'c', 'a', 't', 'j'];
+const ORACLE_KINDS = ['p', 'c', 'a', 't', 'j', 'l'];   // l: a place (a country or a city), 10 Oct 2026
 /** The five answers, in the order the likelihood table has them. */
 const ORACLE_ANSWERS = ['y', 'py', 'dk', 'pn', 'n'];
 const ORACLE_Y = 0, ORACLE_M = 1, ORACLE_U = 2, ORACLE_N = 3, ORACLE_X = 4;
@@ -57,10 +57,13 @@ let oracleCache = null;
 function oracleEntryLists() {
   const out = [];
   if (typeof ORACLE_PEOPLE !== 'undefined') out.push(ORACLE_PEOPLE);
+  if (typeof ORACLE_CREATORS !== 'undefined') out.push(ORACLE_CREATORS);
   if (typeof ORACLE_CHARACTERS !== 'undefined') out.push(ORACLE_CHARACTERS);
   if (typeof ORACLE_ANIMALS !== 'undefined') out.push(ORACLE_ANIMALS);
   if (typeof ORACLE_THINGS !== 'undefined') out.push(ORACLE_THINGS);
   if (typeof ORACLE_JOBS !== 'undefined') out.push(ORACLE_JOBS);
+  if (typeof ORACLE_APPS !== 'undefined') out.push(ORACLE_APPS);
+  if (typeof ORACLE_PLACES !== 'undefined') out.push(ORACLE_PLACES);
   return out;
 }
 
@@ -100,7 +103,7 @@ function oracleTruthRow(entry, kind, questions, byId) {
     else if (maybe.has(q.id)) v = ORACLE_M;
     else {
       const auto = q.autoOf[kind];
-      v = auto === 'y' ? ORACLE_Y : auto === 'n' ? ORACLE_X : q.firm ? ORACLE_N : ORACLE_U;
+      v = auto === 'y' ? ORACLE_Y : auto === 'm' ? ORACLE_M : auto === 'n' ? ORACLE_X : q.firm ? ORACLE_N : ORACLE_U;
     }
     row[i] = v;
   });

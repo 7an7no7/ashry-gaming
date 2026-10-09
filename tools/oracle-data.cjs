@@ -8,7 +8,7 @@ const fs = require('fs');
 const { srcPath } = require('./sources.cjs');
 
 /** The data files and the engine, in the order the page reads them (CHUNKS.oracle). */
-const ORACLE_FILES = ['OracleQuestions.js', 'OraclePeople.js', 'OracleCharacters.js', 'OracleAnimals.js', 'OracleThings.js', 'Oracle.js'];
+const ORACLE_FILES = ['OracleQuestions.js', 'OraclePeople.js', 'OracleCharacters.js', 'OracleAnimals.js', 'OracleThings.js', 'OracleCreators.js', 'OracleApps.js', 'OraclePlaces.js', 'Oracle.js'];
 const NAMES = ['ORACLE_QUESTIONS', 'ORACLE_MAX_Q', 'ORACLE_GUESSES', 'ORACLE_KINDS', 'ORACLE_ANSWERS', 'ORACLE_LIKE',
   'oracleData', 'oracleOdds', 'oracleRanked', 'oracleNextStep', 'oracleBestQuestions', 'oracleEntryLists', 'oracleWords', 'oracleClosure'];
 
@@ -22,7 +22,7 @@ function loadFold() {
   return new Function(fs.readFileSync(srcPath('Common.js'), 'utf8') + '\nreturn normaliseClue;')();
 }
 
-const KIND_NAMES = { p: 'a person', c: 'a character', a: 'an animal', t: 'a thing', j: 'a job' };
+const KIND_NAMES = { p: 'a person', c: 'a character', a: 'an animal', t: 'a thing', j: 'a job', l: 'a place' };
 const ID_RE = /^[a-z][a-z0-9_]*$/;
 
 /**
@@ -42,9 +42,9 @@ function validateOracle(O, fold) {
     byId[q.id] = q;
     if (typeof q.ar !== 'string' || !/؟$/.test(q.ar.trim())) note(`${tag}: ar must be a question ending in ؟`);
     if (typeof q.en !== 'string' || !/\?$/.test(q.en.trim())) note(`${tag}: en must be a question ending in ?`);
-    if (typeof q.kinds !== 'string' || !q.kinds || /[^pcatj]/.test(q.kinds)) note(`${tag}: kinds must be letters of pcatj`);
+    if (typeof q.kinds !== 'string' || !q.kinds || /[^pcatjl]/.test(q.kinds)) note(`${tag}: kinds must be letters of pcatjl`);
     O.oracleWords(q.auto).forEach((w) => {
-      const m = /^([pcatj]):([yn])$/.exec(w);
+      const m = /^([pcatjl]):([ynm])$/.exec(w);
       if (!m) note(`${tag}: auto "${w}" must be kind:y or kind:n`);
       else if (q.kinds.indexOf(m[1]) === -1) note(`${tag}: auto names ${m[1]}, which it is not asked about`);
     });
@@ -65,7 +65,7 @@ function validateOracle(O, fold) {
   if (lists.length < 5) note(`only ${lists.length} lists of entries: OraclePeople.js, OracleCharacters.js, OracleAnimals.js, OracleThings.js (things and jobs)`);
   lists.forEach((list) => {
     const kind = list.kind;
-    if (!KIND_NAMES[kind]) { note(`a list of entries has kind "${kind}", not one of pcatj`); return; }
+    if (!KIND_NAMES[kind]) { note(`a list of entries has kind "${kind}", not one of pcatjl`); return; }
     (list.list || []).forEach((e, i) => {
       const tag = `${KIND_NAMES[kind]} ${e && e.id ? e.id : '#' + i}${e && e.ar ? ' (' + e.ar + ')' : ''}`;
       if (!e || typeof e !== 'object') { note(`${tag}: not an entry`); return; }

@@ -12,6 +12,7 @@ gameText({
       oracle_kinds_c: "شخصية كارتون أو فيلم",
       oracle_kinds_a: "حيوان",
       oracle_kinds_t: "حاجة أو شغلانة",
+      oracle_kinds_l: "بلد أو مدينة",
       oracle_setup_hint: "20 سؤال و3 تخمينات. جاوب بأيوه أو لأ أو غالباً، و«رجّع» لو غلطت.",
       oracle_record: "العرّاف عرف {won} من {played} مرة",
       oracle_q_of: "سؤال {n} من {m}",
@@ -55,6 +56,7 @@ gameText({
       oracle_kind_a: "حيوان",
       oracle_kind_t: "حاجة",
       oracle_kind_j: "شغلانة",
+      oracle_kind_l: "بلد أو مدينة",
     },
     en: {
       setup_oracle: "The Oracle",
@@ -64,6 +66,7 @@ gameText({
       oracle_kinds_c: "A cartoon or film character",
       oracle_kinds_a: "An animal",
       oracle_kinds_t: "A thing or a job",
+      oracle_kinds_l: "A country or a city",
       oracle_setup_hint: "20 questions and 3 guesses. Answer yes, no or probably, and «Undo» if you slip.",
       oracle_record: "The Oracle got you {won} of {played} times",
       oracle_q_of: "Question {n} of {m}",
@@ -107,6 +110,7 @@ gameText({
       oracle_kind_a: "An animal",
       oracle_kind_t: "A thing",
       oracle_kind_j: "A job",
+      oracle_kind_l: "A country or a city",
     }
   },
   rules: {

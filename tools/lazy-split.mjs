@@ -132,6 +132,7 @@ export const CHUNKS = {
   hesba: ['JS_HesbaLook', 'JS_Hesba', 'JS_RoomHesba', 'Hesba.js'],   // tools/new-game.mjs, 2026-10-09
   boggle: ['JS_Boggle', 'JS_RoomBoggle', 'Boggle.js'],   // its dictionary is the word lists, fetched with the word wheel's chunk when the game alone starts
   oracle: ['JS_Oracle', 'OracleQuestions.js', 'OraclePeople.js', 'OracleCharacters.js', 'OracleAnimals.js', 'OracleThings.js', 'Oracle.js'],   // tools/new-game.mjs, 2026-10-09; its data and engine (page only)
+  blockway: ['JS_RoomBlockway'],   // tools/new-game.mjs, 2026-10-09
 };
 
 /* References that don't make a dependency: the call is only made while the other

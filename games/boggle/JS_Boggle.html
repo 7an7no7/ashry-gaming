@@ -1,79 +1,597 @@
 <script>
 /* ============================================================================
-   شبكة الحروف — Letter Grid on one phone (made by tools/new-game.mjs, 2026-10-09)
+   شبكة الحروف — LETTER GRID: the board every screen draws, and the game alone
    ----------------------------------------------------------------------------
-   The phone goes round: each player sees their secret number, taps «+1»
-   until they think they have reached it, and passes it on; then the nearest
-   wins. The whole game is in appState.boggle, so a reload comes back to it
-   (VIEW_RESTORE, JS_Core.html). Replace it with the real game.
+   Look أ «صندوق الزهر» (the owner's pick of 9 Oct 2026): the letters are dice
+   in a tray, the word being traced sits big above it with its points, the
+   words found are chips under it, and a word that counts flies from the word
+   into its chip. Sideways and on a laptop the tray stands beside the rest.
+
+   - The board (bglBoardHtml, bglTrace) is the same in the game alone and in a
+     room (JS_RoomBoggle.html): a finger drags across touching squares,
+     diagonals too (a square is caught only near its middle, so a diagonal
+     doesn't catch its neighbours), back onto the square before takes the last
+     letter off, and lifting the finger sends the word. Tapping squares one by
+     one works too, with ✓ in the word's box.
+   - Alone (لوحدك, the owner: unlimited, a best score; listed words only): a
+     4 x 4 grid for 2 minutes, or 5 x 5 for 3, made on this phone by boggleMake
+     (Boggle.js) once the word lists are here (the word wheel's chunk and what
+     it reads, fetched at the start: lzWait). The grid's listed words are kept
+     in appState.boggle with the board, so a reload comes back to it without
+     the lists. The clock stops while the board is away (soloRegister, timed).
+     Points by length as in rooms (every word found counts: there is nobody
+     else); the best per size (soloRecord).
+   - تحدي اليوم: the 4 x 4 grid of the day from the date's seed, the same on
+     every phone; the share says how many of the grid's listed words were found.
+   The styles are BOGGLE_CSS, put in once when the chunk runs (as الليزر's).
    ========================================================================= */
 
-const boggleOneT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+const bglT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+/** «N كلمات»: Arabic counts 3-10 in the plural. */
+const bglWordsN = (n) => {
+  const t = bglT();
+  const k = Math.abs(Number(n) || 0);
+  const many = appState.lang === 'en' ? k !== 1 : (k >= 3 && k <= 10);
+  return n + ' ' + (many ? t.boggle_words_many : t.boggle_words_one);
+};
+const bglPtsText = (p) => '+' + p;
 
-function boggleState() {
-  if (!appState.boggle) appState.boggle = null;
+const BOGGLE_CSS = `
+.bgl { display: flex; flex-direction: column; gap: var(--sp-3); }
+.bgl .solo-bar { margin: 0; }
+.bgl-word { position: relative; display: flex; align-items: center; justify-content: center; gap: var(--sp-2); min-height: 3.4rem; padding-inline: var(--sp-3);
+  border-radius: 16px; background: var(--surface-solid); border: 1.5px solid var(--border-field); font-size: 1.7rem; font-weight: var(--fw-black); color: var(--text-strong); }
+.bgl-word.is-empty { font-size: var(--fs-sm); color: var(--text-3); font-weight: var(--fw-semi); border-style: dashed; }
+.bgl-word.is-on { border-color: var(--accent); }
+.bgl-word.is-wrong { border-color: var(--danger); color: var(--danger-ink); }
+.bgl-word__text { direction: inherit; unicode-bidi: isolate; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.bgl-word__btn { flex: none; width: 2.5rem; height: 2.5rem; border-radius: 50%; border: 0; display: grid; place-items: center; font-size: 1.1rem; font-weight: var(--fw-black); cursor: pointer; }
+.bgl-word__btn--ok { background: var(--accent); color: var(--accent-on); }
+.bgl-word__btn--x { background: var(--surface-2); color: var(--text-2); }
+.bgl-pts { display: inline-grid; place-items: center; min-width: 2rem; height: 1.6rem; padding: 0 .45rem; border-radius: 999px; background: var(--accent); color: var(--accent-on);
+  font-size: var(--fs-xs); font-weight: var(--fw-black); direction: ltr; unicode-bidi: isolate; flex: none; }
+.bgl-tray { padding: .7rem; border-radius: 24px; background: var(--surface-2); box-shadow: inset 0 2px 8px rgba(0,0,0,.12); width: 100%; max-width: 26rem; margin-inline: auto; }
+.bgl-grid { position: relative; display: grid; grid-template-columns: repeat(var(--bgl-n, 4), 1fr); gap: .55rem; touch-action: none; user-select: none; -webkit-user-select: none; }
+.bgl-grid[data-n="5"] { gap: .42rem; }
+.bgl-tile { position: relative; display: grid; place-items: center; aspect-ratio: 1; border-radius: 16px; background: var(--surface-solid); color: var(--text-strong);
+  font-family: var(--font-display, var(--font)); font-weight: var(--fw-black); font-size: 2rem; line-height: 1;
+  box-shadow: 0 4px 0 var(--border-field), 0 6px 10px -6px rgba(0,0,0,.3); cursor: pointer; transition: transform .12s ease, background-color .12s ease; }
+.bgl-grid[data-n="5"] .bgl-tile { font-size: 1.6rem; border-radius: 13px; }
+.bgl-tile > span { position: relative; z-index: 3; pointer-events: none; }
+.bgl-tile.is-on { background: var(--accent); color: var(--accent-on); box-shadow: 0 2px 0 var(--accent-ink), 0 8px 16px -8px var(--accent); transform: translateY(2px); }
+.bgl-grid.is-off .bgl-tile { opacity: .55; cursor: default; }
+.bgl-line { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.bgl-line polyline { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round; stroke-linejoin: round; opacity: .45; }
+.bgl-found { display: flex; flex-direction: column; gap: var(--sp-2); }
+.bgl-found__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); font-weight: var(--fw-black); color: var(--text-strong); }
+.bgl-found__head small { color: var(--text-2); font-weight: var(--fw-semi); font-size: var(--fs-sm); }
+.bgl-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.bgl-chip { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .7rem; border-radius: 999px; background: var(--surface-2); color: var(--text);
+  font-weight: var(--fw-bold); font-size: var(--fs-sm); border: 1px solid transparent; font-family: var(--font); }
+.bgl-chip small { direction: ltr; unicode-bidi: isolate; font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); }
+.bgl-chip.is-new { background: var(--accent); color: var(--accent-on); box-shadow: 0 6px 16px -8px var(--accent); }
+.bgl-chip.is-new small { color: var(--accent-on); opacity: .85; }
+.bgl-chip.is-hold { visibility: hidden; }
+.bgl-chip.is-q { background: var(--surface-solid); border: 1.5px dashed var(--accent); color: var(--accent-ink); cursor: pointer; }
+.bgl-chip.is-x { text-decoration: line-through; text-decoration-thickness: 2px; color: var(--text-3); background: transparent; border: 1px dashed var(--border-field); }
+.bgl-chip.is-x small { color: var(--text-3); }
+.bgl-chip.is-uniq { background: var(--warning-btn); color: var(--warning-on); }
+.bgl-chip.is-uniq small { color: inherit; opacity: .85; }
+.bgl-chip.is-miss { background: transparent; border: 1px dashed var(--border-field); color: var(--text-2); }
+.bgl-fly { position: fixed; z-index: var(--z-fx, 60); pointer-events: none; padding: .3rem .8rem; border-radius: 999px; background: var(--accent); color: var(--accent-on);
+  font-family: var(--font); font-weight: var(--fw-black); font-size: 1.4rem; white-space: nowrap; box-shadow: 0 10px 24px -10px var(--accent); }
+.bgl-foot { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.bgl-note { text-align: center; color: var(--text-2); font-size: var(--fs-sm); font-weight: var(--fw-semi); }
+.bgl .solo-stat.is-low .metric { color: var(--danger-ink); }
+.bgl-side { display: contents; }
+/* Upright: the bar, the word, the tray, the words found (the tray comes first in the markup for the side layout). */
+.bgl--play .solo-bar, .bgl--play .solo-archive-badge { order: 0; }
+.bgl--play .bgl-word, .bgl--play > .bgl-side > .bgl-note { order: 1; }
+.bgl--play > .bgl-tray { order: 2; }
+.bgl--play .bgl-found { order: 3; }
+.bgl--play .bgl-foot, .bgl--play [data-room-strip] { order: 4; }
+/* Sideways and on a laptop: the tray on one side, the rest beside it. */
+@media (orientation: landscape) and (max-height: 520px), (min-width: 900px) {
+  .bgl--play { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--sp-4); }
+  .bgl--play > .bgl-tray { grid-column: 1; grid-row: 1; width: min(calc(var(--app-h, 100vh) - 7.5rem), 30rem); max-width: none; margin: 0; }
+  .bgl--play .bgl-side { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .bgl--play .bgl-tray { width: min(calc(var(--app-h, 100vh) - 6.5rem), 19.5rem); padding: .5rem; }
+  .bgl--play .bgl-tile { font-size: 1.55rem; border-radius: 13px; }
+  .bgl--play .bgl-grid { gap: .45rem; }
+  .bgl--play .bgl-word { min-height: 2.8rem; font-size: 1.4rem; }
+  .bgl--play .bgl-word.is-empty { font-size: var(--fs-sm); }
+}
+/* The room's vote and result */
+.bgl-res { display: flex; flex-direction: column; gap: var(--sp-3); }
+.bgl-res__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); }
+.bgl-res__head b { font-size: var(--fs-h2); font-weight: var(--fw-black); color: var(--text-strong); }
+.bgl-res__head span { color: var(--text-2); font-size: var(--fs-sm); font-weight: var(--fw-semi); }
+.bgl-card { background: var(--surface-solid); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: var(--sp-3) var(--sp-4);
+  display: flex; flex-direction: column; gap: var(--sp-2); }
+.bgl-card__row { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.bgl-card__name { flex: 1; min-width: 0; font-weight: var(--fw-black); color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bgl-card__name small { color: var(--text-2); font-weight: var(--fw-semi); }
+.bgl-card__pts { font-size: 1.5rem; font-weight: var(--fw-black); color: var(--accent-ink); font-family: var(--font-display, var(--font)); direction: ltr; unicode-bidi: isolate; }
+.bgl-card__total { color: var(--text-2); font-size: var(--fs-xs); font-weight: var(--fw-semi); }
+.bgl-face { width: 2.5rem; height: 2.5rem; border-radius: 50%; overflow: hidden; flex: none; background: var(--accent-soft); color: var(--accent-ink); display: grid; place-items: center; font-weight: var(--fw-black); }
+.bgl-face svg { width: 100%; height: 100%; display: block; }
+.bgl-face--sm { width: 2rem; height: 2rem; }
+.bgl-star { font-weight: var(--fw-black); color: var(--warning-ink); font-size: var(--fs-sm); white-space: nowrap; }
+.bgl-vote { border: 2px solid var(--accent); }
+.bgl-vote__word { font-size: 1.8rem; font-weight: var(--fw-black); text-align: center; color: var(--text-strong); }
+.bgl-vote__btns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+.bgl-vote__btns .btn.is-mine { outline: var(--focus-w, 3px) solid var(--accent-ink); outline-offset: 2px; }
+.bgl-muted { color: var(--text-2); font-size: var(--fs-sm); font-weight: var(--fw-semi); }
+/* The reveal: a chip lands covered, then turns over (motionFirst keys it once a round). */
+.bgl-reveal .bgl-chip { animation: bgl-flip .42s cubic-bezier(.2,.8,.2,1) both; animation-delay: var(--d, 0ms); }
+.bgl-reveal .bgl-star { animation: bgl-pop .5s cubic-bezier(.2,1.4,.4,1) both; animation-delay: var(--d, 0ms); }
+@keyframes bgl-flip { from { opacity: 0; transform: rotateX(90deg) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes bgl-pop { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+/* The TV: the tray big in the middle, everyone's count either side, the clock in the corner. */
+.bgl-tv { display: flex; flex-direction: column; gap: 2.5vmin; height: 100%; min-height: 0; }
+.bgl-tv__top { display: flex; align-items: center; gap: 2vmin; }
+.bgl-mark { display: grid; grid-template-columns: 1fr 1fr; gap: .5vmin; width: 8vmin; height: 8vmin; flex: none; }
+.bgl-mark i { font-style: normal; display: grid; place-items: center; border-radius: 1vmin; background: var(--accent); color: var(--accent-on); font-weight: 900; font-size: 2.6vmin; }
+.bgl-tv__title { font-size: var(--tv-lg); font-weight: var(--fw-black); color: var(--text-strong); }
+.bgl-tv__sub { font-size: var(--tv-sm); color: var(--text-2); font-weight: var(--fw-semi); }
+.bgl-tv__clock { margin-inline-start: auto; font-size: var(--tv-xl); font-weight: var(--fw-black); font-family: var(--font-display, var(--font)); direction: ltr; unicode-bidi: isolate; color: var(--accent-ink); line-height: 1; }
+.bgl-tv__clock.is-low { color: var(--danger-ink); }
+.bgl-tv__body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 4vmin; min-height: 0; }
+.bgl-tv .bgl-tray { width: min(64vmin, 46vw); max-width: none; padding: 1.6vmin; border-radius: 3vmin; }
+.bgl-tv .bgl-grid { gap: 1.6vmin; }
+.bgl-tv .bgl-tile { border-radius: 2.4vmin; background: #f7f3e8; color: #1b1d2e; font-size: 8vmin; box-shadow: 0 1vmin 0 #b9ad8f, 0 2vmin 3vmin -1vmin rgba(0,0,0,.6); cursor: default; }
+.bgl-tv .bgl-grid[data-n="5"] .bgl-tile { font-size: 6.4vmin; }
+.bgl-tv__col { display: flex; flex-direction: column; gap: 2vmin; min-width: 0; }
+.bgl-tv__p { display: flex; align-items: center; gap: 2vmin; padding: 1.8vmin 2.2vmin; border-radius: 2.8vmin; background: var(--surface-solid); border: 1px solid var(--border); min-width: 0; }
+.bgl-tv__p .bgl-face { width: 8vmin; height: 8vmin; font-size: 3vmin; }
+.bgl-tv__p b { display: block; font-size: var(--tv-md); color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bgl-tv__p span { font-size: var(--tv-xs); color: var(--text-2); font-weight: var(--fw-semi); }
+.bgl-tv__p.is-done span { color: var(--success-ink); }
+.bgl-tv__who { min-width: 0; flex: 1; }
+.bgl-tv__n { margin-inline-start: auto; font-size: var(--tv-xl); font-weight: var(--fw-black); color: var(--accent-ink); font-family: var(--font-display, var(--font)); line-height: 1; }
+.bgl-tv__foot { text-align: center; font-size: var(--tv-sm); color: var(--text-2); font-weight: var(--fw-semi); }
+.bgl-tv__cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(38vmin, 1fr)); gap: 2vmin; align-content: start; }
+.bgl-tv .bgl-card { border-radius: 2.6vmin; padding: 2vmin 2.4vmin; gap: 1.4vmin; }
+.bgl-tv .bgl-card__name { font-size: var(--tv-md); }
+.bgl-tv .bgl-card__pts { font-size: var(--tv-lg); }
+.bgl-tv .bgl-chip { font-size: var(--tv-sm); padding: .5vmin 1.6vmin; }
+.bgl-tv .bgl-chip small { font-size: var(--tv-xs); }
+.bgl-tv .bgl-vote__word { font-size: var(--tv-xl); }
+.bgl-tv .bgl-star { font-size: var(--tv-sm); }
+@media (max-width: 899px) and (orientation: portrait) { .bgl-tv__body { grid-template-columns: minmax(0, 1fr); } .bgl-tv .bgl-tray { width: min(100%, 60vh); margin-inline: auto; } }
+@media (prefers-reduced-motion: reduce) { .bgl-reveal .bgl-chip, .bgl-reveal .bgl-star { animation: none; } .bgl-tile { transition: none; } }
+`;
+function bglStyleOn() {
+  if (document.getElementById('bgl-style')) return;
+  const st = document.createElement('style');
+  st.id = 'bgl-style';
+  st.textContent = BOGGLE_CSS;
+  document.body.appendChild(st);
+  // The motion setting reads every stylesheet: this one came after it looked.
+  if (typeof applyMotionPref === 'function') applyMotionPref();
+}
+bglStyleOn();
+
+/* --- The board: the tray, the trace ----------------------------------------------- */
+
+/** The tray of dice. `on`: the squares of the word being traced. */
+function bglBoardHtml(grid, n, lang, on, off) {
+  const lit = on || [];
+  return `<div class="bgl-tray"><div class="bgl-grid${off ? ' is-off' : ''}" data-n="${n}" dir="${lang === 'en' ? 'ltr' : 'rtl'}" style="--bgl-n:${n}" data-bgl-grid>${(grid || []).map((ch, i) =>
+    `<div class="bgl-tile${lit.indexOf(i) !== -1 ? ' is-on' : ''}" data-i="${i}"><span>${escapeHTML(ch)}</span></div>`).join('')}<svg class="bgl-line" aria-hidden="true"><polyline points=""/></svg></div></div>`;
+}
+
+/** The traced line over the tray, through the middle of each square on the path. */
+function bglDrawLine(gridEl, path) {
+  const line = gridEl && gridEl.querySelector('.bgl-line');
+  if (!line) return;
+  const gr = gridEl.getBoundingClientRect();
+  line.setAttribute('viewBox', `0 0 ${Math.max(1, gr.width)} ${Math.max(1, gr.height)}`);
+  const pts = (path || []).map(i => {
+    const tile = gridEl.querySelector(`[data-i="${i}"]`);
+    if (!tile) return '';
+    const r = tile.getBoundingClientRect();
+    return (r.left - gr.left + r.width / 2).toFixed(1) + ',' + (r.top - gr.top + r.height / 2).toFixed(1);
+  }).filter(Boolean);
+  const poly = line.querySelector('polyline');
+  if (poly) poly.setAttribute('points', pts.length > 1 ? pts.join(' ') : '');
+  gridEl.querySelectorAll('.bgl-tile').forEach(t => t.classList.toggle('is-on', (path || []).indexOf(Number(t.dataset.i)) !== -1));
+}
+
+/** The square whose middle is near a point (a diagonal drag doesn't catch the squares beside it). */
+function bglTileAt(gridEl, x, y) {
+  let best = null;
+  gridEl.querySelectorAll('.bgl-tile').forEach(t => {
+    const r = t.getBoundingClientRect();
+    const dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
+    if (Math.abs(dx) <= r.width * 0.42 && Math.abs(dy) <= r.height * 0.42) best = t;
+  });
+  return best;
+}
+
+const bglTouching = (a, b, n) => a !== b && Math.abs(Math.floor(a / n) - Math.floor(b / n)) <= 1 && Math.abs((a % n) - (b % n)) <= 1;
+
+/**
+ * Binds tracing on a tray. o: { n, can() -> bool, change(path, tapped), send(path) }.
+ * A drag sends when the finger lifts; taps build a word that the word box's ✓ sends.
+ * The path lives in o.path (kept by the caller across redraws of the word box only).
+ */
+function bglTrace(gridEl, o) {
+  if (!gridEl || gridEl.dataset.bound) return;
+  gridEl.dataset.bound = '1';
+  o.path = o.path || [];
+  let drag = null;
+  const set = (path, tapped) => { o.path = path; bglDrawLine(gridEl, path); o.change(path, tapped); };
+  gridEl.addEventListener('pointerdown', (e) => {
+    if (!o.can() || (drag && !e.isPrimary)) return;
+    const tile = bglTileAt(gridEl, e.clientX, e.clientY) || (e.target.closest && e.target.closest('.bgl-tile'));
+    if (!tile) return;
+    e.preventDefault();
+    const i = Number(tile.dataset.i);
+    const pid = e.pointerId;
+    const p = o.path;
+    // A tap that carries on the tapped word, or a new start.
+    let start;
+    if (p.length && o.tapped && p[p.length - 1] === i) start = p.slice();
+    else if (p.length && o.tapped && p.indexOf(i) === -1 && bglTouching(p[p.length - 1], i, o.n)) start = p.concat([i]);
+    else start = [i];
+    drag = { pid, moved: false, base: start };
+    haptic('light');
+    set(start, true);
+    const move = (ev) => {
+      if (ev.pointerId !== pid || !drag) return;
+      const over = bglTileAt(gridEl, ev.clientX, ev.clientY);
+      if (!over) return;
+      const k = Number(over.dataset.i);
+      const cur = o.path;
+      const last = cur[cur.length - 1];
+      if (k === last) return;
+      if (!drag.moved) {
+        // A drag is a word of its own: letters tapped before it don't stay in front.
+        drag.moved = true;
+        o.tapped = false;
+        if (cur.length > 1 && cur[cur.length - 2] !== k) { set([last], false); }
+      }
+      const now = o.path;
+      if (now.length > 1 && now[now.length - 2] === k) { set(now.slice(0, -1), false); return; }
+      if (now.indexOf(k) === -1 && bglTouching(now[now.length - 1], k, o.n)) { haptic('light'); set(now.concat([k]), false); }
+    };
+    const up = (ev) => {
+      if (ev && ev.pointerId !== pid) return;
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      const d = drag;
+      drag = null;
+      if (!d) return;
+      if (d.moved) {
+        const path = o.path;
+        o.tapped = false;
+        set([], false);
+        if (path.length >= 2) o.send(path);
+      } else {
+        o.tapped = true;
+        o.change(o.path, true);
+      }
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+  });
+}
+
+/** The word box: the letters traced, the word's points, and ✓ / ✕ for a word built by taps. */
+function bglWordHtml(text, pts, tapped, kind) {
+  const t = bglT();
+  if (!text) return `<div class="bgl-word is-empty" data-bgl-word>${escapeHTML(t.boggle_drag)}</div>`;
+  return `<div class="bgl-word is-on${kind === 'wrong' ? ' is-wrong' : ''}" data-bgl-word>
+    ${tapped ? `<button type="button" class="bgl-word__btn bgl-word__btn--x" data-bgl-clear aria-label="${escapeHTML(t.boggle_clear)}" title="${escapeHTML(t.boggle_clear)}">✕</button>` : ''}
+    <span class="bgl-word__text" dir="auto">${escapeHTML(text)}</span>${pts ? `<span class="bgl-pts">${bglPtsText(pts)}</span>` : ''}
+    ${tapped ? `<button type="button" class="bgl-word__btn bgl-word__btn--ok" data-bgl-ok aria-label="${escapeHTML(t.boggle_send)}" title="${escapeHTML(t.boggle_send)}">✓</button>` : ''}</div>`;
+}
+
+/** A refused word stays up a moment, red, and shakes. */
+function bglRefuse(box, text) {
+  if (!box) return;
+  box.outerHTML = bglWordHtml(text, 0, false, 'wrong');
+  const el = document.querySelector('[data-bgl-word].is-wrong');
+  if (el && el.animate && !motionOff()) el.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }], { duration: 260 });
+  return el;
+}
+
+/** A word that counts flies from the word box into its chip (held hidden until it lands). */
+function bglFly(fromRect, chip, text) {
+  if (!chip) return;
+  if (!fromRect || motionOff() || !document.body.animate) { chip.classList.remove('is-hold'); return; }
+  const to = chip.getBoundingClientRect();
+  const ghost = document.createElement('div');
+  ghost.className = 'bgl-fly';
+  ghost.dir = 'auto';
+  ghost.textContent = text;
+  const host = chip.closest('[data-accent]');
+  if (host) ghost.setAttribute('data-accent', host.getAttribute('data-accent'));
+  document.body.appendChild(ghost);
+  const g = ghost.getBoundingClientRect();
+  const ax = fromRect.left + fromRect.width / 2 - g.width / 2, ay = fromRect.top + fromRect.height / 2 - g.height / 2;
+  const bx = to.left + to.width / 2 - g.width / 2, by = to.top + to.height / 2 - g.height / 2;
+  ghost.style.left = '0px';
+  ghost.style.top = '0px';
+  const ms = 460;
+  const a = ghost.animate([
+    { transform: `translate(${ax}px, ${ay}px) scale(1.3) rotate(-4deg)`, opacity: 1 },
+    { transform: `translate(${(ax + bx) / 2}px, ${Math.min(ay, by) - 50}px) scale(1.1) rotate(-2deg)`, opacity: 1, offset: 0.5 },
+    { transform: `translate(${bx}px, ${by}px) scale(${Math.max(0.5, to.width / Math.max(1, g.width))})`, opacity: 0.9 }
+  ], { duration: ms, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'both' });
+  let landed = false;
+  const land = () => { if (landed) return; landed = true; if (ghost.isConnected) ghost.remove(); chip.classList.remove('is-hold'); if (typeof soloPop === 'function') soloPop(chip, 1.15); };
+  a.onfinish = land;
+  setTimeout(land, ms + 400);
+}
+
+/** A chip of a found word. */
+function bglChipHtml(w, pts, cls, attrs) {
+  return `<span class="bgl-chip${cls ? ' ' + cls : ''}"${attrs || ''}><bdi>${escapeHTML(w)}</bdi>${pts === null || pts === undefined ? '' : `<small>${pts === '?' ? '?' : bglPtsText(pts)}</small>`}</span>`;
+}
+
+/** The clock's text: m:ss. */
+const bglClockText = (secs) => { const s = Math.max(0, Math.ceil(secs)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+
+/* --- The game alone ---------------------------------------------------------------- */
+
+let bglSoloClock = null;
+const bglSolo = { path: [], tapped: false, last: -1 };
+const BOGGLE_SOLO_MISSED = 6;
+
+function boggleSoloState() {
+  if (!appState.boggle || typeof appState.boggle !== 'object' || !appState.boggle.v) {
+    appState.boggle = { v: 1, size: 4, phase: 'setup', daily: '', lang: 'ar', n: 4, grid: [], words: [], show: {}, found: [], secs: 120, startedAt: 0, pausedAt: 0, score: 0, seconds: 0 };
+  }
   return appState.boggle;
 }
 
 /** Its card on the home, and its setup screen. */
-function setupBoggle() { setView('setup-boggle'); }
+function setupBoggle() {
+  bglSoloStop();
+  setView('setup-boggle');
+}
 
-function startBoggle() {
-  // Who plays: the players picked on this phone, or «مين بيلعب؟» asks for them first.
-  const names = (appState.activePlayers || []).slice(0, 12);
-  if (names.length < 1) { askPlayers(1, () => startBoggle(), { max: 12 }); return; }
-  const players = names.map(name => ({ name, target: 3 + Math.floor(Math.random() * 7), count: 0 }));
-  appState.boggle = { players, at: 0, shown: false, phase: 'play' };
+function paintBoggleSetup() {
+  const s = boggleSoloState();
+  const t = bglT();
+  document.querySelectorAll('#boggle-size .segmented__item').forEach(el => el.classList.toggle('is-active', Number(el.dataset.value) === s.size));
+  const best = soloBest('boggle', String(s.size));
+  const el = document.getElementById('boggle-best');
+  if (el) el.textContent = best ? `${t.solo_best || ''}: ${best.score} ${t.boggle_pts || ''}` : '';
+  const cont = document.getElementById('boggle-continue');
+  if (cont) cont.classList.toggle('hidden', s.phase !== 'play');
+  const daily = document.getElementById('boggle-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('boggle', 'startBoggleSolo(true)');
+}
+
+function setBoggleSize(n) {
+  boggleSoloState().size = Number(n) === 5 ? 5 : 4;
+  saveToLocal();
+  paintBoggleSetup();
+}
+
+const bglHasWork = (s) => (s.found || []).length > 0;
+
+function startBoggleSolo(daily, sure) {
+  if (!sure && soloConfirmNew('boggle', bglHasWork, () => startBoggleSolo(daily, true))) return;
+  if (daily && soloDailyResume('boggle')) return;
+  // The grid is made from the word lists: the word wheel's chunk and every list it reads.
+  if (typeof lzWait === 'function' && lzWait(['wordwheel'], () => startBoggleSolo(daily, true), 'bgl')) return;
+  const s = boggleSoloState();
+  const n = daily ? 4 : s.size;
+  const lang = contentLang() === 'en' ? 'en' : 'ar';
+  let made = boggleMake(n, lang, soloRandom(daily ? soloDaySeed('boggle:' + lang) : null));
+  if (!made && !daily) made = boggleMake(n, lang, soloRandom(null));
+  if (!made) { showToast(bglT().solo_make_failed || '', 'error'); return; }
+  soloDailySetAside('boggle');
+  soloNewGame('boggle');
+  const show = {};
+  made.words.forEach(f => { show[f] = boggleShow(f, lang); });
+  Object.assign(s, {
+    daily: daily ? soloToday() : '', lang, n, grid: made.grid, words: made.words, show, found: [],
+    secs: BOGGLE_SIZES[n], startedAt: Date.now(), pausedAt: 0, score: 0, seconds: 0, phase: 'play'
+  });
+  bglSolo.path = []; bglSolo.tapped = false;
   saveToLocal();
   setView('play-boggle');
-  renderBoggle();
+  paintBoggleSolo();
+  bglSoloArm();
 }
 
-function boggleShow() { appState.boggle.shown = true; saveToLocal(); renderBoggle(); }
-function boggleOneTap() { haptic('light'); appState.boggle.players[appState.boggle.at].count++; saveToLocal(); renderBoggle(); }
-function boggleNext() {
-  const g = appState.boggle;
-  g.at++;
-  g.shown = false;
-  if (g.at >= g.players.length) g.phase = 'over';
-  saveToLocal();
-  renderBoggle();
-  scrollToAction();
+function continueBoggleSolo() {
+  if (boggleSoloState().phase !== 'play') return;
+  setView('play-boggle');
+  paintBoggleSolo();
+  bglSoloArm();
 }
 
-function renderBoggle() {
+const bglSoloLeft = (s) => s.secs - (Date.now() - s.startedAt) / 1000;
+
+function bglSoloArm() {
+  bglSoloStop();
+  bglSolo.last = -1;
+  bglSoloClock = createClock({ countUp: true, onTick: bglSoloTick });
+  bglSoloTick();
+}
+
+function bglSoloStop() {
+  if (bglSoloClock) bglSoloClock.stop();
+  bglSoloClock = null;
+}
+
+function bglSoloTick() {
+  const s = boggleSoloState();
+  if (s.phase !== 'play') { bglSoloStop(); return; }
+  if (appState.currentView !== 'play-boggle' || s.pausedAt) return;
+  const left = bglSoloLeft(s);
+  const el = document.getElementById('bgl-solo-time');
+  const sec = Math.max(0, Math.ceil(left));
+  if (el) {
+    el.textContent = bglClockText(left);
+    const stat = el.closest('.solo-stat');
+    if (stat) stat.classList.toggle('is-low', left <= 10);
+  }
+  if (sec <= 5 && sec > 0 && sec !== bglSolo.last) { bglSolo.last = sec; playSound('tick'); }
+  if (left <= 0) bglSoloFinish();
+}
+
+const bglSoloScore = (s) => (s.found || []).reduce((sum, f) => sum + boggleWordPts(f), 0);
+
+function paintBoggleSolo() {
+  const s = boggleSoloState();
   const el = document.getElementById('boggle-stage');
-  const g = boggleState();
-  if (!el || !g) return;
-  const t = boggleOneT();
-  if (g.phase === 'over') {
-    const board = g.players.map(p => ({ name: p.name, score: Math.max(0, 10 - Math.abs(p.target - p.count)), count: p.count, target: p.target }))
-      .sort((a, b) => b.score - a.score);
-    el.innerHTML = `
-      <div class="card" style="text-align:center">
-        <div class="card__title">${escapeHTML(t.boggle_result)}</div>
-        ${board.map(r => `<div class="row"><span>${escapeHTML(r.name)}</span><span class="metric">${ltrFrac(r.count, r.target)}</span></div>`).join('')}
-        <button class="btn btn--primary btn--lg" onclick="startBoggle()">${escapeHTML(t.play_again || '')}</button>
+  if (!el || !s.grid.length) return;
+  const t = bglT();
+  const playing = s.phase === 'play';
+  const bar = soloBarHtml([
+    { label: t.solo_time || '', value: bglClockText(playing ? bglSoloLeft(s) : 0), id: 'bgl-solo-time' },
+    { label: t.boggle_words || '', value: s.daily ? ltrFrac(s.found.length, s.words.length) : s.found.length, id: 'bgl-solo-count' },
+    { label: t.boggle_points || '', value: bglSoloScore(s), id: 'bgl-solo-pts' }
+  ]);
+  const chips = s.found.map((f, k) => bglChipHtml(s.show[f] || f, boggleWordPts(f), k === 0 && bglSolo.fresh === f ? 'is-new is-hold' : '', ` data-f="${escapeHTML(f)}"`)).join('');
+  el.innerHTML = `
+    <div class="bgl bgl--play">
+      ${bglBoardHtml(s.grid, s.n, s.lang, [], !playing)}
+      <div class="bgl-side">
+        ${bar}
+        ${bglWordHtml('', 0, false)}
+        <div class="bgl-found">
+          <div class="bgl-found__head"><span>${escapeHTML((t.boggle_found_n || '{n}').replace('{n}', bglWordsN(s.found.length)))}</span>${s.daily ? `<small>📅 ${escapeHTML(t.daily_title || '')}</small>` : ''}</div>
+          <div class="bgl-chips" data-bgl-chips>${chips}</div>
+        </div>
+        <div class="bgl-foot">
+          ${playing ? `<button type="button" class="btn btn--neutral btn--sm btn--auto" onclick="bglSoloFinish()">🏁 ${escapeHTML(t.boggle_done)}</button>` : ''}
+          <button type="button" class="btn btn--ghost btn--sm btn--auto play-exit" onclick="${playing ? 'playExit(setupBoggle)' : 'setupBoggle()'}">${escapeHTML(t.exit || '')}</button>
+        </div>
       </div>
-      <div class="play-exit-row"><button type="button" class="btn btn--ghost btn--sm btn--auto play-exit" onclick="playExit(() => setView('setup-boggle'))">${escapeHTML(t.exit || '')}</button></div>`;
+    </div>`;
+  const grid = el.querySelector('[data-bgl-grid]');
+  bglTrace(grid, {
+    n: s.n,
+    get path() { return bglSolo.path; }, set path(v) { bglSolo.path = v; },
+    get tapped() { return bglSolo.tapped; }, set tapped(v) { bglSolo.tapped = v; },
+    can: () => boggleSoloState().phase === 'play',
+    change: (path, tapped) => bglSoloWordBox(path, tapped),
+    send: (path) => bglSoloSend(path)
+  });
+  bglDrawLine(grid, bglSolo.path);
+  bglSoloWordBox(bglSolo.path, bglSolo.tapped);
+  if (bglSolo.fresh) {
+    const chip = el.querySelector('[data-bgl-chips] .is-hold');
+    bglFly(bglSolo.from, chip, chip ? chip.textContent : '');
+    bglSolo.fresh = null;
+  }
+}
+
+/** The word box while tracing: the letters, and the list's spelling once it is a word. */
+function bglSoloWordBox(path, tapped) {
+  const s = boggleSoloState();
+  const box = document.querySelector('#boggle-stage [data-bgl-word]');
+  if (!box) return;
+  const raw = path.map(i => s.grid[i]).join('');
+  const f = path.length >= 2 ? boggleResolve(raw, s.lang, (x) => s.words.indexOf(x) !== -1) : '';
+  const known = f && s.words.indexOf(f) !== -1;
+  box.outerHTML = bglWordHtml(known ? (s.show[f] || raw) : raw, known || f.length >= BOGGLE_MIN_LEN ? boggleWordPts(f) : 0, tapped && path.length >= 1);
+  const now = document.querySelector('#boggle-stage [data-bgl-word]');
+  if (!now) return;
+  const ok = now.querySelector('[data-bgl-ok]');
+  const clear = now.querySelector('[data-bgl-clear]');
+  if (ok) ok.onclick = () => { const p = bglSolo.path; bglSolo.path = []; bglSolo.tapped = false; bglDrawLine(document.querySelector('#boggle-stage [data-bgl-grid]'), []); if (p.length >= 2) bglSoloSend(p); else bglSoloWordBox([], false); };
+  if (clear) clear.onclick = () => { bglSolo.path = []; bglSolo.tapped = false; bglDrawLine(document.querySelector('#boggle-stage [data-bgl-grid]'), []); bglSoloWordBox([], false); };
+}
+
+function bglSoloSend(path) {
+  const s = boggleSoloState();
+  const t = bglT();
+  if (s.phase !== 'play') return;
+  const box = document.querySelector('#boggle-stage [data-bgl-word]');
+  const raw = path.map(i => s.grid[i]).join('');
+  const letters = boggleTraceWord(s.grid, s.n, path, s.lang);
+  const f = letters ? boggleResolve(letters, s.lang, (x) => s.words.indexOf(x) !== -1) : '';
+  bglSolo.path = [];
+  bglSolo.tapped = false;
+  if (f && s.found.indexOf(f) !== -1) {
+    bglRefuse(box, s.show[f] || raw);
+    showToast(t.boggle_again || '', 'info');
+    bglSoloLater();
     return;
   }
-  const p = g.players[g.at];
-  el.innerHTML = `
-    <div class="card" style="text-align:center">
-      <p class="sheet__subtitle">${escapeHTML(t.boggle_turn_of)} <bdi>${escapeHTML(p.name)}</bdi></p>
-      ${g.shown ? `
-        <div class="metric metric--lg">${p.target}</div>
-        <div class="metric metric--md">${p.count}</div>
-        <div class="btn-stack">
-          <button class="btn btn--primary btn--lg" onclick="boggleOneTap()">${escapeHTML(t.boggle_tap)}</button>
-          <button class="btn btn--secondary" onclick="boggleNext()">${escapeHTML(t.boggle_done)}</button>
-        </div>` : `<button class="btn btn--primary btn--lg" onclick="boggleShow()">${escapeHTML(t.boggle_show)}</button>`}
-    </div>
-    <div class="play-exit-row"><button type="button" class="btn btn--ghost btn--sm btn--auto play-exit" onclick="playExit(() => setView('setup-boggle'))">${escapeHTML(t.exit || '')}</button></div>`;
+  if (!f || s.words.indexOf(f) === -1) {
+    bglRefuse(box, raw);
+    if (f) showToast(t.boggle_not_listed || '', 'info');
+    bglSoloLater();
+    return;
+  }
+  s.found.unshift(f);
+  saveToLocal();
+  playSound('success');
+  haptic(boggleWordPts(f) >= 3 ? 'double' : 'light');
+  bglSolo.from = box ? box.getBoundingClientRect() : null;
+  bglSolo.fresh = f;
+  paintBoggleSolo();
+  const pts = document.getElementById('bgl-solo-pts');
+  if (pts && !motionOff()) countUp(pts, bglSoloScore(s) - boggleWordPts(f), bglSoloScore(s));
+  if (s.found.length === s.words.length) bglSoloFinish();
 }
 
-// A reload: the setup as it was, or the game where it was.
-VIEW_RESTORE['setup-boggle'] = () => {};
-VIEW_RESTORE['play-boggle'] = () => { if (boggleState()) renderBoggle(); else setTimeout(() => setView('setup-boggle'), 50); };
+/** After a refusal the empty box comes back. */
+function bglSoloLater() {
+  soloLater('boggle', motionOff() ? 500 : 700, () => { if (!bglSolo.path.length) bglSoloWordBox([], false); });
+}
+
+function bglSoloFinish() {
+  const s = boggleSoloState();
+  const t = bglT();
+  if (s.phase !== 'play') return;
+  s.phase = 'done';
+  bglSoloStop();
+  s.score = bglSoloScore(s);
+  s.seconds = Math.min(s.secs, Math.round((Date.now() - s.startedAt) / 1000));
+  saveToLocal();
+  paintBoggleSolo();
+  const level = String(s.n);
+  const rec = s.archive ? { record: false, prev: soloBest('boggle', level) }
+    : soloRecord('boggle', level, { score: s.score, found: s.found.length }, (a, b) => a.score > b.score);
+  let share = '';
+  const foundOf = (t.boggle_found_of || '{n}/{m}').replace('{n}', s.found.length).replace('{m}', s.words.length);
+  if (s.daily) {
+    soloMarkDaily('boggle', { found: s.found.length, total: s.words.length, score: s.score }, s.daily);
+    share = `${soloShareHeader(t, s.daily)}\n🔠 ${t.setup_boggle || ''}: ${foundOf} · ⭐ ${s.score}`;
+  }
+  const lines = [escapeHTML(foundOf)];
+  const longest = s.found.slice().sort((a, b) => b.length - a.length)[0];
+  if (longest) lines.push(`${escapeHTML(t.boggle_longest || '')}: <bdi>${escapeHTML(s.show[longest] || longest)}</bdi>`);
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.solo_best || '')}: ${rec.prev.score}`);
+  const shareLines = lines.slice(0, 1);
+  const missed = s.words.filter(f => s.found.indexOf(f) === -1).slice(0, BOGGLE_SOLO_MISSED);
+  if (missed.length) lines.push(`<span class="bgl-chips" style="justify-content:center">${escapeHTML(t.boggle_missed || '')}: ${missed.map(f => bglChipHtml(s.show[f] || f, null, 'is-miss')).join('')}</span>`);
+  soloLater('boggle', motionOff() ? 0 : 700, () => soloResult({
+    icon: iconHtml('art:boggle'), shareIcon: '🔠', title: rec.record ? (t.solo_new_best || '') : (t.boggle_time_up || ''),
+    value: s.score, valueLabel: t.boggle_points || '', lines, shareLines, win: s.score > 0, share,
+    again: () => startBoggleSolo(false), exit: setupBoggle
+  }));
+}
+
+function restoreBoggleSolo() {
+  const s = boggleSoloState();
+  if (s.phase !== 'play' || !s.grid.length) return false;
+  bglSolo.path = []; bglSolo.tapped = false;
+  paintBoggleSolo();
+  bglSoloArm();
+  return true;
+}
+
+onLeaveScreen((from) => { if (from === 'play-boggle') { bglSoloStop(); bglSolo.path = []; bglSolo.tapped = false; } });
+onLeaveScreen((from, to) => { if (to === 'play-boggle' && boggleSoloState().phase === 'play' && !bglSoloClock) setTimeout(() => { if (appState.currentView === 'play-boggle' && !bglSoloClock) bglSoloArm(); }, 0); });
+
+soloRegister('boggle', {
+  setup: 'setup-boggle', play: 'play-boggle', paintSetup: paintBoggleSetup, restore: restoreBoggleSolo,
+  state: boggleSoloState, resume: continueBoggleSolo, repaint: paintBoggleSolo, timed: true, prefs: ['size']
+});
 </script>

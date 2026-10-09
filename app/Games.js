@@ -139,7 +139,7 @@ const GAME_LIST = [
   { id: 'chesspuzzle', icon: 'art:chesspuzzle', title: 'setup_chesspuzzle', desc: 'cat_chesspuzzle', accent: 'amber', players: [1, 1], mins: 5, modes: ['device'], group: 'duo', hub: 'shatranj', setup: 'setup-chesspuzzles', open: 'setupChessPuzzles' },
 
   { id: 'hesba', icon: '🧮', title: 'setup_hesba', desc: 'cat_hesba', accent: 'amber', players: [1, 12], mins: 10, modes: ['device', 'room', 'tv'], group: 'brain', setup: 'setup-hesba', room: { min: 1 }, crew: 'brain', open: 'setupHesba' },   // tools/new-game.mjs, 2026-10-09
-  { id: 'boggle', icon: '🔡', title: 'setup_boggle', desc: 'cat_boggle', accent: 'orange', players: [1, 12], mins: 8, modes: ['device', 'room', 'tv'], group: 'brain', setup: 'setup-boggle', room: { min: 1 }, crew: 'words', open: 'setupBoggle' },   // tools/new-game.mjs, 2026-10-09
+  { id: 'boggle', icon: 'art:boggle', title: 'setup_boggle', desc: 'cat_boggle', accent: 'amber', players: [1, 12], mins: 8, modes: ['device', 'room', 'tv'], group: 'brain', setup: 'setup-boggle', room: { min: 2 }, crew: 'words', open: 'setupBoggle' },
   { id: 'oracle', icon: '🔮', title: 'setup_oracle', desc: 'cat_oracle', accent: 'violet', players: [1, 8], mins: 5, modes: ['device'], group: 'brain', setup: 'setup-oracle', open: 'setupOracle' },   // tools/new-game.mjs, 2026-10-09
   /* --- أدوات --- */
   { id: 'chooser',   icon: 'art:chooser',   title: 'tool_chooser',      desc: 'cat_chooser',    accent: 'orange', group: 'tools', open: 'openChooser' },

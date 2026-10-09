@@ -34,7 +34,8 @@ const DAILY_GAMES = [
   { id: 'nonogram',  start: () => startNonogram(true),  line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
   { id: 'mines',     start: () => startMines(true),     line: (r) => r.lost ? '💥' : `✅ ${soloTime(r.seconds)}` },
   { id: 'minigolf',  since: '2026-09-24', start: () => startMiniGolf(true),  line: (r) => `${r.strokes <= r.par ? '🟢 ' : ''}⛳ ${r.strokes} · 🎯 ${r.par}` },
-  { id: 'chesspuzzle', since: '2026-09-24', start: () => chPzStartDaily(),  line: (r) => !r || !r.solved ? '♟️ ❌' : r.hint ? '♟️ 💡' : r.tries > 1 ? '♟️ ✅ ' + r.tries : '♟️ ✅' }
+  { id: 'chesspuzzle', since: '2026-09-24', start: () => chPzStartDaily(),  line: (r) => !r || !r.solved ? '♟️ ❌' : r.hint ? '♟️ 💡' : r.tries > 1 ? '♟️ ✅ ' + r.tries : '♟️ ✅' },
+  { id: 'boggle', since: '2026-10-09', start: () => startBoggleSolo(true), line: (r) => `✅ ${r.found}/${r.total} · ⭐${r.score}` }
 ];
 
 let soloHubReturn = false;
@@ -608,6 +609,16 @@ const STATS_SOLO_GAMES = [
       { key: 'dist:hard', label: 'stats_dist_hard' }
     ],
     format: (b) => (b && typeof b.guesses === 'number') ? `${b.guesses}` : '—'
+  },
+  {
+    id: 'boggle',
+    title: 'setup_boggle',
+    icon: '🔠',
+    levels: [
+      { key: '4', label: 'boggle_size_4' },
+      { key: '5', label: 'boggle_size_5' }
+    ],
+    format: (b) => (b && typeof b.score === 'number') ? String(b.score) : '—'
   },
   {
     // Chess: your rating against the computer (kept with the game's own state, not as a best).

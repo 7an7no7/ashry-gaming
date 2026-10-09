@@ -805,6 +805,59 @@ const STOP_CATS = load(srcPath('JS_Stop.html'), 'STOP_CATEGORIES');
   console.log(`vault: ${V.VAULT_SYMBOL_IDS.length} symbols, ${V.VAULT_SHAPE_IDS.length} shapes, 300 notebooks and ${safes} safes sound`);
 }
 
+/* ------------------------------------------------------ شبكة الحروف: the dictionary and the grids */
+// Boggle.js (9 Oct 2026) reads the word lists where they are: on each side (the rooms server's lists,
+// and the page's, which has Describe It, Charades and Who Am I instead of Codenames and the drawing
+// words) the dictionary must be big, every word in it folded (one shape for each letter: no أ إ آ ة ى ؤ ئ),
+// and boggleMake must always make a grid of each size with BOGGLE_MIN_WORDS listed words, one of
+// BOGGLE_MIN_LONG letters - over many seeds, and for the next 120 days' dailies (the page's lists).
+{
+  const read = (n) => fs.readFileSync(srcPath(n), 'utf8');
+  const sides = {
+    server: ['Common.js', 'SpyWords.js', 'CodenamesWords.js', 'PartyContent.js', 'ChameleonWords.js', 'MonkeyWords.js', 'StopWords.js', 'WordleWords.js', 'SoloShared.js', 'ConnectionsWords.js', 'WordWheel.js', 'Boggle.js'],
+    page: ['Common.js', 'ChameleonWords.js', 'MonkeyWords.js', 'StopWords.js', 'WordleWords.js', 'SoloShared.js', 'ConnectionsWords.js', 'WordWheel.js', 'Boggle.js']
+  };
+  // The page's own lists inside its game files (Describe It, Charades, Who Am I): the declarations only.
+  const pageLists = ['JS_DescribeIt.html', 'JS_Charades.html', 'JS_WhoAmI.html'].map((f) => {
+    const src = read(f).replace(/<\/?script[^>]*>/g, '');
+    const out = [];
+    for (const name of ['DESCRIBE_DB', 'CHARADES_DB', 'WHOAMI_DB']) {
+      const at = src.indexOf('const ' + name + ' =');
+      if (at === -1) continue;
+      // From the declaration to the first line that closes it at the start of a line.
+      const end = src.indexOf('\n};', at);
+      if (end !== -1) out.push(src.slice(at, end + 3));
+    }
+    return out.join('\n');
+  }).join('\n');
+  let made = 0;
+  const sizes = [];
+  for (const side of Object.keys(sides)) {
+    const B = new Function(sides[side].map(read).join('\n;\n') + (side === 'page' ? '\n;' + pageLists : '') +
+      '\n; return { boggleDictionary, boggleMake, boggleSolve, boggleKey, soloRng, soloHash, BOGGLE_SIZES, BOGGLE_MIN_WORDS, BOGGLE_MIN_LONG };')();
+    for (const lang of ['ar', 'en']) {
+      const d = B.boggleDictionary(lang);
+      sizes.push(side + '.' + lang + ' ' + d.words.length);
+      if (d.words.length < 2000) note(`boggle (${side}): the ${lang} dictionary has only ${d.words.length} words`);
+      if (lang === 'ar') d.words.forEach((w) => { if (/[أإآٱةىؤئ]/.test(w)) note(`boggle (${side}): ${w} is not folded`); });
+      d.words.forEach((w) => { if (B.boggleKey(d.show.get(w), lang) !== w) note(`boggle (${side}): ${d.show.get(w)} folds to something else than ${w}`); });
+      for (const n of Object.keys(B.BOGGLE_SIZES).map(Number)) {
+        const seeds = [];
+        for (let k = 1; k <= 40; k++) seeds.push(k * 104729);
+        if (side === 'page' && n === 4) for (let day = 0; day < 120; day++) seeds.push(B.soloHash('ashry-daily:boggle:' + lang + ':' + new Date(Date.UTC(2026, 9, 9 + day)).toISOString().slice(0, 10)));
+        seeds.forEach((seed) => {
+          const m = B.boggleMake(n, lang, B.soloRng(seed));
+          made++;
+          if (!m) { note(`boggle (${side}): no ${n}x${n} ${lang} grid from seed ${seed}`); return; }
+          if (m.grid.length !== n * n || m.words.length < B.BOGGLE_MIN_WORDS || m.words[0].length < B.BOGGLE_MIN_LONG) note(`boggle (${side}): the ${n}x${n} ${lang} grid of seed ${seed} is too poor`);
+          if (lang === 'ar' && m.grid.some((ch) => /[أإآٱةىؤئ]/.test(ch))) note(`boggle (${side}): a grid shows a letter not folded`);
+        });
+      }
+    }
+  }
+  console.log(`boggle: dictionaries ${sizes.join(", ")}; ${made} grids made, each with enough words`);
+}
+
 /* ------------------------------------------------------ دندنها: the songs */
 // Songs.js (1 Oct 2026), offline: every field there, a pin to one source - { src: 'itunes' | 'deezer', id: a
 // whole number } - and, if it has one, a second pin (`also`) to the other source; one of the three eras; no

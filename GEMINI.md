@@ -90,7 +90,7 @@ file and a new line.
 - 🔐 الخزنة («صندوق جدّو», rooms: one sees the locks, the others read grandpa's notebook; three ways, 3 strikes or time, endless levels or a set; `Vault.js`, `RoomVault.js`, `JS_RoomVault.html`) - `notes/games/vault.md`.
 - الليزر (Laser, rooms: everyone hides and aims in secret, all appear and fire at once, a beam goes through everyone in its line, the hexagon shrinks every round, last one or last team standing; hearts, a shield, ghosts' mines, bouncing beams, sudden death, awards, four maps, pickups, pillars and mirror pillars, a turret, a practice round, a falling floor, the best shot's replay; `Laser.js`, `RoomLaser.js`, `JS_RoomLaser.html`, its styles in its chunk) - `notes/games/laser.md`.
 - 🧮 حسبة (Numbers; made by `npm run new:game` on 2026-10-09) - `notes/games/hesba.md`.
-- 🔡 شبكة الحروف (Letter Grid; made by `npm run new:game` on 2026-10-09) - `notes/games/boggle.md`.
+- 🔠 شبكة الحروف (Boggle: one grid on every phone, words traced across touching letters, only words nobody else found score, a vote on words not in the lists; alone with a best, and a daily; the dictionary is the app's lists, `Boggle.js`, `RoomBoggle.js`, `JS_Boggle.html`, `JS_RoomBoggle.html`) - `notes/games/boggle.md`.
 - 🔮 العرّاف (The Oracle; made by `npm run new:game` on 2026-10-09) - `notes/games/oracle.md`.
 
 ### The app around the games

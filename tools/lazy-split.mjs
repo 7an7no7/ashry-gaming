@@ -130,7 +130,7 @@ export const CHUNKS = {
   'w-riddles': ['EmojiRiddles.js', 'Proverbs.js'],
   laser: ['JS_RoomLaser', 'Laser.js'],   // tools/new-game.mjs, 2026-10-06
   hesba: ['JS_Hesba', 'JS_RoomHesba'],   // tools/new-game.mjs, 2026-10-09
-  boggle: ['JS_Boggle', 'JS_RoomBoggle'],   // tools/new-game.mjs, 2026-10-09
+  boggle: ['JS_Boggle', 'JS_RoomBoggle', 'Boggle.js'],   // its dictionary is the word lists, fetched with the word wheel's chunk when the game alone starts
   oracle: ['JS_Oracle'],   // tools/new-game.mjs, 2026-10-09
 };
 
@@ -157,7 +157,9 @@ export const LAZY_EDGES = [
   // The race's own screen: the connections board only in its race.
   'JS_RoomRace>JS_Connections',
   // «انقل لموبايل تاني» sets the chess rating only through typeof chState / lzEnsure (JS_Move.html).
-  'JS_Move>JS_Chess'
+  'JS_Move>JS_Chess',
+  // شبكة الحروف's dictionary reads the word lists (typeof-guarded) only once lzWait has fetched the word wheel's chunk and what it needs.
+  'Boggle.js>WordWheel.js', 'Boggle.js>StopWords.js', 'Boggle.js>MonkeyWords.js'
 ];
 
 /* Screens, room games and cards of the home whose chunk the code can't say by itself. */
@@ -370,6 +372,7 @@ export const SHELL_USES_OK = {
   JS_Pinpoint: 'startPinpoint',
   JS_WordSearch: 'startStrands',
   JS_WordWheel: 'startWordWheel',
+  JS_Boggle: 'startBoggleSolo',   // تحدي اليوم: playDaily waits for its chunk (lzWait)
   JS_Sudoku: 'startSudoku',
   JS_Queens: 'startQueens',
   JS_Tango: 'startTango',
@@ -849,7 +852,7 @@ export function checkRegistryOrder({ order, code, fileChunk, shellSet, sorted, d
 
 /* Word lists the page shares with the rooms server: one file, both sides
    (and ChessPuzzles.js, which only the page has). */
-export const SHARED_LISTS = ['Common.js', 'RoomShared.js', 'Games.js', 'DisabledGames.js', 'Dice.js', 'Packs.js', 'MoveData.js', 'Faces.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'Duels.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Vault.js', 'Hear.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js', 'Missions.js', 'Laser.js'];
+export const SHARED_LISTS = ['Common.js', 'RoomShared.js', 'Games.js', 'DisabledGames.js', 'Dice.js', 'Packs.js', 'MoveData.js', 'Faces.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'Duels.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Vault.js', 'Hear.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Boggle.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js', 'Missions.js', 'Laser.js'];
 
 /** Reads Controller.html, every file it includes and the shared lists. */
 export async function readPage(root, readFile, path) {

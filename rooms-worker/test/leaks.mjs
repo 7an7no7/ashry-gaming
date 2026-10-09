@@ -18,7 +18,7 @@
  * the run too, so a probe can't pass by never looking.
  */
 import { readFileSync } from 'node:fs';
-import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, ROOM_GAME_IDS, roomPlayerLeft, missionJoined, missionPlayerLeft } from '../generated/rules.js';
+import { applyRoomAction, roomDeadline, roomTimeout, normaliseClue, guessVerdict, ROOM_GAME_IDS, roomPlayerLeft, missionJoined, missionPlayerLeft, boggleSolve, boggleListed, boggleResolve } from '../generated/rules.js';
 import { roomView } from '../src/view.js';
 import srcMod from '../../tools/sources.cjs';
 const { srcPath } = srcMod;
@@ -1447,17 +1447,32 @@ const PROBES = {
       probe('no number on the table before the result', live, (view) => (hasKey(view.shared, 'targets') || hasKey(view.shared, 'board') ? 'shared.targets' : null))
     ];
   },
-  // شبكة الحروف (tools/new-game.mjs): a phone's number on its own phone only, and on the table only at the result.
+  // شبكة الحروف: while a round is played each phone's words are on that phone only (the table sees
+  // how many), and every list goes on the table only once the round closes.
   boggle(room) {
     const s = room.shared || {};
     const live = s.phase === 'play';
+    const lists = {};
+    Object.keys(room.secrets || {}).forEach((pid) => { lists[pid] = (room.secrets[pid] || {}).words || []; });
     return [
-      probe("a phone's number is its own, exactly", live, (view, pid) => {
-        if (pid === SCREEN) return null;
-        const want = (room.secrets[pid] || {}).target;
-        return want === undefined || (view.you && view.you.target === want) ? null : 'you.target';
+      probe("a phone's list is its own, exactly", live, (view, pid) => {
+        if (pid === SCREEN) return view.you === null ? null : 'you';
+        if (!lists[pid]) return null;
+        return JSON.stringify((view.you || {}).words || []) === JSON.stringify(lists[pid]) ? null : 'you.words';
       }),
-      probe('no number on the table before the result', live, (view) => (hasKey(view.shared, 'targets') || hasKey(view.shared, 'board') ? 'shared.targets' : null))
+      probe("nobody's words but your own anywhere in your view", live, (view, pid, idx) => {
+        const mine = new Set((lists[pid] || []).map((w) => w.f));
+        for (const id of Object.keys(lists)) {
+          if (id === pid) continue;
+          for (const w of lists[id]) {
+            if (mine.has(w.f)) continue;
+            const hit = idx.find(w.f, { except: ['you.last'] }) || idx.find(w.w, { except: ['you.last'] });
+            if (hit) return hit + ' (' + id + "'s)";
+          }
+        }
+        return null;
+      }),
+      probe('no list on the table before the round closes', live, (view) => (hasKey(view.shared, 'reveal') ? 'shared.reveal' : null))
     ];
   },
 };
@@ -3270,14 +3285,74 @@ const DRIVERS = {
     return S(T).phase === 'gameover';
   },
   boggle() {
-    // Four at the table: everyone taps a little and says done, then a second round the clock ends.
+    // Four at the table, three rounds: listed words traced (some by two phones), a trace that is no path,
+    // a word found twice, words not in the lists (one taken back, one put to the vote); the first round
+    // ended by everyone's «خلصت» and the host, the second by the clock (the vote too), the third with a
+    // phone leaving in the middle; then a 5 x 5 game in English of one round.
+    const nb = (i, n) => { const r = Math.floor(i / n), c = i % n, o = []; for (let a = r - 1; a <= r + 1; a++) for (let b = c - 1; b <= c + 1; b++) if ((a !== r || b !== c) && a >= 0 && b >= 0 && a < n && b < n) o.push(a * n + b); return o; };
+    const pathOf = (grid, n, word) => {
+      const go = (i, k, used) => {
+        if (grid[i] !== word[k] || used.has(i)) return null;
+        if (k === word.length - 1) return [i];
+        used.add(i);
+        for (const j of nb(i, n)) { const p = go(j, k + 1, used); if (p) { used.delete(i); return [i].concat(p); } }
+        used.delete(i);
+        return null;
+      };
+      for (let i = 0; i < n * n; i++) { const p = go(i, 0, new Set()); if (p) return p; }
+      return null;
+    };
+    const unlisted = (s, skip) => {
+      for (let i = 0; i < s.size * s.size; i++) for (const j of nb(i, s.size)) for (const k of nb(j, s.size)) {
+        if (k === i) continue;
+        const f = boggleResolve(s.grid[i] + s.grid[j] + s.grid[k], s.lang, (x) => boggleListed(x, s.lang));
+        if (f.length === 3 && !boggleListed(f, s.lang) && f !== skip) return { path: [i, j, k], f };
+      }
+      return null;
+    };
     const T = table('boggle', 4);
-    must(T, T.host, 'start', {});
-    T.ids.forEach((pid, i) => { for (let k = 0; k < i + 2; k++) must(T, pid, 'tap', { round: 1 }); must(T, pid, 'done', { round: 1 }); });
-    if (S(T).phase !== 'gameover') return false;
-    must(T, T.host, 'playAgain', {});
-    must(T, T.ids[1], 'tap', { round: 1 });
-    runClock(T, (r) => r.shared.phase === 'gameover');
+    const play = (end) => {
+      const s = S(T);
+      const r = s.round;
+      const words = boggleSolve(s.grid, s.size, s.lang);
+      const tr = (pid, w) => must(T, pid, 'word', { round: r, path: pathOf(s.grid, s.size, w) });
+      words.slice(0, 4).forEach((w) => tr('p1', w));
+      words.slice(2, 6).forEach((w) => tr('p2', w));
+      tr('p2', words[2]);
+      must(T, 'p3', 'word', { round: r, path: [0, s.size * 2 + 2] });
+      const u = unlisted(s, '');
+      if (u) must(T, 'p3', 'word', { round: r, path: u.path });
+      const u2 = unlisted(s, u && u.f);
+      if (u2) { must(T, 'p4', 'word', { round: r, path: u2.path }); must(T, 'p4', 'drop', { round: r, f: u2.f }); }
+      words.slice(6, 8).forEach((w) => tr('p4', w));
+      if (end === 'done') { ['p1', 'p2', 'p3'].forEach((pid) => must(T, pid, 'done', { round: r })); must(T, T.host, 'finish', { round: r }); }
+      if (end === 'leave') {
+        T.room.players = T.room.players.filter((p) => p.id !== 'p4');
+        const next = structuredClone(T.room); roomPlayerLeft(next, 'p4', 'X'); T.room = next; scan(T, 'left');
+      }
+      runClock(T, (rm) => rm.shared.phase !== 'play');
+      return !!u;
+    };
+    must(T, T.host, 'start', { rounds: 3, size: 4, lang: 'ar' });
+    const voted = play('done');
+    if (voted) {
+      if (S(T).phase !== 'judge') return false;
+      const it = S(T).judge.items[0];
+      ['p1', 'p2', 'p4'].forEach((pid, i) => must(T, pid, 'judge', { round: S(T).round, f: it.f, by: it.by, yes: i !== 1 }));
+    }
+    if (S(T).phase === 'judge') must(T, T.host, 'closeJudge', { round: S(T).round });
+    if (S(T).phase !== 'result') return false;
+    must(T, T.host, 'nextRound', { round: S(T).round });
+    play('clock');
+    runClock(T, (rm) => rm.shared.phase === 'result');
+    must(T, T.host, 'nextRound', { round: S(T).round });
+    play('leave');
+    runClock(T, (rm) => rm.shared.phase === 'gameover');
+    if (S(T).phase !== 'gameover' || !S(T).board.length) return false;
+    must(T, T.host, 'playAgain', { rounds: 1, size: 5, lang: 'en' });
+    if (S(T).size !== 5 || S(T).lang !== 'en') return false;
+    play('done');
+    runClock(T, (rm) => rm.shared.phase === 'gameover');
     return S(T).phase === 'gameover';
   },
 };

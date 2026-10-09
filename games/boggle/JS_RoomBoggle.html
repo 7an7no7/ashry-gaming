@@ -1,98 +1,401 @@
 <script>
 /* ============================================================================
-   شبكة الحروف — Letter Grid in rooms: the phones and the TV (made by
-   tools/new-game.mjs, 2026-10-09). The rules are ROOM_RULES.boggle in RoomBoggle.js.
-   A phone sees its own secret number (state.you.target), taps «+1» and says
-   «خلصت»; the TV shows who has finished, then the result on a podium.
+   شبكة الحروف — LETTER GRID in rooms: the phones and the TV (look أ «صندوق
+   الزهر»). The rules are ROOM_RULES.boggle in RoomBoggle.js, the grid and the
+   judge in Boggle.js; the board and its trace in JS_Boggle.html.
+
+   - play: every phone has the same tray; a word traced goes to the server as
+     its path (`word { round, path }`) and comes back in this phone's own list
+     (state.you.words): a listed word flies into its chip, a word not in the
+     lists lands as a dashed «؟» chip (tap it to take it back), one already
+     found or no word at all shakes. The table sees only how many each has; the
+     TV shows the tray big, everyone's count and the clock. «خلصت» says this
+     phone is done; the host can end the round.
+   - judge: every list on the table; the words nobody else found that aren't in
+     the lists are put to the others («تتحسب؟» أيوه / لأ), the host closes it.
+   - result: each player's card, its chips turning over one by one (the ones
+     nobody else found in gold, the shared ones crossed out ×n), the round's
+     points counting up, a ⭐ on each one's best word; then the next round, and
+     after the last the podium.
    ========================================================================= */
 
-/** The words, in the language of the app. */
-const boggleT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+const bglRoom = { path: [], tapped: false, seenLast: '', from: null, pending: '', clock: null, tick: -1 };
 
-function boggleTap() { haptic('light'); roomAct('tap', { round: (Room.state.shared || {}).round }); }
-function boggleDone() { haptic('medium'); roomAct('done', { round: (Room.state.shared || {}).round }); }
-function boggleFinish() { roomAct('finish', { round: (Room.state.shared || {}).round }); }
+const bglNameOf = (state, id) => { const p = (state.players || []).find(x => x.id === id); return p ? p.name : ''; };
+function bglFaceHtml(state, id, cls) {
+  const p = (state.players || []).find(x => x.id === id);
+  const face = p && p.face ? roomFaceHtml(p.face) : '';
+  return `<span class="bgl-face${cls ? ' ' + cls : ''}" aria-hidden="true">${face || escapeHTML(Array.from(String(p ? p.name : '?').trim())[0] || '?')}</span>`;
+}
+const bglRoundLine = (s) => (bglT().boggle_round_of || '{n}/{m}').replace('{n}', s.round || 1).replace('{m}', s.rounds || 1);
+const bglLeft = (s) => (s.phase === 'play' && s.endsAt ? (Number(s.endsAt) - roomServerNow()) / 1000 : 0);
 
-/** The result's rows: each name, where they stopped and their number. */
-function boggleResultRows(s, t) {
-  return (s.board || []).map(r => `
-    <div class="row"><span>${escapeHTML(r.name)}</span><span class="metric">${ltrFrac(r.count, r.target)}</span></div>`).join('');
+/** Every clock of this game on screen (the phone's bar, the TV's corner), painted from the server's time. */
+function bglRoomClockPaint() {
+  const st = Room.state;
+  if (!st || st.game !== 'boggle') { bglRoomClockStop(); return; }
+  const s = st.shared || {};
+  const left = s.phase === 'play' ? bglLeft(s) : (s.phase === 'judge' && s.judge && s.judge.endsAt ? (Number(s.judge.endsAt) - roomServerNow()) / 1000 : 0);
+  document.querySelectorAll('[data-bgl-clock]').forEach(el => {
+    const txt = bglClockText(left);
+    if (el.textContent !== txt) el.textContent = txt;
+    const low = s.phase === 'play' && left <= 10;
+    el.classList.toggle('is-low', low);
+    const stat = el.closest('.solo-stat');
+    if (stat) stat.classList.toggle('is-low', low);
+  });
+  const sec = Math.ceil(left);
+  // The last five seconds tick on the TV, or on every phone when the room has none.
+  if (s.phase === 'play' && sec > 0 && sec <= 5 && sec !== bglRoom.tick && (st.youAreScreen || !(st.screens || []).length)) {
+    bglRoom.tick = sec;
+    playSound('tick');
+  }
+}
+function bglRoomClockOn() {
+  if (bglRoom.clock) return;
+  bglRoom.clock = createClock({ countUp: true, onTick: bglRoomClockPaint });
+}
+function bglRoomClockStop() {
+  if (bglRoom.clock) bglRoom.clock.stop();
+  bglRoom.clock = null;
+  bglRoom.tick = -1;
+}
+onRoomClocksReset(() => { bglRoomClockStop(); bglRoom.path = []; bglRoom.tapped = false; bglRoom.pending = ''; });
+onLeaveScreen((from) => { if (from === 'room-boggle' || from === 'room-tv') bglRoomClockStop(); });
+
+/* --- the phone ------------------------------------------------------------------------ */
+
+function bglRoomSend(path) {
+  const st = Room.state;
+  const s = (st && st.shared) || {};
+  if (s.phase !== 'play') return;
+  const box = document.querySelector('#view-room-boggle [data-bgl-word]');
+  bglRoom.from = box ? box.getBoundingClientRect() : null;
+  bglRoom.pending = path.map(i => s.grid[i]).join('');
+  bglRoom.path = [];
+  bglRoom.tapped = false;
+  bglRoomWordBox([], false);
+  roomAct('word', { round: s.round, path: path });
+}
+
+function bglRoomWordBox(path, tapped) {
+  const st = Room.state;
+  const s = (st && st.shared) || {};
+  const box = document.querySelector('#view-room-boggle [data-bgl-word]');
+  if (!box) return;
+  const raw = path.length ? path.map(i => (s.grid || [])[i]).join('') : bglRoom.pending;
+  const f = raw && raw.length >= 2 ? boggleResolve(raw, s.lang, () => false) : '';
+  box.outerHTML = bglWordHtml(raw, f.length >= BOGGLE_MIN_LEN ? boggleWordPts(f) : 0, tapped && path.length >= 1);
+  const now = document.querySelector('#view-room-boggle [data-bgl-word]');
+  if (!now) return;
+  const grid = document.querySelector('#view-room-boggle [data-bgl-grid]');
+  const ok = now.querySelector('[data-bgl-ok]');
+  const clear = now.querySelector('[data-bgl-clear]');
+  if (ok) ok.onclick = () => { const p = bglRoom.path; bglRoom.path = []; bglRoom.tapped = false; bglDrawLine(grid, []); if (p.length >= 2) bglRoomSend(p); else bglRoomWordBox([], false); };
+  if (clear) clear.onclick = () => { bglRoom.path = []; bglRoom.tapped = false; bglDrawLine(grid, []); bglRoomWordBox([], false); };
+}
+
+/** A «؟» word taken back before the round closes. */
+function bglRoomDrop(f) {
+  const s = (Room.state && Room.state.shared) || {};
+  if (s.phase !== 'play') return;
+  roomAct('drop', { round: s.round, f: f }).then(ok => { if (ok) showToast(bglT().boggle_dropped || '', 'info'); });
+}
+
+/** The parts of the play screen that change with every word: the chips, the counts, what the server said. */
+function bglRoomSync(state, el) {
+  const s = state.shared || {};
+  const you = state.you || {};
+  const words = you.words || [];
+  const last = you.last || null;
+  const lastKey = last ? roomDealKey(state, s.round) + '|' + last.at : '';
+  const fresh = last && lastKey !== bglRoom.seenLast && (last.kind === 'ok' || last.kind === 'vote') ? last.f : '';
+  const chips = el.querySelector('[data-bgl-chips]');
+  if (chips) {
+    chips.innerHTML = words.map(w => w.ok
+      ? bglChipHtml(w.w, boggleWordPts(w.f), w.f === fresh ? 'is-new is-hold' : '')
+      : bglChipHtml(w.w, '?', 'is-q' + (w.f === fresh ? ' is-hold' : ''), ` role="button" tabindex="0" data-drop="${escapeHTML(w.f)}" title="${escapeHTML(bglT().boggle_drop_hint)}"`)).join('');
+    chips.querySelectorAll('[data-drop]').forEach(c => { c.onclick = () => bglRoomDrop(c.dataset.drop); });
+  }
+  const head = el.querySelector('[data-bgl-found]');
+  if (head) head.textContent = (bglT().boggle_found_n || '{n}').replace('{n}', bglWordsN(words.length));
+  const count = el.querySelector('[data-bgl-count]');
+  if (count) count.textContent = words.length;
+  if (!last || lastKey === bglRoom.seenLast) return;
+  const firstSight = !bglRoom.seenLast || bglRoom.seenLast.split('|')[0] !== lastKey.split('|')[0];
+  bglRoom.seenLast = lastKey;
+  bglRoom.pending = '';
+  if (firstSight && !bglRoom.from) { const c = chips && chips.querySelector('.is-hold'); if (c) c.classList.remove('is-hold'); bglRoomWordBox(bglRoom.path, bglRoom.tapped); return; }
+  const t = bglT();
+  const box = el.querySelector('[data-bgl-word]');
+  if (last.kind === 'ok' || last.kind === 'vote') {
+    playSound(last.kind === 'ok' ? 'success' : 'pop');
+    haptic(last.kind === 'ok' && boggleWordPts(last.f) >= 3 ? 'double' : 'light');
+    const chip = chips && chips.querySelector('.is-hold');
+    bglFly(bglRoom.from, chip, last.w);
+    if (last.kind === 'vote') showToast(t.boggle_to_vote || '', 'info');
+    bglRoomWordBox(bglRoom.path, bglRoom.tapped);
+  } else {
+    const text = last.kind === 'bad' ? '' : (last.w || '');
+    if (text) bglRefuse(box, text); else bglRoomWordBox(bglRoom.path, bglRoom.tapped);
+    if (last.kind === 'again') showToast(t.boggle_again || '', 'info');
+    if (last.kind === 'full') showToast(t.boggle_full || '', 'info');
+    setTimeout(() => { if (!bglRoom.path.length) bglRoomWordBox([], false); }, motionOff() ? 500 : 700);
+  }
+  bglRoom.from = null;
+}
+
+/** A player's card on the result: face, name, the round's points, and every word as a chip. */
+function bglCardHtml(state, pid, opts) {
+  const o = opts || {};
+  const s = state.shared || {};
+  const t = bglT();
+  const list = ((s.reveal || {})[pid] || []).slice();
+  const rank = (w) => (w.st === 'ok' && w.n === 1 ? 0 : w.st === 'vote' ? 1 : 2);
+  list.sort((a, b) => rank(a) - rank(b) || (b.pts || 0) - (a.pts || 0) || b.f.length - a.f.length);
+  let k = 0;
+  const step = o.reveal ? Math.max(40, Math.min(110, Math.round(1600 / Math.max(1, list.length)))) : 0;
+  const d = () => (o.reveal ? ` style="--d:${o.at + (k++) * step}ms"` : '');
+  const chips = list.map(w => {
+    if (w.st === 'vote') return bglChipHtml(w.w, '?', 'is-q', d());
+    if (w.n > 1) return `<span class="bgl-chip is-x"${d()}><bdi>${escapeHTML(w.w)}</bdi><small>×${w.n}</small></span>`;
+    if (w.st === 'no') return `<span class="bgl-chip is-x"${d()}><bdi>${escapeHTML(w.w)}</bdi><small>✕</small></span>`;
+    return bglChipHtml(w.w, w.pts === undefined ? boggleWordPts(w.f) : w.pts, 'is-uniq', d());
+  }).join('');
+  const done = s.phase === 'result' || s.phase === 'gameover';
+  const gained = done ? ((s.gained || {})[pid] || 0) : null;
+  const star = done && (s.stars || {})[pid];
+  const total = (s.scores || {})[pid] || 0;
+  return `<div class="bgl-card">
+      <div class="bgl-card__row">${bglFaceHtml(state, pid)}
+        <span class="bgl-card__name"><bdi>${escapeHTML(bglNameOf(state, pid))}</bdi>${pid === Room.me ? ` <small>(${escapeHTML(t.boggle_you)})</small>` : ''}</span>
+        ${star ? `<span class="bgl-star"${o.reveal ? ` style="--d:${o.at + list.length * step + 200}ms"` : ''}>⭐ ${escapeHTML(t.boggle_unique)}</span>` : ''}
+        ${gained === null ? '' : `<span class="bgl-card__pts" data-bgl-to="${gained}">+${gained}</span>`}
+      </div>
+      ${chips ? `<div class="bgl-chips">${chips}</div>` : `<p class="bgl-muted">${escapeHTML(t.boggle_none)}</p>`}
+      ${done ? `<div class="bgl-card__total">${escapeHTML(t.boggle_total)}: <b class="metric">${total}</b></div>` : ''}
+    </div>`;
+}
+
+/** The ids on the result, the most points first. */
+function bglOrder(state) {
+  const s = state.shared || {};
+  const ids = Object.keys(s.reveal || {});
+  return ids.sort((a, b) => ((s.gained || {})[b] || 0) - ((s.gained || {})[a] || 0) || ((s.scores || {})[b] || 0) - ((s.scores || {})[a] || 0));
+}
+
+/** The words put to the vote: who wrote it, the word, أيوه / لأ with how many each. */
+function bglVoteHtml(state, tv) {
+  const s = state.shared || {};
+  const t = bglT();
+  const j = s.judge || { items: [] };
+  return j.items.map(it => {
+    const voters = (state.players || []).map(p => p.id).filter(id => id !== it.by && (s.roster || []).indexOf(id) !== -1);
+    const asked = voters.length ? voters : [state.hostId];
+    const can = !tv && asked.indexOf(Room.me) !== -1;
+    const mine = it.yes.indexOf(Room.me) !== -1 ? 'yes' : it.no.indexOf(Room.me) !== -1 ? 'no' : '';
+    const by = it.by === Room.me ? t.boggle_vote_you : (t.boggle_vote_wrote || '{name}').replace('{name}', bglNameOf(state, it.by));
+    const pay = (yes) => `{ round: ${s.round}, f: '${jsStringAttr(it.f)}', by: '${jsStringAttr(it.by)}', yes: ${yes} }`;
+    return `<div class="bgl-card bgl-vote">
+        <div class="bgl-card__row">${bglFaceHtml(state, it.by, 'bgl-face--sm')}<span class="bgl-muted" style="flex:1;min-width:0">${escapeHTML(by)} · ${escapeHTML(t.boggle_vote_q)}</span></div>
+        <div class="bgl-vote__word" dir="auto">${escapeHTML(it.w)}</div>
+        <div class="bgl-vote__btns">
+          ${can ? `<button type="button" class="btn btn--primary${mine === 'yes' ? ' is-mine' : ''}" onclick="roomActPress(this, 'judge', ${pay(true)})">✓ ${escapeHTML(t.boggle_yes)} <span class="metric">· ${it.yes.length}</span></button>
+          <button type="button" class="btn btn--neutral${mine === 'no' ? ' is-mine' : ''}" onclick="roomActPress(this, 'judge', ${pay(false)})">✕ ${escapeHTML(t.boggle_no)} <span class="metric">· ${it.no.length}</span></button>`
+          : `<span class="btn btn--neutral" aria-disabled="true">✓ ${escapeHTML(t.boggle_yes)} <span class="metric">· ${it.yes.length}</span></span><span class="btn btn--neutral" aria-disabled="true">✕ ${escapeHTML(t.boggle_no)} <span class="metric">· ${it.no.length}</span></span>`}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/** The result's motion, once a round: the chips turn over, the points count up. */
+function bglRevealAfter(el, fresh) {
+  if (!fresh) return;
+  el.querySelectorAll('[data-bgl-to]').forEach(p => {
+    const to = Number(p.dataset.bglTo) || 0;
+    if (to > 0 && !motionOff() && typeof countUp === 'function') { p.textContent = '+0'; setTimeout(() => countUp(p, 0, to), 900); }
+  });
 }
 
 ROOM_GAMES.boggle = {
-  lobbyOptions() {
-    return `<p class="field__hint" style="text-align:center">${escapeHTML(boggleT().boggle_lobby_hint)}</p>`;
+  lobbyOptions(state) {
+    const t = bglT();
+    if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.boggle_lobby_hint)}</p>`;
+    const o = recallOptions('boggle', { rounds: 3, size: 4 });
+    const seg = (key, list, cur, label) => `<div class="field"><span class="field__label">${escapeHTML(label)}</span>
+        <div class="segmented" role="group">${list.map(([v, l]) => `<button type="button" class="segmented__item ${String(v) === String(cur) ? 'is-active' : ''}" aria-pressed="${String(v) === String(cur)}" onclick="bglOptTap(this, '${key}', ${v})">${escapeHTML(l)}</button>`).join('')}</div></div>`;
+    return `<div class="card card--tight">
+        ${seg('rounds', BOGGLE_ROUND_CHOICES.map(n => [n, String(n)]), o.rounds, t.boggle_opt_rounds)}
+        ${seg('size', [[4, t.boggle_size_4], [5, t.boggle_size_5]], o.size, t.boggle_opt_size)}
+        <p class="field__hint" style="text-align:center">${escapeHTML(t.boggle_lobby_hint)}</p>
+      </div>`;
   },
-  startPayload() { return {}; },
-
+  startPayload() {
+    const o = recallOptions('boggle', { rounds: 3, size: 4 });
+    return { rounds: Number(o.rounds) || 3, size: Number(o.size) === 5 ? 5 : 4, lang: contentLang() === 'en' ? 'en' : 'ar' };
+  },
+  actionKey(state) {
+    const s = state.shared || {};
+    return [roomDealKey(state), s.round, s.phase === 'gameover' ? 'over' : s.phase].join('|');
+  },
   render(state) {
     if (appState.currentView !== 'room-boggle') setView('room-boggle');
     const el = document.getElementById('view-room-boggle');
     if (!el) return;
-    const t = boggleT();
+    const t = bglT();
     const s = state.shared || {};
+    const inRound = (s.roster || []).indexOf(Room.me) !== -1 && !!state.you;
+    const done = (s.done || []).indexOf(Room.me) !== -1;
 
-    if (s.phase === 'gameover') {
-      const fresh = renderRoomFrame(el, ['boggle-over', state.youAreHost, appState.lang].join('|'), () => `
-        <div class="card" style="text-align:center">
-          <div class="card__title">${escapeHTML(t.boggle_result)}</div>
-          ${renderPodium(state, s.board) || `<div class="metric metric--md">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>`}
-          ${boggleResultRows(s, t)}
-        </div>
-        ${state.youAreHost
-          ? `<div class="btn-stack">
-               <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(t.play_again || '')}</button>
-               <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
-             </div>`
-          : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
-        ${renderRoomPlayerStrip(state)}`);
-      if (fresh) afterReveal(el, () => { if (typeof confetti === 'function') confetti({ particleCount: 80, spread: 70 }); });
+    if (s.phase === 'play') {
+      const playing = inRound && !done;
+      renderRoomFrame(el, ['bgl-play', s.round, inRound, done, state.youAreHost, appState.lang].join('|'), () => `
+        <div class="bgl bgl--play">
+          ${bglBoardHtml(s.grid, s.size, s.lang, [], !playing)}
+          <div class="bgl-side">
+            ${soloBarHtml([
+              { label: t.solo_time || '', value: bglClockText(bglLeft(s)), id: 'bgl-room-time' },
+              { label: t.boggle_words || '', value: ((state.you || {}).words || []).length },
+              { label: t.boggle_round || '', value: ltrFrac(s.round || 1, s.rounds || 1) }
+            ])}
+            ${inRound ? bglWordHtml('', 0, false) : `<p class="bgl-note">${escapeHTML(t.vote_spectating || '')}</p>`}
+            ${inRound ? `<div class="bgl-found"><div class="bgl-found__head"><span data-bgl-found></span></div><div class="bgl-chips" data-bgl-chips></div></div>` : ''}
+            ${done ? `<p class="bgl-note">${escapeHTML(t.boggle_wait)}</p>` : ''}
+            <div class="bgl-foot">
+              ${playing ? `<button type="button" class="btn btn--neutral btn--sm btn--auto" onclick="roomAct('done', { round: ${s.round} })">🏁 ${escapeHTML(t.boggle_done)}</button>` : ''}
+              ${roomMoveOnHtml(state, `<button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="roomAct('finish', { round: ${s.round} })">${escapeHTML(t.boggle_finish)}</button>`)}
+            </div>
+            ${renderRoomPlayerStrip(state)}
+          </div>
+        </div>`);
+      const time = el.querySelector('#bgl-room-time');
+      if (time) time.setAttribute('data-bgl-clock', '');
+      // The count in the bar is the second stat.
+      const stats = el.querySelectorAll('.solo-stat .metric');
+      if (stats[1]) stats[1].setAttribute('data-bgl-count', '');
+      const grid = el.querySelector('[data-bgl-grid]');
+      if (playing) {
+        bglTrace(grid, {
+          n: s.size,
+          get path() { return bglRoom.path; }, set path(v) { bglRoom.path = v; },
+          get tapped() { return bglRoom.tapped; }, set tapped(v) { bglRoom.tapped = v; },
+          can: () => { const st = Room.state; return !!(st && st.game === 'boggle' && st.shared.phase === 'play' && (st.shared.done || []).indexOf(Room.me) === -1); },
+          change: (path, tapped) => bglRoomWordBox(path, tapped),
+          send: (path) => bglRoomSend(path)
+        });
+        bglDrawLine(grid, bglRoom.path);
+      }
+      if (inRound) bglRoomSync(state, el);
       refreshRoomPlayerStrip(el, state);
+      bglRoomClockOn();
+      bglRoomClockPaint();
       return;
     }
 
-    const inRound = (s.roster || []).indexOf(Room.me) !== -1;
-    const done = (s.done || []).indexOf(Room.me) !== -1;
-    const count = (s.counts || {})[Room.me] || 0;
-    renderRoomFrame(el, ['boggle-play', s.round, inRound, done, count, state.youAreHost, appState.lang].join('|'), () => `
-      <div class="card" style="text-align:center">
-        ${inRound ? `
-          <p class="sheet__subtitle">${escapeHTML(t.boggle_your_number)}</p>
-          <div class="metric metric--lg">${(state.you || {}).target || '?'}</div>
-          <div class="metric metric--md">${count}</div>
-          ${done ? `<p class="sheet__subtitle">${escapeHTML(t.boggle_wait)}</p>` : `
-            <div class="btn-stack">
-              <button class="btn btn--primary btn--lg" onclick="boggleTap()">${escapeHTML(t.boggle_tap)}</button>
-              <button class="btn btn--secondary" onclick="boggleDone()">${escapeHTML(t.boggle_done)}</button>
-            </div>`}` : `<p class="sheet__subtitle">${escapeHTML(t.vote_spectating || '')}</p>`}
-      </div>
-      ${roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="boggleFinish()">${escapeHTML(t.boggle_finish)}</button></div>`)}
-      ${renderRoomPlayerStrip(state)}`);
+    bglRoomClockStop();
+    if (s.phase === 'judge') bglRoomClockOn();
+    const j = s.judge || { items: [] };
+    const key = ['bgl-rev', roomDealKey(state, s.round)].join('|');
+    const sig = ['bgl-' + s.phase, s.round, JSON.stringify(j.items.map(it => [it.f, it.by, it.yes, it.no])), JSON.stringify(s.gained || {}), JSON.stringify(s.board || []),
+      Object.keys(s.reveal || {}).join(','), state.youAreHost, appState.lang].join('|');
+    let fresh = false;
+    const body = () => {
+      const reveal = motionFirst(key) && !motionOff();
+      fresh = reveal;
+      const ids = bglOrder(state);
+      const cards = ids.map((id, i) => bglCardHtml(state, id, { reveal, at: 200 + i * 350 })).join('');
+      const head = `<div class="bgl-res__head"><b>${escapeHTML(s.phase === 'gameover' ? t.boggle_final : (t.boggle_result_n || '{n}').replace('{n}', s.round))}</b><span>${escapeHTML(bglRoundLine(s))}</span></div>`;
+      if (s.phase === 'judge') {
+        return `<div class="bgl-res${reveal ? ' bgl-reveal' : ''}">${head}
+          <p class="bgl-muted" style="text-align:center">${escapeHTML(t.boggle_vote_line)} · <span class="metric" data-bgl-clock></span></p>
+          ${bglVoteHtml(state, false)}${cards}
+          ${roomMoveOnHtml(state, `<div class="btn-stack"><button type="button" class="btn btn--ghost btn--sm" onclick="roomAct('closeJudge', { round: ${s.round} })">${escapeHTML(t.boggle_close_vote)}</button></div>`)}
+          ${renderRoomPlayerStrip(state)}</div>`;
+      }
+      if (s.phase === 'result') {
+        return `<div class="bgl-res${reveal ? ' bgl-reveal' : ''}">${head}${cards}
+          ${roomMoveOnHtml(state, `<button type="button" class="btn btn--primary btn--lg" onclick="roomAct('nextRound', { round: ${s.round} })">${escapeHTML(t.boggle_next)}</button>`, `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)}
+          ${renderRoomPlayerStrip(state)}</div>`;
+      }
+      return `<div class="bgl-res${reveal ? ' bgl-reveal' : ''}">${head}
+          ${renderPodium(state, s.board) || ''}
+          ${renderScoreboard(s.board)}
+          ${state.youAreHost
+            ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('playAgain', ROOM_GAMES.boggle.startPayload())">${escapeHTML(t.play_again || '')}</button>
+               <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button></div>`
+            : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+          <p class="bgl-muted" style="text-align:center">${escapeHTML((t.boggle_result_n || '{n}').replace('{n}', s.round))}</p>
+          ${cards}
+          ${renderRoomPlayerStrip(state)}</div>`;
+    };
+    const rebuilt = renderRoomFrame(el, sig, body);
+    if (rebuilt) {
+      bglRevealAfter(el, fresh);
+      if (s.phase === 'gameover') afterReveal(el, () => { if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } }); });
+    }
     refreshRoomPlayerStrip(el, state);
+    bglRoomClockPaint();
   }
 };
 
+function bglOptTap(btn, key, value) {
+  rememberOptions('boggle', { [key]: value });
+  btn.parentNode.querySelectorAll('.segmented__item').forEach(b => { b.classList.toggle('is-active', b === btn); b.setAttribute('aria-pressed', String(b === btn)); });
+}
+
+/* --- the TV ------------------------------------------------------------------------------- */
+
+function bglTvTop(state, sub) {
+  const s = state.shared || {};
+  const t = bglT();
+  const mark = (t.boggle_mark || 'شبكة').split('');
+  return `<div class="bgl-tv__top"><span class="bgl-mark" aria-hidden="true" dir="${appState.lang === 'en' ? 'ltr' : 'rtl'}">${mark.slice(0, 4).map(c => `<i>${escapeHTML(c)}</i>`).join('')}</span>
+    <div><div class="bgl-tv__title">${escapeHTML(sub || bglRoundLine(s))}</div>${s.phase === 'play' && s.total ? `<div class="bgl-tv__sub">${escapeHTML((t.boggle_tv_total || '{n}').replace('{n}', s.total))}</div>` : ''}</div>
+    ${s.phase === 'play' || s.phase === 'judge' ? `<div class="bgl-tv__clock" data-bgl-clock></div>` : ''}</div>`;
+}
+
 TV_GAMES.boggle = {
-  sig: (state) => [state.shared.phase, (state.shared.done || []).length, (state.shared.roster || []).length].join('|'),
-  frame(state, t) {
-    const s = state.shared;
-    t = boggleT();
-    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
-    if (s.phase === 'gameover') {
-      return `
-        <div class="tv-vote">
-          <div class="tv-title tv-center-text">${escapeHTML(t.boggle_result)}</div>
-          ${renderPodium(state, s.board)}
-          ${host(tvBtn(t.play_again, "roomAct('playAgain')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
-        </div>`;
+  sig: (state) => {
+    const s = state.shared || {};
+    const j = s.judge || { items: [] };
+    return ['boggle', roomDealKey(state), s.phase, s.round, JSON.stringify(s.counts || {}), (s.done || []).join(','),
+      JSON.stringify(j.items.map(it => [it.f, it.by, it.yes.length, it.no.length])), JSON.stringify(s.board || []),
+      (state.players || []).map(p => p.id + (p.face || '')).join(','), state.youAreHost, appState.lang].join('|');
+  },
+  frame(state) {
+    const s = state.shared || {};
+    const t = bglT();
+    const r = s.round;
+    if (s.phase === 'play') {
+      const ids = (s.roster || []).filter(id => (state.players || []).some(p => p.id === id));
+      const card = (id) => {
+        const done = (s.done || []).indexOf(id) !== -1;
+        return `<div class="bgl-tv__p${done ? ' is-done' : ''}">${bglFaceHtml(state, id)}<div class="bgl-tv__who"><b><bdi>${escapeHTML(bglNameOf(state, id))}</bdi></b><span>${escapeHTML(done ? '✓ ' + t.boggle_tv_done : t.boggle_tv_looking)}</span></div><div class="bgl-tv__n metric">${(s.counts || {})[id] || 0}</div></div>`;
+      };
+      const half = Math.ceil(ids.length / 2);
+      return `<div class="bgl-tv" data-accent="amber">${bglTvTop(state)}
+        <div class="bgl-tv__body"><div class="bgl-tv__col">${ids.slice(0, half).map(card).join('')}</div>${bglBoardHtml(s.grid, s.size, s.lang, [], false)}<div class="bgl-tv__col">${ids.slice(half).map(card).join('')}</div></div>
+        <div class="bgl-tv__foot">${escapeHTML(t.boggle_tv_hint)}</div>
+        ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.boggle_finish, `roomAct('finish', { round: ${r} })`, 'ghost')}</div>`)}</div>`;
     }
-    return `
-      <div class="tv-center">
-        <div class="tv-big-icon" aria-hidden="true">🔡</div>
-        <div class="tv-title">${escapeHTML(t.boggle_tv_wait)}</div>
-        ${tvWaitChips(state, s.roster || [], s.done || [])}
-        ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.boggle_finish, 'boggleFinish()', 'ghost')}</div>`)}
-      </div>`;
+    const cards = bglOrder(state).map(id => bglCardHtml(state, id, {})).join('');
+    if (s.phase === 'judge') {
+      return `<div class="bgl-tv" data-accent="amber">${bglTvTop(state, t.boggle_vote_line)}
+        <div class="bgl-tv__cards">${bglVoteHtml(state, true)}${cards}</div>
+        ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.boggle_close_vote, `roomAct('closeJudge', { round: ${r} })`, 'ghost')}</div>`)}</div>`;
+    }
+    if (s.phase === 'result') {
+      return `<div class="bgl-tv" data-accent="amber">${bglTvTop(state, (t.boggle_result_n || '{n}').replace('{n}', r) + ' · ' + bglRoundLine(s))}
+        <div class="bgl-tv__cards">${cards}</div>
+        ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.boggle_next, `roomAct('nextRound', { round: ${r} })`)}</div>`)}</div>`;
+    }
+    return `<div class="bgl-tv" data-accent="amber">${bglTvTop(state, t.boggle_final)}
+      <div class="tv-vote">${renderPodium(state, s.board)}<div class="tv-scale">${renderScoreboard(s.board)}</div></div>
+      ${state.youAreHost ? `<div class="tv-actions">${tvBtn('▶ ' + (t.play_again || ''), "roomAct('playAgain', ROOM_GAMES.boggle.startPayload())")}${tvBtn(t.room_another_game || '', "roomAct('backToHub')", 'ghost')}</div>` : ''}</div>`;
+  },
+  after(state) {
+    const s = state.shared || {};
+    if (s.phase === 'play' || s.phase === 'judge') { bglRoomClockOn(); bglRoomClockPaint(); } else bglRoomClockStop();
   }
 };
 </script>

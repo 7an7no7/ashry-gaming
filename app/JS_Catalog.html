@@ -1837,21 +1837,15 @@ function renderTogether() {
   const t = TRANSLATIONS[appState.lang];
   const games = GAME_CATALOG.filter(g => (g.modes || []).indexOf('room') !== -1 && !g.hub);
   view.innerHTML = `
-    <div class="tab-hero">
-      <span class="tab-hero__icon" aria-hidden="true">📲</span>
-      <div>
-        <div class="tab-hero__title">${escapeHTML(t.together_title || '')}</div>
-        <div class="tab-hero__sub">${escapeHTML(t.together_sub || '')}</div>
+    <div class="tg-head">
+      <span class="tg-head__icon" aria-hidden="true">📲</span>
+      <div class="tg-head__text">
+        <div class="tg-head__title">${escapeHTML(t.together_title || '')}</div>
+        <div class="tg-head__sub">${escapeHTML(t.together_sub || '')}</div>
         <div id="together-live" class="together-live" hidden></div>
       </div>
     </div>
-    <div class="together-actions">
-      <button type="button" class="btn btn--primary btn--lg" onclick="roomCreateEmpty()">🎮 ${escapeHTML(t.room_open || '')}</button>
-      <button type="button" class="btn btn--secondary" onclick="roomOpenJoin('')">📱 ${escapeHTML(t.join_room_menu || '')}</button>
-      <button type="button" class="btn btn--neutral" onclick="roomOpenScreen()">📺 ${escapeHTML(t.together_tv || '')}</button>
-      <button type="button" class="btn btn--ghost btn--sm" onclick="shareAppLink()">${escapeHTML(t.share_app_btn || '')}</button>
-    </div>
-    ${togetherBackHtml(t)}
+    ${togetherWaysHtml(t)}
     ${typeof crewTogetherHtml === 'function' ? crewTogetherHtml(t) : ''}
     <section class="section${shelfOpen.together ? ' is-open' : ''}" data-shelf="together">
       <div class="section__head">
@@ -1883,16 +1877,30 @@ function renderTogether() {
   refreshTogetherLive();
 }
 
-/* «ارجع للغرفة ABCD» on مع بعض itself (the ideas of 7 Oct 2026, 1274): the join screen's way back
-   (lastRoom, JS_Room.html: the last room this phone was in, kept 6 hours) as a slim card under the
-   three buttons, while this phone is in no room. A tap opens the join screen with the code, and
-   with a saved name joins at once (roomOpenJoin), as the join screen's own card does. */
-function togetherBackHtml(t) {
+/* The ways in, look أ of the sheet of 9 Oct 2026 (the owner): the room this phone was in a while
+   ago leads, as the one coloured card (lastRoom, JS_Room.html: kept 6 hours, shown while this
+   phone is in no room; a tap opens the join screen with the code, and with a saved name joins at
+   once, roomOpenJoin); «افتح غرفة» and «ادخل غرفة» are two tiles side by side - «افتح» the
+   coloured one when there is no room to go back to -, the screen and the app's link two chips. */
+function togetherWaysHtml(t) {
   const r = typeof lastRoom === 'function' ? lastRoom() : null;
-  if (!r || !/^[A-Z0-9]{4,8}$/.test(String(r.code)) || (typeof Room !== 'undefined' && Room.isIn)) return '';
-  return `<button type="button" class="room-join-back together-back" onclick="roomOpenJoin('${r.code}')">
-      <span aria-hidden="true">↩️</span><span class="room-join-back__text">${escapeHTML(t.room_back_to || '')} <b dir="ltr">${escapeHTML(r.code)}</b>` +
-    `<small>${escapeHTML(t.room_back_hint || '')}</small></span><span class="room-join-back__chev" aria-hidden="true">›</span></button>`;
+  const back = !!r && /^[A-Z0-9]{4,8}$/.test(String(r.code)) && !(typeof Room !== 'undefined' && Room.isIn);
+  const tile = (icon, name, line, onclick, main) => `<button type="button" class="tg-tile${main ? ' tg-tile--main' : ''}" onclick="${onclick}">` +
+    `<span class="tg-tile__icon" aria-hidden="true">${icon}</span><span class="tg-tile__name">${escapeHTML(name || '')}</span><span class="tg-tile__line">${escapeHTML(line || '')}</span></button>`;
+  return `<div class="tg-ways${back ? ' tg-ways--back' : ''}">
+      ${back ? `<button type="button" class="tg-back" onclick="roomOpenJoin('${r.code}')">
+        <span class="tg-back__icon" aria-hidden="true">↩️</span>
+        <span class="tg-back__text"><span class="tg-back__title">${escapeHTML(t.room_back_to || '')} <bdi class="tg-back__code">${escapeHTML(r.code)}</bdi></span><small>${escapeHTML(t.room_back_hint || '')}</small></span>
+        <span class="tg-back__go" aria-hidden="true">${escapeHTML(t.together_back_go || '')}</span></button>` : ''}
+      <div class="tg-pair">
+        ${tile('🎮', t.room_open, t.together_open_desc, 'roomCreateEmpty()', !back)}
+        ${tile('📱', t.join_room_menu, t.together_join_desc, "roomOpenJoin('')", false)}
+      </div>
+      <div class="tg-chips">
+        <button type="button" class="tg-chip" onclick="roomOpenScreen()">📺 ${escapeHTML(t.together_tv || '')}</button>
+        <button type="button" class="tg-chip" onclick="shareAppLink()">${escapeHTML(t.share_app_btn || '')}</button>
+      </div>
+    </div>`;
 }
 
 /* A game's poster on مع بعض (the ideas of 7 Oct 2026, 1273): the same poster, but a tap opens a

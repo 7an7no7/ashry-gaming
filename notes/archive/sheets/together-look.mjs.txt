@@ -1,0 +1,93 @@
+/**
+ * مع بعض's three looks (sheet of 9 Oct 2026), shot on the real app in headless Chrome.
+ *   node together-look.mjs <outDir>      (the preview at http://localhost:4321 must be running)
+ * Injects together-looks.js.txt into the real screen and shoots each look, with and without a
+ * last room, light and dark, Arabic and English, phone and laptop.
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const here = fileURLToPath(new URL('./', import.meta.url));
+const out = process.argv[2] || path.join(here, 'shots');
+fs.mkdirSync(out, { recursive: true });
+const looksJs = fs.readFileSync(path.join(process.argv[3] || here, 'together-looks.js.txt'), 'utf8');
+const BASE = 'http://localhost:4321/';
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const chromePath = ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe'].find((p) => fs.existsSync(p));
+const profile = fs.mkdtempSync(path.join(out, 'chrome-'));
+const chrome = spawn(chromePath, ['--headless=new', '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check', '--user-data-dir=' + profile, 'about:blank'], { stdio: 'ignore' });
+let wsUrl = null;
+for (let i = 0; i < 100 && !wsUrl; i++) {
+  await wait(100);
+  try { const [port, p] = fs.readFileSync(path.join(profile, 'DevToolsActivePort'), 'utf8').split('\n'); wsUrl = `ws://127.0.0.1:${port}${p}`; } catch (e) {}
+}
+const ws = new WebSocket(wsUrl);
+await new Promise((r, j) => { ws.onopen = r; ws.onerror = j; });
+let msgId = 0;
+const pending = new Map();
+const errors = [];
+ws.onmessage = (e) => {
+  const m = JSON.parse(e.data);
+  if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); return; }
+  if (m.method === 'Runtime.exceptionThrown') errors.push(JSON.stringify(m.params.exceptionDetails.exception && m.params.exceptionDetails.exception.description).slice(0, 200));
+};
+const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
+  const id = ++msgId;
+  pending.set(id, (m) => (m.error ? reject(new Error(method + ': ' + m.error.message)) : resolve(m.result)));
+  ws.send(JSON.stringify({ id, method, params, sessionId }));
+});
+const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+await send('Runtime.enable', {}, sessionId);
+await send('Page.enable', {}, sessionId);
+const size = (w, h) => send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 2, mobile: w < 768 }, sessionId);
+async function ev(expr) {
+  const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }, sessionId);
+  if (r.exceptionDetails) throw new Error((r.exceptionDetails.exception && r.exceptionDetails.exception.description) || r.exceptionDetails.text);
+  return r.result && r.result.value;
+}
+await size(375, 812);
+await send('Page.navigate', { url: BASE }, sessionId);
+for (let i = 0; i < 100; i++) {
+  await wait(200);
+  const ok = await ev(`(() => { if (typeof appState === 'undefined' || document.readyState !== 'complete') return false; const l = document.getElementById('app-loader'); return !l || l.style.display === 'none' || l.classList.contains('hidden'); })()`).catch(() => false);
+  if (ok) break;
+}
+await wait(1500);
+await ev(looksJs + '; 1');
+
+async function shoot(file, { look, code, lang, dark, w, h }) {
+  await size(w, h);
+  await ev(`(async () => {
+    if (appState.lang !== '${lang}') toggleLanguage();
+    if (document.body.classList.contains('dark') !== ${dark}) toggleDarkMode();
+    ${code ? `localStorage.setItem('ashryLastRoom_v1', JSON.stringify({ code: '${code}', at: Date.now() }));` : `localStorage.removeItem('ashryLastRoom_v1');`}
+    if (appState.currentView !== 'together') setView('together');
+    await new Promise(r => setTimeout(r, 400));
+    renderTogether();
+    tgxLook('${look}', ${code ? `'${code}'` : 'null'});
+    let s = document.getElementById('tgx-still'); if (!s) { s = document.createElement('style'); s.id = 'tgx-still'; document.head.appendChild(s); }
+    s.textContent = '*{transition:none!important;animation:none!important} #together-live{display:none!important}';
+    document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(m => m.classList.add('hidden'));
+    window.dispatchEvent(new Event('resize'));
+    const m = document.getElementById('shell-main') || document.querySelector('main'); if (m) m.scrollTop = 0;
+    return 1; })()`);
+  await wait(700);
+  const { data } = await send('Page.captureScreenshot', { format: 'jpeg', quality: 82 }, sessionId);
+  fs.writeFileSync(path.join(out, file + '.jpg'), Buffer.from(data, 'base64'));
+  console.log('shot', file);
+}
+for (const look of ['before', 'A', 'B', 'C']) {
+  for (const code of [null, 'GU2R']) {
+    for (const dark of [false, true]) await shoot(`${look}-${code ? 'back' : 'fresh'}-ar-${dark ? 'dark' : 'light'}`, { look, code, lang: 'ar', dark, w: 375, h: 812 });
+  }
+  await shoot(`${look}-back-en-dark`, { look, code: 'GU2R', lang: 'en', dark: true, w: 375, h: 812 });
+  await shoot(`${look}-back-ar-dark-laptop`, { look, code: 'GU2R', lang: 'ar', dark: true, w: 1280, h: 720 });
+  await shoot(`${look}-back-ar-light-side`, { look, code: 'GU2R', lang: 'ar', dark: false, w: 667, h: 375 });
+}
+console.log('errors:', errors.length ? errors.join('\n') : 'none');
+ws.close();
+chrome.kill();
+setTimeout(() => { try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) {} process.exit(0); }, 500);

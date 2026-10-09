@@ -800,6 +800,8 @@ for a family table and are open to change; each says so. Styles: section 72 at t
   screen's card (`lastRoom()`, kept 6 hours; the same `.room-join-back` look and words
   `room_back_to` / `room_back_hint`) under the three buttons while this phone is in no room; a tap
   is `roomOpenJoin(code)`, which joins at once with a saved name. Chosen: hidden while in any room.
+  Since 9 Oct 2026 (look أ of the owner's sheet) it is the top of the tab, `togetherWaysHtml`: the one
+  coloured card with «ادخل», above «افتح غرفة» / «ادخل غرفة» as two tiles (`.tg-*`, Style_Talk.html).
 - **1276, the how-to card's spacing.** The «إزاي بتشتغل؟» card is `card card--tight btn-stack`
   (the design system's gap), and «اعرف أكتر» lost its `style="margin-top: var(--sp-3)"`.
 - **1308, «🔮 توقعوها» on the podium.** `podCalledDress` (JS_Motion.html) rides on the podium

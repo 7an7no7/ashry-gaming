@@ -16,7 +16,7 @@
  * 4-5 minutes at 4, 3 at 6, 17 one after another (most of it the games' real clocks).
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { stopDictionary, stopAnswerFits, stopWordKnown, foldStopAnswer } from '../generated/rules.js';
+import { stopDictionary, stopAnswerFits, stopWordKnown, foldStopAnswer, boggleSolve, boggleResolve, boggleListed } from '../generated/rules.js';
 // دندنها's sound, the Worker's own code: a real preview from each source.
 import { songStream } from '../src/songs.js';
 import srcMod from '../../tools/sources.cjs';
@@ -7621,7 +7621,20 @@ async function hesbaRobots() {
 }
 
 async function boggleRobots() {
-  console.log('• شبكة الحروف (made by tools/new-game.mjs: a secret each, the taps, the result, play again)');
+  console.log('• شبكة الحروف (one grid on every phone, words traced and judged by the server, hidden until the round closes, only words nobody else found score, the vote on a word not in the lists)');
+  const nb = (i, n) => { const r = Math.floor(i / n), c = i % n, o = []; for (let a = r - 1; a <= r + 1; a++) for (let b = c - 1; b <= c + 1; b++) if ((a !== r || b !== c) && a >= 0 && b >= 0 && a < n && b < n) o.push(a * n + b); return o; };
+  const pathOf = (grid, n, word) => {
+    const go = (i, k, used) => {
+      if (grid[i] !== word[k] || used.has(i)) return null;
+      if (k === word.length - 1) return [i];
+      used.add(i);
+      for (const j of nb(i, n)) { const p = go(j, k + 1, used); if (p) { used.delete(i); return [i].concat(p); } }
+      used.delete(i);
+      return null;
+    };
+    for (let i = 0; i < n * n; i++) { const p = go(i, 0, new Set()); if (p) return p; }
+    return null;
+  };
   const H = await Bot.host('حسام', null);
   const J = await Bot.join(H.code, 'Jana');
   const K = await Bot.join(H.code, 'كريم');
@@ -7629,19 +7642,49 @@ async function boggleRobots() {
   const people = [H, J, K];
   await H.must('chooseGame', { game: 'boggle' });
   check((await J.act('start', {})).ok === false, 'boggle: only the host starts');
-  await H.must('start', {});
-  await all(people.concat([TV]), (s) => s.game === 'boggle' && s.shared.phase === 'play', 'boggle: the round reaches every phone and the TV');
-  check(TV.state.you === null, 'boggle: the TV has no secret');
-  check(people.every((p) => p.state.you && p.state.you.target >= 3 && p.state.you.target <= 9) && !('targets' in H.state.shared), "boggle: each phone has its own number, the table none");
-  for (const p of people) {
-    for (let i = 0; i < p.state.you.target; i++) await p.must('tap', { round: 1 });
-    await p.must('done', { round: 1 });
+  await H.must('start', { rounds: 1, size: 4, lang: 'ar' });
+  await all(people.concat([TV]), (s) => s.game === 'boggle' && s.shared.phase === 'play' && (s.shared.grid || []).length === 16, 'boggle: one 4 x 4 grid reaches every phone and the TV');
+  check(TV.state.you === null, 'boggle: the TV has no list');
+  check(people.every((p) => p.state.you && Array.isArray(p.state.you.words) && !p.state.you.words.length), 'boggle: each phone has an empty list of its own');
+  const s = H.state.shared;
+  const words = boggleSolve(s.grid, s.size, s.lang);
+  check(words.length >= 15 && words[0].length >= 5 && s.total === words.length, 'boggle: the grid holds 15 listed words or more, one of 5 letters');
+  const trace = (bot, w) => bot.must('word', { round: s.round, path: pathOf(s.grid, s.size, w) });
+  for (const w of words.slice(0, 4)) await trace(H, w);
+  for (const w of words.slice(2, 4)) await trace(J, w);
+  await H.waitFor((x) => (x.you.words || []).length === 4 && x.you.words.every((w) => w.ok), 'boggle: four listed words in the host\'s own list');
+  await trace(H, words[0]);
+  await H.waitFor((x) => x.you.last && x.you.last.kind === 'again' && x.you.words.length === 4, 'boggle: a word found twice is said so, and counted once');
+  await H.must('word', { round: s.round, path: [0, 10] });
+  await H.waitFor((x) => x.you.last && x.you.last.kind === 'bad', 'boggle: a trace that is no path is no word');
+  // A word not in the lists for K: three touching letters that are no listed word.
+  let odd = null;
+  for (let i = 0; i < 16 && !odd; i++) for (const j of nb(i, 4)) for (const k of nb(j, 4)) {
+    if (odd || k === i) continue;
+    const f = boggleResolve(s.grid[i] + s.grid[j] + s.grid[k], 'ar', (x) => boggleListed(x, 'ar'));
+    if (f.length === 3 && !boggleListed(f, 'ar')) odd = { path: [i, j, k], f };
   }
-  await all(people.concat([TV]), (s) => s.shared.phase === 'gameover' && s.shared.board.length === 3 && s.shared.board[0].score === 10, 'boggle: everyone landed on their number: the result on every screen');
-  await H.must('playAgain', {});
-  await H.waitFor((s) => s.shared.phase === 'play' && (s.shared.done || []).length === 0, 'boggle: play again deals a new round');
+  await K.must('word', { round: s.round, path: odd.path });
+  await K.waitFor((x) => (x.you.words || []).some((w) => w.f === odd.f && !w.ok) && x.you.last.kind === 'vote', 'boggle: a word not in the lists is kept for the vote');
+  await TV.waitFor((x) => x.shared.counts[H.pid] === 4 && x.shared.counts[J.pid] === 2 && x.shared.counts[K.pid] === 1, 'boggle: the TV sees how many each has');
+  const hOnly = H.state.you.words.filter((w) => !J.state.you.words.some((v) => v.f === w.f)).map((w) => w.w);
+  const seenBy = hOnly.filter((w) => leaks(J, '"' + w + '"') || leaks(TV, '"' + w + '"'));
+  check(!seenBy.length && !(J.state.shared || {}).reveal, "boggle: nobody sees another phone's words while the round is on");
+  for (const p of people) await p.must('done', { round: s.round });
+  await all(people.concat([TV]), (x) => x.shared.phase === 'judge' && x.shared.judge.items.length === 1 && x.shared.judge.items[0].by === K.pid, 'boggle: everyone done: the lists on the table, K\'s word to the vote');
+  check((await K.act('judge', { round: s.round, f: odd.f, by: K.pid, yes: true })).ok && H.state.shared.judge.items[0].yes.length === 0, 'boggle: the writer has no vote on their own word');
+  await H.must('judge', { round: s.round, f: odd.f, by: K.pid, yes: true });
+  await J.must('judge', { round: s.round, f: odd.f, by: K.pid, yes: true });
+  await all(people.concat([TV]), (x) => x.shared.phase === 'gameover' && x.shared.board.length === 3, 'boggle: the vote closes when everyone asked has said; one round: the board');
+  const pts = (f) => (f.length >= 6 ? 5 : f.length === 5 ? 3 : f.length === 4 ? 2 : 1);
+  const g = H.state.shared.gained;
+  check(g[H.pid] === pts(words[0]) + pts(words[1]) && g[J.pid] === 0 && g[K.pid] === 1, 'boggle: only the words nobody else found score (the shared ones none), and the voted word 1');
+  await H.must('playAgain', { rounds: 3, size: 5, lang: 'en' });
+  await H.waitFor((x) => x.shared.phase === 'play' && x.shared.size === 5 && x.shared.grid.length === 25 && /^[A-Z]$/.test(x.shared.grid[0]), 'boggle: play again on a 5 x 5 grid in English');
   await H.must('finish', { round: 1 });
-  await H.waitFor((s) => s.shared.phase === 'gameover', 'boggle: the host ends a round');
+  await H.waitFor((x) => x.shared.phase === 'result', 'boggle: the host ends a round: its result');
+  await H.must('nextRound', { round: 1 });
+  await H.waitFor((x) => x.shared.phase === 'play' && x.shared.round === 2, 'boggle: the next round, a new grid');
   await H.must('backToHub');
   await H.waitFor((x) => x.phase === 'lobby', 'boggle: back in the hub');
   [H, J, K, TV].forEach((x) => x.close());

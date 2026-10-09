@@ -2859,25 +2859,41 @@ function openExitSheet(navTarget) {
   if (inRoom) {
     const state = Room.state;
     const playing = state.phase !== 'lobby' && !!state.game;
-    const rows = [];
-    if (playing && state.youAreHost) rows.push(exitSheetRow(t.exit_room_change || '', 'exitSheetBackToHub()', 'btn--primary btn--lg'));
-    if (playing && !state.youAreHost) rows.push(exitSheetRow(t.exit_room_ask || '', 'exitSheetAsk()', 'btn--secondary btn--lg'));
+    const entry = state.game && typeof ROOM_HUB_GAMES !== 'undefined' ? ROOM_HUB_GAMES.find(g => g.id === state.game) : null;
+    const name = entry ? (t[entry.key] || entry.id) : (t.exit_room_title || '');
+    // The room sheet (the owner, 9 Oct 2026): which game and room on top, «كمّل» the loud button
+    // (the sheet mostly opens from a back tap nobody meant), the game's own moves in a pair, the
+    // room's in a pair, and the one way out last and apart (roomLeave asks before it goes).
+    const pair = (x, y) => `<div class="btn-row">${x}${y}</div>`;
+    const game = [];
+    if (playing && state.youAreHost) {
+      const change = exitSheetRow(t.exit_room_change_short || '', 'exitSheetBackToHub()');
+      // «⚙️ غيّر الإعدادات» as at a game's end; برنامج السهرة runs its own line-up.
+      game.push(state.program ? change : pair(exitSheetRow(t.exit_room_reconf || '', 'exitSheetReconfigure()'), change));
+    }
+    if (playing && !state.youAreHost) game.push(exitSheetRow(t.exit_room_ask || '', 'exitSheetAsk()'));
     // A big screen on: the host shows its corner QR big for someone just in (1287, roomTvQrAsk).
     if (playing && state.youAreHost && typeof roomHasScreenOn === 'function' && roomHasScreenOn(state)) {
-      rows.push(exitSheetRow(t.room_tv_qr || '', "closeModal('exit-modal'); roomTvQrAsk()"));
+      game.push(exitSheetRow(t.room_tv_qr || '', "closeModal('exit-modal'); roomTvQrAsk()"));
     }
-    // The bar (Help's door) is hidden while a game is played: the rules are here.
-    rows.push(exitSheetRow(t.exit_rules || '', "closeModal('exit-modal'); openHelpModal()"));
-    rows.push(exitSheetRow(t.exit_room_menu || '', "closeModal('exit-modal'); setView('menu')"));
-    rows.push(exitSheetRow(t.exit_room_leave || '', "closeModal('exit-modal'); roomLeave()", 'btn--danger-soft'));
     body.innerHTML = `
-      <div class="modal-icon" aria-hidden="true">🎲</div>
-      <div class="sheet__title">${escapeHTML(t.exit_room_title || '')}</div>
-      <p class="sheet__subtitle">${escapeHTML(playing && !state.youAreHost ? (t.exit_room_host_note || '') : (t.exit_room_sub || ''))}</p>
-      <div class="btn-stack">${rows.join('')}</div>
+      <div class="modal-icon" aria-hidden="true">${entry ? iconHtml(entry.icon) : '🎲'}</div>
+      <div class="sheet__title">${escapeHTML(name)}</div>
+      <p class="room-sheet__code">${escapeHTML(t.exit_room_code || '')} <bdi class="room-sheet__chip">${escapeHTML(state.code || '')}</bdi></p>
+      ${playing && !state.youAreHost ? `<p class="sheet__subtitle">${escapeHTML(t.exit_room_host_note || '')}</p>` : ''}
       <div class="modal-actions">
-        <button class="btn btn--ghost" onclick="closeModal('exit-modal')">${escapeHTML(t.exit_keep || '')}</button>
-      </div>`;
+        <button class="btn btn--primary btn--lg" onclick="closeModal('exit-modal')">${escapeHTML((playing ? t.exit_keep : t.exit_keep_room) || '')}</button>
+      </div>
+      ${game.length ? `<div class="modal-divider">${escapeHTML(t.exit_room_game_head || '')}</div><div class="btn-stack">${game.join('')}</div>` : ''}
+      <div class="modal-divider">${escapeHTML(t.exit_room_title || '')}</div>
+      <div class="btn-stack">
+        ${pair(
+          // The bar (Help's door) is hidden while a game is played: the rules are here.
+          exitSheetRow(t.exit_rules || '', "closeModal('exit-modal'); openHelpModal()"),
+          exitSheetRow(t.exit_room_menu_short || '', "closeModal('exit-modal'); setView('menu')"))}
+        <p class="room-sheet__note">${escapeHTML(t.exit_room_menu_note || '')}</p>
+      </div>
+      <div class="room-sheet__leave">${exitSheetRow(t.exit_room_leave || '', "closeModal('exit-modal'); roomLeave()", 'btn--danger-soft btn--sm')}</div>`;
   } else {
     const up = (VIEW_META[view] || {}).up || 'menu';
     // The sheet usually opens from a back tap nobody meant, so the loud button keeps the
@@ -2910,6 +2926,14 @@ function openExitSheet(navTarget) {
 function exitSheetBackToHub() {
   closeModal('exit-modal');
   roomAct('backToHub');
+}
+
+/** «⚙️ غيّر الإعدادات» from the sheet: the same game's lobby, its options open (roomReconfigureTap). */
+function exitSheetReconfigure() {
+  closeModal('exit-modal');
+  const st = Room.state;
+  if (st && st.game && typeof lobbyOptsOpen === 'object') lobbyOptsOpen[st.game] = true;
+  roomAct('reconfigure', {});
 }
 
 /** Not the host: say it in the room chat rather than sit there bored. */

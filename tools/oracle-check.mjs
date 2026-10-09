@@ -61,7 +61,8 @@ function play(ei, noise, rand, log, gap) {
     const qi = data.qIndex[step.ask];
     let ans = TRUTHFUL[target.truth[qi]];
     if (gap && target.truth[qi] === 2 && !data.questions[qi].firm && rand() < gap) ans = 'y';
-    if (noise && rand() < noise) {
+    // A real player (gap set) doesn't get a firm question wrong: what the thing IS, a woman or a man.
+    if (noise && !(gap && data.questions[qi].firm) && rand() < noise) {
       const others = O.ORACLE_ANSWERS.filter((a) => a !== ans);
       ans = others[Math.floor(rand() * others.length)];
     }
@@ -103,7 +104,7 @@ report('truthful', truthful);
 const noisy = run(NOISE);
 report(`one answer in ${Math.round(1 / NOISE)} wrong`, noisy);
 const real = run(0.05, GAP);
-report(`a real player (traits missing from the data said yes ${GAP * 100}% of the time, 1 in 20 wrong)`, real);
+report(`a real player (traits missing from the data said yes ${GAP * 100}% of the time, 1 in 20 other answers wrong)`, real);
 console.log(`\n(${((Date.now() - t0) / 1000).toFixed(1)} s)`);
 const rate = truthful.wins / data.entries.length;
 if (rate < MIN_TRUTHFUL) {

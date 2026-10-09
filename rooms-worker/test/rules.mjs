@@ -18541,7 +18541,7 @@ console.log('• the secret mission');
 
 /* --- سد الطريق (Block the Way): the board's rules, the duel, four on a board, two against two --- */
 {
-  const BW = new Function(readFileSync(srcPath('Blockway.js'), 'utf8') + ';return { bwNewBoard, bwSteps, bwWallCheck, bwPlay, bwStepsHome, bwTurnSq, bwUnturnSq, bwTurnWall, bwUnturnWall };')();
+  const BW = new Function(readFileSync(srcPath('Blockway.js'), 'utf8') + ';return { bwNewBoard, bwSteps, bwWallCheck, bwPlay, bwStepsHome, bwTurnSq, bwUnturnSq, bwTurnWall, bwUnturnWall, bwGrid, bwDistMap };')();
   const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
   // Face to face: straight over; a wall behind: to either side.
   const b = BW.bwNewBoard(2);
@@ -18644,7 +18644,11 @@ console.log('• the secret mission');
     if (pid === 'a') {
       const s = h.shared;
       const steps = BW.bwSteps({ sides: s.sides, pos: s.pos, walls: s.walls, left: s.left }, s.turn);
-      go(h, { to: [steps[0].r, steps[0].c] });
+      // The person walks the shortest way home, so the race is close and the bot has to wall
+      // (a person who wandered let it win by walking, and the check then depended on who started).
+      const d = BW.bwDistMap(BW.bwGrid(s.walls), s.sides[s.turn]);
+      const best = steps.reduce((m, st) => (d[st.r * 9 + st.c] < d[m.r * 9 + m.c] ? st : m), steps[0]);
+      go(h, { to: [best.r, best.c] });
     } else {
       const at = roomDeadline(h);
       if (at === null) break;

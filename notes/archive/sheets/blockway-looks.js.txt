@@ -1,0 +1,617 @@
+/* سد الطريق (Block the Way) - three looks for the owner's sheet (9 Oct 2026).
+   Injected into the real app by shoot.mjs: bwShow(look, screen, frame).
+   look: A (الحارة من فوق), B (من البلكونة), C (أقصر طريق)
+   screen: duel | four | side | tv | end ; frame: w1 w2 w3 j1 j2 win (on the duel). */
+(function () {
+  const L = (ar, en) => (appState.lang === 'en' ? en : ar);
+  const G = 0.24;                       // a groove, in cells
+  const T = 9 + 8 * G;                  // the board, in cells
+  const pc = (v) => (v / T * 100).toFixed(3) + '%';
+  const at = (i) => i * (1 + G);
+
+  function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const PEOPLE = [
+    { id: 0, ar: 'أحمد', en: 'Ahmed', seed: 11, you: true },
+    { id: 1, ar: 'منى', en: 'Mona', seed: 29 },
+    { id: 2, ar: 'كريم', en: 'Karim', seed: 47 },
+    { id: 3, ar: 'سلمى', en: 'Salma', seed: 64 },
+  ];
+  PEOPLE.forEach((p) => { p.face = typeof faceRandom === 'function' ? faceRandom(rng(p.seed)) : ''; });
+  const nm = (p) => L(p.ar, p.en);
+  const face = (p, cls) => `<span class="bw-face ${cls || ''}">${typeof faceSvg === 'function' && p.face ? faceSvg(p.face, true) : ''}</span>`;
+  const GOAL = [(r) => r === 0, (r) => r === 8, (r, c) => c === 8, (r, c) => c === 0];
+
+  /* ---------- the rules engine (enough for real numbers) ---------- */
+  function blocked(walls, r, c, r2, c2) {
+    if (r2 !== r) { const rr = Math.min(r, r2); return walls.some((w) => w.o === 'h' && w.r === rr && (w.c === c || w.c === c - 1)); }
+    const cc = Math.min(c, c2); return walls.some((w) => w.o === 'v' && w.c === cc && (w.r === r || w.r === r - 1));
+  }
+  function bfs(start, pid, walls) {
+    const key = (r, c) => r * 9 + c; const prev = new Map([[key(start[0], start[1]), null]]); const q = [start];
+    while (q.length) {
+      const [r, c] = q.shift();
+      if (GOAL[pid](r, c)) { const path = []; let k = key(r, c); while (k !== null) { path.unshift([Math.floor(k / 9), k % 9]); k = prev.get(k); } return path; }
+      for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        const r2 = r + dr, c2 = c + dc; if (r2 < 0 || r2 > 8 || c2 < 0 || c2 > 8) continue;
+        if (prev.has(key(r2, c2)) || blocked(walls, r, c, r2, c2)) continue;
+        prev.set(key(r2, c2), key(r, c)); q.push([r2, c2]);
+      }
+    }
+    return null;
+  }
+  const stepsOf = (s, pid, walls) => { const p = bfs(s.pos[pid], pid, walls || s.walls); return p ? p.length - 1 : Infinity; };
+
+  /* ---------- the scenes ---------- */
+  const DUEL_WALLS = [
+    { r: 4, c: 3, o: 'h', own: 1 }, { r: 4, c: 5, o: 'h', own: 1 }, { r: 6, c: 2, o: 'v', own: 1 }, { r: 1, c: 1, o: 'h', own: 1 },
+    { r: 3, c: 3, o: 'v', own: 0 }, { r: 3, c: 7, o: 'h', own: 0 }, { r: 1, c: 6, o: 'v', own: 0 },
+  ];
+  function duel(frame) {
+    const s = { mode: 'duel', ids: [0, 1], pos: { 0: [6, 4], 1: [3, 5] }, walls: DUEL_WALLS.slice(), left: { 0: 7, 1: 6 }, wins: { 0: 2, 1: 1 }, turn: 0,
+      ghost: { r: 3, c: 5, o: 'h', bad: false }, marks: [[5, 4], [7, 4], [6, 3], [6, 5]] };
+    if (frame === 'w1') s.press = true;
+    if (frame === 'w2') { s.ghost.lift = true; s.press = true; }
+    if (frame === 'w3') { s.before = { 1: stepsOf(s, 1) }; s.walls.push({ r: 3, c: 5, o: 'h', own: 0, thud: true }); s.ghost = null; s.left[0] = 6; s.tick = true; s.turn = 1; s.marks = []; }
+    if (frame === 'j1' || frame === 'j2') {
+      s.pos = { 0: [4, 4], 1: [3, 4] }; s.ghost = null; s.walls = DUEL_WALLS.filter((w) => !(w.r === 4 && w.c === 3)).concat([{ r: 3, c: 5, o: 'h', own: 0 }]);
+      s.left = { 0: 6, 1: 5 }; s.marks = [[4, 3], [4, 5], [5, 4]]; s.jump = [2, 4];
+      if (frame === 'j2') { s.air = { pid: 0, r: 2.45, c: 4 }; s.marks = []; }
+    }
+    if (frame === 'win') {
+      s.pos = { 0: [2, 4], 1: [8, 2] }; s.ghost = null; s.marks = []; s.left = { 0: 4, 1: 2 }; s.turn = -1; s.arrive = 1;
+      s.walls = DUEL_WALLS.concat([{ r: 3, c: 5, o: 'h', own: 0 }, { r: 6, c: 4, o: 'h', own: 0 }, { r: 2, c: 3, o: 'h', own: 1 }]);
+    }
+    s.steps = {}; s.ids.forEach((i) => { s.steps[i] = s.arrive === i ? 0 : stepsOf(s, i); });
+    if (s.ghost && !s.ghost.bad) { const w2 = s.walls.concat([s.ghost]); s.ghostSteps = {}; s.ids.forEach((i) => { s.ghostSteps[i] = stepsOf(s, i, w2); }); }
+    s.frame = frame || '';
+    return s;
+  }
+  const FOUR_WALLS = [
+    { r: 5, c: 1, o: 'h', own: 1 }, { r: 2, c: 3, o: 'h', own: 1 },
+    { r: 7, c: 1, o: 'h', own: 3 }, { r: 6, c: 0, o: 'v', own: 3 }, { r: 3, c: 5, o: 'v', own: 3 },
+    { r: 1, c: 6, o: 'v', own: 2 }, { r: 4, c: 6, o: 'h', own: 2 },
+    { r: 1, c: 3, o: 'h', own: 0 },
+  ];
+  function four(opts) {
+    const s = { mode: 'four', ids: [0, 1, 2, 3], pos: { 0: [5, 3], 1: [3, 4], 2: [6, 1], 3: [2, 6] }, walls: FOUR_WALLS.slice(), left: { 0: 4, 1: 3, 2: 3, 3: 2 }, turn: 0,
+      ghost: { r: 6, c: 2, o: 'v', bad: true }, marks: [[4, 3], [6, 3], [5, 2], [5, 4]] };
+    if (opts === 'tv') { s.ghost = null; s.marks = []; s.turn = 3; s.walls.push({ r: 1, c: 5, o: 'v', own: 1 }); s.left[1] = 2; s.last = { own: 1 }; }
+    s.steps = {}; s.ids.forEach((i) => { s.steps[i] = stepsOf(s, i); });
+    if (s.last) { let best = null;
+      [s.walls[s.walls.length - 1]].forEach((w0) => { const without = s.walls.filter((w) => w !== w0);
+        s.ids.forEach((i) => { const d = s.steps[i] - stepsOf(s, i, without); if (d > 0 && i !== w0.own && (!best || d > best.d)) best = { pid: i, d, own: w0.own, w: w0 }; }); });
+      s.last.hit = best; if (best) s.last.own = best.own; }
+    return s;
+  }
+  // The end of a four-player game: Mona arrived, the others by how close.
+  const END = [{ pid: 1, left: 0, pts: 5 }, { pid: 3, left: 2, pts: 3 }, { pid: 0, left: 4, pts: 2 }, { pid: 2, left: 7, pts: 1 }];
+
+  /* ---------- the board ---------- */
+  function rect(x, y, w, h) { return `left:${pc(x)};top:${pc(y)};width:${pc(w)};height:${pc(h)}`; }
+  function wallRect(w) { return w.o === 'h' ? rect(at(w.c), at(w.r + 1) - G, 2 + G, G) : rect(at(w.c + 1) - G, at(w.r), G, 2 + G); }
+  function boardHtml(s, o) {
+    o = o || {};
+    let h = '';
+    const goalCls = (r, c) => s.ids.filter((i) => GOAL[i](r, c) && (o.goals === 'all' || (o.goals === 'you' ? i === 0 : false))).map((i) => 'is-goal-p' + i).join(' ');
+    for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+      const mark = s.marks && s.marks.some((m) => m[0] === r && m[1] === c && !(s.pos[1][0] === r && s.pos[1][1] === c) && !blocked(s.walls, s.pos[0][0], s.pos[0][1], r, c));
+      const jump = s.jump && s.jump[0] === r && s.jump[1] === c;
+      const arrived = s.arrive !== undefined && GOAL[s.arrive](r, c);
+      h += `<i class="bw-sq ${goalCls(r, c)} ${mark ? 'is-move' : ''} ${jump ? 'is-jump' : ''} ${arrived ? 'is-arrive' : ''}" style="${rect(at(c), at(r), 1, 1)}">${o.sq ? o.sq(r, c) : ''}</i>`;
+    }
+    if (o.paths) h += o.paths;
+    s.walls.forEach((w) => { h += `<b class="bw-wall bw-wall--${w.o} own-p${w.own} ${w.thud ? 'is-thud' : ''}" style="${wallRect(w)}">${o.wall ? o.wall(w) : ''}</b>`; });
+    if (s.ghost) h += `<b class="bw-wall bw-ghost bw-wall--${s.ghost.o} ${s.ghost.bad ? 'is-bad' : ''} ${s.ghost.lift ? 'is-lift' : ''}" style="${wallRect(s.ghost)}">${o.wall ? o.wall(s.ghost) : ''}</b>`;
+    s.ids.forEach((i) => {
+      const [r, c] = s.air && s.air.pid === i ? [s.air.r, s.air.c] : s.pos[i];
+      const turn = s.turn === i, air = s.air && s.air.pid === i, arr = s.arrive === i;
+      h += `<span class="bw-pc bw-p${i} ${turn ? 'is-turn' : ''} ${air ? 'is-air' : ''} ${arr ? 'is-arrive' : ''}" style="${rect(at(c), at(r), 1, 1)}">${o.piece ? o.piece(PEOPLE[i], s) : face(PEOPLE[i])}</span>`;
+    });
+    if (o.after) h += o.after;
+    return `<div class="bw-board ${o.cls || ''}" dir="ltr">${h}</div>`;
+  }
+  const cx = (c) => at(c) + 0.5;
+  function pathsSvg(s, ids, ghostFor) {
+    let out = '';
+    ids.forEach((i) => {
+      if (s.arrive === i) return;
+      const walls = ghostFor !== undefined && ghostFor === i && s.ghost ? s.walls.concat([s.ghost]) : s.walls;
+      const p = bfs(s.pos[i], i, walls); if (!p) return;
+      const pts = p.map(([r, c]) => `${cx(c).toFixed(2)},${cx(r).toFixed(2)}`).join(' ');
+      if (walls !== s.walls) { const p0 = bfs(s.pos[i], i, s.walls); if (p0) out += `<polyline class="bwc-path bwc-path--p${i} is-was" points="${p0.map(([r, c]) => `${cx(c).toFixed(2)},${cx(r).toFixed(2)}`).join(' ')}"/>`; }
+      const [er, ec] = p[p.length - 1];
+      out += `<polyline class="bwc-path bwc-path--p${i} ${i === 0 ? 'is-you' : ''}" points="${pts}"/>`;
+      out += `<circle class="bwc-end bwc-path--p${i}" cx="${cx(ec).toFixed(2)}" cy="${cx(er).toFixed(2)}" r="0.2"/>`;
+    });
+    return `<svg class="bwc-paths" viewBox="0 0 ${T.toFixed(2)} ${T.toFixed(2)}" preserveAspectRatio="none" aria-hidden="true">${out}</svg>`;
+  }
+
+  /* ---------- shared bits ---------- */
+  const walls10 = (n, max, cls) => `<span class="bw-sticks ${cls || ''}" aria-label="${n}">${Array.from({ length: max }, (_, k) => `<i class="${k < n ? '' : 'is-used'}"></i>`).join('')}</span>`;
+  const ARR = () => L('←', '→');
+  const stepsW = (n) => (n >= 3 && n <= 10 ? L('خطوات', 'steps') : L('خطوة', n === 1 ? 'step' : 'steps'));
+  const stepsTxt = (n) => (n === 0 ? '✓' : `<span class="metric">${n}</span>`);
+  const btns = (s, extra) => s.ghost
+    ? `<div class="bw-actions">${s.ghost.bad ? '' : `<button class="btn btn--secondary btn--auto bw-turn-btn">↻ ${L('لفّه', 'Turn')}</button>`}<button class="btn btn--primary ${s.press ? 'is-press' : ''}" ${s.ghost.bad ? 'disabled' : ''}>${L('حطّه', 'Put it')}</button><button class="btn btn--ghost btn--auto">${L('لأ', 'Cancel')}</button></div>${extra || ''}`
+    : '';
+  const badLine = () => `<p class="bw-bad">⛔ ${L('السور ده يقفل الطريق على كريم خالص', 'This wall shuts Karim in completely')}</p>`;
+
+  const CSS = `
+  .bw { --bw-p0:#2f6fe0; --bw-p1:#e0457b; --bw-p2:#d88a08; --bw-p3:#17a067;
+        --bw-p0-ink:#1f4fae; --bw-p1-ink:#b4245a; --bw-p2-ink:#8f5a00; --bw-p3-ink:#0d7047; }
+  body.dark .bw { --bw-p0:#5b93ff; --bw-p1:#ff6b9c; --bw-p2:#ffb627; --bw-p3:#3fd18f;
+        --bw-p0-ink:#8fb5ff; --bw-p1-ink:#ff9cbe; --bw-p2-ink:#ffcd6b; --bw-p3-ink:#7ee3b2; }
+  .bw { display: flex; flex-direction: column; gap: var(--sp-3); width: 100%; max-width: 32rem; margin: 0 auto; padding: var(--sp-2) var(--sp-4) var(--sp-4); box-sizing: border-box; color: var(--text); }
+  .bw .metric { direction: ltr; unicode-bidi: isolate; }
+  .bw-face { display: inline-flex; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; background: var(--surface-2); flex: none; }
+  .bw-face svg { width: 100%; height: 100%; display: block; }
+  .bw-board { position: relative; width: 100%; aspect-ratio: 1; }
+  .bw-board > * { position: absolute; box-sizing: border-box; }
+  .bw-pc { display: grid; place-items: center; z-index: 3; }
+  .bw-pc .bw-face { width: 84%; height: 84%; box-shadow: 0 0 0 3px var(--pc), 0 4px 8px -2px rgba(0,0,0,.35); }
+  .bw-p0 { --pc: var(--bw-p0); } .bw-p1 { --pc: var(--bw-p1); } .bw-p2 { --pc: var(--bw-p2); } .bw-p3 { --pc: var(--bw-p3); }
+  .own-p0 { --pc: var(--bw-p0); } .own-p1 { --pc: var(--bw-p1); } .own-p2 { --pc: var(--bw-p2); } .own-p3 { --pc: var(--bw-p3); }
+  .bw-wall { z-index: 2; }
+  .bw-sticks { display: inline-flex; gap: 3px; align-items: center; }
+  .bw-sticks i { width: 5px; height: 16px; border-radius: 2px; background: var(--pc, var(--accent)); }
+  .bw-sticks i.is-used { background: var(--border-field); opacity: .55; }
+  .bw-actions { display: flex; gap: var(--sp-2); align-items: center; }
+  .bw-actions .btn { white-space: nowrap; }
+  .bw-actions .btn--primary { flex: 1; }
+  .bw-actions .btn.is-press { transform: scale(.96); filter: brightness(.92); }
+  .bw-bad { margin: 0; text-align: center; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--danger-ink, var(--danger)); }
+  .bw-hint { margin: 0; text-align: center; font-size: var(--fs-sm); color: var(--text-2); font-weight: var(--fw-semi); }
+  .bw-hint b { color: var(--text); font-weight: var(--fw-black); }
+  .bw-eyebrow { font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-2); }
+  .bw-tx-p0 { color: var(--bw-p0-ink); } .bw-tx-p1 { color: var(--bw-p1-ink); } .bw-tx-p2 { color: var(--bw-p2-ink); } .bw-tx-p3 { color: var(--bw-p3-ink); }
+  .bw-delta { direction: ltr; unicode-bidi: isolate; display: inline-flex; align-items: center; padding: 0 .4rem; border-radius: 999px; background: var(--danger-btn, var(--danger)); color: var(--danger-on, #fff); font-size: var(--fs-xs); font-weight: var(--fw-black); }
+  .bw-delta.is-tick { background: var(--surface-3); color: var(--text-2); }
+  .bw-confetti { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+  .bw-confetti i { position: absolute; width: 8px; height: 12px; border-radius: 2px; }
+  /* the end list, shared */
+  .bw-rows { display: flex; flex-direction: column; gap: var(--sp-2); }
+  .bw-row { display: grid; grid-template-columns: 1.6rem 2.6rem 1fr auto; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: 14px; background: var(--surface-2); }
+  .bw-row .bw-face { width: 2.6rem; height: 2.6rem; box-shadow: 0 0 0 2.5px var(--pc); }
+  .bw-row__n { font-weight: var(--fw-black); color: var(--text-2); text-align: center; }
+  .bw-row__name { font-weight: var(--fw-bold); display: flex; flex-direction: column; line-height: 1.2; }
+  .bw-row__name small { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); }
+  .bw-row__pts { font-weight: var(--fw-black); font-size: var(--fs-h3); color: var(--accent-ink); }
+  .bw-row.is-top { background: var(--accent-soft); }
+  .bw-end-btns { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+  /* ===== A: الحارة من فوق - a flat street seen from above, wooden fences, the duel pills ===== */
+  .bwa { --stone: #cdbb9b; --tile: #f1e7d5; --tile-2: #e9dcc5; --plank: #9a6433; --plank-2: #b97b40; }
+  body.dark .bwa { --stone: #2b241c; --tile: #4a3f31; --tile-2: #433829; --plank: #b27a42; --plank-2: #d39654; }
+  .bwa .bw-boardwrap { padding: 2.2%; border-radius: 20px; background: var(--stone); box-shadow: inset 0 2px 6px rgba(0,0,0,.18), 0 10px 24px -16px rgba(0,0,0,.5); }
+  .bwa .bw-sq { border-radius: 18%; background: linear-gradient(160deg, var(--tile), var(--tile-2)); box-shadow: inset 0 -2px 0 rgba(0,0,0,.08); }
+  .bwa .bw-sq.is-goal-p0 { background: color-mix(in srgb, var(--bw-p0) 26%, var(--tile)); }
+  .bwa .bw-sq.is-goal-p1 { background: color-mix(in srgb, var(--bw-p1) 26%, var(--tile)); }
+  .bwa .bw-sq.is-goal-p2 { background: color-mix(in srgb, var(--bw-p2) 26%, var(--tile)); }
+  .bwa .bw-sq.is-goal-p3 { background: color-mix(in srgb, var(--bw-p3) 26%, var(--tile)); }
+  .bwa .bw-sq.is-move::after { content: ''; position: absolute; inset: 34%; border-radius: 50%; background: var(--accent); opacity: .55; }
+  .bwa .bw-sq.is-jump { box-shadow: 0 0 0 3px var(--accent) inset; }
+  .bwa .bw-sq.is-jump::after { content: ''; position: absolute; inset: 30%; border-radius: 50%; background: var(--accent); }
+  .bw-trail { position: absolute; border-radius: 50%; background: var(--accent-ink); z-index: 5; }
+  .bwa .bw-sq.is-arrive { background: color-mix(in srgb, var(--bw-p1) 55%, var(--tile)); }
+  .bwa .bw-wall { border-radius: 3px; margin: 0; background: repeating-linear-gradient(90deg, var(--plank) 0 22%, var(--plank-2) 22% 25%); box-shadow: 0 3px 5px -1px rgba(0,0,0,.45), inset 0 0 0 1px rgba(0,0,0,.18); }
+  .bwa .bw-wall--v { background: repeating-linear-gradient(180deg, var(--plank) 0 22%, var(--plank-2) 22% 25%); }
+  .bwa .bw-wall::before, .bwa .bw-wall::after { content: ''; position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--pc); top: 50%; left: 50%; translate: -50% -50%; box-shadow: 0 0 0 2px var(--tile); }
+  .bwa .bw-wall::after { display: none; }
+  .bwa .bw-ghost { background: color-mix(in srgb, var(--accent) 35%, transparent); outline: 2px dashed var(--accent-ink); outline-offset: 1px; box-shadow: none; }
+  .bwa .bw-ghost::before { background: var(--accent); }
+  .bwa .bw-ghost.is-bad { background: color-mix(in srgb, var(--danger) 40%, transparent); outline-color: var(--danger); }
+  .bwa .bw-ghost.is-bad::before { content: '✕'; width: auto; height: auto; background: none; box-shadow: none; color: var(--danger-ink, var(--danger)); font-weight: 900; font-size: 13px; }
+  .bwa .bw-ghost.is-lift { background: repeating-linear-gradient(90deg, var(--plank) 0 22%, var(--plank-2) 22% 25%); outline: 0; transform: translateY(-5px) scale(1.22); box-shadow: 0 16px 14px -6px rgba(0,0,0,.45); z-index: 5; }
+  .bwa .bw-ghost.is-lift::before { background: var(--bw-p0); }
+  .bwa .bw-wall.is-thud { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 9px color-mix(in srgb, var(--accent) 18%, transparent); }
+  .bwa .bw-pc.is-turn .bw-face { box-shadow: 0 0 0 3px var(--pc), 0 0 0 7px color-mix(in srgb, var(--pc) 30%, transparent), 0 4px 8px -2px rgba(0,0,0,.35); }
+  .bwa .bw-pc.is-air { transform: translateY(-34%) scale(1.25); z-index: 6; }
+  .bwa .bw-pc.is-air .bw-face { box-shadow: 0 0 0 3px var(--pc), 0 18px 14px -6px rgba(0,0,0,.45); }
+  .bwa .bw-arc { position: absolute; z-index: 5; border: 2px dashed var(--accent-ink); border-bottom: 0; border-radius: 50% 50% 0 0 / 100% 100% 0 0; }
+  .bwa .bw-pc.is-arrive { transform: scale(1.12); }
+  .bwa .bw-pc.is-arrive::after { content: '👑'; position: absolute; top: -48%; font-size: 1.05em; }
+  .bwa .bw-boardwrap { position: relative; }
+  .bwa .duel-pill { border: 1.5px solid var(--border); padding-inline: var(--sp-2); gap: 6px; }
+  .bwa .duel-pill__score { font-size: 1.1rem; min-width: 1ch; }
+  .bwa .duel-pill.is-turn { border-color: var(--accent); background: var(--accent-soft); }
+  .bwa .duel-pill__mark .bw-face { width: 2.1rem; height: 2.1rem; box-shadow: 0 0 0 2.5px var(--pc); }
+  .bw-n { direction: ltr; unicode-bidi: isolate; font-weight: var(--fw-black); color: var(--text); }
+  .bwa .duel-pill__sub { overflow: visible;  display: flex; align-items: center; gap: .35rem; color: var(--text-2); font-weight: var(--fw-bold); }
+  .bwa .duel-pill__sub .metric { color: var(--text); font-weight: var(--fw-black); }
+  .bwa-tray { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-radius: 20px; background: var(--surface-solid); border: 1px solid var(--border); }
+  .bwa-tray__lab { display: flex; flex-direction: column; line-height: 1.25; font-weight: var(--fw-bold); }
+  .bwa-tray__lab small { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); }
+  .bwa .bw-sticks i { width: 7px; height: 22px; background: repeating-linear-gradient(180deg, var(--plank) 0 30%, var(--plank-2) 30% 36%); border-radius: 2px; }
+  .bwa .bw-sticks i.is-used { background: var(--border-field); }
+  .bwa .bw-sticks i.is-going { transform: translateY(-8px) rotate(-12deg); opacity: .5; }
+  .bwa-turn { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); margin: 0; }
+  .bwa-turn b { color: var(--accent-ink); font-weight: var(--fw-black); }
+  .bwa-chips { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+  .bwa-chip { display: grid; grid-template-columns: 2.2rem 1fr; align-items: center; gap: var(--sp-2); padding: var(--sp-2); border-radius: 14px; background: var(--surface-solid); border: 1.5px solid var(--border); }
+  .bwa-chip.is-turn { border-color: var(--accent); background: var(--accent-soft); }
+  .bwa-chip .bw-face { width: 2.2rem; height: 2.2rem; box-shadow: 0 0 0 2.5px var(--pc); }
+  .bwa-chip b { font-size: var(--fs-sm); font-weight: var(--fw-black); line-height: 1.2; display: block; }
+  .bwa-chip span { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-bold); display: flex; gap: .45rem; }
+  .bwa-chip span .metric { color: var(--text); font-weight: var(--fw-black); }
+  .bwa-flag { font-size: .95em; }
+  .bwa-deltas { display: flex; justify-content: center; gap: var(--sp-2); flex-wrap: wrap; font-size: var(--fs-sm); color: var(--text-2); font-weight: var(--fw-bold); margin: 0; }
+  .bwa-end { display: flex; flex-direction: column; gap: var(--sp-3); }
+  .bwa-end__hero { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-5) var(--sp-4) var(--sp-4); border-radius: 20px; background: var(--surface-solid); border: 1px solid var(--border); overflow: hidden; text-align: center; }
+  .bwa-end__hero .bw-face { width: 5.2rem; height: 5.2rem; box-shadow: 0 0 0 4px var(--bw-p1), 0 10px 20px -8px rgba(0,0,0,.4); }
+  .bwa-end__crown { font-size: 2rem; line-height: 1; margin-bottom: -.6rem; z-index: 1; }
+  .bwa-end__title { font-size: var(--fs-h2); font-weight: var(--fw-black); }
+  .bwa-end__sub { font-size: var(--fs-sm); color: var(--text-2); font-weight: var(--fw-semi); }
+  .bwa-end__street { width: 100%; height: 14px; border-radius: 8px; background: repeating-linear-gradient(90deg, var(--tile) 0 18px, var(--tile-2) 18px 20px); }
+
+  /* ===== B: من البلكونة - the street tilted in 3D, market carts for walls, people standing ===== */
+  .bwb { --road: #b9b2a6; --tile: #e6e0d4; --tile-2: #ddd5c6; --cart: #8a5a32; --awn: #fff6e8; --hgt: 12px; }
+  body.dark .bwb { --road: #1e1f26; --tile: #3a3b45; --tile-2: #33343d; --cart: #6a4426; --awn: #f3e7d3; }
+  .bwb-stage { position: relative; perspective: 1000px; perspective-origin: 50% 0%; padding: 2% 2% 4%; }
+  .bwb-tilt { transform: rotateX(30deg); transform-origin: 50% 100%; transform-style: preserve-3d; }
+  .bwb .bw-boardwrap { padding: 2.2%; border-radius: 18px; background: var(--road); transform-style: preserve-3d; box-shadow: 0 30px 40px -24px rgba(0,0,0,.6); }
+  .bwb .bw-board { transform-style: preserve-3d; }
+  .bwb .bw-sq { border-radius: 12%; background: linear-gradient(135deg, var(--tile), var(--tile-2)); }
+  .bwb .bw-sq.is-goal-p0 { background: color-mix(in srgb, var(--bw-p0) 30%, var(--tile)); }
+  .bwb .bw-sq.is-goal-p1 { background: color-mix(in srgb, var(--bw-p1) 30%, var(--tile)); }
+  .bwb .bw-sq.is-goal-p2 { background: color-mix(in srgb, var(--bw-p2) 30%, var(--tile)); }
+  .bwb .bw-sq.is-goal-p3 { background: color-mix(in srgb, var(--bw-p3) 30%, var(--tile)); }
+  .bwb .bw-sq.is-move { background: color-mix(in srgb, var(--accent) 38%, var(--tile)); box-shadow: inset 0 0 0 2px var(--accent); }
+  .bwb .bw-sq.is-jump { background: color-mix(in srgb, var(--accent) 60%, var(--tile)); }
+  .bwb .bw-sq.is-arrive { background: color-mix(in srgb, var(--bw-p1) 60%, var(--tile)); }
+  .bwb .bw-wall { transform-style: preserve-3d; }
+  .bwb .bw-wall > i { position: absolute; display: block; }
+  .bwb .f-top { inset: 0; transform: translateZ(var(--hgt)); background: repeating-linear-gradient(90deg, var(--pc) 0 18%, var(--awn) 18% 36%); border-radius: 2px; }
+  .bwb .bw-wall--v .f-top { background: repeating-linear-gradient(180deg, var(--pc) 0 18%, var(--awn) 18% 36%); }
+  .bwb .f-s { left: 0; right: 0; bottom: 0; height: var(--hgt); transform-origin: 50% 100%; transform: rotateX(-90deg); background: var(--cart); filter: brightness(.85); }
+  .bwb .f-n { left: 0; right: 0; top: 0; height: var(--hgt); transform-origin: 50% 0; transform: rotateX(90deg); background: var(--cart); }
+  .bwb .f-e { top: 0; bottom: 0; right: 0; width: var(--hgt); transform-origin: 100% 50%; transform: rotateY(90deg); background: var(--cart); filter: brightness(.7); }
+  .bwb .f-w { top: 0; bottom: 0; left: 0; width: var(--hgt); transform-origin: 0 50%; transform: rotateY(-90deg); background: var(--cart); filter: brightness(1.05); }
+  .bwb .bw-ghost .f-top { background: color-mix(in srgb, var(--accent) 50%, transparent); outline: 2px dashed var(--accent-ink); }
+  .bwb .bw-ghost .f-s, .bwb .bw-ghost .f-n, .bwb .bw-ghost .f-e, .bwb .bw-ghost .f-w { background: color-mix(in srgb, var(--accent) 30%, transparent); filter: none; }
+  .bwb .bw-ghost.is-bad .f-top { background: color-mix(in srgb, var(--danger) 55%, transparent); outline-color: var(--danger); }
+  .bwb .bw-ghost.is-bad .f-s, .bwb .bw-ghost.is-bad .f-n, .bwb .bw-ghost.is-bad .f-e, .bwb .bw-ghost.is-bad .f-w { background: color-mix(in srgb, var(--danger) 35%, transparent); }
+  .bwb .bw-ghost.is-lift { transform: translateZ(70px); }
+  .bwb .bw-ghost.is-lift .f-top { background: repeating-linear-gradient(90deg, var(--bw-p0) 0 18%, var(--awn) 18% 36%); outline: 0; }
+  .bwb .bw-ghost.is-lift .f-s, .bwb .bw-ghost.is-lift .f-n, .bwb .bw-ghost.is-lift .f-e, .bwb .bw-ghost.is-lift .f-w { background: var(--cart); }
+  .bwb .bwb-shadow { position: absolute; border-radius: 6px; background: rgba(0,0,0,.28); filter: blur(2px); z-index: 1; }
+  .bwb .bw-wall.is-thud .f-top { box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 40%, transparent); }
+  .bwb .bwb-dust { position: absolute; z-index: 2; border-radius: 50%; border: 3px solid color-mix(in srgb, var(--accent) 60%, transparent); }
+  .bwb .bw-pc { transform-style: preserve-3d; }
+  .bwb .bwb-man { position: absolute; left: 4%; right: 4%; bottom: 46%; height: 150%; transform-origin: 50% 100%; transform: rotateX(-30deg); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+  .bwb .bwb-man .bw-face { width: 92%; height: auto; aspect-ratio: 1; box-shadow: 0 0 0 3px var(--pc), 0 6px 8px -3px rgba(0,0,0,.45); }
+  .bwb .bwb-man::after { content: ''; width: 34%; height: 26%; border-radius: 0 0 40% 40%; background: var(--pc); margin-top: -4%; }
+  .bwb .bw-pc::before { content: ''; position: absolute; left: 18%; right: 18%; top: 40%; height: 26%; border-radius: 50%; background: rgba(0,0,0,.3); }
+  .bwb .bw-pc.is-turn::before { background: color-mix(in srgb, var(--pc) 70%, transparent); left: 6%; right: 6%; top: 32%; height: 42%; }
+  .bwb .bw-pc.is-air .bwb-man { transform: rotateX(-30deg) translateY(-70%) scale(1.15); }
+  .bwb .bw-pc.is-air::before { left: 26%; right: 26%; opacity: .5; }
+  .bwb .bw-pc.is-arrive .bwb-man { transform: rotateX(-30deg) translateY(-25%) scale(1.2); }
+  .bwb .bw-pc.is-arrive .bwb-man::before { content: '👑'; font-size: .9em; margin-bottom: -10%; }
+  .bwb-who { display: flex; align-items: center; gap: var(--sp-2); }
+  .bwb-tag { display: inline-flex; align-items: center; gap: var(--sp-2); padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-1); padding-inline: var(--sp-1) var(--sp-3); border-radius: 999px; background: var(--surface-solid); border: 1.5px solid var(--border); box-shadow: 0 6px 14px -10px rgba(0,0,0,.5); }
+  .bwb-tag.is-turn { border-color: var(--pc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc) 30%, transparent); }
+  .bwb-tag .bw-face { width: 2.1rem; height: 2.1rem; box-shadow: 0 0 0 2.5px var(--pc); }
+  .bwb-tag b { font-size: var(--fs-sm); font-weight: var(--fw-black); }
+  .bwb-sign { display: inline-flex; align-items: center; gap: 2px; padding: 0 .45rem; min-height: 1.6rem; border-radius: 8px; background: var(--pc); color: #fff; font-weight: var(--fw-black); font-size: var(--fs-sm); }
+  body.dark .bwb-sign { color: #10131a; }
+  .bwb-carts { display: inline-flex; gap: 2px; align-items: flex-end; }
+  .bwb-carts i { width: 8px; height: 10px; border-radius: 2px 2px 1px 1px; background: repeating-linear-gradient(90deg, var(--pc) 0 2px, var(--awn) 2px 4px); box-shadow: 0 2px 0 var(--cart); }
+  .bwb-carts i.is-used { opacity: .2; }
+  .bwb-carts .metric { font-size: var(--fs-xs); font-weight: var(--fw-black); color: var(--text-2); margin-inline-start: 3px; }
+  .bwb-far { display: flex; justify-content: center; margin-bottom: -4px; position: relative; z-index: 4; }
+  .bwb-near { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-3); border-radius: 20px; background: var(--surface-solid); border: 1px solid var(--border); }
+  .bwb-near .bwb-tag { border: 0; box-shadow: none; padding: 0; background: none; }
+  .bwb-near .bw-face { width: 2.6rem; height: 2.6rem; }
+  .bwb-near__right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .bwb-pop { position: absolute; z-index: 9; display: flex; gap: 6px; padding: 6px; border-radius: 16px; background: var(--surface-solid); border: 1px solid var(--border); box-shadow: 0 12px 26px -10px rgba(0,0,0,.55); transform: translate(-50%, 0); }
+  .bwb-pop::before { content: ''; position: absolute; top: -7px; left: 50%; width: 12px; height: 12px; background: var(--surface-solid); border-left: 1px solid var(--border); border-top: 1px solid var(--border); transform: translateX(-50%) rotate(45deg); }
+  .bwb-pop.is-start::before { left: 18px; }
+  .bwb-pop .btn { min-height: var(--tap); padding-inline: var(--sp-3); }
+  .bwb-pop .btn.is-press { transform: scale(.94); filter: brightness(.9); }
+  .bwb-pop__delta { display: flex; align-items: center; padding-inline: 4px; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-2); white-space: nowrap; }
+  .bwb-pop.is-bad { flex-direction: column; align-items: stretch; width: 17rem; }
+  .bwb-pop.is-bad .bw-bad { font-size: var(--fs-xs); text-align: start; padding: 2px 4px; }
+  .bwb-four { position: relative; }
+  .bwb-four .bwb-edge { position: absolute; z-index: 8; }
+  .bwb-edge--top { top: 0; left: 50%; transform: translateX(-50%); }
+  .bwb-edge--bottom { bottom: 0; left: 50%; transform: translateX(-50%); }
+  .bwb-edge--left { left: 0; top: 46%; } .bwb-edge--right { right: 0; top: 46%; }
+  .bwb-col { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px; border-radius: 16px; background: var(--surface-solid); border: 1.5px solid var(--border); box-shadow: 0 6px 14px -10px rgba(0,0,0,.5); }
+  .bwb-col.is-turn { border-color: var(--pc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pc) 30%, transparent); }
+  .bwb-col .bw-face { width: 2rem; height: 2rem; box-shadow: 0 0 0 2.5px var(--pc); }
+  .bwb-col b { font-size: var(--fs-xs); font-weight: var(--fw-black); }
+  .bwb-col .bwb-sign { font-size: var(--fs-xs); min-height: 1.3rem; }
+  .bwb-trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); }
+  .bwb-col__t { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .bwb-col.is-row { flex-direction: row; gap: 1.6vmin; padding: 1vmin 2vmin; }
+  .bwb-col.is-row .bwb-col__t { flex-direction: row; gap: 1.4vmin; }
+  .bwb-tvlay { display: flex; flex-direction: column; align-items: center; gap: 1.6vmin; width: 100%; height: 100%; justify-content: center; }
+  .bwb-tvmid { display: flex; align-items: center; justify-content: center; gap: 5vmin; width: 100%; }
+  .bwtv .bwb-tvboard .bwb-stage { width: 66vmin; padding: 0; }
+  .bwtv .bwb-tvboard .bw-boardwrap { width: 100%; }
+  .bwb-end { position: relative; }
+  .bwb-end .bwb-stage { margin-bottom: -22%; }
+  .bwb-endcard { position: relative; z-index: 5; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); border-radius: 20px; background: var(--surface-solid); border: 1px solid var(--border); box-shadow: 0 -10px 30px -16px rgba(0,0,0,.45); }
+  .bwb-endcard h3 { margin: 0; text-align: center; font-size: var(--fs-h2); font-weight: var(--fw-black); }
+
+  /* ===== C: أقصر طريق - a plain board where every way home is drawn, a race ladder on top ===== */
+  .bwc { --tile: var(--surface-solid); --groove: var(--surface-2); }
+  .bwc .bw-boardwrap { padding: 2%; border-radius: 20px; background: var(--groove); border: 1px solid var(--border); position: relative; }
+  .bwc .bw-sq { border-radius: 22%; background: var(--tile); box-shadow: 0 1px 0 var(--border); }
+  .bwc .bw-sq.is-goal-p0 { box-shadow: inset 0 -3px 0 var(--bw-p0); } .bwc .bw-sq.is-goal-p1 { box-shadow: inset 0 3px 0 var(--bw-p1); }
+  .bwc .bw-sq.is-goal-p2 { box-shadow: inset -3px 0 0 var(--bw-p2); } .bwc .bw-sq.is-goal-p3 { box-shadow: inset 3px 0 0 var(--bw-p3); }
+  .bwc .bw-sq.is-move { background: var(--accent-soft); }
+  .bwc .bw-sq.is-jump { background: var(--accent); }
+  .bwc .bw-sq.is-arrive { background: color-mix(in srgb, var(--bw-p1) 22%, var(--tile)); }
+  .bwc .bw-wall { border-radius: 99px; background: var(--pc); box-shadow: 0 2px 4px -1px rgba(0,0,0,.3); }
+  .bwc .bw-ghost { background: transparent; outline: 2.5px dashed var(--accent-ink); outline-offset: -1px; box-shadow: none; }
+  .bwc .bw-ghost.is-bad { outline-color: var(--danger); background: color-mix(in srgb, var(--danger) 25%, transparent); }
+  .bwc .bw-ghost.is-lift { background: var(--bw-p0); outline: 0; transform: translateY(-8px) scaleX(1.12); box-shadow: 0 14px 12px -6px rgba(0,0,0,.4); z-index: 5; }
+  .bwc .bw-wall.is-thud { box-shadow: 0 0 0 4px color-mix(in srgb, var(--bw-p0) 35%, transparent), 0 0 0 9px color-mix(in srgb, var(--bw-p0) 14%, transparent); }
+  .bwc .bw-pc .bw-face { width: 76%; height: 76%; }
+  .bwc .bw-pc.is-turn .bw-face { box-shadow: 0 0 0 3px var(--pc), 0 0 0 7px color-mix(in srgb, var(--pc) 28%, transparent); }
+  .bwc .bw-pc.is-air { transform: translateY(-30%) scale(1.2); z-index: 6; }
+  .bwc .bw-pc.is-arrive .bw-face { box-shadow: 0 0 0 4px var(--pc), 0 0 0 10px color-mix(in srgb, var(--pc) 25%, transparent); }
+  .bwc-paths { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; overflow: visible; }
+  .bwc-path { fill: none; stroke-width: .13; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: .02 .26; opacity: .9; }
+  .bwc-path.is-you { stroke-width: .17; stroke-dasharray: none; opacity: .55; }
+  .bwc-path--p0 { stroke: var(--bw-p0); fill: var(--bw-p0); } .bwc-path--p1 { stroke: var(--bw-p1); fill: var(--bw-p1); }
+  .bwc-path--p2 { stroke: var(--bw-p2); fill: var(--bw-p2); } .bwc-path--p3 { stroke: var(--bw-p3); fill: var(--bw-p3); }
+  polyline.bwc-path--p0, polyline.bwc-path--p1, polyline.bwc-path--p2, polyline.bwc-path--p3 { fill: none; }
+  .bwc-end { stroke: none !important; stroke-width: 0; }
+  .bwc-path.is-was { opacity: .3; stroke-dasharray: .02 .26; stroke-width: .09; }
+  .bwc-race { display: flex; flex-direction: column; gap: 6px; padding: var(--sp-3); border-radius: 20px; background: var(--surface-solid); border: 1px solid var(--border); }
+  .bwc-race__head { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-2); }
+  .bwc-lane { display: grid; grid-template-columns: 2rem 3.6rem 1fr 3.3rem; align-items: center; gap: var(--sp-2); }
+  .bwc-lane .bw-face { width: 2rem; height: 2rem; box-shadow: 0 0 0 2.5px var(--pc); }
+  .bwc-lane.is-turn .bw-face { box-shadow: 0 0 0 2.5px var(--pc), 0 0 0 6px color-mix(in srgb, var(--pc) 28%, transparent); }
+  .bwc-lane__name { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+  .bwc-lane__name b { font-size: var(--fs-sm); font-weight: var(--fw-black); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bwc-lane__name small { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-bold); white-space: nowrap; }
+  .bwc-track { position: relative; height: 10px; border-radius: 99px; background: var(--surface-2); }
+  .bwc-track i { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: 99px; background: var(--pc); }
+  .bwc-track u { position: absolute; inset-block: 0; border-radius: 99px; background: repeating-linear-gradient(90deg, var(--danger) 0 4px, transparent 4px 7px); text-decoration: none; }
+  .bwc-track::after { content: '🏁'; position: absolute; inset-inline-end: -4px; top: 50%; transform: translateY(-50%); font-size: 13px; }
+  .bwc-steps { text-align: end; font-weight: var(--fw-black); font-size: var(--fs-h3); line-height: 1; display: flex; flex-direction: column; align-items: flex-end; }
+  .bwc-steps small { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-bold); }
+  .bwc-bar { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); border-radius: 20px; background: var(--surface-solid); border: 1px solid var(--border); }
+  .bwc-impact { display: flex; align-items: center; justify-content: center; gap: var(--sp-3); font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+  .bwc-impact .metric { font-weight: var(--fw-black); color: var(--text); }
+  .bwc-end { display: flex; flex-direction: column; gap: var(--sp-3); }
+  .bwc-finish { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); border-radius: 20px; background: var(--surface-solid); border: 1px solid var(--border); }
+  .bwc-finish h3 { margin: 0; font-size: var(--fs-h2); font-weight: var(--fw-black); text-align: center; }
+  .bwc-flane { display: grid; grid-template-columns: 1fr 2.4rem; align-items: center; gap: var(--sp-2); }
+  .bwc-flane__track { position: relative; height: 2.6rem; border-radius: 99px; background: var(--surface-2); }
+  .bwc-flane__track::after { content: ''; position: absolute; inset-block: 0; inset-inline-end: 0; width: 10px; border-radius: 0 99px 99px 0; background: repeating-linear-gradient(180deg, var(--text) 0 5px, var(--surface-solid) 5px 10px); }
+  .bwc-flane__who { position: absolute; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  [dir=rtl] .bwc-flane__who, html[dir=rtl] .bwc-flane__who { transform: translate(50%, -50%); }
+  .bwc-flane__who .bw-face { width: 2.3rem; height: 2.3rem; box-shadow: 0 0 0 2.5px var(--pc); }
+  .bwc-flane__who b { font-size: var(--fs-sm); font-weight: var(--fw-black); }
+  .bwc-flane__who small { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-bold); }
+  .bwc-flane__pts { font-weight: var(--fw-black); font-size: var(--fs-h3); color: var(--accent-ink); text-align: center; }
+
+  /* ===== sideways phone ===== */
+  .bw--side { max-width: none; display: grid; grid-template-columns: auto 1fr; align-items: start; column-gap: var(--sp-4); padding: var(--sp-2) var(--sp-4); }
+  .bw--side .bw-boardwrap, .bw--side .bwb-stage { width: calc(var(--app-h, 100vh) - 92px); grid-row: 1 / span 6; }
+  .bw--side > :not(.bw-boardwrap):not(.bwb-stage) { grid-column: 2; }
+  .bw--side .duel-pills { grid-template-columns: 1fr; grid-template-areas: "p0" "p1"; }
+
+  /* ===== the TV ===== */
+  .bwtv { --bw-p0:#5b93ff; --bw-p1:#ff6b9c; --bw-p2:#ffb627; --bw-p3:#3fd18f; --bw-p0-ink:#8fb5ff; --bw-p1-ink:#ff9cbe; --bw-p2-ink:#ffcd6b; --bw-p3-ink:#7ee3b2;
+    position: absolute; inset: 0; display: grid; align-items: center; justify-items: center; padding: 3vmin 4vmin; box-sizing: border-box; color: var(--text); font-size: 2.4vmin; max-width: none; margin: 0; gap: 0; }
+  .bwtv .bw-boardwrap, .bwtv .bwb-stage { width: 86vmin; }
+  .bwtv-grid { display: grid; grid-template-columns: 1fr 86vmin 1fr; gap: 3vmin; align-items: center; width: 100%; height: 100%; }
+  .bwtv-col { display: flex; flex-direction: column; gap: 2.4vmin; }
+  .bwtv-card { display: grid; grid-template-columns: 9vmin 1fr; align-items: center; gap: 1.6vmin; padding: 1.8vmin; border-radius: 2.4vmin; background: var(--surface-solid); border: .3vmin solid var(--border); }
+  .bwtv-card.is-turn { border-color: var(--pc); box-shadow: 0 0 0 .8vmin color-mix(in srgb, var(--pc) 28%, transparent); }
+  .bwtv-card .bw-face { width: 9vmin; height: 9vmin; box-shadow: 0 0 0 .5vmin var(--pc); }
+  .bwtv-card b { font-size: 3.2vmin; font-weight: 900; display: block; line-height: 1.2; }
+  .bwtv-card .bwtv-stat { display: flex; gap: 1.6vmin; align-items: center; font-size: 2.2vmin; color: var(--text-2); font-weight: 700; margin-top: .6vmin; }
+  .bwtv-card .bwtv-stat .metric { font-size: 3.4vmin; color: var(--text); font-weight: 900; }
+  .bwtv .bw-sticks i { width: .8vmin; height: 2.6vmin; }
+  .bwtv-ticker { display: flex; align-items: center; gap: 1.2vmin; padding: 1.4vmin 2vmin; border-radius: 2vmin; background: var(--surface-solid); border: .3vmin solid var(--border); font-size: 2.2vmin; font-weight: 700; color: var(--text-2); }
+  .bwtv-ticker b { color: var(--text); font-weight: 900; }
+  .bwtv-code { display: inline-flex; align-items: center; gap: 1vmin; font-size: 2vmin; color: var(--text-2); font-weight: 700; }
+  .bwtv-code b { direction: ltr; font-size: 3vmin; color: var(--text); letter-spacing: .1em; font-weight: 900; }
+  .bwtv-turn { font-size: 3vmin; font-weight: 900; text-align: center; }
+  .bwtv .bwc-race { gap: 1.4vmin; padding: 2vmin; border-radius: 2.4vmin; }
+  .bwtv .bwc-lane { grid-template-columns: 6vmin 11vmin 1fr 8vmin; gap: 1.2vmin; }
+  .bwtv .bwc-lane .bw-face { width: 6vmin; height: 6vmin; }
+  .bwtv .bwc-lane__name b { font-size: 2.6vmin; } .bwtv .bwc-lane__name small { font-size: 1.8vmin; }
+  .bwtv .bwc-track { height: 1.4vmin; } .bwtv .bwc-steps { font-size: 4.4vmin; } .bwtv .bwc-steps small { font-size: 1.8vmin; }
+  .bwtv .bwc-race__head { font-size: 2vmin; }
+  .bwtv .bwb { --hgt: 2.2vmin; }
+  .bwtv .bwb-col .bw-face { width: 7vmin; height: 7vmin; } .bwtv .bwb-col { padding: 1vmin 1.4vmin; gap: .6vmin; border-radius: 2vmin; }
+  .bwtv .bwb-col b { font-size: 2.4vmin; } .bwtv .bwb-col .bwb-sign { font-size: 2.4vmin; min-height: 3.4vmin; padding: 0 1vmin; }
+  .bwtv .bwb-carts i { width: 1.2vmin; height: 1.6vmin; } .bwtv .bwb-carts .metric { font-size: 1.8vmin; }
+  .bwtv .bwb-four { width: 100%; height: 100%; display: grid; place-items: center; }
+  .bwtv .bw-pc .bw-face { box-shadow: 0 0 0 .45vmin var(--pc), 0 .6vmin 1vmin -.3vmin rgba(0,0,0,.4); }
+  `;
+  let st = document.getElementById('bw-css');
+  if (!st) { st = document.createElement('style'); st.id = 'bw-css'; document.head.appendChild(st); }
+  st.textContent = CSS;
+
+  const confetti = () => `<span class="bw-confetti" aria-hidden="true">${Array.from({ length: 18 }, (_, k) => { const r = rng(100 + k); const cols = ['var(--bw-p0)', 'var(--bw-p1)', 'var(--bw-p2)', 'var(--bw-p3)', 'var(--accent)']; return `<i style="left:${(r() * 96).toFixed(1)}%;top:${(r() * 60).toFixed(1)}%;background:${cols[k % 5]};transform:rotate(${Math.floor(r() * 180)}deg)"></i>`; }).join('')}</span>`;
+
+  /* ================= LOOK A ================= */
+  function arcA(s) {
+    if (!s.air) return '';
+    let h = '';
+    for (let k = 1; k <= 5; k++) { const t = k / 6; const y = at(4) + 0.5 - t * (at(4) - at(2)); const x = at(4) + 0.5 + Math.sin(Math.PI * t) * 0.62;
+      h += `<span class="bw-trail" style="left:${pc(x - 0.07)};top:${pc(y - 0.07)};width:${pc(0.14)};height:${pc(0.14)};opacity:${(0.25 + t * 0.6).toFixed(2)}"></span>`; }
+    return h;
+  }
+  const A = {
+    accent: 'amber',
+    pills(s) {
+      const sub = (i) => `<span>🏁${stepsTxt(s.steps[i])}</span><span>🧱<span class="metric">${s.left[i]}</span></span>`;
+      return duelPillsHtml({ turn: s.turn === -1 ? -1 : s.turn, players: s.ids.map((i) => ({ mark: `<span class="bw-p${i}" style="display:contents">${face(PEOPLE[i])}</span>`, name: nm(PEOPLE[i]), sub: sub(i), score: s.wins[i] })) })
+        .replace(/data-duel-pill="(\d)"/g, (m, k) => `${m} style="--pc:var(--bw-p${s.ids[k]})"`);
+    },
+    tray(s) {
+      const going = s.frame === 'w2';
+      return `<div class="bwa-tray own-p0"><span class="bwa-tray__lab">${L('أسوارك', 'Your fences')}<small><span class="metric">${s.left[0]}</span> ${L('من', 'of')} <span class="metric">10</span> · ${L('طريقك', 'your way')} <span class="metric">${s.steps[0]}</span> ${stepsW(s.steps[0])}</small></span>${walls10(s.left[0], 10).replace(going ? `<i class=""></i><i class="is-used">` : '@@', going ? `<i class="is-going"></i><i class="is-used">` : '')}</div>`;
+    },
+    board(s) { return `<div class="bw-boardwrap">${boardHtml(s, { goals: s.mode === 'four' ? 'all' : 'you', after: arcA(s) })}${s.arrive !== undefined ? confetti() : ''}</div>`; },
+    hint(s) {
+      if (s.frame === 'w3') return `<p class="bwa-deltas">${L('سورك طوّل طريق منى', 'Your fence made Mona\'s way longer')} <b class="bw-n">${s.before[1]}</b> ${ARR()} <b class="bw-n">${s.steps[1]}</b> · ${L('دور منى…', 'Mona\'s turn…')}</p>`;
+      if (s.frame === 'j1') return `<p class="bw-hint">${L('منى قدّامك: <b>نطّ فوقها</b> ⤴', 'Mona is in front of you: <b>jump over her</b> ⤴')}</p>`;
+      if (s.frame === 'j2') return `<p class="bw-hint">${L('نطّة!', 'Jump!')}</p>`;
+      if (s.frame === 'win') return `<p class="bw-hint"><b class="bw-tx-p1">${L('منى وصلت!', 'Mona made it!')}</b> 🏁</p>`;
+      return `<p class="bwa-turn"><b>${L('دورك', 'Your turn')}</b> · ${L('امشي خطوة أو حط سور', 'take a step or put a fence')}</p>`;
+    },
+    ghostLine(s) {
+      if (!s.ghost || s.ghost.bad) return '';
+      return `<p class="bwa-deltas">${L('السور ده:', 'This fence:')} <span class="bw-tx-p1">${L('منى', 'Mona')} <b class="bw-n">${s.steps[1]}</b> ${ARR()} <b class="bw-n">${s.ghostSteps[1]}</b></span> · <span>${L('إنت', 'you')} <b class="bw-n">${s.ghostSteps[0]}</b></span></p><p class="bw-hint" style="margin-top:-6px">${L('اضغط تاني على نفس المكان تلفّه', 'Tap the same spot again to turn it')}</p>`;
+    },
+    duel(s) { return `<div class="bw bwa">${this.pills(s)}${this.hint(s)}${this.board(s)}${this.ghostLine(s)}${s.ghost ? btns(s) : this.tray(s)}</div>`; },
+    side(s) { return `<div class="bw bwa bw--side">${this.board(s)}${this.pills(s)}${this.hint(s)}${this.ghostLine(s)}${btns(s)}</div>`; },
+    chips(s) {
+      return `<div class="bwa-chips">${s.ids.map((i) => `<div class="bwa-chip bw-p${i} ${s.turn === i ? 'is-turn' : ''}">${face(PEOPLE[i])}<div><b>${nm(PEOPLE[i])}${PEOPLE[i].you ? L(' (إنت)', ' (you)') : ''}</b><span>🧱 <span class="metric">${s.left[i]}</span> 🏁 <span class="metric">${s.steps[i]}</span></span></div></div>`).join('')}</div>`;
+    },
+    four(s) { return `<div class="bw bwa">${this.chips(s)}${this.board(s)}${badLine()}${btns(s)}</div>`; },
+    tv(s) {
+      const card = (i) => `<div class="bwtv-card bw-p${i} ${s.turn === i ? 'is-turn' : ''}">${face(PEOPLE[i])}<div><b>${nm(PEOPLE[i])}</b><div class="bwtv-stat">🏁 <span class="metric">${s.steps[i]}</span> ${stepsW(s.steps[i])}</div><div class="bwtv-stat">${walls10(s.left[i], 5)}</div></div></div>`;
+      const hit = s.last.hit;
+      return `<div class="bw bwa bwtv"><div class="bwtv-grid">
+        <div class="bwtv-col">${card(1)}${card(2)}<div class="bwtv-code">${L('الغرفة', 'Room')} <b>GU2R</b></div></div>
+        <div>${this.board(s)}</div>
+        <div class="bwtv-col"><div class="bwtv-turn">${L('دور', 'Turn:')} <span class="bw-tx-p3">${nm(PEOPLE[3])}</span></div>${card(3)}${card(0)}
+          <div class="bwtv-ticker">🧱 <span><b class="bw-tx-p1">${nm(PEOPLE[1])}</b> ${L('حطّت سور قدّام', 'fenced off')} <b class="bw-tx-p${hit.pid}">${nm(PEOPLE[hit.pid])}</b>: <span class="metric">+${hit.d}</span> ${stepsW(hit.d)}</span></div></div>
+      </div></div>`;
+    },
+    end() {
+      const w = PEOPLE[1];
+      return `<div class="bw bwa bwa-end"><div class="bwa-end__hero">${confetti()}<span class="bwa-end__crown">👑</span>${face(w)}<span class="bwa-end__title">${L('منى وصلت الأول!', 'Mona got there first!')}</span><span class="bwa-end__sub">${L('في', 'in')} <span class="metric">23</span> ${L('دور', 'turns')} · ${L('حطّت', 'put')} <span class="metric">5</span> ${L('أسوار', 'fences')}</span><span class="bwa-end__street"></span></div>
+        <div class="bw-rows">${END.map((e, k) => { const p = PEOPLE[e.pid]; return `<div class="bw-row bw-p${e.pid} ${k === 0 ? 'is-top' : ''}"><span class="bw-row__n metric">${k + 1}</span>${face(p)}<span class="bw-row__name">${nm(p)}<small>${e.left === 0 ? L('وصلت 🏁', 'arrived 🏁') : L(`كان فاضله ${e.left} خطوات`, `${e.left} steps short`)}</small></span><span class="bw-row__pts metric">+${e.pts}</span></div>`; }).join('')}</div>
+        <div class="bw-end-btns"><button class="btn btn--primary btn--lg">${L('جولة كمان', 'Play again')}</button><button class="btn btn--ghost btn--sm">${L('لعبة تانية', 'Another game')}</button></div></div>`;
+    },
+  };
+
+  /* ================= LOOK B ================= */
+  const cartFaces = () => '<i class="f-n"></i><i class="f-s"></i><i class="f-e"></i><i class="f-w"></i><i class="f-top"></i>';
+  const man = (p) => `<span class="bwb-man">${face(p)}</span>`;
+  const carts = (n, max) => `<span class="bwb-carts">${Array.from({ length: Math.min(max, 5) }, (_, k) => `<i class="${k < Math.min(n, 5) ? '' : 'is-used'}"></i>`).join('')}<span class="metric">×${n}</span></span>`;
+  const B = {
+    accent: 'orange',
+    board(s) {
+      const shadow = s.ghost && s.ghost.lift ? `<span class="bwb-shadow" style="${wallRect(s.ghost)}"></span>` : '';
+      const dust = s.walls.some((w) => w.thud) ? (() => { const w = s.walls.find((x) => x.thud); return `<span class="bwb-dust" style="${rect(at(w.c) - 0.3, at(w.r + 1) - G - 0.5, 2.8 + G, 1.2)}"></span>`; })() : '';
+      return `<div class="bwb-stage"><div class="bwb-tilt"><div class="bw-boardwrap">${boardHtml(s, { goals: s.mode === 'four' ? 'all' : 'you', wall: cartFaces, piece: man, after: shadow + dust })}</div></div>${s.arrive !== undefined ? confetti() : ''}</div>`;
+    },
+    tag(i, s, cls) { return `<span class="bwb-tag bw-p${i} ${s.turn === i ? 'is-turn' : ''} ${cls || ''}">${face(PEOPLE[i])}<b>${nm(PEOPLE[i])}</b><span class="bwb-sign">🏁 ${stepsTxt(s.steps[i])}</span>${carts(s.left[i], 10)}</span>`; },
+    near(s) {
+      const msg = s.frame === 'w3' ? `${L('عربيتك قفلت على منى', 'Your cart blocks Mona')} <span class="bw-delta">+${s.steps[1] - s.before[1]}</span>`
+        : s.frame === 'j1' ? L('منى قدّامك: نطّ فوقها ⤴', 'Mona in front: jump over ⤴')
+        : s.frame === 'j2' ? L('نطّة!', 'Jump!')
+        : s.frame === 'win' ? `<b class="bw-tx-p1">${L('منى وصلت!', 'Mona made it!')}</b> 🏁`
+        : s.ghost && s.ghost.bad ? L('العربية دي ممنوعة هنا', 'No parking here') : s.ghost ? `${L('العربية دي: منى', 'This cart: Mona')} <span class="metric">${s.steps[1]}</span> ${ARR()} <span class="metric">${s.ghostSteps[1]}</span> · ${L('اضغط تاني تلفّها', 'tap again to turn it')}` : L('امشي خطوة أو حط عربية', 'Step, or park a cart');
+      return `<div class="bwb-near bw-p0"><span class="bwb-tag ${s.turn === 0 ? 'is-turn' : ''}">${face(PEOPLE[0])}<span style="display:flex;flex-direction:column;line-height:1.2"><b>${s.turn === 0 ? L('دورك', 'Your turn') : nm(PEOPLE[0])}</b><span class="bw-hint" style="text-align:start;font-size:var(--fs-xs)">${msg}</span></span></span>
+        <span class="bwb-near__right"><span class="bwb-sign">🏁 ${stepsTxt(s.steps[0])}</span>${carts(s.left[0], 10)}</span></div>`;
+    },
+    pop(s) {
+      if (!s.ghost) return '';
+      if (s.ghost.bad) return `<div class="bwb-pop is-bad" data-pop>${badLine()}</div>`;
+      return `<div class="bwb-pop" data-pop data-anchor="start"><button class="btn btn--secondary btn--sm btn--auto">↻</button><button class="btn btn--primary btn--sm btn--auto ${s.press ? 'is-press' : ''}">${L('حطّها', 'Park it')}</button></div>`;
+    },
+    duel(s) { return `<div class="bw bwb" style="position:relative"><div class="bwb-far">${this.tag(1, s)}</div>${this.board(s)}${this.near(s)}${this.pop(s)}</div>`; },
+    side(s) { return `<div class="bw bwb bw--side" style="position:relative">${this.board(s)}${this.tag(1, s)}${this.near(s)}${this.pop(s)}</div>`; },
+    col(i, s, cls) { return `<div class="bwb-col bw-p${i} ${s.turn === i ? 'is-turn' : ''} ${cls || ''}">${face(PEOPLE[i])}<span class="bwb-col__t"><b>${nm(PEOPLE[i])}</b><span class="bwb-sign">🏁 <span class="metric">${s.steps[i]}</span></span></span>${carts(s.left[i], 5)}</div>`; },
+    four(s) {
+      return `<div class="bw bwb" style="position:relative"><div class="bwb-trio" dir="ltr">${this.col(2, s)}${this.col(1, s)}${this.col(3, s)}</div>${this.board(s)}${this.near(s)}${this.pop(s)}</div>`;
+    },
+    tv(s) {
+      const hit = s.last.hit;
+      return `<div class="bw bwb bwtv"><div class="bwb-tvlay" dir="ltr">${this.col(1, s, 'is-row')}<div class="bwb-tvmid">${this.col(2, s)}<div class="bwb-tvboard">${this.board(s)}</div>${this.col(3, s)}</div>${this.col(0, s, 'is-row')}</div>
+        <div class="bwtv-ticker" style="position:absolute;inset-inline-start:3vmin;bottom:3vmin;max-width:40vmin">🛒 <span><b class="bw-tx-p1">${nm(PEOPLE[1])}</b> ${L('ركنت عربية قدّام', 'parked a cart before')} <b class="bw-tx-p${hit.pid}">${nm(PEOPLE[hit.pid])}</b> <span class="metric">+${hit.d}</span></span></div>
+        <div class="bwtv-code" style="position:absolute;inset-inline-end:3vmin;bottom:3vmin">${L('الغرفة', 'Room')} <b>GU2R</b></div>
+        <div class="bwtv-turn" style="position:absolute;inset-inline-start:3vmin;top:3vmin">${L('دور', 'Turn:')} <span class="bw-tx-p3">${nm(PEOPLE[3])}</span></div></div>`;
+    },
+    end() {
+      const s = four('tv'); s.pos = { 0: [4, 4], 1: [8, 5], 2: [4, 1], 3: [2, 2] }; s.turn = -1; s.arrive = 1; s.steps = { 0: 4, 1: 0, 2: 7, 3: 2 };
+      return `<div class="bw bwb bwb-end">${this.board(s)}<div class="bwb-endcard"><h3>👑 ${L('منى وصلت الأول!', 'Mona got there first!')}</h3>
+        <div class="bw-rows">${END.map((e, k) => { const p = PEOPLE[e.pid]; return `<div class="bw-row bw-p${e.pid} ${k === 0 ? 'is-top' : ''}"><span class="bw-row__n metric">${k + 1}</span>${face(p)}<span class="bw-row__name">${nm(p)}<small>${e.left === 0 ? L('وصلت 🏁', 'arrived 🏁') : L(`كان فاضله ${e.left} خطوات`, `${e.left} steps short`)}</small></span><span class="bw-row__pts metric">+${e.pts}</span></div>`; }).join('')}</div>
+        <div class="bw-end-btns"><button class="btn btn--primary btn--lg">${L('جولة كمان', 'Play again')}</button><button class="btn btn--ghost btn--sm">${L('لعبة تانية', 'Another game')}</button></div></div></div>`;
+    },
+  };
+
+  /* ================= LOOK C ================= */
+  const C = {
+    accent: 'teal',
+    race(s, opts) {
+      opts = opts || {};
+      const max = 16;
+      const lanes = s.ids.slice().sort((a, b) => (opts.sorted ? s.steps[a] - s.steps[b] : 0)).map((i) => {
+        const n = s.steps[i]; const after = s.ghostSteps && !s.ghost.bad ? s.ghostSteps[i] : null;
+        const grow = after !== null && after > n ? after - n : 0;
+        const d3 = s.frame === 'w3' && i === 1 ? s.steps[1] - s.before[1] : 0;
+        const fill = Math.max(0.04, 1 - n / max);
+        return `<div class="bwc-lane bw-p${i} ${s.turn === i ? 'is-turn' : ''}">${face(PEOPLE[i])}<span class="bwc-lane__name"><b>${nm(PEOPLE[i])}</b><small>🧱 <span class="metric">${s.left[i]}</span></small></span>
+          <span class="bwc-track"><i style="width:${(fill * 100).toFixed(1)}%"></i>${grow ? `<u style="inset-inline-start:${(Math.max(0, 1 - after / max) * 100).toFixed(1)}%;width:${(grow / max * 100).toFixed(1)}%"></u>` : ''}${d3 ? `<u style="inset-inline-start:${(fill * 100).toFixed(1)}%;width:${(d3 / max * 100).toFixed(1)}%"></u>` : ''}</span>
+          <span class="bwc-steps"><span>${n === 0 ? '🏁' : `<span class="metric">${n}</span>`}${grow ? ` <span class="bw-delta">+${grow}</span>` : d3 ? ` <span class="bw-delta">+${d3}</span>` : ''}</span><small>${n === 0 ? '' : stepsW(n)}</small></span></div>`;
+      }).join('');
+      return `<div class="bwc-race"><div class="bwc-race__head"><span>${L('أقصر طريق لكل واحد', 'Everyone\'s shortest way')}</span><span>${opts.head || ''}</span></div>${lanes}</div>`;
+    },
+    board(s, ghostFor) { return `<div class="bw-boardwrap">${boardHtml(s, { goals: 'all', paths: pathsSvg(s, s.ids, ghostFor) })}${s.arrive !== undefined ? confetti() : ''}</div>`; },
+    bar(s) {
+      if (s.ghost && s.ghost.bad) return `<div class="bwc-bar">${badLine()}${btns(s)}</div>`;
+      if (s.ghost) return `<div class="bwc-bar"><div class="bwc-impact"><span>${L('اضغط تاني تلفّه', 'Tap again to turn it')}</span></div>${btns(s)}</div>`;
+      const msg = s.frame === 'w3' ? `${L('طريق منى بقى', 'Mona\'s way is now')} <span class="metric">${s.steps[1]}</span> · ${L('دورها', 'her turn')}`
+        : s.frame === 'j1' ? L('منى قدّامك: النطّة بتوفّر خطوة ⤴', 'Mona in front: the jump saves a step ⤴')
+        : s.frame === 'j2' ? L('نطّة!', 'Jump!')
+        : s.frame === 'win' ? `<b class="bw-tx-p1">${L('منى وصلت!', 'Mona made it!')}</b> 🏁` : L('امشي خطوة أو حط سور', 'Take a step or put a wall');
+      return `<div class="bwc-bar"><div class="bwc-impact"><span>${msg}</span></div></div>`;
+    },
+    duel(s) { return `<div class="bw bwc">${this.race(s, { head: s.turn === 0 ? L('دورك', 'your turn') : s.turn === 1 ? L('دور منى', 'Mona\'s turn') : '' })}${this.board(s, s.ghost && !s.ghost.bad ? 1 : undefined)}${this.bar(s)}</div>`; },
+    side(s) { return `<div class="bw bwc bw--side">${this.board(s, s.ghost && !s.ghost.bad ? 1 : undefined)}${this.race(s, { head: L('دورك', 'your turn') })}${this.bar(s)}</div>`; },
+    four(s) { return `<div class="bw bwc">${this.race(s, { head: L('دورك', 'your turn') })}${this.board(s)}${this.bar(s)}</div>`; },
+    tv(s) {
+      const hit = s.last.hit;
+      return `<div class="bw bwc bwtv"><div class="bwtv-grid" style="grid-template-columns: 86vmin 1fr">
+        <div>${this.board(s)}</div>
+        <div class="bwtv-col"><div class="bwtv-turn">${L('دور', 'Turn:')} <span class="bw-tx-p3">${nm(PEOPLE[3])}</span></div>${this.race(s, { sorted: true, head: L('الأقرب فوق', 'closest on top') })}
+          <div class="bwtv-ticker">🧱 <span><b class="bw-tx-p1">${nm(PEOPLE[1])}</b> ${L('طوّلت طريق', 'stretched')} <b class="bw-tx-p${hit.pid}">${nm(PEOPLE[hit.pid])}</b> <span class="metric">+${hit.d}</span></span></div>
+          <div class="bwtv-code">${L('الغرفة', 'Room')} <b>GU2R</b></div></div></div></div>`;
+    },
+    end() {
+      const max = 8;
+      return `<div class="bw bwc bwc-end"><div class="bwc-finish">${confetti()}<h3>🏁 ${L('منى وصلت الأول!', 'Mona got there first!')}</h3>
+        ${END.map((e) => { const p = PEOPLE[e.pid]; const x = (1 - e.left / max) * 82 + 9; return `<div class="bwc-flane bw-p${e.pid}"><div class="bwc-flane__track"><span class="bwc-flane__who" style="inset-inline-start:${x.toFixed(1)}%">${e.left ? '' : ''}${face(p)}</span></div><span class="bwc-flane__pts metric">+${e.pts}</span></div>
+          <div style="display:flex;justify-content:space-between;margin:-8px 0 0;font-size:var(--fs-xs);font-weight:var(--fw-bold);color:var(--text-2)"><span>${nm(p)}</span><span>${e.left === 0 ? L('وصلت', 'arrived') : L(`فاضله ${e.left}`, `${e.left} to go`)}</span><span style="width:2.4rem"></span></div>`; }).join('')}
+        </div><div class="bw-end-btns"><button class="btn btn--primary btn--lg">${L('جولة كمان', 'Play again')}</button><button class="btn btn--ghost btn--sm">${L('لعبة تانية', 'Another game')}</button></div></div>`;
+    },
+  };
+
+  const LOOKS = { A, B, C };
+
+  function placePop() {
+    const pop = document.querySelector('[data-pop]'); const g = document.querySelector('.bw-ghost'); if (!pop || !g) return;
+    const host = pop.parentElement.getBoundingClientRect(); const r = g.getBoundingClientRect();
+    pop.style.left = (r.left + r.width / 2 - host.left) + 'px'; pop.style.top = (r.bottom - host.top + 12) + 'px';
+    if (pop.dataset.anchor === 'start') { pop.style.transform = 'none'; pop.style.left = (r.left - host.left) + 'px'; pop.classList.add('is-start'); }
+    const pr = pop.getBoundingClientRect();
+    if (pr.left < host.left + 4) pop.style.left = (parseFloat(pop.style.left) + host.left + 4 - pr.left) + 'px';
+    if (pr.right > host.right - 4) pop.style.left = (parseFloat(pop.style.left) - (pr.right - host.right + 4)) + 'px';
+  }
+
+  window.bwShow = async function (look, screen, frame) {
+    const Lk = LOOKS[look];
+    if (screen === 'tv') {
+      if (appState.currentView !== 'room-tv') { setView('room-tv'); await new Promise((r) => setTimeout(r, 300)); }
+      const v = document.getElementById('view-room-tv');
+      v.classList.remove('hidden'); v.setAttribute('data-accent', Lk.accent); v.style.position = 'relative'; v.style.minHeight = '100vh';
+      v.innerHTML = Lk.tv(four('tv'));
+    } else {
+      if (appState.currentView !== 'room-connect4') { setView('room-connect4'); await new Promise((r) => setTimeout(r, 300)); }
+      const v = document.getElementById('view-room-connect4');
+      v.setAttribute('data-accent', Lk.accent);
+      v.innerHTML = screen === 'end' ? Lk.end() : screen === 'four' ? Lk.four(four()) : screen === 'side' ? Lk.side(duel()) : Lk.duel(duel(frame));
+      const tt = document.getElementById('app-title-text'); if (tt) tt.textContent = L('سد الطريق', 'Block the Way');
+      const ti = document.getElementById('app-title-icon'); if (ti) ti.textContent = '🚧';
+      const m = document.querySelector('.shell__main') || document.querySelector('main'); if (m) m.scrollTop = 0;
+    }
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    placePop();
+    return 1;
+  };
+  window.bwDebug = () => ({ duel: duel().steps, ghost: duel().ghostSteps, four: four().steps, fourGhostOK: (() => { const s = four(); return stepsOf(s, 2, s.walls.concat([s.ghost])); })(), tv: four('tv').last, w3: duel('w3').steps, win: duel('win').steps, j: duel('j1').steps });
+})();

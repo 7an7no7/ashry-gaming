@@ -1,0 +1,45 @@
+/* سد الطريق's three looks, shot on the real app (preview at $BASE or http://localhost:4321) in headless Chrome.
+   node shoot.mjs [A,B,C] [only-substring] */
+import fs from 'node:fs';
+import path from 'node:path';
+import { openApp } from './cdp.mjs';
+const dir = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'));
+const out = path.join(dir, 'shots');
+fs.mkdirSync(out, { recursive: true });
+const looks = (process.argv[2] || 'A,B,C').split(',');
+const only = process.argv[3] || '';
+const app = await openApp(dir);
+await app.ev(`(async () => { await lzEnsure(['faces']); await lzEnsure(lzChunksOfView('room-connect4')); return 1; })()`);
+await app.ev(fs.readFileSync(path.join(dir, 'looks.js'), 'utf8') + '; 1');
+if (only === 'debug') { console.log(JSON.stringify(await app.ev('bwDebug()'))); app.close(); setTimeout(() => process.exit(0), 500); }
+else {
+async function shoot(file, { look, screen = 'duel', frame = null, lang = 'ar', dark = false, w = 375, h = 812 }) {
+  if (only && !file.includes(only)) return;
+  await app.size(w, h);
+  await app.ev(`(async () => {
+    if (appState.lang !== '${lang}') toggleLanguage();
+    if (document.body.classList.contains('dark') !== ${dark}) toggleDarkMode();
+    document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(m => m.classList.add('hidden'));
+    let s = document.getElementById('bw-still'); if (!s) { s = document.createElement('style'); s.id = 'bw-still'; document.head.appendChild(s); }
+    s.textContent = '*{transition:none!important;animation:none!important} .toast-stack{display:none!important}';
+    window.dispatchEvent(new Event('resize'));
+    await new Promise(r => setTimeout(r, 150));
+    return bwShow('${look}', '${screen}', ${frame ? `'${frame}'` : 'null'}); })()`);
+  await app.wait(500);
+  await app.snap(path.join(out, file + '.jpg'));
+  console.log('shot', file);
+}
+for (const look of looks) {
+  await shoot(`${look}-duel-ar-light`, { look });
+  await shoot(`${look}-duel-ar-dark`, { look, dark: true });
+  await shoot(`${look}-duel-en-dark`, { look, lang: 'en', dark: true });
+  await shoot(`${look}-four-ar-light`, { look, screen: 'four' });
+  await shoot(`${look}-side-ar-light`, { look, screen: 'side', w: 667, h: 375 });
+  await shoot(`${look}-tv-ar-dark`, { look, screen: 'tv', dark: true, w: 1280, h: 720 });
+  await shoot(`${look}-end-ar-light`, { look, screen: 'end' });
+  for (const f of ['w1', 'w2', 'w3', 'j1', 'j2', 'win']) await shoot(`${look}-frame-${f}`, { look, frame: f });
+}
+console.log('errors:', app.errors.length ? app.errors.join('\n') : 'none');
+app.close();
+setTimeout(() => process.exit(0), 600);
+}

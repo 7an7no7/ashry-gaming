@@ -1434,6 +1434,32 @@ const PROBES = {
     ];
   },
 
+  // حسبة (tools/new-game.mjs): a phone's number on its own phone only, and on the table only at the result.
+  hesba(room) {
+    const s = room.shared || {};
+    const live = s.phase === 'play';
+    return [
+      probe("a phone's number is its own, exactly", live, (view, pid) => {
+        if (pid === SCREEN) return null;
+        const want = (room.secrets[pid] || {}).target;
+        return want === undefined || (view.you && view.you.target === want) ? null : 'you.target';
+      }),
+      probe('no number on the table before the result', live, (view) => (hasKey(view.shared, 'targets') || hasKey(view.shared, 'board') ? 'shared.targets' : null))
+    ];
+  },
+  // شبكة الحروف (tools/new-game.mjs): a phone's number on its own phone only, and on the table only at the result.
+  boggle(room) {
+    const s = room.shared || {};
+    const live = s.phase === 'play';
+    return [
+      probe("a phone's number is its own, exactly", live, (view, pid) => {
+        if (pid === SCREEN) return null;
+        const want = (room.secrets[pid] || {}).target;
+        return want === undefined || (view.you && view.you.target === want) ? null : 'you.target';
+      }),
+      probe('no number on the table before the result', live, (view) => (hasKey(view.shared, 'targets') || hasKey(view.shared, 'board') ? 'shared.targets' : null))
+    ];
+  },
 };
 
 /*
@@ -3232,6 +3258,28 @@ const DRIVERS = {
     return runClock(X, (rm) => rm.shared.phase === 'reveal') && runClock(X, (rm) => rm.shared.phase !== 'reveal');
   },
 
+  hesba() {
+    // Four at the table: everyone taps a little and says done, then a second round the clock ends.
+    const T = table('hesba', 4);
+    must(T, T.host, 'start', {});
+    T.ids.forEach((pid, i) => { for (let k = 0; k < i + 2; k++) must(T, pid, 'tap', { round: 1 }); must(T, pid, 'done', { round: 1 }); });
+    if (S(T).phase !== 'gameover') return false;
+    must(T, T.host, 'playAgain', {});
+    must(T, T.ids[1], 'tap', { round: 1 });
+    runClock(T, (r) => r.shared.phase === 'gameover');
+    return S(T).phase === 'gameover';
+  },
+  boggle() {
+    // Four at the table: everyone taps a little and says done, then a second round the clock ends.
+    const T = table('boggle', 4);
+    must(T, T.host, 'start', {});
+    T.ids.forEach((pid, i) => { for (let k = 0; k < i + 2; k++) must(T, pid, 'tap', { round: 1 }); must(T, pid, 'done', { round: 1 }); });
+    if (S(T).phase !== 'gameover') return false;
+    must(T, T.host, 'playAgain', {});
+    must(T, T.ids[1], 'tap', { round: 1 });
+    runClock(T, (r) => r.shared.phase === 'gameover');
+    return S(T).phase === 'gameover';
+  },
 };
 
 /*

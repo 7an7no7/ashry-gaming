@@ -89,6 +89,9 @@ file and a new line.
 - The five of 29 Sep: الحقوا! - `notes/games/wire.md`; الأوضة المضلمة - `notes/games/darkroom.md`; حط إيدك! - `notes/games/exact.md`; الشاهد - `notes/games/witness.md`; المزاد - `notes/games/box.md`.
 - 🔐 الخزنة («صندوق جدّو», rooms: one sees the locks, the others read grandpa's notebook; three ways, 3 strikes or time, endless levels or a set; `Vault.js`, `RoomVault.js`, `JS_RoomVault.html`) - `notes/games/vault.md`.
 - الليزر (Laser, rooms: everyone hides and aims in secret, all appear and fire at once, a beam goes through everyone in its line, the hexagon shrinks every round, last one or last team standing; hearts, a shield, ghosts' mines, bouncing beams, sudden death, awards, four maps, pickups, pillars and mirror pillars, a turret, a practice round, a falling floor, the best shot's replay; `Laser.js`, `RoomLaser.js`, `JS_RoomLaser.html`, its styles in its chunk) - `notes/games/laser.md`.
+- 🧮 حسبة (Numbers; made by `npm run new:game` on 2026-10-09) - `notes/games/hesba.md`.
+- 🔡 شبكة الحروف (Letter Grid; made by `npm run new:game` on 2026-10-09) - `notes/games/boggle.md`.
+- 🔮 العرّاف (The Oracle; made by `npm run new:game` on 2026-10-09) - `notes/games/oracle.md`.
 
 ### The app around the games
 

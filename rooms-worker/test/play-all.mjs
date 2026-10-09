@@ -7593,6 +7593,60 @@ async function facesRobots() {
   [F1, F2, F3, F4, TV].forEach((b) => b.close());
 }
 
+async function hesbaRobots() {
+  console.log('• حسبة (made by tools/new-game.mjs: a secret each, the taps, the result, play again)');
+  const H = await Bot.host('حسام', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const TV = await Bot.join(H.code, '', true);
+  const people = [H, J, K];
+  await H.must('chooseGame', { game: 'hesba' });
+  check((await J.act('start', {})).ok === false, 'hesba: only the host starts');
+  await H.must('start', {});
+  await all(people.concat([TV]), (s) => s.game === 'hesba' && s.shared.phase === 'play', 'hesba: the round reaches every phone and the TV');
+  check(TV.state.you === null, 'hesba: the TV has no secret');
+  check(people.every((p) => p.state.you && p.state.you.target >= 3 && p.state.you.target <= 9) && !('targets' in H.state.shared), "hesba: each phone has its own number, the table none");
+  for (const p of people) {
+    for (let i = 0; i < p.state.you.target; i++) await p.must('tap', { round: 1 });
+    await p.must('done', { round: 1 });
+  }
+  await all(people.concat([TV]), (s) => s.shared.phase === 'gameover' && s.shared.board.length === 3 && s.shared.board[0].score === 10, 'hesba: everyone landed on their number: the result on every screen');
+  await H.must('playAgain', {});
+  await H.waitFor((s) => s.shared.phase === 'play' && (s.shared.done || []).length === 0, 'hesba: play again deals a new round');
+  await H.must('finish', { round: 1 });
+  await H.waitFor((s) => s.shared.phase === 'gameover', 'hesba: the host ends a round');
+  await H.must('backToHub');
+  await H.waitFor((x) => x.phase === 'lobby', 'hesba: back in the hub');
+  [H, J, K, TV].forEach((x) => x.close());
+}
+
+async function boggleRobots() {
+  console.log('• شبكة الحروف (made by tools/new-game.mjs: a secret each, the taps, the result, play again)');
+  const H = await Bot.host('حسام', null);
+  const J = await Bot.join(H.code, 'Jana');
+  const K = await Bot.join(H.code, 'كريم');
+  const TV = await Bot.join(H.code, '', true);
+  const people = [H, J, K];
+  await H.must('chooseGame', { game: 'boggle' });
+  check((await J.act('start', {})).ok === false, 'boggle: only the host starts');
+  await H.must('start', {});
+  await all(people.concat([TV]), (s) => s.game === 'boggle' && s.shared.phase === 'play', 'boggle: the round reaches every phone and the TV');
+  check(TV.state.you === null, 'boggle: the TV has no secret');
+  check(people.every((p) => p.state.you && p.state.you.target >= 3 && p.state.you.target <= 9) && !('targets' in H.state.shared), "boggle: each phone has its own number, the table none");
+  for (const p of people) {
+    for (let i = 0; i < p.state.you.target; i++) await p.must('tap', { round: 1 });
+    await p.must('done', { round: 1 });
+  }
+  await all(people.concat([TV]), (s) => s.shared.phase === 'gameover' && s.shared.board.length === 3 && s.shared.board[0].score === 10, 'boggle: everyone landed on their number: the result on every screen');
+  await H.must('playAgain', {});
+  await H.waitFor((s) => s.shared.phase === 'play' && (s.shared.done || []).length === 0, 'boggle: play again deals a new round');
+  await H.must('finish', { round: 1 });
+  await H.waitFor((s) => s.shared.phase === 'gameover', 'boggle: the host ends a round');
+  await H.must('backToHub');
+  await H.waitFor((x) => x.phase === 'lobby', 'boggle: back in the hub');
+  [H, J, K, TV].forEach((x) => x.close());
+}
+
 const SEGMENTS = [
   { name: 'err', run: errRobots, secs: 5 },
   { name: 'move', run: moveRobots, secs: 2 },
@@ -7647,6 +7701,8 @@ const SEGMENTS = [
   { name: 'crewlink', run: crewLinkRobots, secs: 12 },
   { name: 'laser', run: laserRobots, secs: 8 },
   { name: 'faces', run: facesRobots, secs: 3 },
+  { name: 'hesba', run: hesbaRobots, secs: 5 },
+  { name: 'boggle', run: boggleRobots, secs: 5 },
 ];
 const EXCLUSIVE = new Set([]);
 

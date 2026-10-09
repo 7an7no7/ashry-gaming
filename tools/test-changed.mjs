@@ -123,6 +123,9 @@ const MAP = [
   // and the core segment's joins), every lobby and TV draws it (a core room, and the two games that
   // show faces on their boards), and the face editor is a screen.
   { files: /^(Faces\.js|JS_Faces\.html)$/, robots: ['faces', 'core'], ui: ['imposter', 'witness', 'guesswho'], screens: true },
+  { files: /^(JS_Hesba\.html|JS_RoomHesba\.html|RoomHesba\.js)$/, robots: ['hesba'], ui: ['hesba'], screens: true },   // Numbers (tools/new-game.mjs)
+  { files: /^(JS_Boggle\.html|JS_RoomBoggle\.html|RoomBoggle\.js)$/, robots: ['boggle'], ui: ['boggle'], screens: true },   // Letter Grid (tools/new-game.mjs)
+  { files: /^(JS_Oracle\.html)$/, screens: true },   // The Oracle (tools/new-game.mjs)
   // The page's own screens and the offline copy.
   { files: /^JS_[A-Za-z0-9]+\.html$/, screens: true },
   { files: /^(site-worker\/|tools\/site\.config\.json$|tools\/(make-icons|make-og)\.mjs$)/, site: true },

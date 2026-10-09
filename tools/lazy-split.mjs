@@ -129,6 +129,9 @@ export const CHUNKS = {
   'w-countries': ['Countries.js'],
   'w-riddles': ['EmojiRiddles.js', 'Proverbs.js'],
   laser: ['JS_RoomLaser', 'Laser.js'],   // tools/new-game.mjs, 2026-10-06
+  hesba: ['JS_Hesba', 'JS_RoomHesba'],   // tools/new-game.mjs, 2026-10-09
+  boggle: ['JS_Boggle', 'JS_RoomBoggle'],   // tools/new-game.mjs, 2026-10-09
+  oracle: ['JS_Oracle'],   // tools/new-game.mjs, 2026-10-09
 };
 
 /* References that don't make a dependency: the call is only made while the other

@@ -1,0 +1,79 @@
+<script>
+/* ============================================================================
+   شبكة الحروف — Letter Grid on one phone (made by tools/new-game.mjs, 2026-10-09)
+   ----------------------------------------------------------------------------
+   The phone goes round: each player sees their secret number, taps «+1»
+   until they think they have reached it, and passes it on; then the nearest
+   wins. The whole game is in appState.boggle, so a reload comes back to it
+   (VIEW_RESTORE, JS_Core.html). Replace it with the real game.
+   ========================================================================= */
+
+const boggleOneT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+
+function boggleState() {
+  if (!appState.boggle) appState.boggle = null;
+  return appState.boggle;
+}
+
+/** Its card on the home, and its setup screen. */
+function setupBoggle() { setView('setup-boggle'); }
+
+function startBoggle() {
+  // Who plays: the players picked on this phone, or «مين بيلعب؟» asks for them first.
+  const names = (appState.activePlayers || []).slice(0, 12);
+  if (names.length < 1) { askPlayers(1, () => startBoggle(), { max: 12 }); return; }
+  const players = names.map(name => ({ name, target: 3 + Math.floor(Math.random() * 7), count: 0 }));
+  appState.boggle = { players, at: 0, shown: false, phase: 'play' };
+  saveToLocal();
+  setView('play-boggle');
+  renderBoggle();
+}
+
+function boggleShow() { appState.boggle.shown = true; saveToLocal(); renderBoggle(); }
+function boggleOneTap() { haptic('light'); appState.boggle.players[appState.boggle.at].count++; saveToLocal(); renderBoggle(); }
+function boggleNext() {
+  const g = appState.boggle;
+  g.at++;
+  g.shown = false;
+  if (g.at >= g.players.length) g.phase = 'over';
+  saveToLocal();
+  renderBoggle();
+  scrollToAction();
+}
+
+function renderBoggle() {
+  const el = document.getElementById('boggle-stage');
+  const g = boggleState();
+  if (!el || !g) return;
+  const t = boggleOneT();
+  if (g.phase === 'over') {
+    const board = g.players.map(p => ({ name: p.name, score: Math.max(0, 10 - Math.abs(p.target - p.count)), count: p.count, target: p.target }))
+      .sort((a, b) => b.score - a.score);
+    el.innerHTML = `
+      <div class="card" style="text-align:center">
+        <div class="card__title">${escapeHTML(t.boggle_result)}</div>
+        ${board.map(r => `<div class="row"><span>${escapeHTML(r.name)}</span><span class="metric">${ltrFrac(r.count, r.target)}</span></div>`).join('')}
+        <button class="btn btn--primary btn--lg" onclick="startBoggle()">${escapeHTML(t.play_again || '')}</button>
+      </div>
+      <div class="play-exit-row"><button type="button" class="btn btn--ghost btn--sm btn--auto play-exit" onclick="playExit(() => setView('setup-boggle'))">${escapeHTML(t.exit || '')}</button></div>`;
+    return;
+  }
+  const p = g.players[g.at];
+  el.innerHTML = `
+    <div class="card" style="text-align:center">
+      <p class="sheet__subtitle">${escapeHTML(t.boggle_turn_of)} <bdi>${escapeHTML(p.name)}</bdi></p>
+      ${g.shown ? `
+        <div class="metric metric--lg">${p.target}</div>
+        <div class="metric metric--md">${p.count}</div>
+        <div class="btn-stack">
+          <button class="btn btn--primary btn--lg" onclick="boggleOneTap()">${escapeHTML(t.boggle_tap)}</button>
+          <button class="btn btn--secondary" onclick="boggleNext()">${escapeHTML(t.boggle_done)}</button>
+        </div>` : `<button class="btn btn--primary btn--lg" onclick="boggleShow()">${escapeHTML(t.boggle_show)}</button>`}
+    </div>
+    <div class="play-exit-row"><button type="button" class="btn btn--ghost btn--sm btn--auto play-exit" onclick="playExit(() => setView('setup-boggle'))">${escapeHTML(t.exit || '')}</button></div>`;
+}
+
+// A reload: the setup as it was, or the game where it was.
+VIEW_RESTORE['setup-boggle'] = () => {};
+VIEW_RESTORE['play-boggle'] = () => { if (boggleState()) renderBoggle(); else setTimeout(() => setView('setup-boggle'), 50); };
+</script>

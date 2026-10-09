@@ -1,0 +1,98 @@
+<script>
+/* ============================================================================
+   حسبة — Numbers in rooms: the phones and the TV (made by
+   tools/new-game.mjs, 2026-10-09). The rules are ROOM_RULES.hesba in RoomHesba.js.
+   A phone sees its own secret number (state.you.target), taps «+1» and says
+   «خلصت»; the TV shows who has finished, then the result on a podium.
+   ========================================================================= */
+
+/** The words, in the language of the app. */
+const hesbaT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+
+function hesbaTap() { haptic('light'); roomAct('tap', { round: (Room.state.shared || {}).round }); }
+function hesbaDone() { haptic('medium'); roomAct('done', { round: (Room.state.shared || {}).round }); }
+function hesbaFinish() { roomAct('finish', { round: (Room.state.shared || {}).round }); }
+
+/** The result's rows: each name, where they stopped and their number. */
+function hesbaResultRows(s, t) {
+  return (s.board || []).map(r => `
+    <div class="row"><span>${escapeHTML(r.name)}</span><span class="metric">${ltrFrac(r.count, r.target)}</span></div>`).join('');
+}
+
+ROOM_GAMES.hesba = {
+  lobbyOptions() {
+    return `<p class="field__hint" style="text-align:center">${escapeHTML(hesbaT().hesba_lobby_hint)}</p>`;
+  },
+  startPayload() { return {}; },
+
+  render(state) {
+    if (appState.currentView !== 'room-hesba') setView('room-hesba');
+    const el = document.getElementById('view-room-hesba');
+    if (!el) return;
+    const t = hesbaT();
+    const s = state.shared || {};
+
+    if (s.phase === 'gameover') {
+      const fresh = renderRoomFrame(el, ['hesba-over', state.youAreHost, appState.lang].join('|'), () => `
+        <div class="card" style="text-align:center">
+          <div class="card__title">${escapeHTML(t.hesba_result)}</div>
+          ${renderPodium(state, s.board) || `<div class="metric metric--md">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>`}
+          ${hesbaResultRows(s, t)}
+        </div>
+        ${state.youAreHost
+          ? `<div class="btn-stack">
+               <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(t.play_again || '')}</button>
+               <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
+             </div>`
+          : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
+        ${renderRoomPlayerStrip(state)}`);
+      if (fresh) afterReveal(el, () => { if (typeof confetti === 'function') confetti({ particleCount: 80, spread: 70 }); });
+      refreshRoomPlayerStrip(el, state);
+      return;
+    }
+
+    const inRound = (s.roster || []).indexOf(Room.me) !== -1;
+    const done = (s.done || []).indexOf(Room.me) !== -1;
+    const count = (s.counts || {})[Room.me] || 0;
+    renderRoomFrame(el, ['hesba-play', s.round, inRound, done, count, state.youAreHost, appState.lang].join('|'), () => `
+      <div class="card" style="text-align:center">
+        ${inRound ? `
+          <p class="sheet__subtitle">${escapeHTML(t.hesba_your_number)}</p>
+          <div class="metric metric--lg">${(state.you || {}).target || '?'}</div>
+          <div class="metric metric--md">${count}</div>
+          ${done ? `<p class="sheet__subtitle">${escapeHTML(t.hesba_wait)}</p>` : `
+            <div class="btn-stack">
+              <button class="btn btn--primary btn--lg" onclick="hesbaTap()">${escapeHTML(t.hesba_tap)}</button>
+              <button class="btn btn--secondary" onclick="hesbaDone()">${escapeHTML(t.hesba_done)}</button>
+            </div>`}` : `<p class="sheet__subtitle">${escapeHTML(t.vote_spectating || '')}</p>`}
+      </div>
+      ${roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="hesbaFinish()">${escapeHTML(t.hesba_finish)}</button></div>`)}
+      ${renderRoomPlayerStrip(state)}`);
+    refreshRoomPlayerStrip(el, state);
+  }
+};
+
+TV_GAMES.hesba = {
+  sig: (state) => [state.shared.phase, (state.shared.done || []).length, (state.shared.roster || []).length].join('|'),
+  frame(state, t) {
+    const s = state.shared;
+    t = hesbaT();
+    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
+    if (s.phase === 'gameover') {
+      return `
+        <div class="tv-vote">
+          <div class="tv-title tv-center-text">${escapeHTML(t.hesba_result)}</div>
+          ${renderPodium(state, s.board)}
+          ${host(tvBtn(t.play_again, "roomAct('playAgain')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+        </div>`;
+    }
+    return `
+      <div class="tv-center">
+        <div class="tv-big-icon" aria-hidden="true">🧮</div>
+        <div class="tv-title">${escapeHTML(t.hesba_tv_wait)}</div>
+        ${tvWaitChips(state, s.roster || [], s.done || [])}
+        ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.hesba_finish, 'hesbaFinish()', 'ghost')}</div>`)}
+      </div>`;
+  }
+};
+</script>

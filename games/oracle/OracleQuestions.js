@@ -21,7 +21,7 @@ const ORACLE_QUESTIONS = [
   { id: 'fiction', firm: true, kinds: 'pcatjl', auto: 'p:n c:y a:n t:n j:n l:n', ar: 'شخصية من كارتون أو فيلم أو حكاية؟', en: 'A character from a cartoon, film or tale?' },
   { id: 'animal',  firm: true, kinds: 'pcatjl', auto: 'p:n a:y t:n j:n l:n', ar: 'حيوان (أو طير أو سمكة أو حشرة)؟', en: 'An animal (or a bird, a fish, an insect)?' },
   { id: 'job',     firm: true, kinds: 'pcatjl', auto: 'p:n c:n a:n t:n j:y l:n', ar: 'شغلانة (مهنة)؟', en: 'A job?' },
-  { id: 'object',  firm: true, kinds: 'pcatjl', auto: 'p:n a:n t:y j:n l:m', ar: 'حاجة، مش إنسان ولا حيوان؟', en: 'A thing, not a person or an animal?' },
+  { id: 'object',  firm: true, kinds: 'pcatjl', auto: 'p:n a:n t:y j:n l:n', ar: 'حاجة، مش إنسان ولا حيوان ولا بلد؟', en: 'A thing - not a person, an animal or a place?' },
   { id: 'countrycity', firm: true, kinds: 'pcatjl', auto: 'p:n c:n a:n t:n j:n l:y', ar: 'بلد أو مدينة؟', en: 'A country or a city?' },
 
   /* ---------- places: countries and cities (10 Oct 2026, OraclePlaces.js) ---------- */

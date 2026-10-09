@@ -37,8 +37,8 @@ const ORACLE_QUESTIONS = [
   { id: 'africa',  kinds: 'p', ar: 'من بلد أفريقي مش عربي؟', en: 'From an African country that is not Arab?' },
   { id: 'asia',    kinds: 'p', ar: 'من شرق آسيا (زي الصين واليابان)؟', en: 'From East Asia (China, Japan…)?' },
   { id: 'before1800', kinds: 'p', implies: ['born1930'], ar: 'عاش قبل سنة 1800؟', en: 'Lived before the year 1800?' },
-  { id: 'bc',      kinds: 'p', implies: ['before1800'], ar: 'عاش من أكتر من ألفين سنة؟', en: 'Lived more than two thousand years ago?' },
-  { id: 'pharaoh', kinds: 'p', implies: ['bc'], ar: 'من أيام الفراعنة؟', en: 'From the time of the pharaohs?' },
+  { id: 'bc',      kinds: 'p', implies: ['before1500'], ar: 'عاش من أكتر من ألفين سنة؟', en: 'Lived more than two thousand years ago?' },
+  { id: 'pharaoh', kinds: 'p', implies: ['bc1000'], ar: 'من أيام الفراعنة؟', en: 'From the time of the pharaohs?' },
   { id: 'born1930', kinds: 'p', implies: ['born1950'], ar: 'اتولد قبل سنة 1930؟', en: 'Born before 1930?' },
   { id: 'born1950', kinds: 'p', implies: ['born1970'], ar: 'اتولد قبل سنة 1950؟', en: 'Born before 1950?' },
   { id: 'ruler',   kinds: 'pc', ar: 'ملك أو ملكة أو حاكم؟', en: 'A king, a queen or a ruler?' },
@@ -79,7 +79,7 @@ const ORACLE_QUESTIONS = [
   { id: 'blind',   kinds: 'p', ar: 'كان كفيف؟', en: 'Was blind?' },
   /* people, added with the second batch of entries (9 Oct 2026): the generation, the films' trades,
      what a ruler built, two countries, the football positions and leagues, and the other sports */
-  { id: 'born1970', kinds: 'p', ar: 'اتولد قبل سنة 1970؟', en: 'Born before 1970?' },
+  { id: 'born1970', kinds: 'p', implies: ['born1975'], ar: 'اتولد قبل سنة 1970؟', en: 'Born before 1970?' },
   { id: 'director', kinds: 'p', ar: 'اشتغل مخرج (أفلام أو مسلسلات أو مسرح)؟', en: 'Worked as a director (film, TV or stage)?' },
   { id: 'villainroles', kinds: 'p', ar: 'اشتهر بأدوار الشرير؟', en: 'Known for playing villains?' },
   { id: 'oscar',   kinds: 'p', ar: 'خد جايزة الأوسكار؟', en: 'Won an Oscar?' },
@@ -94,6 +94,16 @@ const ORACLE_QUESTIONS = [
   { id: 'swimmer', kinds: 'p', implies: ['othersport'], ar: 'سبّاح؟', en: 'A swimmer?' },
   { id: 'lifter',  kinds: 'p', implies: ['othersport'], ar: 'بطل رفع أثقال؟', en: 'A weightlifter?' },
   { id: 'basket',  kinds: 'p', implies: ['othersport'], ar: 'بيلعب كورة سلة؟', en: 'A basketball player?' },
+  /* people, added 9 Oct 2026 to tell apart pairs the full review left alike: the generation in finer steps
+     (each implies the next: bc1000 → bc → before1500 → before1800, born1970 → born1975 → born1980),
+     the midfield, dancing, mathematics. Every person of the kind was gone over for each. */
+  { id: 'bc1000',  kinds: 'p', implies: ['bc'], ar: 'عاش من أكتر من تلات آلاف سنة؟', en: 'Lived more than three thousand years ago?' },
+  { id: 'before1500', kinds: 'p', implies: ['before1800'], ar: 'عاش قبل سنة 1500؟', en: 'Lived before the year 1500?' },
+  { id: 'born1975', kinds: 'p', implies: ['born1980'], ar: 'اتولد قبل سنة 1975؟', en: 'Born before 1975?' },
+  { id: 'born1980', kinds: 'p', ar: 'اتولد قبل سنة 1980؟', en: 'Born before 1980?' },
+  { id: 'midfield', kinds: 'p', implies: ['football'], ar: 'لاعب وسط (في الكورة)؟', en: 'A midfielder (in football)?' },
+  { id: 'dance',   kinds: 'p', ar: 'اشتهر بالرقص أو الاستعراض؟', en: 'Known for dancing or musical shows?' },
+  { id: 'math',    kinds: 'p', ar: 'اشتهر بالرياضيات (الحساب والجبر والهندسة)؟', en: 'Known for mathematics?' },
 
   /* ---------- characters ---------- */
   { id: 'cartoon', firm: true, kinds: 'c', ar: 'كارتون (رسوم متحركة)؟', en: 'A cartoon (animated)?' },
@@ -127,6 +137,9 @@ const ORACLE_QUESTIONS = [
   { id: 'classic', kinds: 'c', ar: 'ظهر أول مرة قبل سنة 2000؟', en: 'First appeared before the year 2000?' },
   { id: 'ramadan_c', kinds: 'c', ar: 'اتعرض في رمضان؟', en: 'Shown in Ramadan?' },
   { id: 'alien',   kinds: 'c', ar: 'جاي من الفضاء أو من كوكب تاني؟', en: 'From space or another planet?' },
+  /* added 9 Oct 2026 (pairs the full review left alike); every character was gone over for each */
+  { id: 'parent',  kinds: 'c', ar: 'عنده عيال في الحكاية؟', en: 'Has children in the story?' },
+  { id: 'stepmother', kinds: 'c', ar: 'عندها مرات أب شريرة؟', en: 'Has a wicked stepmother?' },
 
   /* ---------- animals (and animal characters) ---------- */
   { id: 'mammal',  kinds: 'ac', ar: 'بيرضّع صغاره (من الثدييات)؟', en: 'Feeds its young milk (a mammal)?' },
@@ -172,6 +185,9 @@ const ORACLE_QUESTIONS = [
   { id: 'asia_a',  kinds: 'a', ar: 'عايش في آسيا (زي الهند والصين)؟', en: 'Lives in Asia (India, China…)?' },
   { id: 'america_a', kinds: 'a', ar: 'عايش في أمريكا (الشمالية أو الجنوبية)؟', en: 'Lives in the Americas?' },
   { id: 'australia_a', kinds: 'a', ar: 'عايش في أستراليا؟', en: 'Lives in Australia?' },
+  /* added 9 Oct 2026 (pairs the full review left alike); every animal was gone over for each */
+  { id: 'pulls',   kinds: 'a', ar: 'بيشدّ عربية أو ساقية أو زحّافة؟', en: 'Pulls a cart, a water wheel or a sled?' },
+  { id: 'fantail', kinds: 'a', ar: 'بيفرد ديله زي المروحة؟', en: 'Spreads its tail like a fan?' },
 
   /* ---------- shared: flying, size, colour ---------- */
   { id: 'flies',   kinds: 'catj', ar: 'بيطير؟', en: 'Does it fly?' },
@@ -250,6 +266,28 @@ const ORACLE_QUESTIONS = [
   { id: 'soft',    kinds: 't', ar: 'طري لما تلمسه؟', en: 'Soft to the touch?' },
   { id: 'smell',   kinds: 't', ar: 'ريحته حلوة؟', en: 'Does it smell nice?' },
   { id: 'colorful', kinds: 't', ar: 'ألوانه كتير؟', en: 'Many colours?' },
+  /* things, added 9 Oct 2026 (pairs the full review left alike: the vehicles, the screens, the house, the
+     sweets): every thing was gone over for each - a yes where a family would say yes, a maybe where it depends */
+  { id: 'twowheels', kinds: 't', ar: 'ليه عجلتين بس؟', en: 'Has just two wheels?' },
+  { id: 'cargo',   kinds: 't', ar: 'بيشيل بضاعة أو حمولة تقيلة؟', en: 'Carries goods or heavy loads?' },
+  { id: 'fare',    kinds: 't', ar: 'بتدفع أجرة عشان تركبه؟', en: 'Do you pay a fare to ride it?' },
+  { id: 'siren',   kinds: 't', ar: 'ليه سارينة؟', en: 'Has a siren?' },
+  { id: 'standing', kinds: 't', ar: 'الناس بتركب فيه واقفة؟', en: 'Do people ride it standing up?' },
+  { id: 'travel',  kinds: 't', ar: 'بنسافر بيه من مدينة لمدينة؟', en: 'Do we travel in it from city to city?' },
+  { id: 'floor',   kinds: 't', ar: 'بيتفرش على الأرض؟', en: 'Spread on the floor?' },
+  { id: 'bedroom', kinds: 't', ar: 'بتلاقيه في أوضة النوم؟', en: 'Found in the bedroom?' },
+  { id: 'read',    kinds: 't', ar: 'بنقرا فيه؟', en: 'Do we read it?' },
+  { id: 'internet', kinds: 't', ar: 'بيدخل على الإنترنت؟', en: 'Goes on the internet?' },
+  { id: 'byremote', kinds: 't', ar: 'بيشتغل بريموت كنترول؟', en: 'Worked with a remote control?' },
+  { id: 'touch',   kinds: 't', ar: 'بتلمس شاشته عشان تستعمله؟', en: 'Do you touch its screen to use it?' },
+  { id: 'listen',  kinds: 't', ar: 'بنسمع منه أغاني أو أخبار؟', en: 'Do we listen to songs or the news on it?' },
+  { id: 'seeds',   kinds: 't', ar: 'جواه بذور كتير؟', en: 'Lots of seeds inside?' },
+  { id: 'stuffed', kinds: 't', ar: 'جواه حشو؟', en: 'Has a filling inside?' },
+  { id: 'fried',   kinds: 't', ar: 'بيتقلي في الزيت؟', en: 'Fried in oil?' },
+  { id: 'leaves',  kinds: 't', ar: 'معمول من ورق نبات (أو هو ورق نبات)؟', en: 'Made of leaves (or is it leaves)?' },
+  { id: 'flame',   kinds: 't', ar: 'فيه نار (لهب)؟', en: 'Has a flame?' },
+  { id: 'holdsdrink', kinds: 't', ar: 'بنحط فيه حاجة نشربها؟', en: 'Holds something we drink?' },
+  { id: 'rainy',   kinds: 't', ar: 'له علاقة بالمطر أو الشتا؟', en: 'To do with rain or winter?' },
 
   /* ---------- jobs ---------- */
   { id: 'uniform', kinds: 'j', ar: 'بيلبس يونيفورم أو زي معيّن؟', en: 'Wears a uniform?' },
@@ -288,4 +326,12 @@ const ORACLE_QUESTIONS = [
   { id: 'cart_j',  kinds: 'j', ar: 'بيبيع على عربية في الشارع؟', en: 'Sells from a cart in the street?' },
   { id: 'lab_j',   kinds: 'j', ar: 'بيشتغل في معمل؟', en: 'Works in a laboratory?' },
   { id: 'music_j', kinds: 'j', ar: 'شغله في المزيكا أو الغُنا؟', en: 'Works with music or singing?' },
+  /* added 9 Oct 2026 (pairs the full review left alike); every job was gone over for each */
+  { id: 'voice_j', kinds: 'j', ar: 'شغله إنه يتكلم أو يغني قدّام ناس؟', en: 'Talks or sings in front of people for work?' },
+  { id: 'film_j',  kinds: 'j', ar: 'بيشتغل في الأفلام أو المسلسلات؟', en: 'Works in films or TV series?' },
+  { id: 'boss_j',  kinds: 'j', ar: 'هو الريّس اللي بيدّي الأوامر في الشغل؟', en: 'The boss who gives the orders at work?' },
+  { id: 'danger_j', kinds: 'j', ar: 'شغله فيه خطر على حياته؟', en: 'Dangerous work, a risk to his life?' },
+  { id: 'gov_j',   kinds: 'j', ar: 'موظف حكومة؟', en: 'A government employee?' },
+  { id: 'scale_j', kinds: 'j', ar: 'بيوزن حاجات بالميزان؟', en: 'Weighs things on a scale?' },
+  { id: 'stands_j', kinds: 'j', ar: 'بيشتغل واقف طول اليوم؟', en: 'Works standing all day?' },
 ];

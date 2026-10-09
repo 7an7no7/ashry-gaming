@@ -173,6 +173,25 @@ was gone over for all five (an unmarked one reads «غالباً لأ», so a so
 him): a yes where a family would say yes, a maybe where it depends. With 1,065 entries:
 truthful 100%, one in ten wrong 96.3% (things 93.2%, from 89.8%).
 
+**The twins of the full review** (9 Oct 2026). Once every entry's traits were reviewed question by
+question (data complete and true), 83 pairs had the same answers: the old data had told them apart
+only by a true trait marked on one and missing on the other. They were set apart without a false
+trait. True traits that were missing: ambulance white, volcano a place, tangerine small, headphones
+worn, Ramadan decorations long, the monkey in a group, Popeye's powers, Uncle Fouad old, Snow White
+yellow, Boogie a child, Muhammad Ali Pasha a warrior, Champollion and Muhammad Ali born before 1800,
+Mary Mounib born in Damascus (levant), garbageman and delivery come to the house, the licorice seller
+and the beekeeper in a set outfit; Cleopatra `no: bc1000`. Then 38 questions, each marked on every
+entry of its kinds: people `bc1000`, `before1500` (in the birth chain: pharaoh → bc1000 → bc →
+before1500 → before1800; born1970 → born1975 → born1980), `born1975`, `born1980`, `midfield`, `dance`,
+`math`; characters `parent`, `stepmother`; animals `pulls`, `fantail`; things `twowheels`, `cargo`,
+`fare`, `siren`, `standing`, `travel`, `floor`, `bedroom`, `read`, `internet`, `byremote`, `touch`,
+`listen`, `seeds`, `stuffed`, `fried`, `leaves`, `flame`, `holdsdrink`, `rainy`; jobs `voice_j`,
+`film_j`, `boss_j`, `danger_j`, `gov_j`, `scale_j`, `stands_j`. Seven entries a family could not tell
+from a more famous one were removed: triceratops (dinosaur), squid (octopus), mullet (sardine), falcon
+(eagle), Mufasa (Simba), Mohamed Fouad (Amr Diab), Zaza and Gargir (Boogie and Tamtam, Baqlaz). With
+1,058 entries and 293 questions: truthful 100% (10.6 questions), a real player 91.9%, one in ten
+wrong 88.1%.
+
 Only facts that don't change: where they are from, what they did, what they won, when they were
 born. Never alive or dead, still playing, married. No politicians of our time, nothing divisive,
 nothing adult, no religious figures. Kinds in the files: `OraclePeople.js` (`p`),

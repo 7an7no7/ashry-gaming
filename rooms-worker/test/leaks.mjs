@@ -38,6 +38,31 @@ const WIT = new Function(readFileSync(srcPath('GuessWho.js'), 'utf8') + ';return
 // ارسم اللي بتسمعه's pictures, for its driver to trace one.
 const HEAR = new Function(readFileSync(srcPath('Hear.js'), 'utf8') + ';return { hearOutlines };')();
 // الخزنة's notebook, to know a page's words when they are found on a phone.
+// سد الطريق's board rules, for its driver's moves (Blockway.js, shared by the phones and the server).
+const BW = new Function(readFileSync(srcPath('Blockway.js'), 'utf8') + ';return { bwSteps, bwWallCheck, bwDistMap, bwGrid, bwAtGoal };')();
+/** سد الطريق: the people up make `n` moves - mostly a step home, now and then a wall - until the game is over. */
+const blockwayPlay = (T, n) => {
+  for (let i = 0; i < n && S(T).phase === 'play'; i++) {
+    const s = S(T);
+    const seat = s.turn;
+    const pid = s.seats[seat];
+    if (!T.room.players.some((p) => p.id === pid && !p.bot)) return S(T).phase === 'over';
+    const b = { sides: s.sides, pos: s.pos, walls: s.walls, left: s.left };
+    let moved = false;
+    if (s.left[seat] > 0 && Math.random() < 0.3) {
+      for (let k = 0; k < 20 && !moved; k++) {
+        const w = { r: Math.floor(Math.random() * 8), c: Math.floor(Math.random() * 8), o: Math.random() < 0.5 ? 'h' : 'v' };
+        if (!BW.bwWallCheck(b, w).why) { must(T, pid, 'move', { move: s.moves, wall: w }); moved = true; }
+      }
+    }
+    if (moved) continue;
+    const d = BW.bwDistMap(BW.bwGrid(s.walls), s.sides[seat]);
+    const steps = BW.bwSteps(b, seat).sort((x, y) => d[x.r * 9 + x.c] - d[y.r * 9 + y.c]);
+    const x = Math.random() < 0.85 ? steps[0] : pick(steps);
+    must(T, pid, 'move', { move: s.moves, to: [x.r, x.c] });
+  }
+  return S(T).phase === 'over';
+};
 const VAULT = new Function(readFileSync(srcPath('Vault.js'), 'utf8') + ';return { vaultPageData, vaultLightAnswer };')();
 
 const realNow = Date.now;
@@ -1481,19 +1506,8 @@ const PROBES = {
       probe('no list on the table before the round closes', live, (view) => (hasKey(view.shared, 'reveal') ? 'shared.reveal' : null))
     ];
   },
-  // سد الطريق (tools/new-game.mjs): a phone's number on its own phone only, and on the table only at the result.
-  blockway(room) {
-    const s = room.shared || {};
-    const live = s.phase === 'play';
-    return [
-      probe("a phone's number is its own, exactly", live, (view, pid) => {
-        if (pid === SCREEN) return null;
-        const want = (room.secrets[pid] || {}).target;
-        return want === undefined || (view.you && view.you.target === want) ? null : 'you.target';
-      }),
-      probe('no number on the table before the result', live, (view) => (hasKey(view.shared, 'targets') || hasKey(view.shared, 'board') ? 'shared.targets' : null))
-    ];
-  },
+  // سد الطريق: a board has no secrets - everything is on the table (RoomBlockway.js).
+  blockway: () => [],
 };
 
 /*
@@ -3403,15 +3417,33 @@ const DRIVERS = {
     return S(T).phase === 'gameover';
   },
   blockway() {
-    // Four at the table: everyone taps a little and says done, then a second round the clock ends.
-    const T = table('blockway', 4);
-    must(T, T.host, 'start', {});
-    T.ids.forEach((pid, i) => { for (let k = 0; k < i + 2; k++) must(T, pid, 'tap', { round: 1 }); must(T, pid, 'done', { round: 1 }); });
-    if (S(T).phase !== 'gameover') return false;
-    must(T, T.host, 'playAgain', {});
-    must(T, T.ids[1], 'tap', { round: 1 });
-    runClock(T, (r) => r.shared.phase === 'gameover');
-    return S(T).phase === 'gameover';
+    // One on one with three (winner stays: steps, walls, a jump, the clock's step), then four on one
+    // board with a leaver, then two against two with a computer player of each level.
+    const T = table('blockway', 3);
+    must(T, T.host, 'start', { way: 'duel', think: 15, level: 'hard' });
+    if (!blockwayPlay(T, 400)) return false;
+    must(T, T.ids[0], 'nextRound', { round: S(T).round });
+    blockwayPlay(T, 6);
+    runClock(T, (r) => (r.shared.moves || 0) >= 9, 40);
+    const F = table('blockway', 4);
+    must(F, F.host, 'start', { way: 'four', level: 'easy' });
+    blockwayPlay(F, 12);
+    F.room.players = F.room.players.filter((p) => p.id !== 'p3');
+    const next = structuredClone(F.room); roomPlayerLeft(next, 'p3', 'X'); F.room = next; scan(F, 'left');
+    if (!blockwayPlay(F, 800)) return false;
+    const W = table('blockway', 2);
+    ['easy', 'mid'].forEach((level) => must(W, W.host, 'addBot', { level, name: 'bot ' + level }));
+    must(W, W.host, 'start', { way: 'teams', level: 'mid' });
+    runClock(W, (r) => r.shared.phase === 'over' || (r.shared.seats || [])[r.shared.turn] === W.host || (r.shared.seats || [])[r.shared.turn] === 'p2', 50);
+    for (let guard = 0; guard < 600 && S(W).phase === 'play'; guard++) {
+      const s = S(W);
+      const pid = s.seats[s.turn];
+      if (pid === 'p1' || pid === 'p2') blockwayPlay(W, 1);
+      else runClock(W, (r) => r.shared.phase !== 'play' || r.shared.seats[r.shared.turn] !== pid, 20);
+    }
+    if (S(W).phase !== 'over') return false;
+    must(W, W.host, 'playAgain', { round: S(W).round });
+    return S(W).phase === 'play';
   },
 };
 
@@ -3472,6 +3504,22 @@ const TOUR_DRIVERS = {
       const m = pick(live);
       const g = s.games[m.id];
       act(T, g.seats[g.turn], 'move', { col: Math.floor(Math.random() * g.cols), move: g.moves, match: m.id, mg: m.games });
+    }
+    return S(T).tour.phase === 'over';
+  },
+  'tour:blockway'() {
+    const T = table('tour:blockway', 5, { tourOf: 'blockway' });
+    must(T, T.host, 'start', { tournament: true, way: 'duel' });
+    for (let guard = 0; guard < 6000 && S(T).tour.phase === 'play'; guard++) {
+      const s = S(T);
+      const live = s.tour.matches.filter((m) => m.state === 'play');
+      if (!live.length) { runClock(T, (r) => r.shared.tour.phase !== 'play' || r.shared.tour.matches.some((m) => m.state === 'play'), 20); continue; }
+      const m = pick(live);
+      const g = s.games[m.id];
+      const b = { sides: g.sides, pos: g.pos, walls: g.walls, left: g.left };
+      const d = BW.bwDistMap(BW.bwGrid(g.walls), g.sides[g.turn]);
+      const x = BW.bwSteps(b, g.turn).sort((p, q) => d[p.r * 9 + p.c] - d[q.r * 9 + q.c])[0];
+      act(T, g.seats[g.turn], 'move', { to: [x.r, x.c], move: g.moves, match: m.id, mg: m.games });
     }
     return S(T).tour.phase === 'over';
   },

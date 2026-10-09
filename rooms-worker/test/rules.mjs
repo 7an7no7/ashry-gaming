@@ -18539,6 +18539,124 @@ console.log('• the secret mission');
   check(/استنى/.test(throws(() => roomClaimAsk(r, 'Na5', online2, t2, 'k9', 't9'))), 'no more than four asks waiting in one room');
 }
 
+/* --- سد الطريق (Block the Way): the board's rules, the duel, four on a board, two against two --- */
+{
+  const BW = new Function(readFileSync(srcPath('Blockway.js'), 'utf8') + ';return { bwNewBoard, bwSteps, bwWallCheck, bwPlay, bwStepsHome, bwTurnSq, bwUnturnSq, bwTurnWall, bwUnturnWall };')();
+  const refused = (fn) => { try { fn(); return false; } catch (e) { return true; } };
+  // Face to face: straight over; a wall behind: to either side.
+  const b = BW.bwNewBoard(2);
+  b.pos = [[5, 4], [4, 4]];
+  const has = (list, r, c) => list.some((x) => x.r === r && x.c === c);
+  check(has(BW.bwSteps(b, 0), 3, 4) && !has(BW.bwSteps(b, 0), 4, 4), 'blockway: face to face, the step is a jump straight over');
+  b.walls.push({ r: 3, c: 4, o: 'h', by: 1 });
+  const side = BW.bwSteps(b, 0);
+  check(!has(side, 3, 4) && has(side, 4, 3) && has(side, 4, 5), 'blockway: a wall behind them: a step to either side of them instead');
+  check(BW.bwWallCheck(b, { r: 3, c: 5, o: 'h' }).why === 'overlap' && BW.bwWallCheck(b, { r: 3, c: 4, o: 'v' }).why === 'overlap' &&
+        BW.bwWallCheck(b, { r: 3, c: 6, o: 'h' }).why === '', 'blockway: a wall may not lie on or cross another, and may sit beside one');
+  // Shut in: a box round the bottom-left corner, closed by its last wall.
+  const box = BW.bwNewBoard(2);
+  box.pos = [[8, 0], [0, 4]];
+  box.walls = [{ r: 6, c: 0, o: 'h', by: 1 }];
+  const shut = BW.bwWallCheck(box, { r: 7, c: 1, o: 'v' });
+  check(shut.why === 'shut' && shut.who[0] === 0 && refused(() => BW.bwPlay(box, 1, { wall: { r: 7, c: 1, o: 'v' } })),
+        'blockway: a wall that shuts someone in completely is refused');
+  check(BW.bwWallCheck(box, { r: 6, c: 2, o: 'v' }).steps[0] > 0, 'blockway: and one that leaves a way says how long it is');
+  let turnsOk = true;
+  for (let k = 0; k < 4; k++) for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+    const [a, z] = BW.bwTurnSq(r, c, k);
+    const back = BW.bwUnturnSq(a, z, k);
+    if (back[0] !== r || back[1] !== c) turnsOk = false;
+    if (r < 8 && c < 8) ['h', 'v'].forEach((o) => { const w = BW.bwUnturnWall(BW.bwTurnWall({ r, c, o }, k), k); if (w.r !== r || w.c !== c || w.o !== o) turnsOk = false; });
+  }
+  check(turnsOk && JSON.stringify(BW.bwTurnSq(4, 0, 1)) === '[8,4]' && JSON.stringify(BW.bwTurnSq(0, 4, 2)) === '[8,4]',
+        'blockway: a phone turns the board so its own seat starts at the bottom, and a tap turns back');
+
+  const start = (ids, payload) => {
+    const r = newRoom(ids);
+    applyRoomAction(r, ids[0], 'chooseGame', { game: 'blockway' });
+    applyRoomAction(r, ids[0], 'start', payload || {});
+    return r;
+  };
+  const go = (r, m) => applyRoomAction(r, r.shared.seats[r.shared.turn], 'move', Object.assign({ move: r.shared.moves }, m));
+  // The duel: winner stays, ten walls each, the first home wins.
+  const d = start(['a', 'b', 'c'], { way: 'duel' });
+  check(d.shared.seats.length === 2 && d.shared.line.length === 1 && d.shared.left.join() === '10,10' && !d.shared.multi,
+        'blockway duel: two sit down with ten walls each, the third waits in line');
+  go(d, { wall: { r: 0, c: 0, o: 'h' } });
+  check(d.shared.left[0] === 9 && d.shared.walls.length === 1 && d.shared.walls[0].by === 0 && d.shared.last.kind === 'wall' && d.shared.turn === 1,
+        'blockway duel: a wall is a whole turn');
+  check(refused(() => go(d, { to: [5, 5] })), 'blockway duel: a square out of reach is refused');
+  for (let g = 0; g < 60 && d.shared.phase === 'play'; g++) {
+    const s = d.shared;
+    const seat = s.turn;
+    const steps = BW.bwSteps({ sides: s.sides, pos: s.pos, walls: s.walls, left: s.left }, seat);
+    // Seat 0 walks home; seat 1 shuffles side to side.
+    const pickIt = seat === 0 ? steps.sort((x, y) => x.r - y.r)[0] : steps.find((x) => x.r === s.pos[1][0]) || steps[0];
+    go(d, { to: [pickIt.r, pickIt.c] });
+  }
+  const champ = d.shared.result && d.shared.result.winnerId;
+  check(d.shared.phase === 'over' && d.shared.result.winner === 0 && d.shared.result.reason === 'home' && d.shared.scores[champ] === 1,
+        'blockway duel: the first home wins the game');
+  applyRoomAction(d, 'c', 'nextRound', { round: d.shared.round });
+  check(d.shared.phase === 'play' && d.shared.seats.indexOf(champ) !== -1 && d.shared.walls.length === 0 && d.shared.left.join() === '10,10',
+        'blockway duel: the next in line sits down against the winner, on a fresh board');
+
+  // The think clock: 15 s a move, then a random step by the server's clock.
+  const t = start(['a', 'b'], { way: 'duel', think: 15 });
+  const due = roomDeadline(t);
+  check(due === t.shared.turnAt + 15000 + 800, "blockway: 15 s a move, on the server's clock");
+  clock = due;
+  check(roomTimeout(t, due) && t.shared.moves === 1 && t.shared.last.auto && t.shared.last.kind === 'step', 'blockway: time up, the server takes a step for them');
+
+  // Four on one board: five walls each, round the table, the last one standing wins.
+  const f = start(['a', 'b', 'c', 'd', 'e'], { way: 'four' });
+  check(f.shared.multi && f.shared.seats.length === 4 && f.shared.left.join() === '5,5,5,5' && f.shared.sides.join('') === 'bltr',
+        'blockway four: four seats with five walls each, the fifth watches');
+  const first = f.shared.turn;
+  go(f, { wall: { r: 3, c: 3, o: 'v' } });
+  check(f.shared.turn === (first + 1) % 4 && f.shared.left[first] === 4, 'blockway four: the turn goes round the table');
+  const [s0, s1, s2] = f.shared.seats;
+  [s0, s1, s2].forEach((pid) => { f.players = f.players.filter((p) => p.id !== pid); roomPlayerLeft(f, pid, pid); });
+  check(f.shared.phase === 'over' && f.shared.result.reason === 'left' && f.shared.result.winnerId === f.shared.seats[3] && f.shared.result.order.length === 4,
+        'blockway four: the last one on the board wins when the others leave');
+  check(refused(() => start(['a', 'b', 'c'], { way: 'four' })), 'blockway four: needs four (a computer player can make it up)');
+
+  // Two against two: partners opposite, either one home wins for both.
+  const w = start(['a', 'b', 'c', 'd'], { way: 'teams' });
+  const team0 = [w.shared.seats[0], w.shared.seats[2]];
+  w.shared.pos[0] = [1, 3];
+  w.shared.turn = 0;
+  go(w, { to: [0, 3] });
+  check(w.shared.phase === 'over' && w.shared.result.team === 0 && team0.every((id) => w.shared.scores[id] === 1) &&
+        w.shared.result.order.slice(0, 2).every((x) => x.place === 1) && w.shared.result.order.slice(2).every((x) => x.place === 2),
+        'blockway teams: one partner home wins it for both');
+  applyRoomAction(w, 'a', 'playAgain', { round: w.shared.round });
+  check(w.shared.phase === 'play' && w.shared.round === 2 && w.shared.walls.length === 0, 'blockway teams: play again deals a fresh board');
+
+  // صعب on a clock that stands still: its search stops at its ceiling, not only at its time budget.
+  const h = newRoom(['a']);
+  applyRoomAction(h, 'a', 'chooseGame', { game: 'blockway' });
+  applyRoomAction(h, 'a', 'addBot', { name: 'hard' });
+  applyRoomAction(h, 'a', 'start', { way: 'duel', level: 'hard' });
+  let botWalls = 0;
+  for (let g = 0; g < 400 && h.shared.phase === 'play'; g++) {
+    const pid = h.shared.seats[h.shared.turn];
+    if (pid === 'a') {
+      const s = h.shared;
+      const steps = BW.bwSteps({ sides: s.sides, pos: s.pos, walls: s.walls, left: s.left }, s.turn);
+      go(h, { to: [steps[0].r, steps[0].c] });
+    } else {
+      const at = roomDeadline(h);
+      if (at === null) break;
+      const before = h.shared.walls.length;
+      roomTimeout(h, at);
+      if (h.shared.walls.length > before) botWalls++;
+    }
+  }
+  check(h.shared.phase === 'over' && botWalls > 0, 'blockway: a hard computer player plays a whole game on a clock that stands still, and puts walls');
+  clock = realNow();
+}
+
 Date.now = realNow;
 console.log(failed ? `\n${failed} failed` : '\nall room rules pass');
 process.exit(failed ? 1 : 0);

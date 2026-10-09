@@ -1,98 +1,731 @@
 <script>
 /* ============================================================================
-   سد الطريق — Block the Way in rooms: the phones and the TV (made by
-   tools/new-game.mjs, 2026-10-09). The rules are ROOM_RULES.blockway in RoomBlockway.js.
-   A phone sees its own secret number (state.you.target), taps «+1» and says
-   «خلصت»; the TV shows who has finished, then the result on a podium.
+   سد الطريق — Block the Way in rooms: the phones and the TV (9 Oct 2026).
+   The rules are Blockway.js (shared) and RoomBlockway.js (the server).
+   ----------------------------------------------------------------------------
+   The look is the owner's pick, أ «الحارة من فوق»: a paving board seen from
+   above, wooden fences with a pin in the placer's colour, the duel pills (steps
+   home and walls left under each name), the tray of fences, and the line under
+   the board saying how a ghost wall changes each way home («السور ده: منى 7 ← 9
+   · إنت 9»).
+
+   The duel is one of the duels (JS_RoomConnect4.html's pieces: the pills, the
+   line, the result card, «خسران غياب», the think clock, the tournament's wrap),
+   so it plays and looks like كونكت ٤ and نقط ومربعات around its own board. The
+   four-seat ways draw four chips instead of the pills, and their own result: the
+   first home crowned, the rest by how close they were.
+
+   Every phone turns the board so its own piece starts at the bottom (bwTurnSq,
+   Blockway.js); the TV and anyone watching see it as it is. A tap on a square you
+   can reach steps there; a tap anywhere else (on your turn, with fences left) puts
+   a ghost wall in the nearest groove - tap the same place again to turn it, «حطّه»
+   to put it down. A ghost that would shut someone in is red and can't be put.
+
+   Motion (the sheet's frames): a fence drops into its groove with a thud, a piece
+   slides to its square or jumps over another in an arc, and whoever gets home is
+   crowned (confetti, the result's rows; the TV's podium in the four-seat ways).
+   Played once per move (motionFirst on the move's key), never on a redraw.
    ========================================================================= */
 
-/** The words, in the language of the app. */
-const blockwayT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+const bwT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+const bwFill = (s, map) => String(s || '').replace(/\{(\w+)\}/g, (m, k) => (map && map[k] !== undefined ? map[k] : m));
+const BW_G = 0.24;                      // a groove, in squares
+const BW_T = 9 + 8 * BW_G;              // the board, in squares
+const bwAt = (i) => i * (1 + BW_G);
+const bwPc = (v) => (v / BW_T * 100).toFixed(3) + '%';
+const bwRect = (x, y, w, h) => `left:${bwPc(x)};top:${bwPc(y)};width:${bwPc(w)};height:${bwPc(h)}`;
+const bwWallRect = (w) => (w.o === 'h' ? bwRect(bwAt(w.c), bwAt(w.r + 1) - BW_G, 2 + BW_G, BW_G) : bwRect(bwAt(w.c + 1) - BW_G, bwAt(w.r), BW_G, 2 + BW_G));
+const bwMotion = () => !(typeof motionOff === 'function' && motionOff());
 
-function blockwayTap() { haptic('light'); roomAct('tap', { round: (Room.state.shared || {}).round }); }
-function blockwayDone() { haptic('medium'); roomAct('done', { round: (Room.state.shared || {}).round }); }
-function blockwayFinish() { roomAct('finish', { round: (Room.state.shared || {}).round }); }
+// ghost: the wall being placed { key, w } (the board it was placed on: code, match, round, moves).
+const bwLocal = { ghost: null };
 
-/** The result's rows: each name, where they stopped and their number. */
-function blockwayResultRows(s, t) {
-  return (s.board || []).map(r => `
-    <div class="row"><span>${escapeHTML(r.name)}</span><span class="metric">${ltrFrac(r.count, r.target)}</span></div>`).join('');
+/* --- the lobby: the way, the think clock, the computer players' level ---------------- */
+
+const bwOpts = () => recallOptions('blockway', { way: 'duel', level: 'mid' });
+const bwWayOf = () => { const w = bwOpts().way; return w === 'four' || w === 'teams' ? w : 'duel'; };
+function setBwOpt(k, v) {
+  const o = bwOpts();
+  o[k] = v;
+  rememberOptions('blockway', o);
+  duelLobbyRedraw();
+}
+
+function bwSeg(items, cur, onclick) {
+  return `<div class="segmented" role="group">${items.map(([v, label]) => `<button type="button" class="segmented__item ${String(v) === String(cur) ? 'is-active' : ''}" onclick="${onclick(v)}">${escapeHTML(label)}</button>`).join('')}</div>`;
+}
+
+function bwLobbyHtml(state) {
+  const t = bwT();
+  if (!state.youAreHost) return `<p class="field__hint" style="text-align:center">${escapeHTML(t.blockway_lobby_hint || '')}</p>`;
+  const o = bwOpts();
+  const way = bwWayOf();
+  const think = duelThinkChoice('blockway');
+  const hints = { duel: t.blockway_way_duel_hint, four: t.blockway_way_four_hint, teams: t.blockway_way_teams_hint };
+  return `<div class="card card--tight">
+      <div class="field">
+        <label class="field__label">${escapeHTML(t.blockway_way_label || '')}</label>
+        ${bwSeg([['duel', t.blockway_way_duel], ['four', t.blockway_way_four], ['teams', t.blockway_way_teams]], way, (v) => `setBwOpt('way', '${v}')`)}
+        <p class="field__hint">${escapeHTML(hints[way] || '')}</p>
+      </div>
+      <div class="field">
+        <label class="field__label">⏱️ ${escapeHTML(t.blockway_think_label || '')}</label>
+        ${bwSeg(DUEL_THINK.blockway.map(v => [v, v ? v + '″' : t.blockway_think_off]), think, (v) => `setDuelThink('blockway', ${v})`)}
+        ${think ? `<p class="field__hint">${escapeHTML(t.blockway_think_hint || '')}</p>` : ''}
+      </div>
+      <div class="field">
+        <label class="field__label">🤖 ${escapeHTML(t.blockway_level_label || '')}</label>
+        ${bwSeg(BW_LEVELS.map(v => [v, t['blockway_level_' + v]]), BW_LEVELS.indexOf(o.level) !== -1 ? o.level : 'mid', (v) => `setBwOpt('level', '${v}')`)}
+        <p class="field__hint">${escapeHTML(t.blockway_level_hint || '')}</p>
+      </div>
+    </div>`;
+}
+
+/* --- reading a room's board --------------------------------------------------------- */
+
+/** The board's fields, as Blockway.js wants them. */
+const bwBoardOfState = (s) => ({ sides: s.sides || [], pos: s.pos || [], walls: s.walls || [], left: s.left || [] });
+const bwSeats = (s) => (s.sides || []).length;
+/** A seat's colour: the duel's two, four for everyone, or the side's in two against two. */
+const bwColour = (s, seat) => (s.multi && s.way === 'teams' ? seat % 2 : seat);
+/** How far this phone turns the board: its own seat at the bottom (BW_SIDES' order), or none. */
+function bwTurnOf(state) {
+  const s = state.shared || {};
+  if (state.youAreScreen) return 0;
+  const seat = (s.seats || []).indexOf(Room.me);
+  if (seat < 0) return 0;
+  return bwSeats(s) === 4 ? seat : seat * 2;
+}
+function bwNames(state) {
+  const s = state.shared || {};
+  return (s.seats || []).map((id, i) => (s.seatNames || [])[i] || duelRoomPlayerName(state, id) || '');
+}
+const bwIsMe = (state, seat) => !state.youAreScreen && ((state.shared || {}).seats || [])[seat] === Room.me;
+/** A name for a line: «إنت» for this phone's own seat. */
+const bwWho = (state, seat) => (bwIsMe(state, seat) ? (bwT().blockway_you || '') : bwIso(bwNames(state)[seat] || ''));
+/** A name isolated, so an Arabic name in an English line (and the other way) keeps its place. */
+const bwIso = (name) => '⁨' + name + '⁩';
+const bwStepsWord = (n) => {
+  const t = bwT();
+  const k = Math.abs(Number(n) || 0);
+  return (appState.lang === 'en' ? k === 1 : !(k >= 3 && k <= 10)) ? t.blockway_step_one : t.blockway_step_many;
+};
+const bwN = (n) => `<b class="bw-n">${n === null || n === undefined || n < 0 ? '–' : n}</b>`;
+const bwArrow = () => (appState.lang === 'en' ? '→' : '←');
+const bwFaceOf = (state, id) => ((state.players || []).find(p => p.id === id) || {}).face || '';
+function bwFace(state, seat, cls) {
+  const s = state.shared || {};
+  const id = (s.seats || [])[seat];
+  const face = typeof roomFaceHtml === 'function' ? roomFaceHtml(bwFaceOf(state, id), true) : '';
+  const letter = escapeHTML(Array.from(String(bwNames(state)[seat] || '?').trim())[0] || '?');
+  return `<span class="bw-face ${cls || ''}">${face || `<i class="bw-face__l">${letter}</i>`}</span>`;
+}
+/** The move this phone may make now, or -1: its seat, when it is its turn. */
+function bwMySeat(state) {
+  const s = state.shared || {};
+  if (state.youAreScreen || s.phase !== 'play') return -1;
+  const seat = (s.seats || []).indexOf(Room.me);
+  return seat >= 0 && seat === s.turn && (s.pos || [])[seat] ? seat : -1;
+}
+/** The ghost wall, if it belongs to this board as it stands. */
+function bwGhostOf(state) {
+  const s = state.shared || {};
+  const g = bwLocal.ghost;
+  return g && g.key === [state.code, s.tourMid || '', s.round, s.moves].join('|') ? g.w : null;
+}
+/** The only step a seat has, with no fences left (the server makes it after a beat). */
+function bwOnlyStep(s, seat) {
+  if (!s.pos || !s.pos[seat] || (s.left || [])[seat] > 0) return false;
+  const steps = bwSteps(bwBoardOfState(s), seat);
+  return steps.length === 1 && !bwAtGoal(s.sides[seat], steps[0].r, steps[0].c);
+}
+
+/* --- the board ------------------------------------------------------------------------- */
+
+/**
+ * The board as HTML. o: { k (the turn), me (this phone's seat to move, or -1),
+ * ghost { w, bad }, goals: 'all' | seat, arrive (the seat home), mini }.
+ */
+function bwBoardHtml(state, o) {
+  const s = state.shared || {};
+  const b = bwBoardOfState(s);
+  const k = o.k || 0;
+  const moves = o.me >= 0 ? bwSteps(b, o.me) : [];
+  let h = '';
+  for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
+    const [lr, lc] = bwUnturnSq(r, c, k);
+    const goals = b.sides.map((sd, i) => (b.pos[i] && (o.goals === 'all' || o.goals === i) && bwAtGoal(sd, lr, lc) ? ' is-goal-c' + bwColour(s, i) : '')).join('');
+    const mv = moves.find(m => m.r === lr && m.c === lc);
+    const home = o.arrive >= 0 && bwAtGoal(b.sides[o.arrive], lr, lc) ? ' is-arrive-c' + bwColour(s, o.arrive) : '';
+    h += `<i class="bw-sq${goals}${mv ? (mv.jump ? ' is-jump' : ' is-move') : ''}${home}" style="${bwRect(bwAt(c), bwAt(r), 1, 1)}"></i>`;
+  }
+  b.walls.forEach((w, i) => {
+    const d = bwTurnWall(w, k);
+    h += `<b class="bw-wall bw-wall--${d.o} own-c${bwColour(s, w.by)}" data-bw-wall="${i}" style="${bwWallRect(d)}"></b>`;
+  });
+  if (o.ghost) {
+    const d = bwTurnWall(o.ghost.w, k);
+    h += `<b class="bw-wall bw-ghost bw-wall--${d.o} ${o.ghost.bad ? 'is-bad' : ''}" style="${bwWallRect(d)}"></b>`;
+  }
+  b.pos.forEach((p, i) => {
+    if (!p) return;
+    const [r, c] = bwTurnSq(p[0], p[1], k);
+    const cls = [s.phase === 'play' && s.turn === i ? 'is-turn' : '', o.arrive === i ? 'is-arrive' : '', bwIsMe(state, i) ? 'is-me' : ''].join(' ');
+    h += `<span class="bw-pc bw-c${bwColour(s, i)} ${cls}" data-bw-seat="${i}" style="${bwRect(bwAt(c), bwAt(r), 1, 1)}">${o.mini ? '' : bwFace(state, i)}</span>`;
+  });
+  const tap = o.me >= 0 ? ' onclick="bwBoardTap(event)"' : '';
+  return `<div class="bw-boardwrap"><div class="bw-board${o.me >= 0 ? ' is-mine' : ''}" dir="ltr" data-bw-k="${k}"${tap}>${h}</div></div>`;
+}
+
+/** A tap on the board: a square you can reach is a step; anywhere else, the ghost wall in the nearest groove. */
+function bwBoardTap(ev) {
+  const state = duelRoomState();
+  if (!state || state.game !== 'blockway') return;
+  const s = state.shared || {};
+  const seat = bwMySeat(state);
+  if (seat < 0) return;
+  const board = ev.currentTarget;
+  const box = board.getBoundingClientRect();
+  if (!box.width) return;
+  const k = Number(board.dataset.bwK) || 0;
+  const x = (ev.clientX - box.left) / box.width * BW_T;
+  const y = (ev.clientY - box.top) / box.height * BW_T;
+  const ci = Math.floor(x / (1 + BW_G)), ri = Math.floor(y / (1 + BW_G));
+  const inCell = x - bwAt(ci) <= 1 && y - bwAt(ri) <= 1 && ci >= 0 && ci < 9 && ri >= 0 && ri < 9;
+  if (inCell) {
+    const [lr, lc] = bwUnturnSq(ri, ci, k);
+    if (bwSteps(bwBoardOfState(s), seat).some(m => m.r === lr && m.c === lc)) {
+      bwLocal.ghost = null;
+      duelRoomSend(state, { to: [lr, lc] });
+      return;
+    }
+  }
+  if (!((s.left || [])[seat] > 0)) { haptic('light'); return; }
+  const clamp = (v) => Math.max(0, Math.min(7, v));
+  const cj = clamp(Math.round((x + BW_G / 2) / (1 + BW_G)) - 1);
+  const rj = clamp(Math.round((y + BW_G / 2) / (1 + BW_G)) - 1);
+  const dx = x - (bwAt(cj + 1) - BW_G / 2), dy = y - (bwAt(rj + 1) - BW_G / 2);
+  const shown = { r: rj, c: cj, o: Math.abs(dy) < Math.abs(dx) ? 'h' : 'v' };
+  const w = bwUnturnWall(shown, k);
+  const was = bwGhostOf(state);
+  bwSetGhost(state, was && was.r === w.r && was.c === w.c ? { r: w.r, c: w.c, o: was.o === 'h' ? 'v' : 'h' } : w);
+}
+
+function bwSetGhost(state, w) {
+  const s = state.shared || {};
+  bwLocal.ghost = w ? { key: [state.code, s.tourMid || '', s.round, s.moves].join('|'), w } : null;
+  haptic('light');
+  if (Room.state && onRoomView()) routeRoomState(Room.state);
+}
+function bwGhostTurn() {
+  const state = duelRoomState();
+  const w = state && bwGhostOf(state);
+  if (w) bwSetGhost(state, { r: w.r, c: w.c, o: w.o === 'h' ? 'v' : 'h' });
+}
+function bwGhostCancel() { const state = duelRoomState(); if (state) bwSetGhost(state, null); }
+function bwGhostPut() {
+  const state = duelRoomState();
+  const w = state && bwGhostOf(state);
+  if (!w || bwMySeat(state) < 0 || bwWallCheck(bwBoardOfState(state.shared), w).why) return;
+  bwLocal.ghost = null;
+  duelRoomSend(state, { wall: { r: w.r, c: w.c, o: w.o } });
+}
+
+/* --- the lines around the board --------------------------------------------------------- */
+
+/** Under the board while a ghost is up: how it changes each way home, or why it can't go. */
+function bwGhostLineHtml(state, w, chk) {
+  const t = bwT();
+  const s = state.shared || {};
+  if (chk.why === 'shut') {
+    const who = chk.who.map(i => bwWho(state, i)).join('، ');
+    return `<p class="bw-bad" role="status">⛔ ${escapeHTML(bwFill(t.blockway_bad_shut, { name: who }))}</p>`;
+  }
+  if (chk.why) return `<p class="bw-bad" role="status">⛔ ${escapeHTML(t.blockway_bad_overlap || '')}</p>`;
+  const before = bwStepsHome(bwBoardOfState(s));
+  const me = (s.seats || []).indexOf(Room.me);
+  const parts = [];
+  before.forEach((d, i) => {
+    if (d === null || i === me) return;
+    const after = chk.steps[i];
+    parts.push(`<span class="bw-tx-c${bwColour(s, i)}">${escapeHTML(bwWho(state, i))} ${bwN(d)}${after !== d ? ` ${bwArrow()} ${bwN(after)}` : ''}</span>`);
+  });
+  if (me >= 0) parts.push(`<span>${escapeHTML(t.blockway_you || '')} ${bwN(chk.steps[me])}</span>`);
+  return `<p class="bw-deltas">${escapeHTML(t.blockway_this_wall || '')} ${parts.join(' · ')}</p>
+    <p class="bw-hint">${escapeHTML(t.blockway_turn_again || '')}</p>`;
+}
+
+function bwGhostBtnsHtml(chk) {
+  const t = bwT();
+  const bad = !!chk.why;
+  return `<div class="bw-actions">
+      ${bad ? '' : `<button type="button" class="btn btn--secondary btn--auto" onclick="bwGhostTurn()">↻ ${escapeHTML(t.blockway_turn_wall || '')}</button>`}
+      <button type="button" class="btn btn--primary" onclick="bwGhostPut()" ${bad ? 'disabled' : ''}>${escapeHTML(t.blockway_put || '')}</button>
+      <button type="button" class="btn btn--ghost btn--auto" onclick="bwGhostCancel()">${escapeHTML(t.blockway_cancel || '')}</button>
+    </div>`;
+}
+
+/** The fences as sticks: the ones left, then the used ones. */
+const bwSticks = (n, max) => `<span class="bw-sticks" aria-label="${n}">${Array.from({ length: max }, (_, k) => `<i class="${k < n ? '' : 'is-used'}"></i>`).join('')}</span>`;
+
+/** This phone's tray: its fences and its way home. */
+function bwTrayHtml(state) {
+  const t = bwT();
+  const s = state.shared || {};
+  const seat = (s.seats || []).indexOf(Room.me);
+  if (seat < 0 || state.youAreScreen || !(s.pos || [])[seat]) return '';
+  const max = BW_WALLS[bwSeats(s)] || 10;
+  const steps = bwStepsHome(bwBoardOfState(s))[seat];
+  const left = (s.left || [])[seat] || 0;
+  return `<div class="bw-tray own-c${bwColour(s, seat)}">
+      <span class="bw-tray__lab">${escapeHTML(t.blockway_fences || '')}<small><span class="metric">${left}</span> ${escapeHTML(t.blockway_of || '')} <span class="metric">${max}</span> · ${escapeHTML(t.blockway_your_way || '')} <span class="metric">${steps}</span> ${escapeHTML(bwStepsWord(steps))}</small></span>
+      ${bwSticks(left, max)}
+    </div>`;
+}
+
+/** What just happened, in a line: a fence and whose way it made longer, a jump, the clock's step. */
+function bwLastLine(state) {
+  const t = bwT();
+  const s = state.shared || {};
+  const l = s.last;
+  if (!l) return '';
+  if (l.auto) return `<p class="bw-hint">⏱️ ${escapeHTML(bwFill(t.blockway_auto, { name: bwWho(state, l.seat) }))}</p>`;
+  if (l.kind === 'wall' && l.hit) {
+    const key = bwIsMe(state, l.seat) ? t.blockway_your_wall : t.blockway_hit;
+    return `<p class="bw-deltas">🧱 ${escapeHTML(bwFill(key, { a: bwWho(state, l.seat), b: bwWho(state, l.hit.seat) }))} ${bwN(l.before[l.hit.seat])} ${bwArrow()} ${bwN(l.after[l.hit.seat])}</p>`;
+  }
+  if (l.kind === 'step' && l.jump && s.phase === 'play') return `<p class="bw-hint">⤴ ${escapeHTML(bwFill(t.blockway_jumped, { name: bwWho(state, l.seat) }))}</p>`;
+  return '';
+}
+
+/** The status line: whose turn it is and what to do. */
+function bwStatusHtml(state) {
+  const t = bwT();
+  const s = state.shared || {};
+  if (s.phase === 'over') return '';
+  const mine = bwMySeat(state);
+  if (mine >= 0) {
+    if (bwOnlyStep(s, mine)) return `<p class="bw-turn"><b>${escapeHTML(t.blockway_your_turn || '')}</b> · ${escapeHTML(t.blockway_only_step || '')}</p>`;
+    return `<p class="bw-turn"><b>${escapeHTML(t.blockway_your_turn || '')}</b> · ${escapeHTML(((s.left || [])[mine] > 0 ? t.blockway_do : t.blockway_do_step) || '')}</p>`;
+  }
+  return `<p class="bw-turn">${escapeHTML(bwFill(t.blockway_turn_of, { name: bwIso(bwNames(state)[s.turn] || '') }))}</p>`;
+}
+
+/* --- the duel's pills, the four-seat chips -------------------------------------------- */
+
+function bwPillsHtml(state) {
+  const s = state.shared || {};
+  const steps = bwStepsHome(bwBoardOfState(s));
+  const arrived = s.phase === 'over' && s.result && s.result.reason === 'home' ? s.result.winner : -1;
+  const names = bwNames(state);
+  const sub = (i) => `<span>🏁 ${arrived === i ? '✓' : `<span class="metric">${steps[i] === null ? '–' : steps[i]}</span>`}</span><span>🧱 <span class="metric">${(s.left || [])[i] || 0}</span></span>`;
+  const html = duelPillsHtml({
+    turn: s.phase === 'play' ? s.turn : -1,
+    players: [0, 1].map(i => ({ mark: bwFace(state, i), name: names[i] + (bwIsMe(state, i) ? ' · ' + (bwT().blockway_you || '') : ''), sub: sub(i), score: (s.scores || {})[(s.seats || [])[i]] || 0 }))
+  });
+  return html.replace(/data-duel-pill="(\d)"/g, (m, k) => `${m} style="--pc:var(--bw-c${bwColour(s, Number(k))})"`);
+}
+
+function bwChipsHtml(state, tv) {
+  const t = bwT();
+  const s = state.shared || {};
+  const steps = bwStepsHome(bwBoardOfState(s));
+  const names = bwNames(state);
+  const max = BW_WALLS[4];
+  const teams = s.way === 'teams';
+  const chip = (i) => {
+    const gone = !(s.pos || [])[i];
+    const team = teams ? `<em class="bw-chip__team">${escapeHTML(i % 2 ? t.blockway_team_b : t.blockway_team_a)}</em>` : '';
+    return `<div class="bw-chip bw-c${bwColour(s, i)} ${s.phase === 'play' && s.turn === i ? 'is-turn' : ''} ${gone ? 'is-gone' : ''}" style="--pc:var(--bw-c${bwColour(s, i)})">
+        ${bwFace(state, i)}
+        <div><b>${escapeHTML(names[i])}${bwIsMe(state, i) ? ` <small>(${escapeHTML(t.blockway_you || '')})</small>` : ''}</b>
+          <span>${team}🏁 <span class="metric">${gone ? '–' : steps[i]}</span> ${tv ? bwSticks((s.left || [])[i] || 0, max) : `🧱 <span class="metric">${(s.left || [])[i] || 0}</span>`}</span></div>
+      </div>`;
+  };
+  return `<div class="bw-chips${tv ? ' bw-chips--tv' : ''}">${[0, 1, 2, 3].map(chip).join('')}</div>`;
+}
+
+/* --- the four-seat result -------------------------------------------------------------- */
+
+const bwPoints = (place) => [5, 3, 2][place - 1] || 1;
+
+function bwOverTitle(state) {
+  const t = bwT();
+  const s = state.shared || {};
+  const r = s.result || {};
+  if (s.way === 'teams') return bwFill(t.blockway_team_won, { team: r.team ? t.blockway_team_b : t.blockway_team_a });
+  return bwFill(r.reason === 'home' ? t.blockway_first_home : t.blockway_last_one, { name: bwIso(r.winnerName || '') });
+}
+
+function bwRowsHtml(state) {
+  const t = bwT();
+  const s = state.shared || {};
+  const order = (s.result || {}).order || [];
+  return `<div class="bw-rows">${order.map((x, n) => `
+      <div class="bw-row ${x.place === 1 ? 'is-top' : ''}" style="--pc:var(--bw-c${bwColour(s, x.seat)})">
+        <span class="bw-row__n metric">${x.place}</span>${bwFace(state, x.seat)}
+        <span class="bw-row__name">${escapeHTML(x.name)}<small>${escapeHTML(x.gone ? t.blockway_row_gone : x.steps === 0 ? t.blockway_row_home : bwFill(t.blockway_row_short, { n: x.steps, steps: bwStepsWord(x.steps) }))}</small></span>
+        <span class="bw-row__pts metric">+${bwPoints(x.place)}</span>
+      </div>`).join('')}</div>`;
+}
+
+function bwOverHtml(state, tv) {
+  const t = bwT();
+  const s = state.shared || {};
+  const r = s.result || {};
+  const walls = (s.walls || []).length;
+  const hero = `<div class="bw-hero" style="--pc:var(--bw-c${bwColour(s, r.winner)})">
+      <span class="bw-hero__crown" aria-hidden="true">👑</span>${bwFace(state, r.winner)}
+      <span class="bw-hero__title">${escapeHTML(bwOverTitle(state))}</span>
+      <span class="bw-hero__sub">${escapeHTML(bwFill(t.blockway_end_sub, { n: s.moves || 0, w: walls }))}</span>
+      <span class="bw-hero__street" aria-hidden="true"></span>
+    </div>`;
+  const again = `roomAct('playAgain', { round: ${Number(s.round) || 0} })`;
+  const inRoom = state.youAreHost || (state.players || []).some(p => p.id === Room.me);
+  if (tv) {
+    const podium = renderPodium(state, ((r.order || []).map(x => ({ id: x.id, name: x.name, score: bwPoints(x.place) }))), { unit: 'pt' });
+    return `${hero}${podium}
+      ${state.youAreHost ? `<div class="tv-actions">${tvBtn(t.blockway_again, again)}${tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost')}</div>` : ''}`;
+  }
+  return `<div class="bw-end">${hero}${bwRowsHtml(state)}
+      <div class="btn-stack">
+        ${inRoom ? roomMoveOnHtml(state, `<button class="btn btn--primary btn--lg" onclick="${again}">${escapeHTML(t.blockway_again || '')}</button>`) : ''}
+        ${state.youAreHost ? `<button class="btn btn--ghost btn--sm" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>` : ''}
+      </div></div>`;
+}
+
+/* --- motion: the fence dropping, the piece sliding or jumping, the arrival ------------- */
+
+/**
+ * After a board is drawn: the last move plays once (its key), from where the
+ * piece stood; a fence drops into its groove. `loud`: this device makes the sound.
+ */
+function bwAfterPaint(root, state, loud) {
+  const s = state.shared || {};
+  const l = s.last;
+  const board = root && root.querySelector('.bw-board');
+  if (!board || !l) return;
+  const key = ['bw', roomDealKey(state), s.tourMid || '', s.round, s.moves].join('|');
+  const first = typeof motionFirst === 'function' ? motionFirst(key) : true;
+  if (!first) return;
+  const sound = loud && typeof duelOnce === 'function' && duelOnce('snd|' + key);
+  if (l.kind === 'wall') {
+    const el = board.querySelector(`[data-bw-wall="${(s.walls || []).length - 1}"]`);
+    if (sound) setTimeout(() => duelSound('drop'), bwMotion() ? 260 : 0);
+    if (!el || !bwMotion() || !el.animate) return;
+    el.animate([
+      { transform: 'translateY(-60%) scale(1.25)', opacity: 0.35, offset: 0 },
+      { transform: 'translateY(0) scale(1.06)', opacity: 1, offset: 0.7 },
+      { transform: 'none', opacity: 1, offset: 1 }
+    ], { duration: 380, easing: 'cubic-bezier(.4,0,.6,1)' });
+    el.classList.add('is-thud');
+    setTimeout(() => el.classList.remove('is-thud'), 900);
+    return;
+  }
+  const pc = board.querySelector(`[data-bw-seat="${l.seat}"]`);
+  if (sound) duelSound('line');
+  if (!pc || !l.from || !l.to || !bwMotion() || !pc.animate) return;
+  const k = Number(board.dataset.bwK) || 0;
+  const a = bwTurnSq(l.from[0], l.from[1], k), z = bwTurnSq(l.to[0], l.to[1], k);
+  // The piece's own size is a square: a translate in % of it is (1 + groove) a square.
+  const dx = (a[1] - z[1]) * (1 + BW_G) * 100, dy = (a[0] - z[0]) * (1 + BW_G) * 100;
+  const frames = l.jump
+    ? [{ transform: `translate(${dx}%, ${dy}%)` }, { transform: `translate(${dx / 2}%, ${dy / 2 - 70}%) scale(1.28)`, offset: 0.5 }, { transform: 'none' }]
+    : [{ transform: `translate(${dx}%, ${dy}%)` }, { transform: 'none' }];
+  pc.animate(frames, { duration: l.jump ? 520 : 300, easing: 'cubic-bezier(.3,.7,.3,1)' });
+}
+
+/* --- the room's screens ------------------------------------------------------------------ */
+
+function bwSig(state, extra) {
+  const s = state.shared || {};
+  const g = bwGhostOf(state);
+  return ['bw', s.tourMid || '', s.round, s.phase, s.moves, s.turn, (s.seats || []).join(','), JSON.stringify(s.line || []), s.champ,
+    JSON.stringify(s.scores || {}), (state.players || []).map(p => p.id + p.name + (p.face || '')).join(','), state.youAreHost, appState.lang,
+    g ? g.r + g.c + g.o : '', duelRoomAwayAt(state), duelThinkAt(state), extra || ''].join('|');
 }
 
 ROOM_GAMES.blockway = {
-  lobbyOptions() {
-    return `<p class="field__hint" style="text-align:center">${escapeHTML(blockwayT().blockway_lobby_hint)}</p>`;
+  // Someone who joins mid-game watches the board, and joins the line (the duel) or the next game.
+  lateJoin: true,
+  // Computer players: one button, the level is the lobby's own choice (سهل / وسط / صعب).
+  bots: { one: true, max: 8 },
+  lobbyOptions: (state) => bwLobbyHtml(state),
+  // The four-seat ways have no tournament: the switch goes while one of them is picked.
+  tourOff: () => bwWayOf() !== 'duel',
+  startBlock(state) {
+    if (bwWayOf() === 'duel' || (state.players || []).length >= 4) return '';
+    return bwT().blockway_need4 || '';
   },
-  startPayload() { return {}; },
+  startPayload() { return { way: bwWayOf(), think: duelThinkChoice('blockway'), level: bwOpts().level }; },
 
   render(state) {
     if (appState.currentView !== 'room-blockway') setView('room-blockway');
     const el = document.getElementById('view-room-blockway');
     if (!el) return;
-    const t = blockwayT();
-    const s = state.shared || {};
-
-    if (s.phase === 'gameover') {
-      const fresh = renderRoomFrame(el, ['blockway-over', state.youAreHost, appState.lang].join('|'), () => `
-        <div class="card" style="text-align:center">
-          <div class="card__title">${escapeHTML(t.blockway_result)}</div>
-          ${renderPodium(state, s.board) || `<div class="metric metric--md">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>`}
-          ${blockwayResultRows(s, t)}
+    bwStyle();
+    const t = bwT();
+    const s = state.shared;
+    if (!s || !s.sides) return;
+    const four = bwSeats(s) === 4;
+    const me = bwMySeat(state);
+    const k = bwTurnOf(state);
+    const ghostW = me >= 0 ? bwGhostOf(state) : null;
+    const chk = ghostW ? bwWallCheck(bwBoardOfState(s), ghostW) : null;
+    const arrive = s.phase === 'over' && s.result && s.result.reason === 'home' ? s.result.winner : -1;
+    const mine = state.youAreScreen ? -1 : (s.seats || []).indexOf(Room.me);
+    const watching = !state.youAreScreen && mine === -1 && !s.tourMid;
+    const rebuilt = renderRoomFrame(el, bwSig(state), () => `
+      <div class="duel bw bw-look">
+        <div class="duel-layout">
+          <div class="duel-layout__board" style="--duel-aspect:1">
+            ${bwBoardHtml(state, { k, me, ghost: ghostW ? { w: ghostW, bad: !!chk.why } : null, goals: four || mine < 0 ? 'all' : mine, arrive })}
+          </div>
+          <div class="duel-layout__side">
+            <div class="duel-head">
+              ${four ? bwChipsHtml(state) : bwPillsHtml(state)}
+              ${s.phase === 'over' && !four ? `<p class="duel-status is-done">${escapeHTML(duelRoomResultLine(state, t))}</p>` : bwStatusHtml(state)}${duelThinkHtml(state, t)}${duelRoomAwayHtml(state, t)}
+            </div>
+            ${ghostW ? bwGhostLineHtml(state, ghostW, chk) + bwGhostBtnsHtml(chk) : bwLastLine(state) + (s.phase === 'play' ? bwTrayHtml(state) : '')}
+            ${s.phase === 'over' ? (four ? bwOverHtml(state) : duelRoomOverHtml(state, t)) : (four ? '' : duelRoomWatchNote(state, t))}
+            ${watching && four && s.phase === 'play' ? `<p class="field__hint duel-hint">👀 ${escapeHTML(t.blockway_watch || '')}</p>` : ''}
+            ${four ? '' : duelRoomLineHtml(state, t)}
+            ${(state.players || []).length > 2 && !four ? renderScoreboard(s.board) : ''}
+            ${s.phase === 'over' ? roomShareBtnHtml(state, s.board) : ''}
+            ${renderRoomPlayerStrip(state)}
+          </div>
         </div>
-        ${state.youAreHost
-          ? `<div class="btn-stack">
-               <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(t.play_again || '')}</button>
-               <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
-             </div>`
-          : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
-        ${renderRoomPlayerStrip(state)}`);
-      if (fresh) afterReveal(el, () => { if (typeof confetti === 'function') confetti({ particleCount: 80, spread: 70 }); });
-      refreshRoomPlayerStrip(el, state);
-      return;
+      </div>`);
+    const key = ['bw', roomDealKey(state), s.tourMid || '', s.round].join('|');
+    const moveKey = s.last ? ['bw', roomDealKey(state), s.tourMid || '', s.round, s.moves].join('|') : '';
+    // A reload or a late join shows the board as it is: the last move and the cheer are marked seen.
+    duelRoomFirstSight(state, key, { motion: [moveKey], once: [moveKey && 'snd|' + moveKey] });
+    if (rebuilt) {
+      bwAfterPaint(el, state, duelRoomLoud(state));
+      if (!four) {
+        duelPillsAfter(el, duelRoomPillKey('bwr', state), {
+          turn: s.phase === 'play' ? s.turn : -1,
+          scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
+        });
+        duelRoomCheer(el, state, key);
+      } else bwMultiCheer(el, state, key);
+      if (me >= 0 && duelOnce(['bwturn', roomDealKey(state), s.tourMid || '', s.round, s.moves].join('|'))) haptic('medium');
     }
-
-    const inRound = (s.roster || []).indexOf(Room.me) !== -1;
-    const done = (s.done || []).indexOf(Room.me) !== -1;
-    const count = (s.counts || {})[Room.me] || 0;
-    renderRoomFrame(el, ['blockway-play', s.round, inRound, done, count, state.youAreHost, appState.lang].join('|'), () => `
-      <div class="card" style="text-align:center">
-        ${inRound ? `
-          <p class="sheet__subtitle">${escapeHTML(t.blockway_your_number)}</p>
-          <div class="metric metric--lg">${(state.you || {}).target || '?'}</div>
-          <div class="metric metric--md">${count}</div>
-          ${done ? `<p class="sheet__subtitle">${escapeHTML(t.blockway_wait)}</p>` : `
-            <div class="btn-stack">
-              <button class="btn btn--primary btn--lg" onclick="blockwayTap()">${escapeHTML(t.blockway_tap)}</button>
-              <button class="btn btn--secondary" onclick="blockwayDone()">${escapeHTML(t.blockway_done)}</button>
-            </div>`}` : `<p class="sheet__subtitle">${escapeHTML(t.vote_spectating || '')}</p>`}
-      </div>
-      ${roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="blockwayFinish()">${escapeHTML(t.blockway_finish)}</button></div>`)}
-      ${renderRoomPlayerStrip(state)}`);
     refreshRoomPlayerStrip(el, state);
-  }
+    duelRoomAwayTick(state);
+    duelThinkTick(state);
+  },
+  // A move is not a new step to scroll to: the board is what everyone is watching.
+  actionKey: (state) => [state.code, (state.shared || {}).round, (state.shared || {}).phase].join('|')
 };
+
+/** The end of a four-seat game: confetti for the winner (both partners) and the TV, a sigh for the rest; once. */
+function bwMultiCheer(el, state, key) {
+  const s = state.shared || {};
+  if (s.phase !== 'over' || !s.result || !duelOnce(key + '|cheer')) return;
+  const r = s.result;
+  const mySeat = (s.seats || []).indexOf(Room.me);
+  const won = mySeat >= 0 && !state.youAreScreen && (mySeat === r.winner || (s.way === 'teams' && mySeat % 2 === r.winner % 2));
+  afterReveal(el, () => {
+    if (won || state.youAreScreen) {
+      duelSound('win');
+      if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+    } else if (mySeat >= 0) duelSound('lose');
+  });
+  if (won) haptic('double');
+}
+
+/* --- the TV --------------------------------------------------------------------------------- */
 
 TV_GAMES.blockway = {
-  sig: (state) => [state.shared.phase, (state.shared.done || []).length, (state.shared.roster || []).length].join('|'),
+  sig: (state) => bwSig(state, 'tv'),
   frame(state, t) {
-    const s = state.shared;
-    t = blockwayT();
-    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
-    if (s.phase === 'gameover') {
+    bwStyle();
+    t = bwT();
+    const s = state.shared || {};
+    if (!s.sides) return tvLookAtPhones(t);
+    const four = bwSeats(s) === 4;
+    const arrive = s.phase === 'over' && s.result && s.result.reason === 'home' ? s.result.winner : -1;
+    const board = bwBoardHtml(state, { k: 0, me: -1, goals: 'all', arrive });
+    if (!four) {
       return `
-        <div class="tv-vote">
-          <div class="tv-title tv-center-text">${escapeHTML(t.blockway_result)}</div>
-          ${renderPodium(state, s.board)}
-          ${host(tvBtn(t.play_again, "roomAct('playAgain')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+        <div class="duel-tv bw bw-look bw-tvduel">
+          <div class="duel-tv__board" style="--duel-aspect:1">${board}</div>
+          ${duelTvSide(state, t, bwPillsHtml(state))}
         </div>`;
     }
+    const names = bwNames(state);
+    const turnLine = s.phase === 'play' ? `<div class="bw-tvturn">${escapeHTML(bwFill(t.blockway_turn_of, { name: '' }).replace(/[…\s]+$/, ''))} <span class="bw-tx-c${bwColour(s, s.turn)}">${escapeHTML(names[s.turn] || '')}</span></div>` : '';
+    const side = s.phase === 'over'
+      ? `<div class="bw-tvover">${bwOverHtml(state, true)}</div>`
+      : `${turnLine}${bwChipsHtml(state, true)}${bwLastLine(state)}${duelThinkAt(state) ? `<div class="tv-scale">${duelThinkHtml(state, t)}</div>` : ''}${duelRoomAwayAt(state) ? `<div class="tv-scale">${duelRoomAwayHtml(state, t)}</div>` : ''}`;
     return `
-      <div class="tv-center">
-        <div class="tv-big-icon" aria-hidden="true">🚧</div>
-        <div class="tv-title">${escapeHTML(t.blockway_tv_wait)}</div>
-        ${tvWaitChips(state, s.roster || [], s.done || [])}
-        ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.blockway_finish, 'blockwayFinish()', 'ghost')}</div>`)}
+      <div class="bw bw-look bw-tv">
+        <div class="bw-tv__board">${board}</div>
+        <div class="bw-tv__side">${side}</div>
       </div>`;
+  },
+  after(state, rebuilt) {
+    duelRoomAwayTick(state);
+    duelThinkTick(state);
+    if (!rebuilt) return;
+    const el = document.getElementById('view-room-tv');
+    const s = state.shared || {};
+    if (!el || !s.sides) return;
+    const four = bwSeats(s) === 4;
+    const key = ['bw', roomDealKey(state), s.tourMid || '', s.round].join('|');
+    const moveKey = s.last ? ['bw', roomDealKey(state), s.tourMid || '', s.round, s.moves].join('|') : '';
+    duelRoomFirstSight(state, key, { motion: [moveKey], once: [moveKey && 'snd|' + moveKey] });
+    bwAfterPaint(el, state, true);
+    if (!four) {
+      duelPillsAfter(el, duelRoomPillKey('bwtv', state), {
+        turn: s.phase === 'play' ? s.turn : -1,
+        scores: [(s.scores || {})[s.seats[0]] || 0, (s.scores || {})[s.seats[1]] || 0]
+      });
+      duelRoomCheer(el, state, key);
+    } else bwMultiCheer(el, state, key);
   }
 };
+
+// The tournament (JS_RoomTournament.html): the match's small board on the TV's live cards, and
+// the wrap of these renderers - this chunk runs after the tournament's, so it wraps itself.
+if (typeof TOUR_CLIENT === 'object' && TOUR_CLIENT) {
+  TOUR_CLIENT.blockway = {
+    mini: (g) => (Array.isArray(g.sides) ? `<div class="bw bw-look tour-mini__board">${bwBoardHtml({ shared: g, players: [], code: '' }, { k: 0, me: -1, goals: 'all', arrive: -1, mini: true })}</div>` : '')
+  };
+}
+if (typeof tourWrap === 'function') tourWrap('blockway');
+
+/* --- the look (أ «الحارة من فوق»): one <style>, added the first time the game draws ---------- */
+let bwStyled = false;
+function bwStyle() {
+  if (bwStyled || typeof document === 'undefined') return;
+  bwStyled = true;
+  const st = document.createElement('style');
+  st.id = 'bw-style';
+  st.textContent = `
+.bw-look { --bw-c0:#2f6fe0; --bw-c1:#e0457b; --bw-c2:#d88a08; --bw-c3:#17a067;
+  --bw-c0-ink:#1f4fae; --bw-c1-ink:#b4245a; --bw-c2-ink:#8f5a00; --bw-c3-ink:#0d7047;
+  --bw-stone:#cdbb9b; --bw-tile:#f1e7d5; --bw-tile-2:#e9dcc5; --bw-plank:#9a6433; --bw-plank-2:#b97b40; }
+body.dark .bw-look { --bw-c0:#5b93ff; --bw-c1:#ff6b9c; --bw-c2:#ffb627; --bw-c3:#3fd18f;
+  --bw-c0-ink:#8fb5ff; --bw-c1-ink:#ff9cbe; --bw-c2-ink:#ffcd6b; --bw-c3-ink:#7ee3b2;
+  --bw-stone:#2b241c; --bw-tile:#4a3f31; --bw-tile-2:#433829; --bw-plank:#b27a42; --bw-plank-2:#d39654; }
+.shell__main > #view-room-blockway { max-width: 72rem; }
+.bw-look .bw-n { direction: ltr; unicode-bidi: isolate; font-weight: var(--fw-black); color: var(--text); }
+.bw-face { display: inline-grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; background: var(--surface-2); flex: none; }
+.bw-face svg { width: 100%; height: 100%; display: block; }
+.bw-face__l { font-style: normal; font-weight: var(--fw-black); color: #fff; background: var(--pc, var(--accent)); width: 100%; height: 100%; display: grid; place-items: center; font-size: 1.05em; }
+.bw-boardwrap { position: relative; padding: 2.2%; border-radius: 20px; background: var(--bw-stone); box-shadow: inset 0 2px 6px rgba(0,0,0,.18), 0 10px 24px -16px rgba(0,0,0,.5); }
+.bw-board { position: relative; width: 100%; aspect-ratio: 1; container-type: inline-size; touch-action: manipulation; }
+.bw-board.is-mine { cursor: pointer; }
+.bw-board > * { position: absolute; box-sizing: border-box; }
+.bw-sq { border-radius: 18%; background: linear-gradient(160deg, var(--bw-tile), var(--bw-tile-2)); box-shadow: inset 0 -2px 0 rgba(0,0,0,.08); }
+.bw-sq.is-goal-c0 { background: color-mix(in srgb, var(--bw-c0) 26%, var(--bw-tile)); }
+.bw-sq.is-goal-c1 { background: color-mix(in srgb, var(--bw-c1) 26%, var(--bw-tile)); }
+.bw-sq.is-goal-c2 { background: color-mix(in srgb, var(--bw-c2) 26%, var(--bw-tile)); }
+.bw-sq.is-goal-c3 { background: color-mix(in srgb, var(--bw-c3) 26%, var(--bw-tile)); }
+.bw-sq.is-arrive-c0 { background: color-mix(in srgb, var(--bw-c0) 55%, var(--bw-tile)); }
+.bw-sq.is-arrive-c1 { background: color-mix(in srgb, var(--bw-c1) 55%, var(--bw-tile)); }
+.bw-sq.is-arrive-c2 { background: color-mix(in srgb, var(--bw-c2) 55%, var(--bw-tile)); }
+.bw-sq.is-arrive-c3 { background: color-mix(in srgb, var(--bw-c3) 55%, var(--bw-tile)); }
+.bw-sq.is-move::after, .bw-sq.is-jump::after { content: ''; position: absolute; inset: 34%; border-radius: 50%; background: var(--accent); opacity: .6; }
+.bw-sq.is-jump { box-shadow: 0 0 0 3px var(--accent) inset; }
+.bw-sq.is-jump::after { inset: 30%; opacity: 1; }
+.bw-c0, .own-c0 { --pc: var(--bw-c0); } .bw-c1, .own-c1 { --pc: var(--bw-c1); } .bw-c2, .own-c2 { --pc: var(--bw-c2); } .bw-c3, .own-c3 { --pc: var(--bw-c3); }
+.bw-tx-c0 { color: var(--bw-c0-ink); } .bw-tx-c1 { color: var(--bw-c1-ink); } .bw-tx-c2 { color: var(--bw-c2-ink); } .bw-tx-c3 { color: var(--bw-c3-ink); }
+.bw-wall { z-index: 2; border-radius: 3px; pointer-events: none; background: repeating-linear-gradient(90deg, var(--bw-plank) 0 22%, var(--bw-plank-2) 22% 25%); box-shadow: 0 3px 5px -1px rgba(0,0,0,.45), inset 0 0 0 1px rgba(0,0,0,.18); }
+.bw-wall--v { background: repeating-linear-gradient(180deg, var(--bw-plank) 0 22%, var(--bw-plank-2) 22% 25%); }
+.bw-wall::before { content: ''; position: absolute; width: max(5px, 2.4cqw); height: max(5px, 2.4cqw); border-radius: 50%; background: var(--pc); top: 50%; left: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--bw-tile); }
+.bw-wall.is-thud { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 9px color-mix(in srgb, var(--accent) 18%, transparent); }
+.bw-ghost { background: color-mix(in srgb, var(--accent) 35%, transparent); outline: 2px dashed var(--accent-ink); outline-offset: 1px; box-shadow: none; z-index: 4; }
+.bw-ghost::before { background: var(--accent); }
+.bw-ghost.is-bad { background: color-mix(in srgb, var(--danger) 40%, transparent); outline-color: var(--danger); }
+.bw-ghost.is-bad::before { content: '✕'; width: auto; height: auto; background: none; box-shadow: none; color: var(--danger-ink, var(--danger)); font-weight: 900; font-size: max(10px, 3.4cqw); }
+.bw-pc { display: grid; place-items: center; z-index: 3; pointer-events: none; }
+.bw-pc .bw-face { width: 84%; height: 84%; box-shadow: 0 0 0 max(2px, .8cqw) var(--pc), 0 4px 8px -2px rgba(0,0,0,.35); font-size: 4.2cqw; }
+.bw-pc.is-turn .bw-face { box-shadow: 0 0 0 max(2px, .8cqw) var(--pc), 0 0 0 max(5px, 1.8cqw) color-mix(in srgb, var(--pc) 30%, transparent), 0 4px 8px -2px rgba(0,0,0,.35); }
+.bw-pc.is-arrive { z-index: 5; }
+.bw-pc.is-arrive .bw-face { transform: scale(1.12); }
+.bw-pc.is-arrive::after { content: '👑'; position: absolute; top: -34%; font-size: 4.6cqw; line-height: 1; }
+.tour-mini__board .bw-pc { background: radial-gradient(circle, var(--pc) 0 55%, transparent 58%); }
+.bw-turn { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); margin: 0; text-align: center; }
+.bw-turn b { color: var(--accent-ink); font-weight: var(--fw-black); }
+.bw-deltas { display: flex; justify-content: center; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-size: var(--fs-sm); color: var(--text-2); font-weight: var(--fw-bold); margin: 0; text-align: center; }
+.bw-hint { margin: 0; text-align: center; font-size: var(--fs-sm); color: var(--text-2); font-weight: var(--fw-semi); }
+.bw-bad { margin: 0; text-align: center; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--danger-ink, var(--danger)); }
+.bw-actions { display: flex; gap: var(--sp-2); align-items: center; }
+.bw-actions .btn { white-space: nowrap; }
+.bw-actions .btn--primary { flex: 1; }
+.bw-sticks { display: inline-flex; gap: 3px; align-items: center; flex-wrap: wrap; }
+.bw-sticks i { width: 7px; height: 22px; border-radius: 2px; background: repeating-linear-gradient(180deg, var(--bw-plank) 0 30%, var(--bw-plank-2) 30% 36%); }
+.bw-sticks i.is-used { background: var(--border-field); opacity: .55; }
+.bw-tray { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-radius: 20px; background: var(--surface-solid); border: 1px solid var(--border); }
+.bw-tray__lab { display: flex; flex-direction: column; line-height: 1.25; font-weight: var(--fw-bold); }
+.bw-tray__lab small { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); }
+.bw-look .duel-pill { border: 1.5px solid var(--border); }
+.bw-look .duel-pill.is-turn { border-color: var(--accent); background: var(--accent-soft); }
+.bw-look .duel-pill__mark { width: 2.1rem; height: 2.1rem; }
+.bw-look .duel-pill__mark .bw-face { box-shadow: 0 0 0 2.5px var(--pc); }
+.bw-look .duel-pill__sub { display: flex; align-items: center; gap: .45rem; color: var(--text-2); font-weight: var(--fw-bold); }
+.bw-look .duel-pill__sub .metric { color: var(--text); font-weight: var(--fw-black); }
+.bw-chips { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+.bw-chip { display: grid; grid-template-columns: 2.2rem minmax(0, 1fr); align-items: center; gap: var(--sp-2); padding: var(--sp-2); border-radius: 14px; background: var(--surface-solid); border: 1.5px solid var(--border); min-width: 0; }
+.bw-chip.is-turn { border-color: var(--accent); background: var(--accent-soft); }
+.bw-chip.is-gone { opacity: .5; }
+.bw-chip .bw-face { width: 2.2rem; height: 2.2rem; box-shadow: 0 0 0 2.5px var(--pc); }
+.bw-chip b { font-size: var(--fs-sm); font-weight: var(--fw-black); line-height: 1.2; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bw-chip b small { font-weight: var(--fw-semi); color: var(--text-2); font-size: var(--fs-xs); }
+.bw-chip span { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-bold); display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+.bw-chip span .metric { color: var(--text); font-weight: var(--fw-black); }
+.bw-chip__team { font-style: normal; color: var(--pc); font-weight: var(--fw-black); }
+.bw-end { display: flex; flex-direction: column; gap: var(--sp-3); }
+.bw-hero { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-5) var(--sp-4) var(--sp-4); border-radius: 20px; background: var(--surface-solid); border: 1px solid var(--border); overflow: hidden; text-align: center; }
+.bw-hero .bw-face { width: 5.2rem; height: 5.2rem; font-size: 2.2rem; box-shadow: 0 0 0 4px var(--pc), 0 10px 20px -8px rgba(0,0,0,.4); }
+.bw-hero__crown { font-size: 2rem; line-height: 1; margin-bottom: -.6rem; z-index: 1; }
+.bw-hero__title { font-size: var(--fs-h2); font-weight: var(--fw-black); }
+.bw-hero__sub { font-size: var(--fs-sm); color: var(--text-2); font-weight: var(--fw-semi); }
+.bw-hero__street { width: 100%; height: 14px; border-radius: 8px; background: repeating-linear-gradient(90deg, var(--bw-tile) 0 18px, var(--bw-tile-2) 18px 20px); }
+.bw-rows { display: flex; flex-direction: column; gap: var(--sp-2); }
+.bw-row { display: grid; grid-template-columns: 1.6rem 2.6rem minmax(0, 1fr) auto; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: 14px; background: var(--surface-2); }
+.bw-row .bw-face { width: 2.6rem; height: 2.6rem; box-shadow: 0 0 0 2.5px var(--pc); }
+.bw-row__n { font-weight: var(--fw-black); color: var(--text-2); text-align: center; }
+.bw-row__name { font-weight: var(--fw-bold); display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.bw-row__name small { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); }
+.bw-row__pts { font-weight: var(--fw-black); font-size: var(--fs-h3); color: var(--accent-ink); }
+.bw-row.is-top { background: var(--accent-soft); }
+@media (max-width: 899px) and (min-height: 501px) {
+  #view-room-blockway .duel-layout__side > .duel-result,
+  #view-room-blockway .duel-layout__side > [data-tour-over] { order: 0; }
+}
+/* the TV */
+.bw-tv { display: grid; grid-template-columns: auto minmax(0, 34rem); justify-content: center; align-items: center; gap: calc(var(--tv-gap) * 2.5); min-height: 0; }
+.bw-tv__board { width: min(calc(var(--app-h, 100vh) - 17vmin), 60vw); }
+.bw-tv__side { display: flex; flex-direction: column; gap: var(--tv-gap); min-width: 0; }
+.bw-tvturn { font-size: var(--tv-md); font-weight: 900; text-align: center; }
+.bw-chips--tv { grid-template-columns: 1fr 1fr; gap: 1.6vmin; }
+.bw-chips--tv .bw-chip { grid-template-columns: 8vmin minmax(0, 1fr); padding: 1.6vmin; border-radius: 2.4vmin; border-width: .3vmin; }
+.bw-chips--tv .bw-face { width: 8vmin; height: 8vmin; font-size: 3.6vmin; }
+.bw-chips--tv b { font-size: 2.8vmin; }
+.bw-chips--tv span { font-size: 2.2vmin; }
+.bw-chips--tv span .metric { font-size: 3vmin; }
+.bw-chips--tv .bw-sticks i { width: .8vmin; height: 2.6vmin; }
+.bw-tv .bw-deltas, .bw-tv .bw-hint { font-size: 2.4vmin; }
+.bw-tv .bw-hero { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "face title" "face sub"; column-gap: 2.4vmin; row-gap: .4vmin; padding: 2.4vmin 3vmin; text-align: start; align-items: center; }
+.bw-tv .bw-hero .bw-face { grid-area: face; width: 11vmin; height: 11vmin; font-size: 5vmin; }
+.bw-tv .bw-hero__title { grid-area: title; align-self: end; }
+.bw-tv .bw-hero__sub { grid-area: sub; align-self: start; }
+.bw-tv .bw-hero__crown, .bw-tv .bw-hero__street { display: none; }
+.bw-tv .bw-hero__title { font-size: var(--tv-md); }
+.bw-tv .bw-hero__sub { font-size: 2.2vmin; }
+.bw-tvover { display: flex; flex-direction: column; gap: var(--tv-gap); }
+.bw-tv .bw-boardwrap, .bw-tvduel .bw-boardwrap { border-radius: var(--tv-r, 20px); }
+@media (orientation: portrait) {
+  .bw-tv { grid-template-columns: minmax(0, 1fr); }
+  .bw-tv__board { width: min(100%, 62vh); justify-self: center; }
+}
+@media (prefers-reduced-motion: reduce) { .bw-wall.is-thud { box-shadow: 0 3px 5px -1px rgba(0,0,0,.45); } }
+`;
+  // At the end of <body>, after the app's own sheets, so a tie is ours (notes/traps.md).
+  (document.body || document.head).appendChild(st);
+}
 </script>

@@ -7729,7 +7729,36 @@ async function boggleRobots() {
 }
 
 async function blockwayRobots() {
-  console.log('• سد الطريق (made by tools/new-game.mjs: a secret each, the taps, the result, play again)');
+  console.log('• سد الطريق (one on one, winner stays, the TV; four on one board with a computer player; two against two; a tournament)');
+  const BWR = new Function(readFileSync(srcPath('Blockway.js'), 'utf8') + ';return { bwSteps, bwWallCheck, bwDistMap, bwGrid };')();
+  const boardOf = (g) => ({ sides: g.sides, pos: g.pos, walls: g.walls, left: g.left });
+  // A robot's move: mostly the best step home, now and then a wall that may go down.
+  const moveOf = (g, seat, wallOdds) => {
+    const b = boardOf(g);
+    if (g.left[seat] > 0 && Math.random() < wallOdds) {
+      for (let k = 0; k < 20; k++) {
+        const w = { r: Math.floor(Math.random() * 8), c: Math.floor(Math.random() * 8), o: Math.random() < 0.5 ? 'h' : 'v' };
+        if (!BWR.bwWallCheck(b, w).why) return { wall: w, move: g.moves };
+      }
+    }
+    const d = BWR.bwDistMap(BWR.bwGrid(g.walls), g.sides[seat]);
+    const x = BWR.bwSteps(b, seat).sort((p, q) => d[p.r * 9 + p.c] - d[q.r * 9 + q.c])[0];
+    return { to: [x.r, x.c], move: g.moves };
+  };
+  /** The people at the table play until the game is over (computer players move on the server's clock). */
+  const playOut = async (bots, label, wallOdds, max = 400) => {
+    for (let i = 0; i < max; i++) {
+      const s = bots[0].state.shared;
+      if (s.phase !== 'play') return;
+      const pid = s.seats[s.turn];
+      const b = byId(bots, pid);
+      if (!b) { await bots[0].waitFor((x) => x.shared.phase !== 'play' || x.shared.moves !== s.moves, label + ': the computer player moves', 8000); continue; }
+      const res = await b.act('move', moveOf(s, s.turn, wallOdds));
+      if (!res.ok) await bots[0].waitFor((x) => x.shared.moves !== s.moves || x.shared.phase !== 'play', label + ': the board moves on', 4000);
+      else await bots[0].waitFor((x) => x.shared.moves !== s.moves || x.shared.phase !== 'play', label + ': the move reaches the host');
+    }
+  };
+
   const H = await Bot.host('حسام', null);
   const J = await Bot.join(H.code, 'Jana');
   const K = await Bot.join(H.code, 'كريم');
@@ -7737,22 +7766,78 @@ async function blockwayRobots() {
   const people = [H, J, K];
   await H.must('chooseGame', { game: 'blockway' });
   check((await J.act('start', {})).ok === false, 'blockway: only the host starts');
-  await H.must('start', {});
-  await all(people.concat([TV]), (s) => s.game === 'blockway' && s.shared.phase === 'play', 'blockway: the round reaches every phone and the TV');
-  check(TV.state.you === null, 'blockway: the TV has no secret');
-  check(people.every((p) => p.state.you && p.state.you.target >= 3 && p.state.you.target <= 9) && !('targets' in H.state.shared), "blockway: each phone has its own number, the table none");
-  for (const p of people) {
-    for (let i = 0; i < p.state.you.target; i++) await p.must('tap', { round: 1 });
-    await p.must('done', { round: 1 });
-  }
-  await all(people.concat([TV]), (s) => s.shared.phase === 'gameover' && s.shared.board.length === 3 && s.shared.board[0].score === 10, 'blockway: everyone landed on their number: the result on every screen');
-  await H.must('playAgain', {});
-  await H.waitFor((s) => s.shared.phase === 'play' && (s.shared.done || []).length === 0, 'blockway: play again deals a new round');
-  await H.must('finish', { round: 1 });
-  await H.waitFor((s) => s.shared.phase === 'gameover', 'blockway: the host ends a round');
+  await H.must('start', { way: 'duel', think: 0, level: 'mid' });
+  await all(people.concat([TV]), (s) => s.game === 'blockway' && s.shared.phase === 'play' && s.shared.seats.length === 2 && s.shared.line.length === 1 &&
+                                       s.shared.left.join() === '10,10', 'blockway: one on one, ten walls each, the third in line, on every phone and the TV');
+  check(TV.state.you === null, 'blockway: the TV holds nothing of its own');
+  check((await TV.act('move', { to: [7, 4], move: 0 })).ok === false, 'blockway: the TV cannot move');
+  const seated = H.state.shared.seats.map((id) => byId(people, id));
+  const watcher = people.find((b) => seated.indexOf(b) === -1);
+  check((await watcher.act('move', { to: [7, 4], move: 0 })).ok === false, 'blockway: someone in the line cannot move');
+  check((await seated[0].act('move', { to: [5, 4], move: 0 })).ok === false, 'blockway: a square out of reach is refused');
+  check((await seated[0].act('move', { wall: { r: 7, c: 3, o: 'h' }, move: 0 })).ok, 'blockway: a wall is a move');
+  await all(people.concat([TV]), (s) => s.shared.walls.length === 1 && s.shared.left[0] === 9 && s.shared.turn === 1 && s.shared.last.kind === 'wall',
+            'blockway: the wall reaches every screen, one fewer in its tray');
+  await playOut(people, 'blockway duel', 0.15);
+  await all(people.concat([TV]), (s) => s.shared.phase === 'over' && s.shared.result.reason === 'home' && !!s.shared.result.winnerId,
+            'blockway: the first home wins, on every screen');
+  const champ = H.state.shared.result.winnerId;
+  await watcher.must('nextRound', { round: H.state.shared.round });
+  await all(people, (s) => s.shared.phase === 'play' && s.shared.seats.indexOf(champ) !== -1 && s.shared.seats.indexOf(watcher.pid) !== -1 && s.shared.walls.length === 0,
+            'blockway: the winner stays and the next in line sits down');
+  await H.must('backToHub');
+  await H.waitFor((x) => x.phase === 'lobby' && !x.game, 'blockway: back in the hub');
+
+  // Four on one board: three people and a computer player.
+  await H.must('chooseGame', { game: 'blockway' });
+  check((await H.act('start', { way: 'four' })).ok === false, 'blockway: four on a board needs four');
+  await H.must('addBot', { level: 'easy', name: 'زيزو' });
+  await H.must('start', { way: 'four', level: 'hard' });
+  await all(people.concat([TV]), (s) => s.shared.multi && s.shared.seats.length === 4 && s.shared.left.join() === '5,5,5,5' && s.shared.level === 'hard',
+            'blockway: four on a board, five walls each, on every screen');
+  await playOut(people, 'blockway four', 0.2);
+  await all(people.concat([TV]), (s) => s.shared.phase === 'over' && s.shared.result.order.length === 4 && s.shared.result.order[0].steps === 0 &&
+                                       s.shared.result.order.every((x, i, a) => i === 0 || x.steps === null || a[i - 1].steps === null || x.steps >= a[i - 1].steps),
+            'blockway: the first home wins, the rest placed by how close they got');
+  await J.must('playAgain', { round: H.state.shared.round });
+  await H.waitFor((s) => s.shared.phase === 'play' && s.shared.round === 2 && s.shared.walls.length === 0, 'blockway: play again, a fresh board');
+  await H.must('backToHub');
+  await H.waitFor((x) => x.phase === 'lobby' && (x.night[H.pid] || 0) >= 1, "blockway: the game's places go on the night's board");
+
+  // Two against two.
+  await H.must('chooseGame', { game: 'blockway' });
+  await H.must('start', { way: 'teams', level: 'mid' });
+  await all(people, (s) => s.shared.way === 'teams' && s.shared.phase === 'play', 'blockway: two against two');
+  await playOut(people, 'blockway teams', 0.1);
+  await all(people, (s) => s.shared.phase === 'over' && s.shared.result.team !== null &&
+                           s.shared.result.order.filter((x) => x.place === 1).length === 2, 'blockway: one partner home wins it for both');
   await H.must('backToHub');
   await H.waitFor((x) => x.phase === 'lobby', 'blockway: back in the hub');
   [H, J, K, TV].forEach((x) => x.close());
+
+  // A tournament of four (its matches at once, each on its own board).
+  const names = ['نادر', 'Lina', 'سمير', 'Tarek'];
+  const T0 = await Bot.host(names[0], null);
+  const tb = [T0];
+  for (const n of names.slice(1)) tb.push(await Bot.join(T0.code, n));
+  await T0.must('chooseGame', { game: 'blockway' });
+  await T0.must('start', { tournament: true, way: 'duel' });
+  await all(tb, (s) => s.shared.tour && s.shared.tour.size === 4, 'blockway: a tournament of four');
+  for (let i = 0; i < 3000 && T0.state.shared.tour.phase === 'play'; i++) {
+    let moved = false;
+    for (const b of tb) {
+      const t = b.state.shared.tour;
+      const m = t.matches.find((x) => x.state === 'play' && (x.seats || x.p).indexOf(b.pid) !== -1);
+      const g = m && b.state.shared.games[m.id];
+      if (!g || g.phase !== 'play' || g.seats[g.turn] !== b.pid) continue;
+      const res = await b.act('move', Object.assign(moveOf(g, g.turn, 0), { match: m.id, mg: m.games }));
+      moved = moved || res.ok;
+    }
+    if (!moved) await new Promise((r) => setTimeout(r, 120));
+  }
+  await all(tb, (s) => s.shared.tour.phase === 'over' && !!s.shared.tour.champion, 'blockway: the tournament ends with a champion', 30000);
+  await T0.must('backToHub');
+  tb.forEach((b) => b.close());
 }
 
 const SEGMENTS = [
@@ -7811,7 +7896,7 @@ const SEGMENTS = [
   { name: 'faces', run: facesRobots, secs: 3 },
   { name: 'hesba', run: hesbaRobots, secs: 5 },
   { name: 'boggle', run: boggleRobots, secs: 5 },
-  { name: 'blockway', run: blockwayRobots, secs: 5 },
+  { name: 'blockway', run: blockwayRobots, secs: 40 },
 ];
 const EXCLUSIVE = new Set([]);
 

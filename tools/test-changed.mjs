@@ -126,7 +126,7 @@ const MAP = [
   { files: /^(JS_Hesba\.html|JS_HesbaLook\.html|JS_RoomHesba\.html|RoomHesba\.js|Hesba\.js)$/, robots: ['hesba'], ui: ['hesba'], screens: true },   // Numbers (tools/new-game.mjs)
   { files: /^(JS_Boggle\.html|JS_RoomBoggle\.html|RoomBoggle\.js|Boggle\.js|boggle\.text\.js)$/, robots: ['boggle'], ui: ['boggle'], screens: true },   // Letter Grid
   { files: /^(JS_Oracle\.html|Oracle[A-Za-z]*\.js|oracle\.text\.js)$/, screens: true },   // The Oracle (tools/new-game.mjs; its data checked by npm run check)
-  { files: /^(JS_RoomBlockway\.html|RoomBlockway\.js)$/, robots: ['blockway'], ui: ['blockway'] },   // Block the Way (tools/new-game.mjs)
+  { files: /^(JS_RoomBlockway\.html|RoomBlockway\.js|Blockway\.js|blockway\.text\.js)$/, robots: ['blockway'], ui: ['blockway'] },   // Block the Way (tools/new-game.mjs)
   // The page's own screens and the offline copy.
   { files: /^JS_[A-Za-z0-9]+\.html$/, screens: true },
   { files: /^(site-worker\/|tools\/site\.config\.json$|tools\/(make-icons|make-og)\.mjs$)/, site: true },

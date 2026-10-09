@@ -92,7 +92,7 @@ file and a new line.
 - ➗ حسبة (Numbers: merge tiles with + − × ÷ to hit a target exactly; سهل/صعب; rooms + TV - the first exact wins, else the closest; alone with hearts and a best; a daily; `Hesba.js` deals, solves and judges on both sides) - `notes/games/hesba.md`.
 - 🔠 شبكة الحروف (Boggle: one grid on every phone, words traced across touching letters, only words nobody else found score, a vote on words not in the lists; alone with a best, and a daily; the dictionary is the app's lists, `Boggle.js`, `RoomBoggle.js`, `JS_Boggle.html`, `JS_RoomBoggle.html`) - `notes/games/boggle.md`.
 - 🔮 العرّاف (The Oracle, one phone: the app guesses who or what you think of in 20 questions and 3 guesses; a drawn uncle with a tarboosh and a crystal ball and his moods; a probabilistic engine `Oracle.js` shared with `npm run check:oracle`, which plays every entry; the data `OracleQuestions.js` + `Oracle{People,Characters,Animals,Things}.js`, strictly checked by `npm run check`; its losses to `/oracle-miss`, read with `npm run oracle:misses`) - `notes/games/oracle.md` (its *Writing entries* is for whoever adds entries).
-- 🚧 سد الطريق (Block the Way; made by `npm run new:game` on 2026-10-09) - `notes/games/blockway.md`.
+- 🚧 سد الطريق (Block the Way, Quoridor ours; rooms + TV: the duel with winner stays and the tournament as one of the duels (`DUEL_KINDS.blockway`), four on a board, two against two; a wall may never shut anyone in; 15/30 s a move; computer players سهل/وسط/صعب; `Blockway.js`, `RoomBlockway.js`, `JS_RoomBlockway.html`) - `notes/games/blockway.md`.
 
 ### The app around the games
 

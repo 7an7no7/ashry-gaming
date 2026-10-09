@@ -118,6 +118,14 @@ and one answer in ten wrong), printing how often he wins and the entries lost; i
 90% truthful. On 9 Oct 2026, 201 questions, 334 entries: truthful 100% (9.3 questions on
 average), one in ten wrong 97.6%.
 
+Phase 2, things and jobs (9 Oct 2026): 149 things (fruit, Egyptian dishes and drinks, the
+house, school, clothes, vehicles, toys and music, places and landmarks, nature) and 61 jobs
+(مكوجي, بوّاب, ترزي, نقّاش, حدّاد, بيّاع فول, قهوجي, مسحّراتي, سايس…). Fifteen questions came with
+them: for things `peel` (بنقشّره قبل ما ناكله؟) and `meat_t` (فيه لحمة أو فراخ؟); for jobs
+`shop_j`, `house_j`, `stage_j`, `sport_j`, `army_j`, `words_j`, `clothes_j`, `travel_j`,
+`plants_j`, `clean_j`, `cart_j`, `lab_j`, `music_j` - every older thing and job was gone over
+for them. With 544 entries: truthful 100%, one in ten wrong 95.0% (things 90.7%, jobs 97.8%).
+
 ## Writing entries
 
 Entries live in four files by kind. One line each:

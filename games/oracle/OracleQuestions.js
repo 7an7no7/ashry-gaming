@@ -240,6 +240,13 @@ const ORACLE_QUESTIONS = [
   { id: 'street',  kinds: 't', ar: 'بتلاقيه في الشارع؟', en: 'Found in the street?' },
   { id: 'peel',    kinds: 't', ar: 'بنقشّره قبل ما ناكله؟', en: 'Do we peel it before eating it?' },
   { id: 'meat_t',  kinds: 't', ar: 'فيه لحمة أو فراخ؟', en: 'Has meat or chicken in it?' },
+  /* things, added 9 Oct 2026 (the third pass): its shape, its feel, its smell, its colours -
+     things that answered «لأ» to every generic question used to look alike */
+  { id: 'square',  kinds: 't', ar: 'شكله مربع أو مستطيل؟', en: 'Square or rectangular?' },
+  { id: 'long',    kinds: 't', ar: 'شكله طويل ورفيع؟', en: 'Long and thin?' },
+  { id: 'soft',    kinds: 't', ar: 'طري لما تلمسه؟', en: 'Soft to the touch?' },
+  { id: 'smell',   kinds: 't', ar: 'ريحته حلوة؟', en: 'Does it smell nice?' },
+  { id: 'colorful', kinds: 't', ar: 'ألوانه كتير؟', en: 'Many colours?' },
 
   /* ---------- jobs ---------- */
   { id: 'uniform', kinds: 'j', ar: 'بيلبس يونيفورم أو زي معيّن؟', en: 'Wears a uniform?' },

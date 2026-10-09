@@ -167,6 +167,12 @@ Two entries apart need a *yes* one hasn't (a maybe does not set them apart): man
 actors share every trait, so only those a trait tells apart are in (Shadia beside Soad Hosny,
 Beethoven beside Mozart, Nadal beside Federer could not be, yet).
 
+Five things' questions of the third pass (9 Oct 2026): `square` (مربع أو مستطيل), `long`
+(طويل ورفيع), `soft` (طري لما تلمسه), `smell` (ريحته حلوة), `colorful` (ألوانه كتير). Every thing
+was gone over for all five (an unmarked one reads «غالباً لأ», so a soft thing left out misleads
+him): a yes where a family would say yes, a maybe where it depends. With 1,065 entries:
+truthful 100%, one in ten wrong 96.3% (things 93.2%, from 89.8%).
+
 Only facts that don't change: where they are from, what they did, what they won, when they were
 born. Never alive or dead, still playing, married. No politicians of our time, nothing divisive,
 nothing adult, no religious figures. Kinds in the files: `OraclePeople.js` (`p`),

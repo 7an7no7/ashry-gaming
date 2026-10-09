@@ -879,7 +879,7 @@ const applyRoomAction = (room, playerId, action, payload) => {
   // The board the finished game ended on (its players' rows), for the audience's guesses if this deals the next one.
   // Winner stays (the duels' next game, the owner's E4 of 8 Oct 2026): each game is settled on its
   // own result, not on the session's tally of wins (shared.board), and a fresh «مين هيكسب؟» opens.
-  const duelNext = action === 'nextRound' && wasOver && ['connect4', 'dots', 'xo'].indexOf(room.game) !== -1 && !(room.shared || {}).tour;
+  const duelNext = action === 'nextRound' && wasOver && ['connect4', 'dots', 'xo', 'blockway'].indexOf(room.game) !== -1 && !(room.shared || {}).tour && !(room.shared || {}).multi;
   const boardBefore = action === 'playAgain' || action === 'tourNew' ? nightBoardOf(room, (room.shared || {}).board, true)
     : (duelNext ? duelResultBoard(room) : null);
   // «لعبة جديدة» (restart) after a finished round: the guesses on it are settled before the game's

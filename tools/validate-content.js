@@ -901,6 +901,33 @@ const STOP_CATS = load(srcPath('JS_Stop.html'), 'STOP_CATEGORIES');
   console.log(`songs: ${SONGS.length} (${ERAS.map(e => e + ' ' + (byEra[e] || 0)).join(', ')}; from ${Object.keys(bySrc).map(k => k + ' ' + bySrc[k]).join(', ')}, ${SONGS.filter(x => x.also).length} with a second source)`);
 }
 
+// سد الطريق (Blockway.js): the board the rooms and phones share. Both starts reach home on a fresh
+// board, a random game of walls never shuts anyone in (every wall the rules let down leaves a way),
+// and the turned board comes back to itself.
+{
+  const BW = new Function(fs.readFileSync(srcPath('Blockway.js'), 'utf8') + '; return { bwNewBoard, bwStepsHome, bwWallCheck, bwPlay, bwTurnSq, bwUnturnSq };')();
+  [2, 4].forEach((n) => {
+    const b = BW.bwNewBoard(n);
+    if (BW.bwStepsHome(b).some((d) => d !== 8)) note('Blockway: a seat of ' + n + ' does not start 8 steps from home');
+    let seed = 7 + n;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    for (let k = 0; k < 400; k++) {
+      const seat = k % n;
+      if (!(b.left[seat] > 0)) continue;
+      const w = { r: Math.floor(rnd() * 8), c: Math.floor(rnd() * 8), o: rnd() < 0.5 ? 'h' : 'v' };
+      if (BW.bwWallCheck(b, w).why) continue;
+      BW.bwPlay(b, seat, { wall: w });
+      if (BW.bwStepsHome(b).some((d) => d < 0)) note('Blockway: a wall the rules let down shut someone in');
+    }
+  });
+  for (let k = 0; k < 4; k++) for (let i = 0; i < 81; i++) {
+    const t = BW.bwTurnSq(Math.floor(i / 9), i % 9, k);
+    const u = BW.bwUnturnSq(t[0], t[1], k);
+    if (u[0] * 9 + u[1] !== i) note('Blockway: the turned board does not come back');
+  }
+  console.log('blockway: both starts 8 from home, 2 random games of walls never shut anyone in');
+}
+
 // حسبة (Hesba.js): every deal reachable exactly. 400 deals of each level and the dailies of the
 // next year are dealt as the page and the server deal them, and each one's way is replayed by the
 // server's own judge (hesbaReplay) to its target; the numbers and the target keep to the level.

@@ -132,6 +132,7 @@ export const CHUNKS = {
   hesba: ['JS_HesbaLook', 'JS_Hesba', 'JS_RoomHesba', 'Hesba.js'],   // tools/new-game.mjs, 2026-10-09
   boggle: ['JS_Boggle', 'JS_RoomBoggle', 'Boggle.js'],   // its dictionary is the word lists, fetched with the word wheel's chunk when the game alone starts
   oracle: ['JS_Oracle', 'OracleQuestions.js', 'OraclePeople.js', 'OracleCharacters.js', 'OracleAnimals.js', 'OracleThings.js', 'Oracle.js'],   // tools/new-game.mjs, 2026-10-09; its data and engine (page only)
+  blockway: ['JS_RoomBlockway', 'Blockway.js'],   // tools/new-game.mjs, 2026-10-09
 };
 
 /* References that don't make a dependency: the call is only made while the other
@@ -853,7 +854,7 @@ export function checkRegistryOrder({ order, code, fileChunk, shellSet, sorted, d
 
 /* Word lists the page shares with the rooms server: one file, both sides
    (and ChessPuzzles.js, which only the page has). */
-export const SHARED_LISTS = ['Common.js', 'RoomShared.js', 'Games.js', 'DisabledGames.js', 'Dice.js', 'Packs.js', 'MoveData.js', 'Faces.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'Duels.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Vault.js', 'Hear.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Boggle.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js', 'Missions.js', 'Laser.js', 'OracleQuestions.js', 'OraclePeople.js', 'OracleCharacters.js', 'OracleAnimals.js', 'OracleThings.js', 'Oracle.js', 'Hesba.js'];
+export const SHARED_LISTS = ['Common.js', 'RoomShared.js', 'Games.js', 'DisabledGames.js', 'Dice.js', 'Packs.js', 'MoveData.js', 'Faces.js', 'ChameleonWords.js', 'SpyfallPlaces.js', 'BombPrompts.js', 'EmojiRiddles.js', 'Proverbs.js', 'MonkeyWords.js', 'StopWords.js', 'TriviaQuestions.js', 'SkrewCards.js', 'UnoCards.js', 'DominoTiles.js', 'Connect4.js', 'Duels.js', 'DotsBoxes.js', 'Battleship.js', 'Chess.js', 'Chess4.js', 'Ludo.js', 'Snakes.js', 'BankAlhaz.js', 'GuessWho.js', 'Witness.js', 'Dark.js', 'Hangman.js', 'MiniGolf.js', 'PlayingCards.js', 'Skull.js', 'Estimation.js', 'Wire.js', 'Vault.js', 'Hear.js', 'Bowling.js', 'TicTacToe.js', 'WordleWords.js', 'Countries.js', 'SolveGames.js', 'SoloShared.js', 'ConnectionsWords.js', 'Sudoku.js', 'Queens.js', 'Tango.js', 'Nonogram.js', 'Mines.js', 'Strands.js', 'WordWheel.js', 'Boggle.js', 'Pinpoint.js', 'QuizStreak.js', 'ChessPuzzles.js', 'Missions.js', 'Laser.js', 'OracleQuestions.js', 'OraclePeople.js', 'OracleCharacters.js', 'OracleAnimals.js', 'OracleThings.js', 'Oracle.js', 'Hesba.js', 'Blockway.js'];
 
 /** Reads Controller.html, every file it includes and the shared lists. */
 export async function readPage(root, readFile, path) {

@@ -12,6 +12,9 @@ const { loadOracle, loadFold, validateOracle, KIND_NAMES } = require('./oracle-d
 
 const MIN_TRUTHFUL = 0.9;   // the aim (notes/games/oracle.md)
 const NOISE = 0.1;
+// A real player: a trait our data lacks may still be true (a comedian's comedy left unmarked), so
+// to a question the data reads «غالباً لأ» they say «أيوه» this often; firm questions excepted.
+const GAP = 0.12;
 const args = process.argv.slice(2);
 const only = (args.find((a) => a.startsWith('--entry=')) || '').slice(8);
 const quick = args.includes('--quick');
@@ -38,7 +41,7 @@ const TRUTHFUL = ['y', 'py', 'n', 'n', 'n'];   // by truth Y, M, U, N, X
 const memo = new Map();
 
 /** Plays one game for entry index `ei`; `noise` is the share of answers given wrong. */
-function play(ei, noise, rand, log) {
+function play(ei, noise, rand, log, gap) {
   const target = data.entries[ei];
   const game = { answers: [], rejected: [] };
   const guesses = [];
@@ -57,6 +60,7 @@ function play(ei, noise, rand, log) {
     }
     const qi = data.qIndex[step.ask];
     let ans = TRUTHFUL[target.truth[qi]];
+    if (gap && target.truth[qi] === 2 && !data.questions[qi].firm && rand() < gap) ans = 'y';
     if (noise && rand() < noise) {
       const others = O.ORACLE_ANSWERS.filter((a) => a !== ans);
       ans = others[Math.floor(rand() * others.length)];
@@ -76,11 +80,11 @@ if (only) {
 }
 
 const t0 = Date.now();
-function run(noise) {
+function run(noise, gap) {
   const rand = rng(7);
   const out = { wins: 0, first: 0, asked: 0, lost: [], byKind: {} };
   data.entries.forEach((e, ei) => {
-    const r = play(ei, noise, rand, false);
+    const r = play(ei, noise, rand, false, gap);
     const k = out.byKind[e.kind] || (out.byKind[e.kind] = { n: 0, wins: 0 });
     k.n++;
     if (r.win) { out.wins++; k.wins++; out.asked += r.asked; if (r.guesses.length === 1) out.first++; } else out.lost.push({ e, r });
@@ -98,6 +102,8 @@ const truthful = run(0);
 report('truthful', truthful);
 const noisy = run(NOISE);
 report(`one answer in ${Math.round(1 / NOISE)} wrong`, noisy);
+const real = run(0.05, GAP);
+report(`a real player (traits missing from the data said yes ${GAP * 100}% of the time, 1 in 20 wrong)`, real);
 console.log(`\n(${((Date.now() - t0) / 1000).toFixed(1)} s)`);
 const rate = truthful.wins / data.entries.length;
 if (rate < MIN_TRUTHFUL) {

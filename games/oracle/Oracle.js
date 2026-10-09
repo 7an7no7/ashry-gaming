@@ -30,6 +30,22 @@ const ORACLE_LIKE = [
   [0.02, 0.03, 0.05, 0.10, 0.80],   // N
   [0.01, 0.02, 0.05, 0.07, 0.85],   // X
 ];
+/** The same for a firm question (`firm: true` in OracleQuestions.js): what a thing IS - its kind,
+    a woman or a man, Egyptian, an actor, a footballer... Its data is complete (an entry not marked
+    is a no), so an answer to it is nearly final, and an entry it contradicts is never guessed
+    (10 Oct 2026: the owner answered «لأ» to «ست أو بنت؟» and was offered a woman, because two
+    true traits missing from a man's data weighed more than the soft answer). */
+const ORACLE_LIKE_FIRM = [
+  //  y      py     dk    pn     n
+  [0.90, 0.07, 0.02, 0.007, 0.003],   // Y
+  [0.25, 0.30, 0.20, 0.15, 0.10],     // M
+  [0.003, 0.007, 0.02, 0.07, 0.90],   // U (read as N)
+  [0.003, 0.007, 0.02, 0.07, 0.90],   // N
+  [0.003, 0.007, 0.02, 0.07, 0.90],   // X
+];
+/** The likelihood table of a question. */
+const oracleLike = (q) => (q && q.firm ? ORACLE_LIKE_FIRM : ORACLE_LIKE);
+
 /** Guess when the leader holds this much of the odds (with guesses to spare, a little less). */
 const ORACLE_SURE = [0, 0.9, 0.8, 0.72];   // by guesses left
 /** Entries under this share of the leader's odds are not weighed when picking a question. */
@@ -84,7 +100,7 @@ function oracleTruthRow(entry, kind, questions, byId) {
     else if (maybe.has(q.id)) v = ORACLE_M;
     else {
       const auto = q.autoOf[kind];
-      v = auto === 'y' ? ORACLE_Y : auto === 'n' ? ORACLE_X : ORACLE_U;
+      v = auto === 'y' ? ORACLE_Y : auto === 'n' ? ORACLE_X : q.firm ? ORACLE_N : ORACLE_U;
     }
     row[i] = v;
   });
@@ -118,7 +134,8 @@ function oracleOdds(data, answers, rejected) {
     const qi = data.qIndex[qid];
     const ai = ORACLE_ANSWERS.indexOf(ans);
     if (qi === undefined || ai < 0 || ans === 'dk') return;
-    for (let e = 0; e < n; e++) logp[e] += Math.log(ORACLE_LIKE[data.entries[e].truth[qi]][ai]);
+    const like = oracleLike(data.questions[qi]);
+    for (let e = 0; e < n; e++) logp[e] += Math.log(like[data.entries[e].truth[qi]][ai]);
   });
   const out = new Float64Array(n);
   const no = new Set(rejected || []);
@@ -142,6 +159,7 @@ function oracleRanked(odds) {
 
 /** The expected doubt (entropy, in nats) left after asking question qi, weighing `live`. */
 function oracleExpectedDoubt(data, qi, live, doubtNow) {
+  const ORACLE_LIKE = oracleLike(data.questions[qi]);
   let total = 0;
   for (let a = 0; a < 5; a++) {
     if (a === 2) {
@@ -189,7 +207,8 @@ function oracleNextStep(game, rand) {
   const guessesLeft = ORACLE_GUESSES - (game.rejected || []).length;
   if (guessesLeft <= 0) return { lose: true };
   const odds = oracleOdds(data, answers, game.rejected);
-  const ranked = oracleRanked(odds);
+  // Never guess what a firm answer ruled out (a man after «ست أو بنت؟ لأ», an animal after «حيوان؟ لأ»).
+  const ranked = oracleRanked(odds).filter((x) => !oracleContradicts(data, data.entries[x.e], answers));
   if (!ranked.length) return { lose: true };
   const lead = ranked[0];
   const asked = answers.length;
@@ -208,6 +227,18 @@ function oracleNextStep(game, rand) {
     pick = near[Math.min(near.length - 1, Math.floor(rand * near.length))];
   }
   return { ask: pick.q };
+}
+
+/** Does a firm «أيوه» / «لأ» (or «غالباً») rule this entry out? */
+function oracleContradicts(data, entry, answers) {
+  return (answers || []).some(([qid, ans]) => {
+    const qi = data.qIndex[qid];
+    if (qi === undefined || !data.questions[qi].firm) return false;
+    const t = entry.truth[qi];
+    if (ans === 'y') return t >= ORACLE_U;
+    if (ans === 'n') return t === ORACLE_Y;
+    return false;
+  });
 }
 
 /** A question or an entry by its id. */

@@ -10,19 +10,22 @@
      auto   (optional) the answer every entry of a kind has without saying it: 'p:y c:n' -
             an entry's own lists still win.
      implies (optional) the ids an entry with this trait has too ('ahly' implies 'football').
+     firm   (optional) true: what the thing IS (its kind, a woman, Egyptian, an actor...). Its data
+            must be complete - an entry of its kinds not marked yes or maybe is a no - and an
+            answer to it is nearly final: the oracle never guesses an entry it rules out.
    The wording is about things that don't change: never «لسه عايش؟» or «لسه بيلعب؟». */
 const ORACLE_QUESTIONS = [
   /* ---------- what kind of thing it is (asked like any other question, never picked first) ---------- */
-  { id: 'human',   kinds: 'pcatj', auto: 'p:y a:n t:n j:y', ar: 'هو إنسان؟', en: 'Is it a human?' },
-  { id: 'real',    kinds: 'pcatj', auto: 'p:y c:n a:n t:n j:n', ar: 'شخص حقيقي مشهور؟', en: 'A real, famous person?' },
-  { id: 'fiction', kinds: 'pcatj', auto: 'p:n c:y a:n t:n j:n', ar: 'شخصية من كارتون أو فيلم أو حكاية؟', en: 'A character from a cartoon, film or tale?' },
-  { id: 'animal',  kinds: 'pcatj', auto: 'p:n a:y t:n j:n', ar: 'حيوان (أو طير أو سمكة أو حشرة)؟', en: 'An animal (or a bird, a fish, an insect)?' },
-  { id: 'job',     kinds: 'pcatj', auto: 'p:n c:n a:n t:n j:y', ar: 'شغلانة (مهنة)؟', en: 'A job?' },
-  { id: 'object',  kinds: 'pcatj', auto: 'p:n a:n t:y j:n', ar: 'حاجة، مش إنسان ولا حيوان؟', en: 'A thing, not a person or an animal?' },
+  { id: 'human',   firm: true, kinds: 'pcatj', auto: 'p:y a:n t:n j:y', ar: 'هو إنسان؟', en: 'Is it a human?' },
+  { id: 'real',    firm: true, kinds: 'pcatj', auto: 'p:y c:n a:n t:n j:n', ar: 'شخص حقيقي مشهور؟', en: 'A real, famous person?' },
+  { id: 'fiction', firm: true, kinds: 'pcatj', auto: 'p:n c:y a:n t:n j:n', ar: 'شخصية من كارتون أو فيلم أو حكاية؟', en: 'A character from a cartoon, film or tale?' },
+  { id: 'animal',  firm: true, kinds: 'pcatj', auto: 'p:n a:y t:n j:n', ar: 'حيوان (أو طير أو سمكة أو حشرة)؟', en: 'An animal (or a bird, a fish, an insect)?' },
+  { id: 'job',     firm: true, kinds: 'pcatj', auto: 'p:n c:n a:n t:n j:y', ar: 'شغلانة (مهنة)؟', en: 'A job?' },
+  { id: 'object',  firm: true, kinds: 'pcatj', auto: 'p:n a:n t:y j:n', ar: 'حاجة، مش إنسان ولا حيوان؟', en: 'A thing, not a person or an animal?' },
 
   /* ---------- people (and some characters) ---------- */
-  { id: 'female',  kinds: 'pc', ar: 'ست أو بنت؟', en: 'A woman or a girl?' },
-  { id: 'egypt',   kinds: 'pct', implies: ['arab'], ar: 'مصري؟', en: 'Egyptian?' },
+  { id: 'female',  firm: true, kinds: 'pc', ar: 'ست أو بنت؟', en: 'A woman or a girl?' },
+  { id: 'egypt',   firm: true, kinds: 'pct', implies: ['arab'], ar: 'مصري؟', en: 'Egyptian?' },
   { id: 'arab',    kinds: 'pct', ar: 'عربي؟', en: 'Arab?' },
   { id: 'levant',  kinds: 'p', implies: ['arab'], ar: 'من لبنان أو سوريا أو فلسطين أو الأردن؟', en: 'From Lebanon, Syria, Palestine or Jordan?' },
   { id: 'gulf',    kinds: 'p', implies: ['arab'], ar: 'من الخليج أو العراق؟', en: 'From the Gulf or Iraq?' },
@@ -40,7 +43,7 @@ const ORACLE_QUESTIONS = [
   { id: 'born1950', kinds: 'p', implies: ['born1970'], ar: 'اتولد قبل سنة 1950؟', en: 'Born before 1950?' },
   { id: 'ruler',   kinds: 'pc', ar: 'ملك أو ملكة أو حاكم؟', en: 'A king, a queen or a ruler?' },
   { id: 'warrior', kinds: 'pc', ar: 'قائد حروب أو فارس؟', en: 'A war leader or a warrior?' },
-  { id: 'actor',   kinds: 'p', ar: 'ممثل؟', en: 'An actor?' },
+  { id: 'actor',   firm: true, kinds: 'p', ar: 'ممثل؟', en: 'An actor?' },
   { id: 'comedy',  kinds: 'pc', ar: 'اشتهر بالكوميديا؟', en: 'Known for comedy?' },
   { id: 'bw',      kinds: 'p', ar: 'مثّل في أفلام أبيض وإسود؟', en: 'Acted in black-and-white films?' },
   { id: 'theater', kinds: 'p', ar: 'اشتهر بالمسرح؟', en: 'Known for the stage (theatre)?' },
@@ -49,10 +52,10 @@ const ORACLE_QUESTIONS = [
   { id: 'series',  kinds: 'p', ar: 'اشتهر بمسلسلات التلفزيون؟', en: 'Known for TV series?' },
   { id: 'fawazeer', kinds: 'pc', ar: 'اشتهر بفوازير رمضان؟', en: 'Known for the Ramadan riddle shows (fawazeer)?' },
   { id: 'tvhost',  kinds: 'p', ar: 'قدّم برامج تلفزيون؟', en: 'Presented TV shows?' },
-  { id: 'singer',  kinds: 'p', ar: 'مطرب أو مغنّي؟', en: 'A singer?' },
+  { id: 'singer',  firm: true, kinds: 'p', ar: 'مطرب أو مغنّي؟', en: 'A singer?' },
   { id: 'composer', kinds: 'p', ar: 'ملحّن أو موسيقار؟', en: 'A composer or a musician?' },
-  { id: 'athlete', kinds: 'pc', ar: 'رياضي؟', en: 'An athlete?' },
-  { id: 'football', kinds: 'pc', implies: ['athlete'], ar: 'لاعب كورة؟', en: 'A footballer?' },
+  { id: 'athlete', firm: true, kinds: 'pc', ar: 'رياضي؟', en: 'An athlete?' },
+  { id: 'football', firm: true, kinds: 'pc', implies: ['athlete'], ar: 'لاعب كورة؟', en: 'A footballer?' },
   { id: 'ahly',    kinds: 'p', implies: ['football'], ar: 'لعب في الأهلي؟', en: 'Played for Al Ahly?' },
   { id: 'zamalek', kinds: 'p', implies: ['football'], ar: 'لعب في الزمالك؟', en: 'Played for Zamalek?' },
   { id: 'england', kinds: 'p', implies: ['football'], ar: 'لعب في الدوري الإنجليزي؟', en: 'Played in the English league?' },
@@ -93,7 +96,7 @@ const ORACLE_QUESTIONS = [
   { id: 'basket',  kinds: 'p', implies: ['othersport'], ar: 'بيلعب كورة سلة؟', en: 'A basketball player?' },
 
   /* ---------- characters ---------- */
-  { id: 'cartoon', kinds: 'c', ar: 'كارتون (رسوم متحركة)؟', en: 'A cartoon (animated)?' },
+  { id: 'cartoon', firm: true, kinds: 'c', ar: 'كارتون (رسوم متحركة)؟', en: 'A cartoon (animated)?' },
   { id: 'disney',  kinds: 'c', ar: 'من أفلام ديزني؟', en: 'From a Disney film?' },
   { id: 'anime',   kinds: 'c', ar: 'من كارتون ياباني (أنمي)؟', en: 'From a Japanese cartoon (anime)?' },
   { id: 'liveaction', kinds: 'c', ar: 'بيمثّله ممثل حقيقي؟', en: 'Played by a real actor?' },

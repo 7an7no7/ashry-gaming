@@ -103,7 +103,7 @@ const ORACLE_QUESTIONS = [
   { id: 'bc1000',  kinds: 'p', implies: ['bc'], ar: 'عاش من أكتر من تلات آلاف سنة؟', en: 'Lived more than three thousand years ago?' },
   { id: 'before1500', kinds: 'p', implies: ['before1800'], ar: 'عاش قبل سنة 1500؟', en: 'Lived before the year 1500?' },
   { id: 'born1975', kinds: 'p', implies: ['born1980'], ar: 'اتولد قبل سنة 1975؟', en: 'Born before 1975?' },
-  { id: 'born1980', kinds: 'p', ar: 'اتولد قبل سنة 1980؟', en: 'Born before 1980?' },
+  { id: 'born1980', kinds: 'p', implies: ['born1990'], ar: 'اتولد قبل سنة 1980؟', en: 'Born before 1980?' },
   { id: 'midfield', kinds: 'p', implies: ['football'], ar: 'لاعب وسط (في الكورة)؟', en: 'A midfielder (in football)?' },
   { id: 'dance',   kinds: 'p', ar: 'اشتهر بالرقص أو الاستعراض؟', en: 'Known for dancing or musical shows?' },
   { id: 'math',    kinds: 'p', ar: 'اشتهر بالرياضيات (الحساب والجبر والهندسة)؟', en: 'Known for mathematics?' },
@@ -111,6 +111,13 @@ const ORACLE_QUESTIONS = [
   /* ---------- content creators: YouTubers, TikTokers, gamers (10 Oct 2026, OracleCreators.js) ---------- */
 
   /* ---------- the newer stars (10 Oct 2026) ---------- */
+  /* the birth chain goes on (born1980 → born1990 → born2000), every person marked; the German league, the racing
+     drivers, a famous father or mother: every person of the kind was gone over for each */
+  { id: 'born1990', kinds: 'p', implies: ['born2000'], ar: 'اتولد قبل سنة 1990؟', en: 'Born before 1990?' },
+  { id: 'born2000', kinds: 'p', ar: 'اتولد قبل سنة 2000؟', en: 'Born before 2000?' },
+  { id: 'germany', kinds: 'p', implies: ['football'], ar: 'لعب في الدوري الألماني؟', en: 'Played in the German league?' },
+  { id: 'racer',   kinds: 'p', implies: ['othersport'], ar: 'سوّاق سباق عربيات؟', en: 'A racing driver?' },
+  { id: 'famousparent', kinds: 'p', ar: 'أبوه أو أمه مشهورين كمان؟', en: 'Is his or her father or mother famous too?' },
 
   /* ---------- characters ---------- */
   { id: 'cartoon', firm: true, kinds: 'c', ar: 'كارتون (رسوم متحركة)؟', en: 'A cartoon (animated)?' },

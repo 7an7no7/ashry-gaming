@@ -132,6 +132,13 @@ const ORACLE_QUESTIONS = [
   { id: 'extinct', kinds: 'a', ar: 'انقرض؟', en: 'Extinct?' },
   { id: 'fast',    kinds: 'a', ar: 'سريع جداً؟', en: 'Very fast?' },
   { id: 'slow',    kinds: 'a', ar: 'بطيء جداً؟', en: 'Very slow?' },
+  { id: 'eggs_a',  kinds: 'a', ar: 'بيبيض؟', en: 'Does it lay eggs?' },
+  { id: 'sea_a',   kinds: 'a', ar: 'عايش في البحر؟', en: 'Lives in the sea?' },
+  { id: 'insects_a', kinds: 'a', ar: 'بياكل حشرات؟', en: 'Eats insects?' },
+  { id: 'tusks_a', kinds: 'a', ar: 'ليه أنياب كبيرة طالعة برّه بُقّه؟', en: 'Has big tusks?' },
+  { id: 'asia_a',  kinds: 'a', ar: 'عايش في آسيا (زي الهند والصين)؟', en: 'Lives in Asia (India, China…)?' },
+  { id: 'america_a', kinds: 'a', ar: 'عايش في أمريكا (الشمالية أو الجنوبية)؟', en: 'Lives in the Americas?' },
+  { id: 'australia_a', kinds: 'a', ar: 'عايش في أستراليا؟', en: 'Lives in Australia?' },
 
   /* ---------- shared: flying, size, colour ---------- */
   { id: 'flies',   kinds: 'catj', ar: 'بيطير؟', en: 'Does it fly?' },

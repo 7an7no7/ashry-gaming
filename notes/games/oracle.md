@@ -214,3 +214,11 @@ needed; at least one entry must say yes to it.
 - the truthful games won under 90%.
 Then read its list of lost entries and what was guessed for them: that pair needs a trait apart.
 `npm run check:oracle -- --entry=salah` plays one entry question by question.
+
+## The fix of 10 Oct 2026 (the owner: wrong questions and wrong guesses)
+
+- The owner answered «لأ» to «ست أو بنت؟» and was offered a woman. Cause: every answer only moved the odds (a «لأ» made a woman 25 times less likely), and many true traits were missing, so a truthful «أيوه» to an unmarked trait cost the right entry about 11 times - two such gaps outweighed the gender. The old check answered from the data itself, so it could not see it.
+- **Firm questions** (`firm: true` in OracleQuestions.js: the kind questions, female, egypt, actor, singer, athlete, football, cartoon; `arab` stays soft because of the pharaohs): their data is complete (unmarked = no), their likelihood is sharp (`ORACLE_LIKE_FIRM`), and an entry a firm «أيوه»/«لأ» rules out is never guessed (`oracleContradicts`) and not weighed when choosing a question.
+- **No settled questions**: a question every still-likely entry answers the same way is never asked (`oracleSaid` in `oracleBestQuestions`); in the simulation 30 of 3,765 questions were settled before, 0 after.
+- **The data reviewed question by question** (six reviewers, one kind each, merged by script): about 1,200 true traits added, wrong ones corrected; that made 83 entries identical to another, so 38 questions were added (each marked on every entry of its kinds) and 7 near-duplicates removed. 1,058 entries, 293 questions.
+- **check:oracle plays a real player too**: an unmarked trait answered «أيوه» 12% of the time, 1 in 20 other answers wrong, firm questions never wrong. Truthful 100%, real player 98.5%; one answer in 10 wrong at random (firm ones included) 87% - a wrong firm answer loses by design.

@@ -7,13 +7,10 @@
    word; the phone deals the daily and the solo grids and judges those. No DOM,
    nothing that runs at load. Every name starts with boggle / BOGGLE_.
 
-   The dictionary is the app's own word lists, read where they already are
-   (no copy): the word wheel's banks (wheelBankWords, WordWheel.js: the
-   chameleon, Wordle, Stop, monkey, spy, Connections lists, and on the page
-   Describe It, Charades and Who Am I), its everyday words (WHEEL_BONUS_WORDS),
-   Stop's and the monkey's countries and cities, and on the server the
-   Codenames and drawing banks too. Every bank is read behind a typeof: each
-   side uses the lists it has. A word's letters are folded as everywhere
+   The dictionary is the game's own list, BOGGLE_WORDS (BoggleWords.js, 10 Oct
+   2026: the owner wanted real, known words only - the lists it used to borrow
+   from the other games brought obscure capitals, people's names and fragments,
+   and missed everyday words). The same list on the phone and on the server. A word's letters are folded as everywhere
    (foldArabicLetters, Common.js): hamza seats to their letter, ة to ه, ى to
    ي. The article is free: a listed word written with ال (الأسد) is kept as
    أسد and scores as أسد, and a traced ال in front of a word is that word -
@@ -68,17 +65,9 @@ function boggleResolve(letters, lang, listed) {
 
 const boggleLettersOk = (fold, lang) => (lang === 'en' ? /^[A-Z]+$/ : /^[ء-ي]+$/).test(fold);
 
-/** Every entry of the lists at hand in one language (phrases too; the dictionary keeps single words). */
+/** The game's words in one language (BoggleWords.js). */
 function boggleBankWords(lang) {
-  const out = [];
-  const addAll = (list) => (list || []).forEach((w) => { if (typeof w === 'string') out.push(w); });
-  if (typeof wheelBankWords === 'function') addAll(wheelBankWords(lang));
-  if (typeof WHEEL_BONUS_WORDS !== 'undefined') addAll(WHEEL_BONUS_WORDS[lang]);
-  if (typeof STOP_WORDS !== 'undefined' && STOP_WORDS[lang]) ['countries', 'cities'].forEach((k) => addAll(STOP_WORDS[lang][k]));
-  if (typeof MONKEY_LISTS !== 'undefined' && MONKEY_LISTS[lang]) ['countries', 'cities'].forEach((k) => addAll(MONKEY_LISTS[lang][k]));
-  if (typeof CODENAMES_WORDS !== 'undefined') addAll(CODENAMES_WORDS[lang]);
-  if (typeof DRAW_WORDS !== 'undefined') addAll(DRAW_WORDS[lang]);
-  return out;
+  return (typeof BOGGLE_WORDS !== 'undefined' && BOGGLE_WORDS[lang]) || [];
 }
 
 /**

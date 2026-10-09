@@ -97,3 +97,9 @@ TV_GAMES.boggle), `boggle.text.js` (its words and rules).
   a leaver) and a 5×5 English game; probes: each phone's list exactly its own, nobody's words but your
   own anywhere in your view, no list on the table before the round closes.
 - `play-all.mjs` segment `boggle`: a real round on the server with three phones and a TV.
+
+## Its own words (10 Oct 2026, the owner: real, known words only)
+
+The dictionary used to be every other game's lists put together (the word wheel's banks, Stop's and the monkey's countries and cities, Codenames and drawing on the server): it took obscure capitals (إنجامينا، كاتماندو), people (شكسبير، كاكا), fragments (أجا، هون، ودن) and missed everyday words; the phone and the server even had different lists. Now the game has its own list, `games/boggle/BoggleWords.js` (`BOGGLE_WORDS`), read by `boggleBankWords` on both sides (CHUNKS.boggle and SHARED_LISTS in tools/lazy-split.mjs, FILES in rooms-worker/build.mjs); the solo game no longer waits for the word wheel's chunk.
+
+The owner's rules for it: nouns, adjectives and verbs in their past form (كتب، لعب، نام), standard Arabic - no Egyptian-only words (كويس، شوية، لسه) - with common plurals and feminines; names only for the countries families know and Egyptian cities; no people, characters, brands or other cities (English: no cities at all); nothing a family would mind (alcohol, drugs, killing out). Made by reviewing the old 4,251 Arabic / 4,265 English words one by one and adding everyday words (about 1,100 verbs, 870 adjectives, 1,840 nouns; 3,100 English): 6,402 Arabic, 6,812 English. The countries are the ones العرّاف's places list chose as known to families. `npm run check` still builds 560 grids, each with 15 listed words and a 5-letter one.

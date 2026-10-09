@@ -814,8 +814,8 @@ const STOP_CATS = load(srcPath('JS_Stop.html'), 'STOP_CATEGORIES');
 {
   const read = (n) => fs.readFileSync(srcPath(n), 'utf8');
   const sides = {
-    server: ['Common.js', 'SpyWords.js', 'CodenamesWords.js', 'PartyContent.js', 'ChameleonWords.js', 'MonkeyWords.js', 'StopWords.js', 'WordleWords.js', 'SoloShared.js', 'ConnectionsWords.js', 'WordWheel.js', 'Boggle.js'],
-    page: ['Common.js', 'ChameleonWords.js', 'MonkeyWords.js', 'StopWords.js', 'WordleWords.js', 'SoloShared.js', 'ConnectionsWords.js', 'WordWheel.js', 'Boggle.js']
+    server: ['Common.js', 'SpyWords.js', 'CodenamesWords.js', 'PartyContent.js', 'ChameleonWords.js', 'MonkeyWords.js', 'StopWords.js', 'WordleWords.js', 'SoloShared.js', 'ConnectionsWords.js', 'WordWheel.js', 'BoggleWords.js', 'Boggle.js'],
+    page: ['Common.js', 'SoloShared.js', 'BoggleWords.js', 'Boggle.js']
   };
   // The page's own lists inside its game files (Describe It, Charades, Who Am I): the declarations only.
   const pageLists = ['JS_DescribeIt.html', 'JS_Charades.html', 'JS_WhoAmI.html'].map((f) => {

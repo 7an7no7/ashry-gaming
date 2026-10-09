@@ -124,7 +124,7 @@ const MAP = [
   // show faces on their boards), and the face editor is a screen.
   { files: /^(Faces\.js|JS_Faces\.html)$/, robots: ['faces', 'core'], ui: ['imposter', 'witness', 'guesswho'], screens: true },
   { files: /^(JS_Hesba\.html|JS_HesbaLook\.html|JS_RoomHesba\.html|RoomHesba\.js|Hesba\.js)$/, robots: ['hesba'], ui: ['hesba'], screens: true },   // Numbers (tools/new-game.mjs)
-  { files: /^(JS_Boggle\.html|JS_RoomBoggle\.html|RoomBoggle\.js|Boggle\.js|boggle\.text\.js)$/, robots: ['boggle'], ui: ['boggle'], screens: true },   // Letter Grid
+  { files: /^(JS_Boggle\.html|JS_RoomBoggle\.html|RoomBoggle\.js|Boggle\.js|BoggleWords\.js|boggle\.text\.js)$/, robots: ['boggle'], ui: ['boggle'], screens: true },   // Letter Grid
   { files: /^(JS_Oracle\.html|Oracle[A-Za-z]*\.js|oracle\.text\.js)$/, screens: true },   // The Oracle (tools/new-game.mjs; its data checked by npm run check)
   { files: /^(JS_RoomBlockway\.html|RoomBlockway\.js|Blockway\.js|blockway\.text\.js)$/, robots: ['blockway'], ui: ['blockway'] },   // Block the Way (tools/new-game.mjs)
   // The page's own screens and the offline copy.

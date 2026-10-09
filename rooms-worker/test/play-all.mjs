@@ -50,6 +50,8 @@ const DARKM = new Function(readFileSync(srcPath('Dark.js'), 'utf8') + ';return {
 const VAULTR = new Function(readFileSync(srcPath('Vault.js'), 'utf8') + ';return { vaultWireAnswer, vaultSymbolOrder, vaultTwistOn };')();
 const CHM = new Function(readFileSync(srcPath('Chess.js'), 'utf8') + ';return { chessLegalMoves, chessBugDrops };')();
 const XOR = new Function(readFileSync(srcPath('TicTacToe.js'), 'utf8') + ';return { xoBigLegal };')();
+// حسبة: the robots solve a deal the way the app's solver does, and send the steps by place.
+const HXS = new Function(readFileSync(srcPath('Hesba.js'), 'utf8') + ';return { hesbaSolve };')();
 /** The squares a robot may play on an إكس أو board: any empty one, or on the big board the ones it was sent to. */
 const xoFree = (g) => (g.big ? XOR.xoBigLegal({ cells: g.cells, minis: g.minis, send: g.send }) : g.cells.map((v, i) => (v ? -1 : i)).filter((i) => i >= 0));
 
@@ -7593,8 +7595,19 @@ async function facesRobots() {
   [F1, F2, F3, F4, TV].forEach((b) => b.close());
 }
 
+/** حسبة: a way by value ([a, op, b, result]) as steps by place in the pool, the way a phone sends it. */
+function hesbaStepsOf(nums, way) {
+  const pool = nums.slice(), used = {};
+  return way.map(([a, op, b, r]) => {
+    const i = pool.findIndex((v, k) => v === a && !used[k]); used[i] = true;
+    const j = pool.findIndex((v, k) => v === b && !used[k]); used[j] = true;
+    pool.push(r);
+    return [i, op, j];
+  });
+}
+
 async function hesbaRobots() {
-  console.log('• حسبة (made by tools/new-game.mjs: a secret each, the taps, the result, play again)');
+  console.log('• حسبة (the same deal everywhere, steps replayed by the server, the first exact wins, the closest on the clock, the way shown)');
   const H = await Bot.host('حسام', null);
   const J = await Bot.join(H.code, 'Jana');
   const K = await Bot.join(H.code, 'كريم');
@@ -7602,19 +7615,44 @@ async function hesbaRobots() {
   const people = [H, J, K];
   await H.must('chooseGame', { game: 'hesba' });
   check((await J.act('start', {})).ok === false, 'hesba: only the host starts');
-  await H.must('start', {});
+  await H.must('start', { level: 'easy', secs: 30, rounds: 3 });
   await all(people.concat([TV]), (s) => s.game === 'hesba' && s.shared.phase === 'play', 'hesba: the round reaches every phone and the TV');
-  check(TV.state.you === null, 'hesba: the TV has no secret');
-  check(people.every((p) => p.state.you && p.state.you.target >= 3 && p.state.you.target <= 9) && !('targets' in H.state.shared), "hesba: each phone has its own number, the table none");
-  for (const p of people) {
-    for (let i = 0; i < p.state.you.target; i++) await p.must('tap', { round: 1 });
-    await p.must('done', { round: 1 });
-  }
-  await all(people.concat([TV]), (s) => s.shared.phase === 'gameover' && s.shared.board.length === 3 && s.shared.board[0].score === 10, 'hesba: everyone landed on their number: the result on every screen');
+  const s1 = H.state.shared;
+  check(s1.nums.length === 4 && s1.target >= 10 && s1.target <= 99 && s1.rounds === 3 && s1.secs === 30, 'hesba: easy deals 4 numbers and a target under 100, with the host\'s rounds and time');
+  check(people.concat([TV]).every((p) => p.state.shared.target === s1.target && p.state.shared.nums.join() === s1.nums.join()), 'hesba: the same numbers and target on every screen');
+  check(!s1.result && !('way' in s1), 'hesba: no way on the table while the round is played');
+  // A step that isn't whole, and a number used twice, are refused by the server's own replay.
+  const big = s1.nums.indexOf(Math.max(...s1.nums)), small = s1.nums.indexOf(Math.min(...s1.nums.filter((v, k) => k !== big)));
+  check((await J.act('send', { round: 1, steps: [[small, '-', big]], pick: 4 })).ok === false || s1.nums[small] === s1.nums[big], 'hesba: a step below zero is refused');
+  check((await J.act('send', { round: 1, steps: [[0, '+', 0]], pick: 4 })).ok === false, 'hesba: a number used twice is refused');
+  await J.must('send', { round: 1, steps: [[0, '+', 1]], pick: 4 });
+  await H.waitFor((s) => !!(s.shared.sent || {})[J.pid], 'hesba: a sent number is on the table');
+  check(J.state.you && Array.isArray(J.state.you.steps) && !(K.state.you && K.state.you.steps), "hesba: a phone's steps are its own");
+  // The host solves it and sends the exact way: the round is over at once.
+  const way = HXS.hesbaSolve(s1.nums, s1.target);
+  check(!!way && way.length >= 1, 'hesba: the deal can be reached exactly');
+  await H.must('send', { round: 1, steps: hesbaStepsOf(s1.nums, way), pick: 4 + way.length - 1 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'reveal' && s.shared.result && s.shared.result.winners[0] === H.pid && s.shared.result.exact, 'hesba: the first exact answer takes the round, on every screen');
+  check(H.state.shared.result.way.length === way.length && H.state.shared.result.wayOf === H.pid, "hesba: the winner's own way is shown");
+  check(H.state.shared.board[0].id === H.pid && H.state.shared.board[0].score === 1, 'hesba: the board counts rounds won');
+  // Round 2: Kareem sends the closest, the host ends the round: the closest takes it, and one exact way is shown.
+  await H.must('nextRound', { round: 1 });
+  await K.waitFor((s) => s.shared.phase === 'play' && s.shared.round === 2, 'hesba: the next round is dealt');
+  check(!(K.state.shared.sent || {})[K.pid], 'hesba: nobody has sent in a new round');
+  await K.must('send', { round: 2, steps: [[0, '+', 1], [4, '+', 2]], pick: 5 });
+  await H.must('finish', { round: 2 });
+  await all(people, (s) => s.shared.phase === 'reveal' && s.shared.round === 2, 'hesba: the host ends a round');
+  const r2 = H.state.shared.result;
+  const exact2 = r2.off === 0;
+  check(r2.winners[0] === K.pid && (r2.way || []).length >= 1, 'hesba: on the clock the closest takes the round and a way is shown');
+  check(exact2 || !r2.wayOf, "hesba: nobody exact: the solver's way, not anyone's");
+  // Round 3 ends with nobody sending: nobody takes it, and the game is over.
+  await H.must('nextRound', { round: 2 });
+  await H.waitFor((s) => s.shared.phase === 'play' && s.shared.round === 3, 'hesba: the last round');
+  await H.must('finish', { round: 3 });
+  await all(people.concat([TV]), (s) => s.shared.phase === 'gameover' && s.shared.result && s.shared.result.winners.length === 0, 'hesba: nobody sent: nobody takes it; the last round ends the game');
   await H.must('playAgain', {});
-  await H.waitFor((s) => s.shared.phase === 'play' && (s.shared.done || []).length === 0, 'hesba: play again deals a new round');
-  await H.must('finish', { round: 1 });
-  await H.waitFor((s) => s.shared.phase === 'gameover', 'hesba: the host ends a round');
+  await H.waitFor((s) => s.shared.phase === 'play' && s.shared.round === 1 && s.shared.rounds === 3, 'hesba: play again deals a new game with the same settings');
   await H.must('backToHub');
   await H.waitFor((x) => x.phase === 'lobby', 'hesba: back in the hub');
   [H, J, K, TV].forEach((x) => x.close());

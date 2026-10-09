@@ -35,7 +35,8 @@ const DAILY_GAMES = [
   { id: 'mines',     start: () => startMines(true),     line: (r) => r.lost ? '💥' : `✅ ${soloTime(r.seconds)}` },
   { id: 'minigolf',  since: '2026-09-24', start: () => startMiniGolf(true),  line: (r) => `${r.strokes <= r.par ? '🟢 ' : ''}⛳ ${r.strokes} · 🎯 ${r.par}` },
   { id: 'chesspuzzle', since: '2026-09-24', start: () => chPzStartDaily(),  line: (r) => !r || !r.solved ? '♟️ ❌' : r.hint ? '♟️ 💡' : r.tries > 1 ? '♟️ ✅ ' + r.tries : '♟️ ✅' },
-  { id: 'boggle', since: '2026-10-09', start: () => startBoggleSolo(true), line: (r) => `✅ ${r.found}/${r.total} · ⭐${r.score}` }
+  { id: 'boggle', since: '2026-10-09', start: () => startBoggleSolo(true), line: (r) => `✅ ${r.found}/${r.total} · ⭐${r.score}` },
+  { id: 'hesba',     since: '2026-10-09', start: () => startHesba(true),   line: (r) => (r.off === 0 ? `✅ ${soloTime(r.seconds)}` : `🎯 ±${r.off}`) }
 ];
 
 let soloHubReturn = false;
@@ -618,6 +619,14 @@ const STATS_SOLO_GAMES = [
       { key: '4', label: 'boggle_size_4' },
       { key: '5', label: 'boggle_size_5' }
     ],
+    format: (b) => (b && typeof b.score === 'number') ? String(b.score) : '—'
+  },
+  {
+    // حسبة: a run's score (JS_Hesba.html).
+    id: 'hesba',
+    title: 'setup_hesba',
+    icon: '➗',
+    levels: [{ key: 'easy', label: 'solo_lvl_easy' }, { key: 'hard', label: 'solo_lvl_hard' }],
     format: (b) => (b && typeof b.score === 'number') ? String(b.score) : '—'
   },
   {

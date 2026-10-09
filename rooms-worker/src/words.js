@@ -4,6 +4,8 @@ const MAX_KEYS = 5000;
 const MAX_BATCH = 20;
 const MAX_WORD_LEN = 40;
 const MAX_LONG_LEN = 160;
+const MAX_XL_LEN = 600;     // العرّاف's misses: twenty answers and three guesses
+const MAX_CAT_LEN = 60;
 const MAX_TAG_LEN = 24;
 const MAX_TAGS = 12;
 // How many words are kept. It has no '|', so it can never be a word's key.
@@ -12,7 +14,7 @@ const COUNT_KEY = '#count';
 /**
  * Words accepted by host adjustments in Stop the bus, shared across all rooms.
  * One instance, named "stop"; the same class keeps "plays" (how often each game
- * is played), "reports" («في غلطة؟») and "errors" (the page's own errors on
+ * is played), "reports" («في غلطة؟»), "oracle" (العرّاف's misses) and "errors" (the page's own errors on
  * players' phones, with when each was first and last seen and on what devices).
  * Keeps at most 5,000 keys. The Stop log drops the lowest counts when full; an
  * entry marked `keep` (the plays and the reports) is dropped itself instead when
@@ -34,9 +36,9 @@ export class WordLog extends DurableObject {
       if (!item) continue;
       if (item.keep) keep = true;
       const lang = String(item.lang || 'ar').trim();
-      const cat = String(item.cat || '').trim();
+      const cat = String(item.cat || '').trim().slice(0, MAX_CAT_LEN);
       // A reported question is longer than a word (the improvement plan's «في غلطة؟»).
-      const word = String(item.word || '').trim().slice(0, item.long ? MAX_LONG_LEN : MAX_WORD_LEN);
+      const word = String(item.word || '').trim().slice(0, item.xl ? MAX_XL_LEN : item.long ? MAX_LONG_LEN : MAX_WORD_LEN);
       if (!cat || !word) continue;
       const key = `${lang}|${cat}|${word}`;
       // `tag` (the errors log: the kind of device, 'ios-safari') is counted per entry.

@@ -13,6 +13,8 @@
  *   GET  /song/CODE/TOKEN                         دندنها: the round's song (Apple's preview), by its opaque token
  *   POST /count   { game }                        a game started on one phone (counted, nothing else kept)
  *   POST /report  { game, text, lang }            «في غلطة؟»: an item a player says is wrong
+ *   POST /oracle-miss { name, answers, guesses, lang }  العرّاف lost: what the player was thinking of
+ *   GET|DELETE /oracle-misses                     what /oracle-miss kept (the admin key; npm run oracle:misses)
  *   POST /err     { b, m, f, v }                  an error on a player's phone (build, message, frame, view)
  *   GET|DELETE /errors                            what /err kept (the admin key)
  *   POST /crew/create { name, me }              -> «الشلة»: { code, memberId, key, crew }
@@ -187,6 +189,23 @@ const errAllowed = (request) => {
   seen.n++;
   return seen.n <= ERR_LIMIT;
 };
+
+/**
+ * العرّاف's miss, made safe to keep: { lang, name, word } or null. `name` is what the player
+ * typed (40 characters, no markup, spaces folded); `word` the answers as "qid:a qid:a …" and
+ * the guesses after a "|" - ids and answer codes only, anything else dropped.
+ */
+const ORACLE_ID_RE = /^[a-z][a-z0-9_]{0,23}$/;
+const ORACLE_ANS = ['y', 'py', 'dk', 'pn', 'n'];
+function oracleMissOf(body) {
+  const name = String(body.name || '').replace(/[<>{}\u0000-\u001f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40);
+  if (!name) return null;
+  const answers = (Array.isArray(body.answers) ? body.answers : []).slice(0, 25)
+    .filter((a) => Array.isArray(a) && ORACLE_ID_RE.test(String(a[0])) && ORACLE_ANS.indexOf(a[1]) !== -1)
+    .map((a) => `${a[0]}:${a[1]}`);
+  const guesses = (Array.isArray(body.guesses) ? body.guesses : []).slice(0, 3).filter((g) => ORACLE_ID_RE.test(String(g)));
+  return { lang: body.lang === 'en' ? 'en' : 'ar', name, word: `${answers.join(' ')} | ${guesses.join(' ')}` };
+}
 
 /**
  * One error from a page, made safe to keep: the build, the view, a short message
@@ -614,6 +633,37 @@ export default {
         }
       } catch (err) { /* a report is never worth an error */ }
       return json({ ok: true });
+    }
+
+    // العرّاف lost: «كنت بتفكر في مين؟» - the name the player typed, the answers they gave and
+    // the oracle's guesses, for the owner to add (npm run oracle:misses). No player name, no
+    // address kept; rate-limited like the reports; nothing of it reaches any other phone.
+    if (url.pathname === '/oracle-miss') {
+      if (request.method !== 'POST') return json({ ok: false }, 405);
+      try {
+        const text = await request.text();
+        const body = JSON.parse(text.length < 3000 ? text : '{}') || {};
+        const miss = oracleMissOf(body);
+        if (miss && countAllowed(request)) {
+          await env.WORDS.get(env.WORDS.idFromName('oracle')).add([{ lang: miss.lang, cat: miss.name, word: miss.word, xl: true, keep: true }]);
+        }
+      } catch (err) { /* a miss is never worth an error */ }
+      return json({ ok: true });
+    }
+    // What /oracle-miss kept, for the owner; DELETE empties it once read.
+    if (url.pathname === '/oracle-misses') {
+      const auth = request.headers.get('Authorization') || '';
+      if (!env.ADMIN_KEY || auth !== `Bearer ${env.ADMIN_KEY}`) return new Response('not found', { status: 404 });
+      try {
+        const log = env.WORDS.get(env.WORDS.idFromName('oracle'));
+        if (request.method === 'DELETE') { await log.clear(); return json({ ok: true }); }
+        if (request.method !== 'GET') return new Response('not found', { status: 404 });
+        const list = await log.list();
+        list.sort((a, b) => b.n - a.n);
+        return json(list);
+      } catch (err) {
+        return json({ ok: false, error: 'unavailable' }, 500);
+      }
     }
 
     // An error on a player's phone (JS_Core.html's reporter): no name, no room code, no

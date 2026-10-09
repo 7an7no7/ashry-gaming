@@ -1,79 +1,423 @@
 <script>
 /* ============================================================================
-   العرّاف — The Oracle on one phone (made by tools/new-game.mjs, 2026-10-09)
+   العرّاف — The Oracle, on one phone (look أ «العرّاف على المسرح», the owner, 9 Oct 2026).
    ----------------------------------------------------------------------------
-   The phone goes round: each player sees their secret number, taps «+1»
-   until they think they have reached it, and passes it on; then the nearest
-   wins. The whole game is in appState.oracle, so a reload comes back to it
-   (VIEW_RESTORE, JS_Core.html). Replace it with the real game.
+   You think of a famous person, a character, an animal, a thing or a job; the oracle - a drawn
+   Egyptian uncle in a tarboosh with his crystal ball - asks up to 20 questions (five answers:
+   أيوه / لأ / مش عارف / غالباً أيوه / غالباً لأ), guesses when he is sure, and has three guesses
+   in all. «رجّع» takes back the last answer. When he loses he asks «كنت بتفكر في مين؟» and the
+   name goes to the owner's list (/oracle-miss, `npm run oracle:misses`).
+   The engine is Oracle.js (pure, shared with tools/oracle-check.mjs), the data the Oracle*.js
+   lists. The whole game is in appState.oracle - its answers, wrong guesses and the step on show -
+   so a reload comes back to the same question (VIEW_RESTORE). notes/games/oracle.md.
    ========================================================================= */
 
-const oracleOneT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+const oracleT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+let oracleTimer = null;       // the beat between an answer and what comes next
+let oracleBusy = false;       // taps wait while the oracle "thinks"
+let oracleArtUid = 0;
 
-function oracleState() {
-  if (!appState.oracle) appState.oracle = null;
-  return appState.oracle;
+function oracleState() { return appState.oracle || null; }
+function oracleRecord() {
+  if (!appState.oracleRecord || typeof appState.oracleRecord !== 'object') appState.oracleRecord = { played: 0, won: 0 };
+  return appState.oracleRecord;
+}
+function oracleStopTimer() { if (oracleTimer) { clearTimeout(oracleTimer); oracleTimer = null; } oracleBusy = false; }
+function oracleLater(ms, fn) {
+  if (oracleTimer) clearTimeout(oracleTimer);
+  if (!ms) { oracleTimer = null; fn(); return; }
+  oracleTimer = setTimeout(() => { oracleTimer = null; fn(); }, ms);
 }
 
-/** Its card on the home, and its setup screen. */
+/* ---------- the oracle himself: a drawn uncle with a tarboosh, a grey moustache and his ball ----------
+   mood: idle | think | sure | surprised | sad | happy.  ball: q | glow | face | dim | half.
+   Colours are the drawing's own (--orx-* in Style_Talk.html, section ORACLE). */
+const ORACLE_MOOD_BALL = { idle: 'q', think: 'dim', sure: 'glow', surprised: 'half', sad: 'dim', happy: 'face' };
+function oracleArt(mood, ball, opts) {
+  mood = mood || 'idle';
+  ball = ball || ORACLE_MOOD_BALL[mood] || 'q';
+  const o = opts || {};
+  const u = 'orc' + (++oracleArtUid);
+  const p = [];
+  p.push(`<defs><radialGradient id="${u}b" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#f0f9ff"/><stop offset=".45" stop-color="#93c5fd"/><stop offset="1" stop-color="#4f46e5"/></radialGradient>` +
+    `<radialGradient id="${u}g" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fde68a" stop-opacity=".95"/><stop offset="1" stop-color="#fde68a" stop-opacity="0"/></radialGradient></defs>`);
+  if (ball === 'glow' || ball === 'face' || ball === 'half') p.push(`<circle class="orx-aura" cx="80" cy="122" r="44" fill="url(#${u}g)"/>`);
+  // the galabeya with its gold trim
+  p.push('<path class="orx-robe" d="M26 152 C28 112 50 99 80 99 C110 99 132 112 134 152Z"/>');
+  p.push('<path class="orx-trim" d="M66 99 L80 117 L94 99" fill="none" stroke-width="3" stroke-linejoin="round"/>');
+  p.push('<path class="orx-skin-d" d="M70 99 L80 112 L90 99Z"/>');
+  p.push('<g class="orx-head">');
+  // ears, head
+  p.push('<ellipse class="orx-skin" cx="56" cy="66" rx="5" ry="7"/><ellipse class="orx-skin" cx="104" cy="66" rx="5" ry="7"/>');
+  p.push('<ellipse class="orx-skin" cx="80" cy="64" rx="24" ry="28"/>');
+  // the tarboosh and its tassel
+  p.push('<path class="orx-fez" d="M58 49 L62 21 C70 16.5 90 16.5 98 21 L102 49 C90 43 70 43 58 49Z"/>');
+  p.push('<path class="orx-fez-d" d="M58 49 C70 43 90 43 102 49 L102.6 53 C90 47 70 47 57.4 53Z"/>');
+  p.push('<ellipse class="orx-fez-d" cx="80" cy="20" rx="18" ry="4"/>');
+  p.push('<g class="orx-tassel"><path class="orx-ink-s" d="M80 19 C88 20 96 25 99 35" fill="none" stroke-width="2" stroke-linecap="round"/><path class="orx-ink" d="M96.5 34 l5 0 l-1 9 l-3 0Z"/></g>');
+  // brows
+  const brow = {
+    idle: 'M64 56 q6 -4 12 0 M84 56 q6 -4 12 0',
+    think: 'M64 58 q6 -2 12 1 M84 59 q6 -3 12 -1',
+    sure: 'M64 57 q6 -3 12 0 M84 52 q6 -5 12 -1',
+    surprised: 'M64 51 q6 -6 12 -1 M84 50 q6 -5 12 1',
+    sad: 'M64 58 q6 -1 12 -5 M84 53 q6 0 12 5',
+    happy: 'M64 55 q6 -5 12 0 M84 55 q6 -5 12 0'
+  }[mood] || '';
+  p.push(`<path class="orx-brow" d="${brow}" stroke-width="4" fill="none" stroke-linecap="round"/>`);
+  // eyes
+  if (mood === 'think') p.push('<path class="orx-ink-s" d="M65 65 q5 4 10 0 M85 65 q5 4 10 0" stroke-width="2.4" fill="none" stroke-linecap="round"/>');
+  else if (mood === 'happy') p.push('<path class="orx-ink-s" d="M65 66 q5 -6 10 0 M85 66 q5 -6 10 0" stroke-width="2.6" fill="none" stroke-linecap="round"/>');
+  else if (mood === 'sure') {
+    [70, 90].forEach((cx) => p.push(`<ellipse cx="${cx}" cy="66" rx="4.6" ry="3" fill="#fff"/><circle class="orx-ink" cx="${cx + 0.8}" cy="66.4" r="2.3"/><path class="orx-skin-s" d="M${cx - 5.4} 64.6 q5.4 -2.6 10.8 0" stroke-width="2.6" fill="none"/>`));
+  } else if (mood === 'surprised') {
+    [70, 90].forEach((cx) => p.push(`<circle cx="${cx}" cy="64.5" r="5.6" fill="#fff"/><circle class="orx-ink" cx="${cx}" cy="64.5" r="2.1"/><circle cx="${cx + 1}" cy="63.5" r=".8" fill="#fff"/>`));
+  } else if (mood === 'sad') {
+    [70, 90].forEach((cx) => p.push(`<ellipse cx="${cx}" cy="66" rx="4.4" ry="4" fill="#fff"/><circle class="orx-ink" cx="${cx}" cy="67.4" r="2.4"/><path class="orx-skin-s" d="M${cx - 5} 63.6 q5 1.6 10 0" stroke-width="2.4" fill="none"/>`));
+    p.push('<path d="M64.5 71 q-2.2 4 0 5.6 q2.2 -1.6 0 -5.6z" fill="#7fb6ff" opacity=".9"/>');
+  } else {
+    [70, 90].forEach((cx) => p.push(`<ellipse cx="${cx}" cy="65" rx="4.6" ry="4.4" fill="#fff"/><circle class="orx-ink orx-pupil" cx="${cx + 0.6}" cy="66" r="2.6"/><circle cx="${cx + 1.4}" cy="64" r=".9" fill="#fff"/>`));
+  }
+  // cheeks and nose
+  if (mood !== 'sad') p.push('<ellipse cx="64" cy="76" rx="4.6" ry="2.8" fill="#fb7185" opacity=".45"/><ellipse cx="96" cy="76" rx="4.6" ry="2.8" fill="#fb7185" opacity=".45"/>');
+  p.push('<path d="M80 66 q-3 8 1 9" stroke="rgba(0,0,0,.28)" stroke-width="2" fill="none" stroke-linecap="round"/>');
+  // the moustache, the mouth
+  p.push('<path class="orx-tache" d="M60 80 C64 72 74 73 80 77 C86 73 96 72 100 80 C96 78.5 92 81 86 81.5 C83 81.5 81 80.5 80 80 C79 80.5 77 81.5 74 81.5 C68 81 64 78.5 60 80Z"/>');
+  const mouth = {
+    happy: '<path class="orx-mouth" d="M71 84 Q80 96 89 84Z"/><path d="M72.5 84.4 L87.5 84.4 L86.6 86.6 L73.4 86.6Z" fill="#fff"/>',
+    surprised: '<ellipse class="orx-mouth" cx="80" cy="88" rx="3.8" ry="4.6"/>',
+    think: '<path class="orx-lip" d="M74 86 q6 2 12 0" stroke-width="2.4" fill="none" stroke-linecap="round"/>',
+    sure: '<path class="orx-lip" d="M73 86 Q81 89 88 83.5" stroke-width="2.4" fill="none" stroke-linecap="round"/>',
+    sad: '<path class="orx-lip" d="M72.5 89 Q80 83.5 87.5 89" stroke-width="2.4" fill="none" stroke-linecap="round"/>'
+  }[mood] || '<path class="orx-lip" d="M72 85 Q80 91.5 88 85" stroke-width="2.4" fill="none" stroke-linecap="round"/>';
+  p.push(mouth);
+  p.push('</g>');
+  // the ball on its gold stand, held in two hands
+  p.push('<path class="orx-gold" d="M62 146 L98 146 L92 153 L68 153Z"/><rect class="orx-gold-d" x="66" y="141" width="28" height="6" rx="3"/>');
+  p.push(`<g class="orx-ball orx-ball--${ball}"><circle cx="80" cy="122" r="22" fill="url(#${u}b)"/>`);
+  if (ball === 'dim') p.push('<circle cx="80" cy="122" r="22" fill="#1e1b4b" opacity=".35"/>');
+  if (ball === 'q') p.push('<text x="80" y="131" text-anchor="middle" font-size="24" font-weight="900" fill="#fff" font-family="system-ui, sans-serif" opacity=".9">?</text>');
+  if (ball === 'face' || ball === 'half') p.push(`<g opacity="${ball === 'half' ? '.45' : '1'}"><circle cx="80" cy="115" r="7" fill="#1e1b4b"/><path d="M66 140 C66 128 72 123 80 123 C88 123 94 128 94 140Z" fill="#1e1b4b"/></g>`);
+  p.push('<ellipse cx="72" cy="112" rx="7" ry="4" fill="#fff" opacity=".55" transform="rotate(-30 72 112)"/></g>');
+  p.push('<ellipse class="orx-skin" cx="57" cy="128" rx="7" ry="9"/><ellipse class="orx-skin" cx="103" cy="128" rx="7" ry="9"/>');
+  if (o.sparkle || ball === 'glow' || ball === 'face') {
+    const star = (x, y, s) => `<path transform="translate(${x} ${y}) scale(${s})" d="M0 -6 L1.5 -1.5 L6 0 L1.5 1.5 L0 6 L-1.5 1.5 L-6 0 L-1.5 -1.5Z" fill="#f5c542"/>`;
+    p.push('<g class="orx-stars">' + star(40, 104, 1.1) + star(122, 98, 1.3) + star(118, 140, 0.8) + star(36, 140, 0.9) + star(30, 30, 0.9) + star(130, 40, 1) + '</g>');
+  }
+  return `<svg class="orx-svg orx-mood--${mood}" viewBox="14 6 132 148" aria-hidden="true" focusable="false">${p.join('')}</svg>`;
+}
+
+/** What the oracle is guessing, drawn: a silhouette with a badge for a person or a job (never a
+    photo), the entry's own icon on a round tile for a character, an animal or a thing. */
+function oracleFace(e, big) {
+  if (!e) return '';
+  if (e.kind === 'p' || e.kind === 'j') {
+    return `<div class="orx-sil${big ? ' orx-sil--big' : ''}"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="38" r="17" fill="currentColor"/><path d="M18 100 C18 72 32 62 50 62 C68 62 82 72 82 100Z" fill="currentColor"/></svg><span class="orx-sil__badge">${escapeHTML(e.icon)}</span></div>`;
+  }
+  return `<div class="orx-tile${big ? ' orx-tile--big' : ''}"><span>${escapeHTML(e.icon)}</span></div>`;
+}
+
+const oracleName = (e) => (e ? (contentLang() === 'en' ? e.en : e.ar) : '');
+const oracleQText = (id) => { const q = oracleQuestion(id); return q ? (contentLang() === 'en' ? q.en : q.ar) : ''; };
+function oracleKindName(e) {
+  const t = oracleT();
+  return ({ p: t.oracle_kind_p, c: t.oracle_kind_c, a: t.oracle_kind_a, t: t.oracle_kind_t, j: t.oracle_kind_j })[e && e.kind] || '';
+}
+function oracleAnswerLabel(a) {
+  const t = oracleT();
+  return ({ y: t.oracle_y, n: t.oracle_n, dk: t.oracle_dk, py: t.oracle_py, pn: t.oracle_pn })[a] || '';
+}
+function oracleGuessesLabel(left) {
+  const t = oracleT();
+  return [t.oracle_guess_0, t.oracle_guess_1, t.oracle_guess_2, t.oracle_guess_3][Math.max(0, Math.min(3, left))] || '';
+}
+
+/* ---------- the setup ---------- */
 function setupOracle() { setView('setup-oracle'); }
 
+function renderOracleSetup() {
+  const t = oracleT();
+  const art = document.getElementById('oracle-setup-art');
+  if (art) art.innerHTML = oracleArt('idle', 'q');
+  const rec = document.getElementById('oracle-record');
+  if (rec) {
+    const r = oracleRecord();
+    rec.textContent = r.played ? String(t.oracle_record || '').replace('{won}', r.won).replace('{played}', r.played) : '';
+    rec.classList.toggle('hidden', !r.played);
+  }
+  const cont = document.getElementById('oracle-continue');
+  const g = oracleState();
+  if (cont) cont.classList.toggle('hidden', !(g && (g.phase === 'ask' || g.phase === 'guess')));
+}
+
 function startOracle() {
-  // Who plays: the players picked on this phone, or «مين بيلعب؟» asks for them first.
-  const names = (appState.activePlayers || []).slice(0, 8);
-  if (names.length < 1) { askPlayers(1, () => startOracle(), { max: 8 }); return; }
-  const players = names.map(name => ({ name, target: 3 + Math.floor(Math.random() * 7), count: 0 }));
-  appState.oracle = { players, at: 0, shown: false, phase: 'play' };
+  oracleStopTimer();
+  appState.oracle = { seq: Date.now(), answers: [], rejected: [], phase: 'ask', step: null, note: '', sent: false };
+  oracleAdvance(appState.oracle, true);
   saveToLocal();
+  setView('play-oracle');
+  renderOracle();
+  scrollToAction();
+}
+function continueOracle() {
+  if (!oracleState()) { startOracle(); return; }
   setView('play-oracle');
   renderOracle();
 }
 
-function oracleShow() { appState.oracle.shown = true; saveToLocal(); renderOracle(); }
-function oracleOneTap() { haptic('light'); appState.oracle.players[appState.oracle.at].count++; saveToLocal(); renderOracle(); }
-function oracleNext() {
-  const g = appState.oracle;
-  g.at++;
-  g.shown = false;
-  if (g.at >= g.players.length) g.phase = 'over';
-  saveToLocal();
-  renderOracle();
-  scrollToAction();
+/** Works out the next step for a game and puts its phase in step with it. */
+function oracleAdvance(g, fresh) {
+  const step = oracleNextStep({ answers: g.answers, rejected: g.rejected }, g.answers.length < 3 ? Math.random() : undefined);
+  g.step = step;
+  if (step.lose) { g.phase = 'lost'; oracleFinish(g, false); } else g.phase = step.guess ? 'guess' : 'ask';
+  if (fresh) g.note = '';
+  return step;
+}
+function oracleFinish(g, won) {
+  if (g.counted) return;
+  g.counted = true;
+  const r = oracleRecord();
+  r.played++;
+  if (won) r.won++;
 }
 
-function renderOracle() {
-  const el = document.getElementById('oracle-stage');
+/* ---------- a turn ---------- */
+function oracleAnswer(a, btn) {
   const g = oracleState();
-  if (!el || !g) return;
-  const t = oracleOneT();
-  if (g.phase === 'over') {
-    const board = g.players.map(p => ({ name: p.name, score: Math.max(0, 10 - Math.abs(p.target - p.count)), count: p.count, target: p.target }))
-      .sort((a, b) => b.score - a.score);
-    el.innerHTML = `
-      <div class="card" style="text-align:center">
-        <div class="card__title">${escapeHTML(t.oracle_result)}</div>
-        ${board.map(r => `<div class="row"><span>${escapeHTML(r.name)}</span><span class="metric">${ltrFrac(r.count, r.target)}</span></div>`).join('')}
-        <button class="btn btn--primary btn--lg" onclick="startOracle()">${escapeHTML(t.play_again || '')}</button>
-      </div>
-      <div class="play-exit-row"><button type="button" class="btn btn--ghost btn--sm btn--auto play-exit" onclick="playExit(() => setView('setup-oracle'))">${escapeHTML(t.exit || '')}</button></div>`;
+  if (!g || oracleBusy || g.phase !== 'ask' || !g.step || !g.step.ask) return;
+  haptic('light');
+  g.answers.push([g.step.ask, a]);
+  g.note = '';
+  const next = oracleAdvance(g);
+  saveToLocal();
+  if (motionOff()) { renderOracle(); scrollToAction(); return; }
+  // The answer flies into the bubble, the oracle thinks for a beat, then what comes next.
+  oracleBusy = true;
+  oracleFly(btn, a);
+  renderOracle({ interlude: 'think' });
+  oracleLater(650, () => {
+    if (next.guess) {
+      renderOracle({ interlude: 'got' });
+      oracleLater(800, () => { oracleBusy = false; renderOracle(); scrollToAction(); });
+    } else { oracleBusy = false; renderOracle(); scrollToAction(); }
+  });
+}
+
+function oracleGuessReply(right) {
+  const g = oracleState();
+  if (!g || oracleBusy || g.phase !== 'guess' || !g.step || !g.step.guess) return;
+  haptic(right ? 'double' : 'light');
+  if (right) {
+    g.phase = 'won';
+    g.won = g.step.guess;
+    oracleFinish(g, true);
+    saveToLocal();
+    renderOracle();
+    scrollToAction();
     return;
   }
-  const p = g.players[g.at];
-  el.innerHTML = `
-    <div class="card" style="text-align:center">
-      <p class="sheet__subtitle">${escapeHTML(t.oracle_turn_of)} <bdi>${escapeHTML(p.name)}</bdi></p>
-      ${g.shown ? `
-        <div class="metric metric--lg">${p.target}</div>
-        <div class="metric metric--md">${p.count}</div>
-        <div class="btn-stack">
-          <button class="btn btn--primary btn--lg" onclick="oracleOneTap()">${escapeHTML(t.oracle_tap)}</button>
-          <button class="btn btn--secondary" onclick="oracleNext()">${escapeHTML(t.oracle_done)}</button>
-        </div>` : `<button class="btn btn--primary btn--lg" onclick="oracleShow()">${escapeHTML(t.oracle_show)}</button>`}
-    </div>
-    <div class="play-exit-row"><button type="button" class="btn btn--ghost btn--sm btn--auto play-exit" onclick="playExit(() => setView('setup-oracle'))">${escapeHTML(t.exit || '')}</button></div>`;
+  g.rejected.push(g.step.guess);
+  const next = oracleAdvance(g);
+  g.note = next.lose ? '' : 'wrong';
+  saveToLocal();
+  playSound('miss');
+  if (motionOff() || next.lose) { renderOracle(); scrollToAction(); return; }
+  oracleBusy = true;
+  renderOracle({ interlude: 'wrong' });
+  oracleLater(1100, () => {
+    if (next.guess) {
+      renderOracle({ interlude: 'got' });
+      oracleLater(800, () => { oracleBusy = false; renderOracle(); });
+    } else { oracleBusy = false; renderOracle(); }
+  });
 }
 
-// A reload: the setup as it was, or the game where it was.
-VIEW_RESTORE['setup-oracle'] = () => {};
-VIEW_RESTORE['play-oracle'] = () => { if (oracleState()) renderOracle(); else setTimeout(() => setView('setup-oracle'), 50); };
+/** «رجّع»: takes back the last answer, and the question comes back. */
+function oracleUndo() {
+  const g = oracleState();
+  if (!g || !g.answers.length || (g.phase !== 'ask' && g.phase !== 'guess')) return;
+  oracleStopTimer();
+  const last = g.answers.pop();
+  g.step = { ask: last[0] };
+  g.phase = 'ask';
+  g.note = '';
+  saveToLocal();
+  renderOracle();
+}
+
+/** «كنت بتفكر في مين؟»: the name and the answers to the owner's list; nothing else leaves the phone. */
+function oracleSendMiss() {
+  const g = oracleState();
+  const input = document.getElementById('oracle-miss-name');
+  if (!g || g.phase !== 'lost' || g.sent || !input) return;
+  const name = input.value.replace(/\s+/g, ' ').trim().slice(0, 40);
+  if (!name) { input.focus(); return; }
+  try {
+    const base = String(window.ROOMS_URL || '').replace(/\/+$/, '');
+    if (base && navigator.sendBeacon) {
+      navigator.sendBeacon(base + '/oracle-miss', JSON.stringify({ name, answers: g.answers.slice(0, 25), guesses: g.rejected.slice(0, 3), lang: contentLang() }));
+    }
+  } catch (e) { /* a miss is never worth an error */ }
+  g.sent = true;
+  g.sentName = name;
+  saveToLocal();
+  haptic('light');
+  renderOracle();
+}
+
+/** The answer's tag flies from its button into the bubble (transform and opacity only). */
+function oracleFly(btn, a) {
+  const bubble = document.getElementById('orx-bubble');
+  if (!btn || !bubble || motionOff()) return;
+  const from = btn.getBoundingClientRect(), to = bubble.getBoundingClientRect();
+  const tag = document.createElement('span');
+  tag.className = 'orx-fly orx-fly--' + a;
+  tag.textContent = oracleAnswerLabel(a);
+  tag.style.left = (from.left + from.width / 2) + 'px';
+  tag.style.top = (from.top + from.height / 2) + 'px';
+  document.body.appendChild(tag);
+  const dx = (to.left + to.width / 2) - (from.left + from.width / 2);
+  const dy = (to.top + to.height / 2) - (from.top + from.height / 2);
+  const done = () => { if (tag.parentNode) tag.parentNode.removeChild(tag); };
+  try {
+    const anim = tag.animate([
+      { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${dx * 0.6}px), calc(-50% + ${dy * 0.6}px)) scale(1.08)`, opacity: 1, offset: 0.6 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(.5)`, opacity: 0 }
+    ], { duration: 480, easing: 'cubic-bezier(.3,.7,.4,1)' });
+    anim.onfinish = done;
+  } catch (e) { /* no Web Animations: the tag just goes */ }
+  setTimeout(done, 700);
+}
+
+/* ---------- drawing ---------- */
+function oracleCountHtml(g) {
+  const t = oracleT();
+  const n = Math.min(ORACLE_MAX_Q, g.answers.length + (g.phase === 'ask' ? 1 : 0));
+  const left = ORACLE_GUESSES - g.rejected.length;
+  const label = escapeHTML(t.oracle_q_of || '').replace('{n}', `<b class="metric">${n}</b>`).replace('{m}', `<b class="metric">${ORACLE_MAX_Q}</b>`);
+  let dots = '';
+  for (let i = 0; i < ORACLE_GUESSES; i++) dots += `<i class="${i >= left ? 'is-used' : ''}"></i>`;
+  let pips = '';
+  for (let i = 1; i <= ORACLE_MAX_Q; i++) pips += `<i class="${i <= g.answers.length ? 'is-on' : (i === n && g.phase === 'ask') ? 'is-now' : ''}"></i>`;
+  return `<div class="orx-count-wrap">
+      <div class="orx-count"><span class="orx-count__label">${label}</span><span class="orx-guesses" aria-label="${escapeHTML(oracleGuessesLabel(left))}">${dots}<span>${escapeHTML(oracleGuessesLabel(left))}</span></span></div>
+      <div class="orx-pips" aria-hidden="true">${pips}</div>
+    </div>`;
+}
+
+function oracleExitHtml(over) {
+  const t = oracleT();
+  return `<div class="play-exit-row"><button type="button" class="btn btn--ghost btn--sm btn--auto play-exit" onclick="${over ? 'oracleLeave()' : 'playExit(oracleLeave)'}">${escapeHTML(t.exit || '')}</button></div>`;
+}
+function oracleLeave() { oracleStopTimer(); setView('setup-oracle'); }
+
+function oracleStage(bubble, mood, ball, extra) {
+  return `<div class="orxA-stage">${bubble}<div class="orxA-oracle${extra ? ' ' + extra : ''}">${oracleArt(mood, ball)}</div></div>`;
+}
+
+function oracleAnswersHtml(disabled) {
+  const t = oracleT();
+  const d = disabled ? ' disabled' : '';
+  return `<div class="orxA-answers${disabled ? ' is-waiting' : ''}">
+      <div class="orx-pair"><button type="button" class="btn btn--success btn--lg" onclick="oracleAnswer('y', this)"${d}>${escapeHTML(t.oracle_y)}</button><button type="button" class="btn btn--danger btn--lg" onclick="oracleAnswer('n', this)"${d}>${escapeHTML(t.oracle_n)}</button></div>
+      <div class="orx-pair"><button type="button" class="btn btn--secondary" onclick="oracleAnswer('py', this)"${d}>${escapeHTML(t.oracle_py)}</button><button type="button" class="btn btn--secondary" onclick="oracleAnswer('pn', this)"${d}>${escapeHTML(t.oracle_pn)}</button></div>
+      <button type="button" class="btn btn--ghost btn--sm orx-dk" onclick="oracleAnswer('dk', this)"${d}>${escapeHTML(t.oracle_dk)}</button>
+    </div>`;
+}
+
+function oracleUndoHtml(g) {
+  const t = oracleT();
+  if (!g.answers.length) return '';
+  const [qid, a] = g.answers[g.answers.length - 1];
+  return `<button type="button" class="orx-undo" onclick="oracleUndo()">↶ ${escapeHTML(t.oracle_undo)}: <b>${escapeHTML(oracleQText(qid))}</b> <span class="orx-tag orx-tag--${a}">${escapeHTML(oracleAnswerLabel(a))}</span></button>`;
+}
+
+function renderOracle(opts) {
+  const el = document.getElementById('oracle-stage');
+  const g = oracleState();
+  if (!el) return;
+  if (!g) { el.innerHTML = ''; return; }
+  const t = oracleT();
+  const o = opts || {};
+  const head = oracleCountHtml(g);
+  const step = g.step || {};
+  const lead = step.guess ? oracleEntry(step.guess) : null;
+  const leftAfter = ORACLE_GUESSES - g.rejected.length - 1;
+  let html = '';
+
+  if (o.interlude === 'think' || o.interlude === 'wrong' || o.interlude === 'got') {
+    // A beat between moves: the answers wait, the oracle thinks / is surprised / has it.
+    const bubble = o.interlude === 'think'
+      ? `<div class="orx-bubble orx-bubble--soft" id="orx-bubble">${escapeHTML(t.oracle_thinking)} <span class="orx-dots"><i></i><i></i><i></i></span></div>`
+      : o.interlude === 'wrong'
+        ? `<div class="orx-bubble orx-bubble--soft is-new" id="orx-bubble">${escapeHTML(t.oracle_wrong)}</div>`
+        : `<div class="orx-bubble is-new" id="orx-bubble">${escapeHTML(t.oracle_got_it)} ✨</div>`;
+    const mood = o.interlude === 'think' ? 'think' : o.interlude === 'wrong' ? 'surprised' : 'sure';
+    const side = g.phase === 'guess' && o.interlude !== 'think' ? oracleGuessButtons(true, leftAfter) : oracleAnswersHtml(true);
+    html = `<div class="orx orxA">${head}${oracleStage(bubble, mood, null, o.interlude === 'got' ? 'is-glowing' : '')}<div class="orxA-side">${side}${oracleExitHtml(false)}</div></div>`;
+  } else if (g.phase === 'ask' && step.ask) {
+    const n = g.answers.length + 1;
+    const isNew = motionFirst('orx-q-' + g.seq + '-' + g.answers.length + '-' + step.ask);
+    const note = g.note === 'wrong' ? `<small>${escapeHTML(t.oracle_after_wrong)}</small>` : '';
+    const bubble = `<div class="orx-bubble${isNew ? ' is-new' : ''}" id="orx-bubble"><span class="orx-bubble__n metric">${n}</span>${note}${escapeHTML(oracleQText(step.ask))}</div>`;
+    html = `<div class="orx orxA">${head}${oracleStage(bubble, 'idle', 'q')}<div class="orxA-side">${oracleAnswersHtml(false)}${oracleUndoHtml(g)}${oracleExitHtml(false)}</div></div>`;
+    if (isNew && !o.quiet) playSound('pop');
+  } else if (g.phase === 'guess' && lead) {
+    const isNew = motionFirst('orx-g-' + g.seq + '-' + g.rejected.length + '-' + lead.id + '-' + g.answers.length);
+    const bubble = `<div class="orx-bubble orx-bubble--guess${isNew ? ' is-reveal' : ''}" id="orx-bubble"><small>${escapeHTML(t.oracle_you_think)}</small><div class="orxA-guessrow">${oracleFace(lead, false)}<span class="orx-guess-name">${escapeHTML(oracleName(lead))}؟</span></div><span class="orx-kind">${escapeHTML(oracleKindName(lead))}</span></div>`;
+    html = `<div class="orx orxA">${head}${oracleStage(bubble, 'sure', 'face')}<div class="orxA-side">${oracleGuessButtons(false, leftAfter)}${oracleUndoHtml(g)}${oracleExitHtml(false)}</div></div>`;
+  } else if (g.phase === 'won') {
+    const e = oracleEntry(g.won);
+    const first = motionFirst('orx-won-' + g.seq);
+    const nq = g.answers.length, ng = g.rejected.length + 1;
+    const guessLabel = [t.oracle_guess_n1, t.oracle_guess_n2, t.oracle_guess_n3][ng - 1] || '';
+    html = `<div class="orx orxA orx--end">${oracleStage(`<div class="orx-bubble${first ? ' is-new' : ''}" id="orx-bubble">${escapeHTML(t.oracle_win)}</div>`, 'happy', 'face')}
+      <div class="orxA-side"><div class="orxA-end${first ? ' is-reveal' : ''}" data-reveal-ms="${first ? 700 : 0}">${oracleFace(e, true)}<div><div class="orx-name">${escapeHTML(oracleName(e))}</div><div class="orx-kind">${escapeHTML(oracleKindName(e))}</div></div>
+        <div class="orx-stat"><div><span class="metric" id="orx-stat-q">${first ? 0 : nq}</span><small>${escapeHTML(t.oracle_in_q)}</small></div><div><span class="metric">${ng}</span><small>${escapeHTML(guessLabel)}</small></div></div></div>
+        <div class="orx-end-actions"><button type="button" class="btn btn--primary btn--lg" onclick="startOracle()">${escapeHTML(t.oracle_again)}</button>${oracleExitHtml(true)}</div></div></div>`;
+    el.innerHTML = html;
+    if (first) {
+      countUp(document.getElementById('orx-stat-q'), 0, nq);
+      afterReveal(el, () => { playSound('success'); if (typeof confetti === 'function') confetti({ particleCount: 140, spread: 85, origin: { y: 0.55 } }); });
+    }
+    return;
+  } else if (g.phase === 'lost') {
+    const guessed = g.rejected.map((id) => oracleName(oracleEntry(id))).filter(Boolean).join(' · ');
+    const first = motionFirst('orx-lost-' + g.seq);
+    const recap = String(t.oracle_used_all || '').replace('{q}', g.answers.length).replace('{g}', g.rejected.length);
+    const form = g.sent
+      ? `<div class="orx-thanks${motionFirst('orx-thanks-' + g.seq) ? ' is-new' : ''}"><span class="orx-thanks__icon" aria-hidden="true">🙏</span><b>${escapeHTML(t.oracle_thanks)}</b><span class="orx-note"><bdi>${escapeHTML(g.sentName || '')}</bdi> · ${escapeHTML(t.oracle_learn)}</span></div>`
+      : `<form class="orx-missform" onsubmit="event.preventDefault(); oracleSendMiss()"><label class="field__label" for="oracle-miss-name">${escapeHTML(t.oracle_field)}</label><input id="oracle-miss-name" type="text" maxlength="40" autocomplete="off" enterkeyhint="send" placeholder="${escapeHTML(t.oracle_ph)}"><div class="orx-note">${escapeHTML(t.oracle_learn)}</div><button type="submit" class="btn btn--primary btn--lg">${escapeHTML(t.oracle_send)}</button></form>`;
+    html = `<div class="orx orxA orx--end">${oracleStage(`<div class="orx-bubble${first ? ' is-new' : ''}" id="orx-bubble">${escapeHTML(t.oracle_lose)}<small>${escapeHTML(t.oracle_who)}</small></div>`, 'sad', 'dim')}
+      <div class="orxA-side"><div class="orxA-end orxA-end--form">${form}</div>
+        <div class="orx-note">${escapeHTML(recap)}${guessed ? ' · ' + escapeHTML(String(t.oracle_guessed || '').replace('{list}', guessed)) : ''}</div>
+        <div class="orx-pair"><button type="button" class="btn btn--secondary" onclick="startOracle()">${escapeHTML(t.oracle_again)}</button><button type="button" class="btn btn--ghost" onclick="oracleLeave()">${escapeHTML(t.exit || '')}</button></div></div></div>`;
+    if (first) playSound('miss');
+  } else {
+    // A step that can't be drawn (an entry gone from the lists after an update): ask again.
+    oracleAdvance(g);
+    saveToLocal();
+    if (g.step && (g.step.ask || g.step.guess || g.step.lose)) { renderOracle(); return; }
+  }
+  el.innerHTML = html;
+}
+
+function oracleGuessButtons(disabled, leftAfter) {
+  const t = oracleT();
+  const d = disabled ? ' disabled' : '';
+  const note = leftAfter >= 2 ? t.oracle_left_2 : leftAfter === 1 ? t.oracle_left_1 : t.oracle_left_0;
+  return `<div class="orxA-answers${disabled ? ' is-waiting' : ''}"><button type="button" class="btn btn--success btn--lg" onclick="oracleGuessReply(true)"${d}>${escapeHTML(t.oracle_yes_it)}</button><button type="button" class="btn btn--ghost" onclick="oracleGuessReply(false)"${d}>${escapeHTML(t.oracle_no_it)}</button></div><div class="orx-note">${escapeHTML(note)}</div>`;
+}
+
+// Leaving the screen stops the beat between moves; a language change redraws the words.
+onLeaveScreen((from) => { if (from === 'play-oracle') oracleStopTimer(); });
+onLanguageChange((view) => {
+  if (view === 'play-oracle') renderOracle({ quiet: true });
+  if (view === 'setup-oracle') renderOracleSetup();
+});
+
+// A reload: the setup as it was, or the game where it was (the same question, the same guess).
+VIEW_RESTORE['setup-oracle'] = () => renderOracleSetup();
+VIEW_RESTORE['play-oracle'] = () => { if (oracleState()) renderOracle({ quiet: true }); else setTimeout(() => setView('setup-oracle'), 50); };
 </script>

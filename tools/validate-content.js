@@ -937,6 +937,18 @@ const STOP_CATS = load(srcPath('JS_Stop.html'), 'STOP_CATEGORIES');
   console.log(`hesba: ${n} deals, every one reachable exactly`);
 }
 
+/* --------------------------------------------------------- العرّاف (oracle) */
+// The questions and the entries (games/oracle/), strictly: ids, names in both languages, every
+// trait a known question about the entry's kind, and every two entries apart by one trait at
+// least. `npm run check:oracle` also plays every entry (notes/games/oracle.md, "Writing entries").
+{
+  const { loadOracle, loadFold, validateOracle } = require('./oracle-data.cjs');
+  const O = loadOracle();
+  validateOracle(O, loadFold()).forEach(p => note('oracle: ' + p));
+  const d = O.oracleData();
+  console.log(`oracle: ${d.questions.length} questions, ${d.entries.length} entries`);
+}
+
 // The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));

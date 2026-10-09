@@ -140,7 +140,7 @@ const GAME_LIST = [
 
   { id: 'hesba', icon: 'art:hesba', title: 'setup_hesba', desc: 'cat_hesba', accent: 'amber', players: [1, 12], mins: 10, modes: ['device', 'room', 'tv'], group: 'brain', setup: 'setup-hesba', room: { min: 1 }, crew: 'brain', added: '2026-10-09', open: 'setupHesba' },   // tools/new-game.mjs, 2026-10-09
   { id: 'boggle', icon: 'art:boggle', title: 'setup_boggle', desc: 'cat_boggle', accent: 'amber', players: [1, 12], mins: 8, modes: ['device', 'room', 'tv'], group: 'brain', setup: 'setup-boggle', room: { min: 2 }, crew: 'words', open: 'setupBoggle' },
-  { id: 'oracle', icon: '🔮', title: 'setup_oracle', desc: 'cat_oracle', accent: 'violet', players: [1, 8], mins: 5, modes: ['device'], group: 'brain', setup: 'setup-oracle', open: 'setupOracle' },   // tools/new-game.mjs, 2026-10-09
+  { id: 'oracle', icon: 'art:oracle', title: 'setup_oracle', desc: 'cat_oracle', accent: 'violet', players: [1, 8], mins: 5, modes: ['device'], group: 'brain', setup: 'setup-oracle', open: 'setupOracle' },   // tools/new-game.mjs, 2026-10-09
   /* --- أدوات --- */
   { id: 'chooser',   icon: 'art:chooser',   title: 'tool_chooser',      desc: 'cat_chooser',    accent: 'orange', group: 'tools', open: 'openChooser' },
   { id: 'spin',      icon: 'art:spin',   title: 'setup_spin',        desc: 'spin_desc',      accent: 'orange', group: 'tools', setup: 'setup-spin' },

@@ -94,6 +94,19 @@ const ORACLE_QUESTIONS = [
   { id: 'detective', kinds: 'c', ar: 'محقق بيحل ألغاز؟', en: 'A detective who solves mysteries?' },
   { id: 'group',   kinds: 'c', ar: 'جزء من مجموعة شبه بعض (زي السنافر)؟', en: 'One of a group who look alike (like the Smurfs)?' },
   { id: 'duo',     kinds: 'c', ar: 'دايماً معاه صاحبه أو اتنين مع بعض؟', en: 'Always with a partner, or a pair?' },
+  /* added with the characters of phase 2 (9 Oct 2026): every character was gone over for each */
+  { id: 'glasses', kinds: 'c', ar: 'لابس نضارة؟', en: 'Wears glasses?' },
+  { id: 'beard',   kinds: 'c', ar: 'ليه دقن أو شنب؟', en: 'Has a beard or a moustache?' },
+  { id: 'weapon',  kinds: 'c', ar: 'بيشيل سيف أو سلاح؟', en: 'Carries a sword or a weapon?' },
+  { id: 'cape',    kinds: 'c', ar: 'لابس كاب (عباية طويلة على ضهره)؟', en: 'Wears a cape?' },
+  { id: 'old',     kinds: 'c', ar: 'عجوز أو كبير في السن؟', en: 'Old?' },
+  { id: 'cat',     kinds: 'c', implies: ['mammal'], ar: 'قطة أو من عيلة القطط (أسد، نمر)؟', en: 'A cat, or of the cat family (a lion, a tiger)?' },
+  { id: 'dog',     kinds: 'c', implies: ['mammal'], ar: 'كلب؟', en: 'A dog?' },
+  { id: 'mouse',   kinds: 'c', implies: ['mammal'], ar: 'فار؟', en: 'A mouse or a rat?' },
+  { id: 'series_c', kinds: 'c', ar: 'من مسلسل (كارتون أو تمثيل)، مش فيلم؟', en: 'From a series (cartoon or acted), not a film?' },
+  { id: 'classic', kinds: 'c', ar: 'ظهر أول مرة قبل سنة 2000؟', en: 'First appeared before the year 2000?' },
+  { id: 'ramadan_c', kinds: 'c', ar: 'اتعرض في رمضان؟', en: 'Shown in Ramadan?' },
+  { id: 'alien',   kinds: 'c', ar: 'جاي من الفضاء أو من كوكب تاني؟', en: 'From space or another planet?' },
 
   /* ---------- animals (and animal characters) ---------- */
   { id: 'mammal',  kinds: 'ac', ar: 'بيرضّع صغاره (من الثدييات)؟', en: 'Feeds its young milk (a mammal)?' },

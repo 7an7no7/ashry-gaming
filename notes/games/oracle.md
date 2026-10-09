@@ -144,11 +144,20 @@ false ones only where a player could be fooled. The kind questions (`human`, `re
 `animal`, `job`, `object`) are answered by the kind itself (`auto`); don't list them, except a
 character, which must say `human` in yes, maybe or no (and `animal` when it is one).
 
-`implies` on a question adds its traits for you: `ahly`, `zamalek`, `england`, `spain`,
-`keeper`, `striker`, `worldcup`, `afcon`, `ballon` → `football` → `athlete`; `egypt`, `levant`,
-`gulf`, `maghreb` → `arab`; `south` → `egypt`; `pharaoh` → `bc` → `before1800`; `born1930` →
-`born1950`; `poet` → `writer`; `princess` → `female`; `fruit`, `veg`, `dish` → `edible`;
-`screen` → `electric`.
+`implies` on a question adds its traits for you: `ahly`, `zamalek`, `england`, `spain`, `italy`,
+`keeper`, `defender`, `striker`, `worldcup`, `afcon`, `ballon` → `football` → `athlete`; `tennis`,
+`squash`, `runner`, `swimmer`, `lifter`, `basket` → `othersport` → `athlete`; `egypt`, `levant`,
+`gulf`, `maghreb` → `arab`; `south` → `egypt`; `uk`, `france` → `europe`; `pharaoh` → `bc` →
+`before1800` → `born1930` → `born1950` → `born1970` (so a person's birth is one trait: the
+earliest that is true); `poet` → `writer`; `princess` → `female`; `fruit`, `veg`, `dish` →
+`edible`; `screen` → `electric`.
+
+The people's questions added with the second batch (9 Oct 2026, with 251 people): `born1970`,
+`director`, `villainroles`, `oscar`, `built` (a pyramid, a temple, a famous building), `uk`,
+`france`, `italy`, `defender`, `tennis`, `squash`, `runner`, `swimmer`, `lifter`, `basket`.
+Two entries apart need a *yes* one hasn't (a maybe does not set them apart): many Egyptian
+actors share every trait, so only those a trait tells apart are in (Shadia beside Soad Hosny,
+Beethoven beside Mozart, Nadal beside Federer could not be, yet).
 
 Only facts that don't change: where they are from, what they did, what they won, when they were
 born. Never alive or dead, still playing, married. No politicians of our time, nothing divisive,

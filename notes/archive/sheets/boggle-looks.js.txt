@@ -1,0 +1,480 @@
+/* شبكة الحروف (boggle) - three looks for the owner's sheet (9 Oct 2026), injected into the real app by shoot.mjs.
+   bgx({ look:'A'|'B'|'C', screen:'play'|'tv'|'end', lang, trace, fly, reveal, vote }) */
+(function () {
+  // The grids really hold their words (found by grid.cjs against StopWords + WordleWords + MonkeyWords).
+  const GRID = {
+    ar: ['ل','س','ك','ت','ت','ي','و','ا','ا','ر','ب','ن','م','س','ا','ي'],
+    en: ['M','E','T','I','R','I','N','A','L','A','L','E','P','H','C','S']
+  };
+  const TRACE = { ar: { w: 'أرانب', p: [8, 9, 14, 11, 10] }, en: { w: 'PLANET', p: [12, 8, 9, 6, 1, 2] } };
+  const FOUND = {
+    ar: ['تلسكوب', 'باريس', 'بيانو', 'كوبرا', 'سباك', 'رسام', 'نورس', 'كتاب', 'كيس', 'كوب'],
+    en: ['MINERAL', 'CHAIR', 'PAINT', 'SCALE', 'CANAL', 'LIME', 'MINT', 'TAN', 'ANT', 'PAN']
+  };
+  const PTS = (w) => { const n = w.replace(/^ال/, '').length; return n >= 6 ? 5 : n === 5 ? 3 : n === 4 ? 2 : 1; };
+  const scoreOf = (ws) => ws.reduce((s, w) => s + PTS(w), 0);
+  const PLAYERS = {
+    ar: [
+      { n: 'سارة', words: ['تلسكوب', 'كتاب', 'كوبرا', 'نورس', 'كيس', 'بيوت'], face: '11550100000', me: true },
+      { n: 'أحمد', words: ['باريس', 'سوريا', 'رسام', 'كتاب', 'كيس'], face: '20020000001' },
+      { n: 'منى', words: ['إسبانيا', 'أرانب', 'كتاب', 'نورس'], face: '10160103000' },
+      { n: 'خالد', words: ['بيانو', 'سباك', 'كوبرا', 'كيس'], face: '04012210002' }
+    ],
+    en: [
+      { n: 'Sara', words: ['MINERAL', 'CHAIR', 'PAINT', 'LIME', 'TAN', 'RAIN'], face: '11550100000', me: true },
+      { n: 'Ahmed', words: ['PLANET', 'METAL', 'MINT', 'CHAIR', 'TAN'], face: '20020000001' },
+      { n: 'Mona', words: ['CLARINET', 'SCALE', 'CHAIR', 'LIME'], face: '10160103000' },
+      { n: 'Khaled', words: ['ARENA', 'CANAL', 'PAINT', 'TAN'], face: '04012210002' }
+    ]
+  };
+  const UNKNOWN = { ar: 'بيوت', en: 'RAIN' };
+  const COUNTS = [12, 9, 7, 10];
+  const T = {
+    ar: { time: 'الوقت', words: 'الكلمات', pts: 'النقط', drag: 'اسحب صباعك على الحروف', found: 'لقيت', wordsN: 'كلمات', round: 'الجولة 2 من 3',
+      title: 'شبكة الحروف', you: 'إنت', shared: 'اتكررت', unique: 'محدش لقاها غيرك', vote: 'مش في القوايم - تتحسب؟', yes: 'أيوه', no: 'لأ',
+      wrote: 'كتبتها', result: 'نتيجة الجولة 2', next: 'الجولة الجاية', letters: 'حروف', l3: '3 حروف', l4: '4 حروف', l5: '5 حروف', l6: '6 وأكتر',
+      looking: 'بيدوّروا…', total: 'المجموع', point: 'نقطة', points: 'نقط', tvHint: 'الكلمات مستخبية لحد آخر الجولة', exit: 'خروج',
+      onlyYou: 'لوحدك', votes: 'أصوات', seconds: 'ثانية' },
+    en: { time: 'Time', words: 'Words', pts: 'Points', drag: 'Drag your finger over the letters', found: 'Found', wordsN: 'words', round: 'Round 2 of 3',
+      title: 'Letter Grid', you: 'You', shared: 'shared', unique: 'nobody else found it', vote: 'Not in our lists - does it count?', yes: 'Yes', no: 'No',
+      wrote: 'wrote it', result: 'Round 2 result', next: 'Next round', letters: 'letters', l3: '3 letters', l4: '4 letters', l5: '5 letters', l6: '6+',
+      looking: 'searching…', total: 'Total', point: 'pt', points: 'pts', tvHint: 'Words stay hidden until the round ends', exit: 'Exit',
+      onlyYou: 'only you', votes: 'votes', seconds: 's' }
+  };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const seeded = (a) => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const face = (p) => {
+    try { if (typeof faceSvg === 'function' ) { const s = faceSvg(p.face); if (s) return s; } } catch (e) {}
+    return `<span class="bgx-initial">${esc(p.n[0])}</span>`;
+  };
+  const counts = (lang) => {
+    const all = {};
+    PLAYERS[lang].forEach((p) => p.words.forEach((w) => { all[w] = (all[w] || 0) + 1; }));
+    return all;
+  };
+  const roundPts = (lang, p, voteYes) => p.words.reduce((s, w) => s + ((counts(lang)[w] === 1 && (w !== UNKNOWN[lang] || voteYes)) ? PTS(w) : 0), 0);
+
+  const css = `
+  .bgx { font-family: var(--font); color: var(--text); display: flex; flex-direction: column; gap: var(--sp-3); }
+  .bgx * { box-sizing: border-box; }
+  .bgx-initial { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); font-weight: var(--fw-black); }
+  .bgx-face { width: 2.5rem; height: 2.5rem; border-radius: 50%; overflow: hidden; flex: none; background: var(--surface-2); }
+  .bgx-face svg { width: 100%; height: 100%; display: block; }
+  .bgx-grid { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); }
+  .bgx-tile { display: grid; place-items: center; aspect-ratio: 1; font-family: var(--font-display, var(--font)); font-weight: var(--fw-black); line-height: 1; user-select: none; }
+  .bgx-tile > span { position: relative; z-index: 3; }
+  .bgx-line { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: visible; }
+  .bgx-line polyline { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round; stroke-linejoin: round; opacity: .45; }
+  .bgx-line circle { fill: var(--accent); opacity: .9; }
+  .bgx-finger { position: absolute; z-index: 3; width: 2.6rem; height: 2.6rem; margin: -1.3rem 0 0 -1.3rem; border-radius: 50%; background: rgba(255,255,255,.18); border: 2px solid rgba(255,255,255,.95); box-shadow: 0 4px 14px rgba(0,0,0,.25); pointer-events: none; }
+  .bgx-ghost { position: fixed; z-index: 9999; pointer-events: none; transform-origin: center; }
+  .bgx-word { direction: inherit; unicode-bidi: isolate; }
+  .bgx-pts { display: inline-grid; place-items: center; min-width: 2rem; height: 1.6rem; padding: 0 .45rem; border-radius: 999px; background: var(--accent); color: var(--accent-on); font-size: var(--fs-xs); font-weight: var(--fw-black); direction: ltr; unicode-bidi: isolate; }
+  .bgx-chip { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .7rem; border-radius: 999px; background: var(--surface-2); color: var(--text); font-weight: var(--fw-bold); font-size: var(--fs-sm); }
+  .bgx-chip small, .bgxC-ticket small, .bgxB-lw small { direction: ltr; unicode-bidi: isolate; }
+  .bgx-chip small { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); }
+  .bgx-chip.is-new { background: var(--accent); color: var(--accent-on); box-shadow: 0 6px 16px -8px var(--accent); }
+  .bgx-chip.is-new small { color: var(--accent-on); opacity: .85; }
+  .bgx-chip.is-hold { visibility: hidden; }
+  .bgx-x { text-decoration: line-through; text-decoration-thickness: 2px; color: var(--text-3); background: transparent; border: 1px dashed var(--border-field); }
+  .bgx-x small { color: var(--text-3); }
+  .bgx-uniq { background: var(--warning-btn, var(--accent)); color: var(--warning-on, var(--accent-on)); }
+  .bgx-uniq small { color: inherit; opacity: .85; }
+  .bgx-q { background: var(--surface-solid); border: 1.5px dashed var(--accent); color: var(--accent-ink); }
+  .bgx-down { background: var(--accent-soft); color: transparent; position: relative; }
+  .bgx-down::after { content: '؟'; position: absolute; inset: 0; display: grid; place-items: center; color: var(--accent-ink); font-weight: var(--fw-black); }
+  [lang="en"] .bgx-down::after, .bgx[dir="ltr"] .bgx-down::after { content: '?'; }
+  .bgx-burst { font-weight: var(--fw-black); color: var(--warning-ink, var(--accent-ink)); font-size: var(--fs-sm); }
+  .bgx-exit { position: absolute; inset-inline-end: 0; top: 0; }
+  .bgx-row { display: flex; align-items: center; gap: var(--sp-2); }
+  .bgx-grow { flex: 1; min-width: 0; }
+  .bgx-muted { color: var(--text-2); font-size: var(--fs-sm); font-weight: var(--fw-semi); }
+  .bgx-card { background: var(--surface-solid); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: var(--sp-4); }
+  .bgx-h { font-size: var(--fs-h2); font-weight: var(--fw-black); }
+  .bgx-btns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+  .bgx-tally { direction: ltr; unicode-bidi: isolate; }
+
+  /* ===== A · صندوق الزهر: a dice tray, the word above it, the found words under it ===== */
+  .bgxA .solo-bar { margin: 0; }
+  .bgxA-word { position: relative; display: flex; align-items: center; justify-content: center; gap: var(--sp-2); min-height: 3.4rem; border-radius: 16px; background: var(--surface-solid); border: 1.5px solid var(--border-field); font-size: 1.7rem; font-weight: var(--fw-black); }
+  .bgxA-word.is-empty { font-size: var(--fs-sm); color: var(--text-3); font-weight: var(--fw-semi); border-style: dashed; }
+  .bgxA-word.is-on { border-color: var(--accent); }
+  .bgxA-tray { padding: .7rem; border-radius: 24px; background: var(--surface-2); box-shadow: inset 0 2px 8px rgba(0,0,0,.12); }
+  .bgxA .bgx-grid { gap: .55rem; }
+  .bgxA .bgx-tile { border-radius: 16px; background: var(--surface-solid); color: var(--text); font-size: 2rem; box-shadow: 0 4px 0 var(--border-field), 0 6px 10px -6px rgba(0,0,0,.3); }
+  .bgxA .bgx-tile.is-on { background: var(--accent); color: var(--accent-on); box-shadow: 0 2px 0 var(--accent-ink), 0 8px 16px -8px var(--accent); }
+  .bgxA .bgx-tile.is-dim { opacity: .55; }
+  .bgxA-found { display: flex; flex-direction: column; gap: var(--sp-2); }
+  .bgxA-found__chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+  .bgxA-side { display: contents; }
+  .bgxA.is-side { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: var(--sp-4); }
+  .bgxA.is-side .bgxA-tray { width: min(calc(var(--app-h, 100vh) - 2.2rem), 19.5rem); }
+  .bgxA.is-side .bgx-tile { font-size: 1.6rem; border-radius: 13px; }
+  .bgxA.is-side .bgxA-side { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
+  .bgxA.is-side .bgxA-found__chips { max-height: 7rem; overflow: hidden; }
+  /* A's TV */
+  .bgx-tv { position: fixed; inset: 0; z-index: 50; background: #0e1020; color: #f3f4ff; font-family: var(--font); display: flex; flex-direction: column; padding: 3.5vmin 4vmin; gap: 2.5vmin; }
+  .bgx-tv .bgx-face { width: 9vmin; height: 9vmin; background: rgba(255,255,255,.08); }
+  .bgx-mark { display: grid; grid-template-columns: 1fr 1fr; gap: .5vmin; width: 8vmin; height: 8vmin; }
+  .bgx-mark i { font-style: normal; display: grid; place-items: center; border-radius: 1vmin; background: var(--accent); color: var(--accent-on); font-weight: 900; font-size: 2.6vmin; }
+  .bgx-tv__top { display: flex; align-items: center; gap: 2vmin; }
+  .bgx-tv__title { font-size: 4.2vmin; font-weight: var(--fw-black); }
+  .bgx-tv__sub { font-size: 2.6vmin; color: rgba(243,244,255,.65); font-weight: var(--fw-semi); }
+  .bgx-tv__clock { margin-inline-start: auto; font-size: 7vmin; font-weight: var(--fw-black); font-family: var(--font-display, var(--font)); direction: ltr; unicode-bidi: isolate; color: var(--accent); }
+  .bgxA-tv__body { flex: 1; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 4vmin; min-height: 0; }
+  .bgxA-tv .bgx-grid { width: 64vmin; gap: 1.8vmin; }
+  .bgxA-tv .bgx-tile { border-radius: 2.6vmin; background: #f7f3e8; color: #1b1d2e; font-size: 8.5vmin; box-shadow: 0 1vmin 0 #b9ad8f, 0 2vmin 3vmin -1vmin rgba(0,0,0,.6); }
+  .bgxA-tv__col { display: flex; flex-direction: column; gap: 2.5vmin; }
+  .bgxA-tv__p { display: flex; align-items: center; gap: 2vmin; padding: 2vmin 2.4vmin; border-radius: 2.8vmin; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); }
+  .bgxA-tv__p b { display: block; font-size: 3.2vmin; }
+  .bgxA-tv__p span { font-size: 2.3vmin; color: rgba(243,244,255,.65); font-weight: var(--fw-semi); }
+  .bgxA-tv__n { margin-inline-start: auto; font-size: 6vmin; font-weight: var(--fw-black); color: var(--accent); font-family: var(--font-display, var(--font)); }
+  .bgx-tv__foot { text-align: center; font-size: 2.4vmin; color: rgba(243,244,255,.55); font-weight: var(--fw-semi); }
+  /* A's result */
+  .bgxA-res { display: flex; flex-direction: column; gap: var(--sp-3); }
+  .bgxA-res .bgx-card { padding: var(--sp-3) var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-2); }
+  .bgxA-res__chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .bgxA-res__pts { font-size: 1.5rem; font-weight: var(--fw-black); color: var(--accent-ink); font-family: var(--font-display, var(--font)); }
+  .bgxA-vote { border: 2px solid var(--accent); }
+  .bgxA-vote__word { font-size: 1.8rem; font-weight: var(--fw-black); text-align: center; }
+
+  /* ===== B · الدفتر: the found words are the page; the grid is a keypad at the thumb ===== */
+  .bgxB { gap: var(--sp-2); height: calc(var(--app-h, 100vh) - 7.6rem); }
+  .bgxB-time { position: relative; height: 2.1rem; border-radius: 999px; background: var(--surface-2); overflow: hidden; display: flex; align-items: center; justify-content: space-between; padding-inline: .9rem; font-weight: var(--fw-black); font-size: var(--fs-sm); }
+  .bgxB-time__fill { position: absolute; inset-block: 0; inset-inline-start: 0; width: 58%; background: var(--accent-soft); border-inline-end: 3px solid var(--accent); }
+  .bgxB-time > span { position: relative; }
+  .bgxB-page { flex: 1; min-height: 0; position: relative; border-radius: 20px; background:
+      linear-gradient(var(--surface-solid), var(--surface-solid)) padding-box;
+    border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,.06); overflow: hidden; display: flex; flex-direction: column; }
+  .bgxB-page::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(to bottom, transparent 0, transparent 1.95rem, var(--border-field) 1.95rem, var(--border-field) 2rem); opacity: .5; pointer-events: none; }
+  .bgxB-page::after { content: ''; position: absolute; inset-block: 0; inset-inline-start: 2.4rem; width: 2px; background: var(--danger); opacity: .35; pointer-events: none; }
+  .bgxB-writing { position: relative; display: flex; align-items: center; gap: var(--sp-2); height: 3.2rem; padding-inline: 3rem var(--sp-4); font-size: 1.6rem; font-weight: var(--fw-black); border-bottom: 2px solid var(--accent); }
+  .bgxB-writing.is-empty { font-size: var(--fs-sm); color: var(--text-3); font-weight: var(--fw-semi); }
+  .bgxB-caret { width: 3px; height: 1.6rem; background: var(--accent); border-radius: 2px; }
+  .bgxB-cols { position: relative; flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); padding-inline-start: 2.6rem; }
+  .bgxB-col { padding: .35rem .4rem; display: flex; flex-direction: column; border-inline-start: 1px dashed var(--border-field); min-width: 0; }
+  .bgxB-col:first-child { border-inline-start: 0; }
+  .bgxB-col h4 { margin: 0; height: 1.65rem; font-size: var(--fs-xs); color: var(--accent-ink); font-weight: var(--fw-black); display: flex; justify-content: space-between; gap: .2rem; }
+  .bgxB-w { height: 2rem; line-height: 2rem; font-size: var(--fs-body); font-weight: var(--fw-bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bgxB-w.is-new { color: var(--accent-ink); }
+  .bgxB-w.is-hold { visibility: hidden; }
+  .bgxB-margin { position: absolute; inset-block-start: 3.4rem; inset-inline-start: 0; width: 2.4rem; display: flex; flex-direction: column; align-items: center; gap: .2rem; font-weight: var(--fw-black); color: var(--accent-ink); }
+  .bgxB-margin b { font-size: 1.35rem; font-family: var(--font-display, var(--font)); }
+  .bgxB-margin span { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); }
+  .bgxB-pad { flex: none; padding: .45rem; border-radius: 20px; background: var(--surface-2); }
+  .bgxB .bgx-grid { gap: .4rem; }
+  .bgxB .bgx-tile { aspect-ratio: 1.25; border-radius: 12px; background: var(--surface-solid); color: var(--text); font-size: 1.65rem; border: 1px solid var(--border-field); }
+  .bgxB .bgx-tile.is-on { background: var(--accent); color: var(--accent-on); border-color: transparent; }
+  .bgxB.is-side { height: calc(var(--app-h, 100vh) - 6.2rem); display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr; gap: var(--sp-2) var(--sp-3); }
+  .bgxB.is-side .bgxB-time { grid-column: 1; }
+  .bgxB.is-side .bgxB-page { grid-column: 1; grid-row: 2; }
+  .bgxB.is-side .bgxB-pad { grid-column: 2; grid-row: 1 / 3; width: 17rem; align-self: center; }
+  .bgxB.is-side .bgx-tile { aspect-ratio: 1.15; }
+  /* B's TV: the board is the scores */
+  .bgxB-tv__body { flex: 1; display: grid; grid-template-columns: 1.35fr 1fr; gap: 4vmin; min-height: 0; align-items: center; }
+  .bgxB-tv__table { display: flex; flex-direction: column; gap: 2vmin; }
+  .bgxB-tv__row { display: grid; grid-template-columns: auto 15vmin 1fr auto; align-items: center; gap: 2.4vmin; padding: 1.8vmin 2.4vmin; border-radius: 2.4vmin; background: rgba(255,255,255,.05); border-bottom: 2px dashed rgba(255,255,255,.12); }
+  .bgxB-tv__row b { font-size: 3.4vmin; }
+  .bgxB-tv__ticks { font-size: 3.6vmin; letter-spacing: .3vmin; color: rgba(243,244,255,.75); font-family: ui-monospace, monospace; direction: ltr; text-align: start; overflow: hidden; white-space: nowrap; }
+  [dir="rtl"] .bgxB-tv__ticks { text-align: end; }
+  .bgxB-tv__n { font-size: 6.4vmin; font-weight: var(--fw-black); color: var(--accent); font-family: var(--font-display, var(--font)); min-width: 9vmin; text-align: center; }
+  .bgxB-tv .bgx-grid { width: 46vmin; gap: 1.4vmin; justify-self: center; }
+  .bgxB-tv .bgx-tile { border-radius: 1.8vmin; background: rgba(255,255,255,.1); color: #fff; font-size: 6.6vmin; border: 1px solid rgba(255,255,255,.18); }
+  .bgxB-tv__bar { display: flex; height: 1.6vmin; border-radius: 999px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .bgxB-tv__bar i { display: block; height: 100%; width: 58%; background: var(--accent); }
+  [dir="rtl"] .bgxB-tv__bar i { margin-inline-start: auto; margin-inline-end: 0; }
+  /* B's result: a spread of pages */
+  .bgxB-res { display: flex; flex-direction: column; gap: var(--sp-3); }
+  .bgxB-spread { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+  .bgxB-leaf { position: relative; border-radius: 16px; background: var(--surface-solid); border: 1px solid var(--border); padding: .5rem .7rem .6rem; overflow: hidden; }
+  .bgxB-leaf::before { content: ''; position: absolute; inset: 2.9rem 0 0; background: repeating-linear-gradient(to bottom, transparent 0, transparent 1.7rem, var(--border-field) 1.7rem, var(--border-field) 1.75rem); opacity: .45; pointer-events: none; }
+  .bgxB-leaf__head { display: flex; align-items: center; gap: .45rem; height: 2.4rem; }
+  .bgxB-leaf__head .bgx-face { width: 2rem; height: 2rem; }
+  .bgxB-leaf__head b { font-size: var(--fs-h3); }
+  .bgxB-leaf__head .bgxB-leaf__pts { margin-inline-start: auto; font-size: 1.3rem; font-weight: var(--fw-black); color: var(--accent-ink); }
+  .bgxB-lw { position: relative; height: 1.75rem; line-height: 1.75rem; align-items: center; font-weight: var(--fw-bold); font-size: var(--fs-body); display: flex; justify-content: space-between; }
+  .bgxB-lw small { line-height: 1; font-size: var(--fs-xs); color: var(--text-2); }
+  .bgxB-lw.is-x { color: var(--text-3); }
+  .bgxB-lw.is-x::after { content: ''; position: absolute; inset-inline: -.1rem; top: 52%; height: 2px; background: var(--danger); opacity: .7; border-radius: 2px; transform: rotate(-2deg); }
+  .bgxB-lw.is-u { color: var(--warning-ink, var(--accent-ink)); }
+  .bgxB-lw.is-down span { color: transparent; background: var(--accent-soft); border-radius: 6px; padding-inline: .3rem; }
+  .bgxB-note { position: relative; transform: rotate(-1.5deg); background: #fff3b0; color: #3b3200; border-radius: 6px; padding: var(--sp-3) var(--sp-4); box-shadow: 0 10px 22px -12px rgba(0,0,0,.45); display: flex; flex-direction: column; gap: var(--sp-2); }
+  .bgxB-note__pin { position: absolute; top: -.45rem; inset-inline-start: 50%; width: .9rem; height: .9rem; border-radius: 50%; background: var(--danger); box-shadow: 0 2px 3px rgba(0,0,0,.3); }
+  .bgxB-note .bgx-muted { color: #5a4d00; }
+  .bgxB-note__word { font-size: 1.7rem; font-weight: var(--fw-black); text-align: center; }
+
+  /* ===== C · الحلبة: round coins inside a clock ring; the word above, a strip of tickets below ===== */
+  .bgxC { align-items: stretch; }
+  .bgxC-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+  .bgxC-stat { display: flex; flex-direction: column; align-items: center; min-width: 4.4rem; }
+  .bgxC-stat b { font-size: 1.5rem; font-family: var(--font-display, var(--font)); font-weight: var(--fw-black); color: var(--accent-ink); line-height: 1.1; }
+  .bgxC-stat span { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); }
+  .bgxC-word { flex: 1; text-align: center; font-size: 2rem; font-weight: var(--fw-black); min-height: 3rem; display: flex; align-items: center; justify-content: center; gap: .4rem; }
+  .bgxC-word.is-empty { font-size: var(--fs-sm); color: var(--text-3); font-weight: var(--fw-semi); }
+  .bgxC-arena { position: relative; width: min(100%, 25rem); aspect-ratio: 1; margin-inline: auto; border-radius: 50%; padding: 1.15rem;
+    background: conic-gradient(var(--accent) 0 var(--left, 58%), var(--surface-3, var(--surface-2)) var(--left, 58%) 100%); }
+  .bgxC-arena__in { width: 100%; height: 100%; border-radius: 50%; background: var(--surface-solid); display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--border); }
+  .bgxC-arena .bgx-grid { width: 74%; gap: .45rem; }
+  .bgxC .bgx-tile { border-radius: 50%; background: var(--surface-2); color: var(--text); font-size: 1.55rem; box-shadow: inset 0 -3px 0 var(--border-field); }
+  .bgxC .bgx-tile.is-on { background: var(--accent); color: var(--accent-on); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .bgxC-clock { position: absolute; top: -.1rem; left: 50%; transform: translateX(-50%); padding: .1rem .7rem; border-radius: 999px; background: var(--accent); color: var(--accent-on); font-size: var(--fs-sm); font-weight: var(--fw-black); direction: ltr; unicode-bidi: isolate; z-index: 3; }
+  
+  .bgxC-strip { display: flex; gap: var(--sp-2); overflow: hidden; padding-block: .2rem; }
+  .bgxC-ticket { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 4.6rem; height: 3.4rem; padding: 0 .7rem; border-radius: 12px; background: var(--surface-solid); border: 1.5px dashed var(--border-field); font-weight: var(--fw-black); font-size: var(--fs-h3); }
+  .bgxC-ticket small { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); }
+  .bgxC-ticket.is-new { background: var(--accent); color: var(--accent-on); border-color: transparent; }
+  .bgxC-ticket.is-new small { color: var(--accent-on); }
+  .bgxC-ticket.is-hold { visibility: hidden; }
+  .bgxC:not(.is-side) .bgxC-strip { flex-wrap: wrap; }
+  .bgxC-striphead { display: flex; justify-content: space-between; align-items: baseline; }
+  .bgxC.is-side { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-4); align-items: center; }
+  .bgxC.is-side .bgxC-arena { width: calc(var(--app-h, 100vh) - 6rem); }
+  .bgxC.is-side .bgxC-side { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+  .bgxC-side { display: contents; }
+  /* C's TV: the ring in the middle, everyone seated round it */
+  .bgxC-tv__body { flex: 1; position: relative; display: grid; place-items: center; min-height: 0; }
+  .bgxC-tv .bgxC-arena { width: 70vmin; padding: 2.2vmin; background: conic-gradient(var(--accent) 0 58%, rgba(255,255,255,.1) 58% 100%); }
+  .bgxC-tv .bgxC-arena__in { background: #161a33; box-shadow: none; }
+  .bgxC-tv .bgx-grid { gap: 1.6vmin; }
+  .bgxC-tv .bgx-tile { background: rgba(255,255,255,.1); color: #fff; font-size: 7vmin; box-shadow: inset 0 -0.6vmin 0 rgba(0,0,0,.35); }
+  .bgxC-seat { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 1vmin; }
+  .bgxC-seat .bgx-face { width: 13vmin; height: 13vmin; border: .6vmin solid rgba(255,255,255,.15); }
+  .bgxC-seat b { font-size: 3vmin; }
+  .bgxC-seat__n { position: absolute; top: -1vmin; inset-inline-end: -2.4vmin; min-width: 7vmin; height: 7vmin; display: grid; place-items: center; border-radius: 999px; background: var(--accent); color: var(--accent-on); font-weight: var(--fw-black); font-size: 3.8vmin; box-shadow: 0 0 0 .6vmin #0e1020; }
+  .bgxC-seat__dots { font-size: 2.2vmin; color: rgba(243,244,255,.55); font-weight: var(--fw-semi); }
+  .bgxC-tv .bgxC-clock { font-size: 3.4vmin; padding: .3vmin 2vmin; top: -1.6vmin; }
+  /* C's result: one player in the spotlight */
+  .bgxC-res { display: flex; flex-direction: column; gap: var(--sp-3); align-items: stretch; }
+  .bgxC-faces { display: flex; justify-content: center; gap: var(--sp-3); }
+  .bgxC-faces .bgxC-mini { display: flex; flex-direction: column; align-items: center; gap: .15rem; opacity: .55; font-size: var(--fs-xs); font-weight: var(--fw-bold); }
+  .bgxC-faces .bgxC-mini.is-on { opacity: 1; color: var(--accent-ink); }
+  .bgxC-faces .bgxC-mini.is-on .bgx-face { box-shadow: 0 0 0 3px var(--accent); }
+  .bgxC-spot { text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); padding: var(--sp-5) var(--sp-4); border-radius: 20px; background: radial-gradient(ellipse at 50% 0, var(--accent-soft), var(--surface-solid) 70%); border: 1px solid var(--border); }
+  .bgxC-spot .bgx-face { width: 4.5rem; height: 4.5rem; }
+  .bgxC-spot__name { font-size: var(--fs-h1); font-weight: var(--fw-black); }
+  .bgxC-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); width: 100%; }
+  .bgxC-wt { position: relative; height: 3.4rem; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: var(--fw-black); font-size: var(--fs-h3); background: var(--surface-2); }
+  .bgxC-wt small { font-size: var(--fs-xs); font-weight: var(--fw-semi); color: var(--text-2); }
+  .bgxC-wt.is-x > span { text-decoration: line-through; text-decoration-thickness: 2px; }
+  .bgxC-wt.is-x { color: var(--text-3); background: transparent; border: 1px dashed var(--border-field); }
+  .bgxC-wt.is-x small { text-decoration: none; color: var(--text-3); }
+  .bgxC-wt.is-u { background: var(--warning-btn, var(--accent)); color: var(--warning-on, var(--accent-on)); box-shadow: 0 10px 22px -12px var(--warning-btn, var(--accent)); }
+  .bgxC-wt.is-u small { color: inherit; opacity: .85; }
+  .bgxC-wt.is-down { background: var(--accent-soft); color: var(--accent-ink); }
+  .bgxC-wt.is-q { border: 1.5px dashed var(--accent); background: var(--surface-solid); }
+  .bgxC-total { font-size: 2.3rem; font-weight: var(--fw-black); color: var(--accent-ink); font-family: var(--font-display, var(--font)); line-height: 1; }
+  .bgxC-dim { position: fixed; inset: 0; z-index: 60; background: rgba(10,12,24,.55); display: grid; place-items: center; padding: var(--sp-4); }
+  .bgxC-dialog { width: min(100%, 22rem); background: var(--surface-solid); border-radius: 20px; padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-3); text-align: center; box-shadow: 0 30px 60px -20px rgba(0,0,0,.5); }
+  .bgxC-dialog__word { font-size: 2.2rem; font-weight: var(--fw-black); }
+  .bgxC-dialog .bgxC-trace { width: 8rem; margin-inline: auto; }
+  .bgxC-dialog .bgx-grid { gap: .2rem; }
+  .bgxC-dialog .bgx-tile { font-size: .95rem; border-radius: 50%; }
+  `;
+  let st = document.getElementById('bgx-css');
+  if (!st) { st = document.createElement('style'); st.id = 'bgx-css'; document.head.appendChild(st); }
+  st.textContent = css;
+
+  const gridHtml = (lang, on, extra) => {
+    const g = GRID[lang];
+    return `<div class="bgx-grid" dir="${lang === 'en' ? 'ltr' : 'rtl'}" data-bgx-grid>${g.map((ch, i) =>
+      `<div class="bgx-tile${on.indexOf(i) !== -1 ? ' is-on' : (extra && on.length ? ' ' + extra : '')}" data-i="${i}"><span>${esc(ch)}</span></div>`).join('')}
+      <svg class="bgx-line" aria-hidden="true"></svg></div>`;
+  };
+  // Draw the traced line (and the finger on its last tile) once the grid is laid out.
+  const drawLine = (root, path, finger) => {
+    root.querySelectorAll('[data-bgx-grid]').forEach((grid) => {
+      const svg = grid.querySelector('.bgx-line');
+      if (!svg || !path.length) return;
+      const gr = grid.getBoundingClientRect();
+      const pts = path.map((i) => { const r = grid.querySelector(`[data-i="${i}"]`).getBoundingClientRect(); return [r.left - gr.left + r.width / 2, r.top - gr.top + r.height / 2]; });
+      svg.setAttribute('viewBox', `0 0 ${gr.width} ${gr.height}`);
+      svg.innerHTML = `<polyline points="${pts.map((p) => p.join(',')).join(' ')}"/>` ;
+      if (finger) { const p = pts[pts.length - 1]; const f = document.createElement('div'); f.className = 'bgx-finger'; f.style.left = (p[0] + 22) + 'px'; f.style.top = (p[1] + 30) + 'px'; grid.appendChild(f); }
+    });
+  };
+  // A word in flight: a ghost of the word between where it was spelled and where it lands.
+  const flyGhost = (root, t) => {
+    const from = root.querySelector('[data-bgx="from"]'), to = root.querySelector('[data-bgx="to"]');
+    if (!from || !to) return;
+    const a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+    const g = to.cloneNode(true);
+    g.classList.remove('is-hold'); g.classList.add('bgx-ghost'); g.removeAttribute('data-bgx');
+    const lerp = (x, y) => x + (y - x) * t;
+    const ax = a.left + a.width / 2, ay = a.top + a.height / 2, bx = b.left + b.width / 2, by = b.top + b.height / 2;
+    const arc = -Math.sin(Math.PI * t) * 60;
+    g.style.width = b.width + 'px'; g.style.height = b.height + 'px';
+    g.style.left = (lerp(ax, bx) - b.width / 2) + 'px'; g.style.top = (lerp(ay, by) - b.height / 2 + arc) + 'px';
+    g.style.transform = `scale(${lerp(1.5, 1)}) rotate(${(1 - t) * -6}deg)`;
+    g.style.opacity = '0.96'; const ac = root.closest('[data-accent]') || root; g.setAttribute('data-accent', ac.getAttribute('data-accent'));
+    document.body.appendChild(g);
+  };
+
+  // ---------- A ----------
+  function playA(o) {
+    const { lang, trace, fly, side } = o, t = T[lang], tr = TRACE[lang];
+    const path = tr.p.slice(0, trace);
+    const typed = path.map((i) => GRID[lang][i]).join('');
+    const showWord = trace >= tr.p.length ? tr.w : typed; // the joined word: the list's spelling once it is whole
+    const landed = fly >= 1, flying = fly > 0 && fly < 1;
+    const list = (flying || landed ? [tr.w] : []).concat(FOUND[lang]);
+    const score = scoreOf(FOUND[lang]) + (landed ? PTS(tr.w) : 0);
+    const bar = `<div class="solo-bar" style="--solo-cols:3">
+      <div class="solo-stat"><span class="solo-stat__label">${t.time}</span><b class="metric">1:12</b></div>
+      <div class="solo-stat"><span class="solo-stat__label">${t.words}</span><b class="metric">${list.length - (flying ? 1 : 0)}</b></div>
+      <div class="solo-stat"><span class="solo-stat__label">${t.pts}</span><b class="metric">${score}</b></div></div>`;
+    const word = flying || landed || !trace ? `<div class="bgxA-word is-empty"${flying ? ' data-bgx="from"' : ''}>${t.drag}</div>`
+      : `<div class="bgxA-word is-on"><span class="bgx-word" dir="auto">${esc(showWord)}</span>${trace >= 3 ? `<span class="bgx-pts">+${PTS(showWord)}</span>` : ''}</div>`;
+    const chips = list.map((w, k) => `<span class="bgx-chip${k === 0 && (flying || landed) ? (flying ? ' is-new is-hold' : ' is-new') : ''}"${k === 0 && flying ? ' data-bgx="to"' : ''}><span dir="auto">${esc(w)}</span><small>+${PTS(w)}</small></span>`).join('');
+    const tray = `<div class="bgxA-tray">${gridHtml(lang, flying ? [] : path)}</div>`;
+    const found = `<div class="bgxA-found"><div class="bgx-row"><b class="bgx-grow">${t.found} ${list.length - (flying ? 1 : 0)} ${t.wordsN}</b></div><div class="bgxA-found__chips">${chips}</div></div>`;
+    return `<div class="bgx bgxA${side ? ' is-side' : ''}">${side ? `${tray}<div class="bgxA-side">${bar}${word}${found}</div>` : `${bar}${word}${tray}${found}`}</div>`;
+  }
+  function tvTop(lang, sub) {
+    const t = T[lang];
+    return `<div class="bgx-tv__top"><span class="bgx-mark" dir="rtl"><i>ش</i><i>ب</i><i>ك</i><i>ة</i></span><div><div class="bgx-tv__title">${t.title}</div><div class="bgx-tv__sub">${sub || t.round}</div></div><div class="bgx-tv__clock">1:12</div></div>`;
+  }
+  function tvA(o) {
+    const { lang } = o, t = T[lang], P = PLAYERS[lang];
+    const card = (p, k) => `<div class="bgxA-tv__p"><div class="bgx-face">${face(p)}</div><div><b>${esc(p.n)}</b><span>${t.looking}</span></div><div class="bgxA-tv__n metric">${COUNTS[k]}</div></div>`;
+    return `<div class="bgx-tv bgxA-tv" dir="${lang === 'en' ? 'ltr' : 'rtl'}">${tvTop(lang)}
+      <div class="bgxA-tv__body"><div class="bgxA-tv__col">${card(P[0], 0)}${card(P[1], 1)}</div>${gridHtml(lang, [])}<div class="bgxA-tv__col">${card(P[2], 2)}${card(P[3], 3)}</div></div>
+      <div class="bgx-tv__foot">${t.tvHint}</div></div>`;
+  }
+  function endA(o) {
+    const { lang, reveal } = o, t = T[lang], P = PLAYERS[lang], cnt = counts(lang), unk = UNKNOWN[lang];
+    const vote = `<div class="bgx-card bgxA-vote" style="gap:var(--sp-2)"><div class="bgx-row"><div class="bgx-face" style="width:2rem;height:2rem">${face(P[0])}</div><span class="bgx-muted bgx-grow">${esc(P[0].n)} ${t.wrote} · ${t.vote}</span></div>
+      <div class="bgxA-vote__word" dir="auto">${esc(unk)}</div>
+      <div class="bgx-btns"><button class="btn btn--primary">✓ ${t.yes} <span class="metric">· 2</span></button><button class="btn btn--neutral">✕ ${t.no} <span class="metric">· 1</span></button></div></div>`;
+    const cards = P.map((p, k) => {
+      const chips = p.words.map((w) => {
+        if (w === unk) return `<span class="bgx-chip bgx-q"><span dir="auto">${esc(w)}</span><small>?</small></span>`;
+        if (cnt[w] > 1) return `<span class="bgx-chip bgx-x"><span dir="auto">${esc(w)}</span><small>×${cnt[w]}</small></span>`;
+        const big = PTS(w) >= 5 && k === 0;
+        if (big && !reveal) return `<span class="bgx-chip bgx-down"><span dir="auto">${esc(w)}</span><small>+0</small></span>`;
+        return `<span class="bgx-chip bgx-uniq"><span dir="auto">${esc(w)}</span><small>+${PTS(w)}</small></span>`;
+      }).join('');
+      const pts = roundPts(lang, p, false) - (k === 0 && !reveal ? 5 : 0);
+      return `<div class="bgx-card"><div class="bgx-row"><div class="bgx-face">${face(p)}</div><b class="bgx-grow">${esc(p.n)}${p.me ? ` <span class="bgx-muted">(${t.you})</span>` : ''}</b>${k === 0 && reveal ? `<span class="bgx-burst">⭐ ${t.unique}</span>` : ''}<span class="bgxA-res__pts metric">+${pts}</span></div><div class="bgxA-res__chips">${chips}</div></div>`;
+    }).join('');
+    return `<div class="bgx bgxA-res"><div class="bgx-row"><span class="bgx-h bgx-grow">${t.result}</span><span class="bgx-muted">${t.round}</span></div>${o.vote === false ? '' : vote}${cards}<button class="btn btn--primary btn--lg">${t.next}</button></div>`;
+  }
+
+  // ---------- B ----------
+  function playB(o) {
+    const { lang, trace, fly, side } = o, t = T[lang], tr = TRACE[lang];
+    const path = tr.p.slice(0, trace);
+    const typed = trace >= tr.p.length ? tr.w : path.map((i) => GRID[lang][i]).join('');
+    const landed = fly >= 1, flying = fly > 0 && fly < 1;
+    const list = (flying || landed ? [tr.w] : []).concat(FOUND[lang]);
+    const by = { 3: [], 4: [], 5: [], 6: [] };
+    list.forEach((w, k) => { const n = Math.min(6, w.length); by[n].push({ w, k }); });
+    const heads = { 3: [t.l3, 1], 4: [t.l4, 2], 5: [t.l5, 3], 6: [t.l6, 5] };
+    const cols = [3, 4, 5, 6].map((n) => `<div class="bgxB-col"><h4><span>${heads[n][0]}</span><span class="metric">+${heads[n][1]}</span></h4>${by[n].map(({ w, k }) =>
+      `<div class="bgxB-w${k === 0 && (flying || landed) ? (flying ? ' is-new is-hold' : ' is-new') : ''}" dir="auto"${k === 0 && flying ? ' data-bgx="to"' : ''}>${esc(w)}</div>`).join('')}</div>`).join('');
+    const score = scoreOf(FOUND[lang]) + (landed ? PTS(tr.w) : 0);
+    const writing = flying || landed || !trace ? `<div class="bgxB-writing is-empty"${flying ? ' data-bgx="from"' : ''}>${t.drag}</div>`
+      : `<div class="bgxB-writing"><span dir="auto">${esc(typed)}</span><span class="bgxB-caret"></span>${trace >= 3 ? `<span class="bgx-pts">+${PTS(typed)}</span>` : ''}</div>`;
+    return `<div class="bgx bgxB${side ? ' is-side' : ''}">
+      <div class="bgxB-time"><div class="bgxB-time__fill"></div><span>⏱ <span class="metric">1:12</span></span><span>${t.pts} <span class="metric">${score}</span></span></div>
+      <div class="bgxB-page">${writing}<div class="bgxB-margin"><b class="metric">${list.length - (flying ? 1 : 0)}</b><span>${t.wordsN}</span></div><div class="bgxB-cols">${cols}</div></div>
+      <div class="bgxB-pad">${gridHtml(lang, flying ? [] : path)}</div></div>`;
+  }
+  function tvB(o) {
+    const { lang } = o, t = T[lang], P = PLAYERS[lang];
+    const order = [0, 3, 1, 2];
+    const ticks = (n) => '𝍸'.repeat(Math.floor(n / 5)) + '|'.repeat(n % 5);
+    const rows = order.map((k) => `<div class="bgxB-tv__row"><div class="bgx-face">${face(P[k])}</div><b>${esc(P[k].n)}</b><span class="bgxB-tv__ticks">${'|'.repeat(COUNTS[k])}</span><span class="bgxB-tv__n metric">${COUNTS[k]}</span></div>`).join('');
+    return `<div class="bgx-tv bgxB-tv" dir="${lang === 'en' ? 'ltr' : 'rtl'}">${tvTop(lang)}<div class="bgxB-tv__bar"><i></i></div>
+      <div class="bgxB-tv__body"><div class="bgxB-tv__table">${rows}</div>${gridHtml(lang, [])}</div><div class="bgx-tv__foot">${t.tvHint}</div></div>`;
+  }
+  function endB(o) {
+    const { lang, reveal } = o, t = T[lang], P = PLAYERS[lang], cnt = counts(lang), unk = UNKNOWN[lang];
+    const leaf = (p, k) => {
+      const pts = roundPts(lang, p, false) - (k === 0 && !reveal ? 5 : 0);
+      return `<div class="bgxB-leaf"><div class="bgxB-leaf__head"><div class="bgx-face">${face(p)}</div><b>${esc(p.n)}</b><span class="bgxB-leaf__pts metric">${pts}</span></div>${p.words.map((w) => {
+        let cls = '', sm = '';
+        if (w === unk) { cls = ''; sm = '؟'; if (lang === 'en') sm = '?'; }
+        else if (cnt[w] > 1) { cls = ' is-x'; sm = '×' + cnt[w]; }
+        else if (PTS(w) >= 5 && k === 0 && !reveal) { cls = ' is-down'; sm = ''; }
+        else { cls = ' is-u'; sm = '+' + PTS(w); }
+        return `<div class="bgxB-lw${cls}"><span dir="auto">${esc(w)}</span><small class="metric">${sm}</small></div>`;
+      }).join('')}</div>`;
+    };
+    const note = `<div class="bgxB-note"><span class="bgxB-note__pin"></span><span class="bgx-muted">${esc(P[0].n)} ${t.wrote} · ${t.vote}</span><div class="bgxB-note__word" dir="auto">${esc(unk)}</div>
+      <div class="bgx-btns"><button class="btn btn--success">✓ ${t.yes} <span class="metric">· 2</span></button><button class="btn btn--neutral">✕ ${t.no} <span class="metric">· 1</span></button></div></div>`;
+    return `<div class="bgx bgxB-res"><div class="bgx-row"><span class="bgx-h bgx-grow">${t.result}</span><span class="bgx-muted">${t.round}</span></div>${o.vote === false ? '' : note}<div class="bgxB-spread">${P.map(leaf).join('')}</div><button class="btn btn--primary btn--lg">${t.next}</button></div>`;
+  }
+
+  // ---------- C ----------
+  function playC(o) {
+    const { lang, trace, fly, side } = o, t = T[lang], tr = TRACE[lang];
+    const path = tr.p.slice(0, trace);
+    const typed = trace >= tr.p.length ? tr.w : path.map((i) => GRID[lang][i]).join('');
+    const landed = fly >= 1, flying = fly > 0 && fly < 1;
+    const list = (flying || landed ? [tr.w] : []).concat(FOUND[lang]);
+    const score = scoreOf(FOUND[lang]) + (landed ? PTS(tr.w) : 0);
+    const word = flying || landed || !trace ? `<div class="bgxC-word is-empty"${flying ? ' data-bgx="from"' : ''}>${t.drag}</div>`
+      : `<div class="bgxC-word"><span dir="auto">${esc(typed)}</span>${trace >= 3 ? `<span class="bgx-pts">+${PTS(typed)}</span>` : ''}</div>`;
+    const top = `<div class="bgxC-top"><div class="bgxC-stat"><b class="metric">${list.length - (flying ? 1 : 0)}</b><span>${t.words}</span></div>${side ? '' : word}<div class="bgxC-stat"><b class="metric">${score}</b><span>${t.pts}</span></div></div>`;
+    const arena = `<div class="bgxC-arena"><span class="bgxC-clock metric">1:12</span><div class="bgxC-arena__in">${gridHtml(lang, flying ? [] : path)}</div></div>`;
+    const strip = `<div class="bgxC-striphead"><b>${t.found}</b><span class="bgx-muted">${list.length - (flying ? 1 : 0)} ${t.wordsN}</span></div><div class="bgxC-strip">${list.map((w, k) =>
+      `<div class="bgxC-ticket${k === 0 && (flying || landed) ? (flying ? ' is-new is-hold' : ' is-new') : ''}"${k === 0 && flying ? ' data-bgx="to"' : ''}><span dir="auto">${esc(w)}</span><small class="metric">+${PTS(w)}</small></div>`).join('')}</div>`;
+    return `<div class="bgx bgxC${side ? ' is-side' : ''}">${side ? `${arena}<div class="bgxC-side">${top}${word}${strip}</div>` : `${top}${arena}${strip}`}</div>`;
+  }
+  function tvC(o) {
+    const { lang } = o, t = T[lang], P = PLAYERS[lang];
+    const pos = [['8%', '10%'], ['8%', 'auto', '10%'], ['auto', '10%', null, '6%'], ['auto', 'auto', '10%', '6%']];
+    const seat = (p, k) => {
+      const [top, start, end, bottom] = pos[k];
+      const s = `${top !== 'auto' ? `top:${top};` : ''}${bottom ? `bottom:${bottom};` : ''}${start !== 'auto' ? `inset-inline-start:${start};` : ''}${end ? `inset-inline-end:${end};` : ''}`;
+      return `<div class="bgxC-seat" style="${s}"><div style="position:relative"><div class="bgx-face">${face(p)}</div><span class="bgxC-seat__n metric">${COUNTS[k]}</span></div><b>${esc(p.n)}</b><span class="bgxC-seat__dots">${t.looking}</span></div>`;
+    };
+    return `<div class="bgx-tv bgxC bgxC-tv" dir="${lang === 'en' ? 'ltr' : 'rtl'}">${tvTop(lang).replace(/<div class="bgx-tv__clock">[^<]*<\/div>/, '')}
+      <div class="bgxC-tv__body">${P.map(seat).join('')}<div class="bgxC-arena"><span class="bgxC-clock metric">1:12</span><div class="bgxC-arena__in">${gridHtml(lang, [])}</div></div></div></div>`;
+  }
+  function endC(o) {
+    const { lang, reveal } = o, t = T[lang], P = PLAYERS[lang], cnt = counts(lang), unk = UNKNOWN[lang], p = P[0];
+    const pts = roundPts(lang, p, true) - (!reveal ? 5 : 0);
+    const tiles = p.words.map((w) => {
+      if (w === unk) return `<div class="bgxC-wt is-u"><span dir="auto">${esc(w)}</span><small>${t.yes} <span class="metric">2/3</span> · <span class="metric">+${PTS(w)}</span></small></div>`;
+      if (cnt[w] > 1) return `<div class="bgxC-wt is-x"><span dir="auto">${esc(w)}</span><small>${t.shared} <span class="metric">×${cnt[w]}</span></small></div>`;
+      if (!reveal) return `<div class="bgxC-wt is-down"><span>${lang === 'en' ? '?' : '؟'}</span><small>${tvLetters(lang, w)}</small></div>`;
+      return `<div class="bgxC-wt is-u"><span dir="auto">${esc(w)}</span><small><span class="metric">+${PTS(w)}</span> · ${t.unique}</small></div>`;
+    }).join('');
+    const minis = P.map((q, k) => `<div class="bgxC-mini${k === 0 ? ' is-on' : ''}"><div class="bgx-face">${face(q)}</div>${esc(q.n)}</div>`).join('');
+    const body = `<div class="bgx bgxC-res"><div class="bgx-row"><span class="bgx-h bgx-grow">${t.result}</span><span class="bgx-muted">1 / 4</span></div><div class="bgxC-faces">${minis}</div>
+      <div class="bgxC-spot"><div class="bgx-face">${face(p)}</div><div class="bgxC-spot__name">${esc(p.n)}</div><div class="bgxC-tiles">${tiles}</div><div class="bgxC-total metric">+${pts}</div></div>
+      <button class="btn btn--primary btn--lg">${lang === 'en' ? 'Next player' : 'اللي بعده'}</button></div>`;
+    if (!o.vote) return body;
+    const tr = { ar: [10, 5, 6, 3], en: [4, 9, 5, 6] }[lang];
+    return body + `<div class="bgxC-dim"><div class="bgxC-dialog"><div class="bgx-row" style="justify-content:center"><div class="bgx-face" style="width:2rem;height:2rem">${face(p)}</div><span class="bgx-muted">${esc(p.n)} ${t.wrote}</span></div>
+      <div class="bgxC-dialog__word" dir="auto">${esc(unk)}</div><div class="bgxC-trace bgxC">${gridHtml(lang, tr)}</div><span class="bgx-muted">${t.vote}</span>
+      <button class="btn btn--primary btn--lg">✓ ${t.yes}</button><button class="btn btn--ghost">✕ ${t.no}</button><span class="bgx-muted"><span class="metric">2 / 4</span> ${t.votes}</span></div></div>`;
+  }
+  const tvLetters = (lang, w) => lang === 'en' ? `${w.length} letters` : `${w.length} حروف`;
+
+  window.bgx = function (o) {
+    document.querySelectorAll('.bgx-ghost, .bgx-tv, .bgxC-dim').forEach((n) => n.remove());
+    const fn = { A: { play: playA, tv: tvA, end: endA }, B: { play: playB, tv: tvB, end: endB }, C: { play: playC, tv: tvC, end: endC } }[o.look][o.screen];
+    const accent = { A: 'amber', B: 'blue', C: 'violet' }[o.look];
+    const html = fn(o);
+    let root;
+    if (o.screen === 'tv') {
+      document.body.insertAdjacentHTML('beforeend', html);
+      root = document.querySelector('.bgx-tv');
+      root.setAttribute('data-accent', accent);
+    } else {
+      const view = document.getElementById('view-play-wordwheel');
+      view.setAttribute('data-accent', accent);
+      view.innerHTML = `<div style="position:relative">${html}</div>`;
+      const dim = view.querySelector('.bgxC-dim');
+      if (dim) { dim.setAttribute('data-accent', accent); document.body.appendChild(dim); }
+      root = view;
+    }
+    const tr = TRACE[o.lang];
+    if (o.screen === 'play' && o.trace && !(o.fly > 0)) drawLine(root, tr.p.slice(0, o.trace), true);
+    if (o.screen === 'end' && o.look === 'C' && o.vote) drawLine(document.querySelector('.bgxC-dim'), { ar: [10, 5, 6, 3], en: [4, 9, 5, 6] }[o.lang], false);
+    if (o.fly > 0 && o.fly < 1) flyGhost(root, o.fly);
+    return 1;
+  };
+})();

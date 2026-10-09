@@ -1,0 +1,44 @@
+/* حسبة's three looks, shot on the real app (preview at http://localhost:4321) in headless Chrome.
+   node shoot.mjs [A,B,C] [only-substring] */
+import fs from 'node:fs';
+import path from 'node:path';
+import { openApp } from './cdp.mjs';
+const dir = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'));
+const out = path.join(dir, 'shots');
+fs.mkdirSync(out, { recursive: true });
+const looks = (process.argv[2] || 'A,B,C').split(',');
+const only = process.argv[3] || '';
+const app = await openApp(dir);
+await app.ev(`lzEnsure(['faces']).then(() => 1)`);
+await app.ev(fs.readFileSync(path.join(dir, 'looks.js'), 'utf8') + '; 1');
+
+async function shoot(file, { look, screen = 'play', frame = null, lang = 'ar', dark = false, w = 375, h = 812 }) {
+  if (only && !file.includes(only)) return;
+  await app.size(w, h);
+  await app.ev(`(async () => {
+    if (appState.lang !== '${lang}') toggleLanguage();
+    if (document.body.classList.contains('dark') !== ${dark}) toggleDarkMode();
+    document.querySelectorAll('.modal-overlay:not(.hidden)').forEach(m => m.classList.add('hidden'));
+    let s = document.getElementById('hx-still'); if (!s) { s = document.createElement('style'); s.id = 'hx-still'; document.head.appendChild(s); }
+    s.textContent = '*{transition:none!important;animation:none!important} .toast-stack{display:none!important}';
+    window.dispatchEvent(new Event('resize'));
+    await new Promise(r => setTimeout(r, 150));
+    return hxShow('${look}', '${screen}', ${frame ? `'${frame}'` : 'null'}); })()`);
+  await app.wait(500);
+  await app.snap(path.join(out, file + '.jpg'));
+  console.log('shot', file);
+}
+for (const look of looks) {
+  await shoot(`${look}-play-ar-light`, { look });
+  await shoot(`${look}-play-ar-dark`, { look, dark: true });
+  await shoot(`${look}-play-en-dark`, { look, lang: 'en', dark: true });
+  await shoot(`${look}-side-ar-light`, { look, w: 667, h: 375 });
+  await shoot(`${look}-tv-ar-dark`, { look, screen: 'tv', dark: true, w: 1280, h: 720 });
+  await shoot(`${look}-tv-en-dark`, { look, screen: 'tv', lang: 'en', dark: true, w: 1280, h: 720 });
+  await shoot(`${look}-end-ar-light`, { look, screen: 'end' });
+  await shoot(`${look}-tvend-ar-dark`, { look, screen: 'tvend', dark: true, w: 1280, h: 720 });
+  for (const f of ['m1', 'm2', 'm3', 'm4', 'h1', 'h2']) await shoot(`${look}-frame-${f}`, { look, frame: f });
+}
+console.log('errors:', app.errors.length ? app.errors.join('\n') : 'none');
+app.close();
+setTimeout(() => process.exit(0), 600);

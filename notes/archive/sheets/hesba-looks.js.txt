@@ -1,0 +1,555 @@
+/* حسبة (hesba) - three looks for the owner's sheet (9 Oct 2026), injected into the real app.
+   hxShow(look, screen, frame): look 'A'|'B'|'C'; screen 'play'|'tv'|'end'|'tvend'; frame null|'m1'..'m4'|'h1'|'h2'.
+   The deal: 100 75 50 25 6 3 -> 952. One exact way: 100+6=106, 106×3=318, 318×75=23850, 23850−50=23800, 23800÷25=952. */
+(function () {
+  const L = (a, e) => (appState.lang === 'en' ? e : a);
+  const NUMS = [100, 75, 50, 25, 6, 3];
+  const TARGET = 952;
+  const STEPS = [[100, '+', 6, 106], [106, '×', 3, 318], [318, '×', 75, 23850], [23850, '−', 50, 23800], [23800, '÷', 25, 952]];
+  const OPS = ['+', '−', '×', '÷'];
+  const seeded = (s) => () => { s |= 0; s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const PEOPLE = [
+    { id: 'mona', ar: 'منى', en: 'Mona', seed: 21, sent: 952, exact: true, at: '0:41', won: 2 },
+    { id: 'karim', ar: 'كريم', en: 'Karim', seed: 7, sent: 950, won: 1 },
+    { id: 'salma', ar: 'سلمى', en: 'Salma', seed: 33, sent: 960, won: 0 },
+    { id: 'me', ar: 'أحمد', en: 'Ahmed', seed: 5, sent: 318, you: true, won: 0 },
+    { id: 'yousef', ar: 'يوسف', en: 'Youssef', seed: 48, sent: 900, won: 0 },
+    { id: 'nour', ar: 'نور', en: 'Nour', seed: 61, sent: null, won: 0 }
+  ];
+  PEOPLE.forEach(p => { p.face = typeof faceRandom === 'function' ? faceRandom(seeded(p.seed)) : ''; });
+  const nm = (p) => L(p.ar, p.en) + (p.you ? L(' (إنت)', ' (you)') : '');
+  const face = (p, cls) => `<span class="hx-face ${cls || ''}">${typeof faceSvg === 'function' && p.face ? faceSvg(p.face, true) : ''}</span>`;
+  const fmt = (n) => String(n);
+  const tileFs = (v) => { const l = String(v).length; return l <= 2 ? 'is-l2' : l === 3 ? 'is-l3' : l === 4 ? 'is-l4' : 'is-l5'; };
+  const eq = (s) => `<span class="metric hx-eq" dir="ltr">${s[0]} ${s[1]} ${s[2]} = ${s[3]}</span>`;
+  // Mid-round (round 3, before anyone is exact): who has sent what.
+  const LIVE = { mona: { st: 'sent', v: 950 }, karim: { st: 'sent', v: 960 }, salma: { st: 'think' }, me: { st: 'think' }, yousef: { st: 'sent', v: 900 }, nour: { st: 'think' } };
+  const liveLine = (p) => { const s = LIVE[p.id]; return s.st === 'sent' ? L(`بعت ${s.v} · فرق ${Math.abs(TARGET - s.v)}`, `sent ${s.v} · off by ${Math.abs(TARGET - s.v)}`) : L('بيحسب…', 'working…'); };
+
+  /* The board at each moment: six slots (null = used up), the selection, the op, the steps done. */
+  function scene(frame) {
+    const S = { tiles: [{ v: 318, isNew: 1 }, { v: 75 }, { v: 50 }, { v: 25 }, null, null], sel: [], op: null, steps: STEPS.slice(0, 2), best: 318, hit: false, frame };
+    if (frame === 'm1') { S.sel = [0]; S.op = '×'; }
+    if (frame === 'm2') { S.sel = [0, 1]; S.op = '×'; S.tiles[1].lift = 1; }
+    if (frame === 'm3') { S.sel = [0, 1]; S.op = '×'; S.tiles[1].lift = 1; S.tiles[0].flash = 1; }
+    if (frame === 'm4') { S.tiles[0] = { v: 23850, isNew: 1, pop: 1 }; S.tiles[1] = null; S.steps = STEPS.slice(0, 3); }
+    if (frame === 'h1') { S.tiles = [{ v: 952, isNew: 1, lift: 1 }, null, null, null, null, null]; S.steps = STEPS.slice(0, 5); S.best = 952; S.op = '÷'; }
+    if (frame === 'h2') { S.tiles = [null, null, null, null, null, null]; S.steps = STEPS.slice(0, 5); S.best = 952; S.hit = true; }
+    return S;
+  }
+  const opsHtml = (S, cls) => OPS.map(o => `<button type="button" class="${cls} ${S.op === o ? 'is-on' : ''}" aria-label="${o}">${o}</button>`).join('');
+  const roomStrip = () => {
+    const sent = PEOPLE.filter(p => LIVE[p.id].st === 'sent');
+    return `<div class="hx-room"><span class="hx-room__faces">${PEOPLE.filter(p => !p.you).map(p => `<span class="hx-room__f ${LIVE[p.id].st === 'sent' ? 'is-sent' : ''}">${face(p)}</span>`).join('')}</span>
+      <span class="hx-room__txt">${L(`بعتوا ${sent.length} من ${PEOPLE.length} · أقرب حد على بعد 2`, `${sent.length} of ${PEOPLE.length} sent · closest is 2 off`)}</span></div>`;
+  };
+  const actions = (S) => `<div class="btn-row hx-actions">
+      <button type="button" class="btn btn--neutral btn--auto hx-undo" aria-label="${L('رجوع خطوة', 'Step back')}">↶</button>
+      <button type="button" class="btn btn--ghost">${L('من الأول', 'Reset')}</button>
+      <button type="button" class="btn btn--primary">${S.hit ? L('✓ بالظبط', '✓ Exact') : L(`ابعت <b class="metric">${S.best}</b>`, `Send <b class="metric">${S.best}</b>`)}</button></div>`;
+  const roundPill = () => `<span class="hx-pill">🧮 ${L('الجولة 3 من 5', 'Round 3 of 5')}</span>`;
+  const confetti = () => Array.from({ length: 14 }, (_, i) => `<i class="hx-bit" style="--a:${i * 26}deg;--d:${58 + (i % 3) * 18}px;--c:${['var(--success)', 'var(--accent)', 'var(--warning)'][i % 3]}"></i>`).join('');
+
+  /* ---------------- A: اللوح - tiles that merge ---------------- */
+  const A = {
+    accent: 'amber',
+    play(S) {
+      const tiles = S.tiles.map((t, i) => t
+        ? `<button type="button" class="hxa-tile ${tileFs(t.v)} ${t.isNew ? 'is-new' : ''} ${S.sel.includes(i) ? 'is-sel' : ''} ${t.lift ? 'is-lift' : ''} ${t.flash ? 'is-flash' : ''} ${t.pop ? 'is-pop' : ''}" data-slot="${i}"><span class="metric">${t.v}</span>${t.isNew ? '<i class="hxa-tile__dot"></i>' : ''}</button>`
+        : `<span class="hxa-tile is-empty" data-slot="${i}"></span>`).join('');
+      return `<div class="hx hxa">
+        <div class="hxa-top">
+          <div class="hxa-target ${S.hit ? 'is-hit' : ''}" data-target><span class="hx-eyebrow">${S.hit ? L('بالظبط!', 'Exact!') : L('الهدف', 'Target')}</span><b class="metric">${TARGET}</b>${S.hit ? confetti() : ''}</div>
+          <div class="hxa-meta"><div class="hxa-clock"><span class="hx-eyebrow">${L('الوقت', 'Time')}</span><b class="metric">0:38</b></div><div class="hxa-best"><span class="hx-eyebrow">${L('أقرب', 'Closest')}</span><b class="metric">${S.best}</b></div></div>
+        </div>
+        <div class="hxa-board">${tiles}</div>
+        <div class="hxa-ops">${opsHtml(S, 'hxa-op')}</div>
+        <div class="hxa-trail">${S.steps.map((s, i) => `<span class="hxa-chip ${S.frame === 'm4' && i === 2 ? 'is-new' : ''}">${eq(s)}</span>`).join('')}</div>
+        ${roomStrip()}
+        ${actions(S)}
+      </div>`;
+    },
+    ghosts(f) {
+      if (f === 'm2') return [{ from: '[data-slot="1"]', to: '[data-slot="0"]', t: 0.5, scale: 1.05 }];
+      if (f === 'm3') return [{ from: '[data-slot="1"]', to: '[data-slot="0"]', t: 1, scale: 0.7, fade: 0.55 }];
+      if (f === 'h1') return [{ from: '[data-slot="0"]', to: '[data-target]', t: 0.55, scale: 1.2, keepSize: true }];
+      return [];
+    },
+    tv() {
+      return `<div class="hxtv hxa-tv">
+        <div class="hxtv-top">${roundPill()}<span class="hxtv-clock metric">0:38</span></div>
+        <div class="hxa-tv__stage">
+          <div class="hxa-target hxa-target--tv"><span class="hx-eyebrow">${L('الهدف', 'Target')}</span><b class="metric">${TARGET}</b></div>
+          <div class="hxa-tv__nums">${NUMS.map(n => `<span class="hxa-tile ${tileFs(n)}"><span class="metric">${n}</span></span>`).join('')}</div>
+        </div>
+        <div class="hxa-tv__people">${PEOPLE.map(p => { const s = LIVE[p.id]; return `<div class="hxa-person ${s.st === 'sent' ? 'is-sent' : ''}">${face(p, 'hx-face--lg')}<b>${L(p.ar, p.en)}</b><span>${s.st === 'sent' ? `<span class="metric">${s.v}</span> · ${L('فرق', 'off')} <span class="metric">${Math.abs(TARGET - s.v)}</span>` : L('بيحسب…', 'working…')}</span></div>`; }).join('')}</div>
+        <p class="hxtv-how">${L('أول واحد يوصل للرقم بالظبط ياخد الجولة · لو محدش وصل، الأقرب', 'First exact answer takes the round · if nobody is exact, the closest')}</p>
+      </div>`;
+    },
+    end() {
+      const mona = PEOPLE[0];
+      return `<div class="hx hxa hx-end">
+        <div class="hxa-win">${face(mona, 'hx-face--xl')}<div><span class="hx-eyebrow">${L('كسبت الجولة', 'Won the round')}</span><b class="hxa-win__name">${L('منى وصلت بالظبط', 'Mona hit it exactly')}</b><span class="hxa-win__sub">${L('في', 'in')} <span class="metric">0:41</span> · ${L('الهدف', 'target')} <span class="metric">${TARGET}</span></span></div></div>
+        <div class="hx-card"><div class="hx-card__title">${L('طريقة بالظبط', 'One exact way')}</div>
+          <div class="hxa-ladder">${STEPS.map((s, i) => `<div class="hxa-rung" dir="ltr"><span class="hxa-mini">${s[0]}</span><span class="hxa-rung__op">${s[1]}</span><span class="hxa-mini">${s[2]}</span><span class="hxa-rung__arrow">→</span><span class="hxa-mini ${i === 4 ? 'is-goal' : 'is-made'}">${s[3]}</span></div>`).join('')}</div></div>
+        ${boardHtml()}
+        <div class="btn-row hx-actions"><button type="button" class="btn btn--primary">${L('الجولة الجاية', 'Next round')}</button></div>
+      </div>`;
+    }
+  };
+
+  /* ---------------- B: الشريط - a calculator's tape ---------------- */
+  const B = {
+    accent: 'teal',
+    play(S) {
+      const f = S.frame;
+      let lines = S.steps.map(s => `<li>${eq(s)}</li>`);
+      let cur = '';
+      if (!f) cur = `<li class="is-cur"><span class="metric hx-eq" dir="ltr">318 × <i class="hxb-caret"></i></span></li>`;
+      if (f === 'm1') cur = `<li class="is-cur"><span class="metric hx-eq" dir="ltr">318 × <i class="hxb-slot" data-line-slot></i></span></li>`;
+      if (f === 'm2') cur = `<li class="is-cur"><span class="metric hx-eq" dir="ltr">318 × <i class="hxb-slot" data-line-slot></i></span></li>`;
+      if (f === 'm3') cur = `<li class="is-cur is-counting"><span class="metric hx-eq" dir="ltr">318 × 75 = <b>14260</b></span></li>`;
+      if (f === 'm4') { lines = STEPS.slice(0, 3).map((s, i) => `<li class="${i === 2 ? 'is-done' : ''}">${eq(s)}</li>`); cur = `<li class="is-cur"><span class="metric hx-eq" dir="ltr"><i class="hxb-caret"></i></span></li>`; }
+      if (f === 'h1') { lines = STEPS.slice(0, 4).map(s => `<li>${eq(s)}</li>`); cur = `<li class="is-cur is-final"><span class="metric hx-eq" dir="ltr">23800 ÷ 25 = <b>952</b></span></li>`; }
+      if (f === 'h2') { lines = STEPS.map((s, i) => `<li class="${i === 4 ? 'is-final' : ''}">${eq(s)}</li>`); }
+      // keys: the six, the used ones struck; made numbers added after them.
+      const used = f === 'h1' || f === 'h2' ? [0, 1, 2, 3, 4, 5] : f === 'm4' ? [0, 1, 4, 5] : [0, 4, 5];
+      const made = f === 'm4' ? [{ v: 23850, isNew: 1 }] : f === 'h1' || f === 'h2' ? [] : [{ v: 318, inLine: 1 }];
+      const keys = NUMS.map((n, i) => `<button type="button" class="hxb-key ${used.includes(i) ? 'is-used' : ''} ${(f === 'm1' && i === 1) ? 'is-press' : ''} ${(f === 'm2' || f === 'm3') && i === 1 ? 'is-used' : ''}" data-slot="${i}"><span class="metric">${n}</span></button>`).join('')
+        + made.map(m => `<button type="button" class="hxb-key is-made ${m.inLine ? 'is-inline' : ''} ${m.isNew ? 'is-new' : ''}" data-made><span class="metric">${m.v}</span></button>`).join('');
+      const dist = Math.abs(TARGET - S.best);
+      return `<div class="hx hxb">
+        <div class="hxb-timer"><span class="hxb-timer__bar"><i style="--p:.63"></i></span><span class="metric">0:38</span></div>
+        <div class="hxb-tape ${S.hit ? 'is-hit' : ''}">
+          <div class="hxb-head" data-target><span>${L('الهدف', 'Target')}<small class="hxb-round">${L('الجولة 3 من 5', 'Round 3 of 5')}</small></span><b class="metric">${TARGET}</b></div>
+          <ol class="hxb-lines">${lines.join('')}${cur}</ol>
+          <div class="hxb-foot"><span>${L('أقرب رقم', 'Closest')} <b class="metric">${S.best}</b></span><span>${S.hit ? L('بالظبط ✓', 'exact ✓') : L(`فاضل <b class="metric">${dist}</b>`, `<b class="metric">${dist}</b> to go`)}</span></div>
+          ${S.hit ? `<div class="hxb-stamp">${L('بالظبط!', 'EXACT!')}</div>` : ''}
+        </div>
+        <div class="hxb-pad"><div class="hxb-nums">${keys}</div><div class="hxb-ops">${opsHtml(S, 'hxb-op')}</div></div>
+        ${roomStrip()}
+        ${actions(S)}
+      </div>`;
+    },
+    ghosts(f) {
+      if (f === 'm2') return [{ from: '[data-slot="1"]', to: '[data-line-slot]', t: 0.55, scale: 1.1, html: '<span class="metric">75</span>', cls: 'hxb-key is-press' }];
+      if (f === 'm4') return [{ from: '.hxb-lines li.is-done', to: '[data-made]', t: 0.6, scale: 1.05, html: '<span class="metric">23850</span>', cls: 'hxb-key is-made', useTo: true }];
+      return [];
+    },
+    tv() {
+      const rows = PEOPLE.slice().sort((a, b) => { const da = LIVE[a.id].st === 'sent' ? Math.abs(TARGET - LIVE[a.id].v) : 1e9; const db = LIVE[b.id].st === 'sent' ? Math.abs(TARGET - LIVE[b.id].v) : 1e9; return da - db; });
+      return `<div class="hxtv hxb-tv">
+        <div class="hxb-timer hxb-timer--tv"><span class="hxb-timer__bar"><i style="--p:.63"></i></span><span class="metric">0:38</span>${roundPill()}</div>
+        <div class="hxb-tv__grid">
+          <div class="hxb-tape hxb-tape--tv"><div class="hxb-head"><span>${L('الهدف', 'Target')}</span><b class="metric">${TARGET}</b></div>
+            <div class="hxb-tv__nums">${NUMS.map(n => `<span class="hxb-key"><span class="metric">${n}</span></span>`).join('')}</div>
+            <div class="hxb-foot"><span>${L('كل رقم مرة واحدة · خطوات صحيحة بس', 'Each number once · whole steps only')}</span></div></div>
+          <div class="hxb-ledger"><div class="hx-card__title">${L('أقرب لحد دلوقتي', 'Closest so far')}</div>
+            ${rows.map((p, i) => { const s = LIVE[p.id]; const d = s.st === 'sent' ? Math.abs(TARGET - s.v) : null; return `<div class="hxb-row ${d === null ? 'is-wait' : ''}"><span class="hxb-row__n metric">${d === null ? '' : i + 1}</span>${face(p, 'hx-face--lg')}<b>${L(p.ar, p.en)}</b><span class="hxb-row__bar"><i style="--p:${d === null ? 0 : Math.max(0.08, 1 - d / 120)}"></i></span><span class="hxb-row__v metric">${d === null ? L('بيحسب…', 'working…') : s.v}</span><span class="hxb-row__d">${d === null ? '' : L(`فرق <span class="metric">${d}</span>`, `<span class="metric">${d}</span> off`)}</span></div>`; }).join('')}
+          </div>
+        </div>
+      </div>`;
+    },
+    end() {
+      return `<div class="hx hxb hx-end">
+        <div class="hxb-tape is-hit">
+          <div class="hxb-who">${face(PEOPLE[0], 'hx-face--lg')}<div><b>${L('منى', 'Mona')}</b><span>${L('وصلت بالظبط في', 'exact in')} <span class="metric">0:41</span></span></div></div>
+          <div class="hxb-head"><span>${L('الهدف', 'Target')}</span><b class="metric">${TARGET}</b></div>
+          <ol class="hxb-lines">${STEPS.map((s, i) => `<li class="${i === 4 ? 'is-final' : ''}">${eq(s)}</li>`).join('')}</ol>
+          <div class="hxb-stamp hxb-stamp--top">${L('بالظبط!', 'EXACT!')}</div>
+        </div>
+        ${boardHtml()}
+        <div class="btn-row hx-actions"><button type="button" class="btn btn--primary">${L('الجولة الجاية', 'Next round')}</button></div>
+      </div>`;
+    }
+  };
+
+  /* ---------------- C: الدايرة - the target in the middle, the numbers around it ---------------- */
+  const ring = (p, cls) => { const r = 46, c = 2 * Math.PI * r; return `<svg class="hxc-ring ${cls || ''}" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="${r}" class="hxc-ring__track"/><circle cx="50" cy="50" r="${r}" class="hxc-ring__arc" stroke-dasharray="${(c * p).toFixed(1)} ${c.toFixed(1)}"/></svg>`; };
+  const slotPos = (i, rad) => { const a = (-90 + i * 60) * Math.PI / 180; return `inset-inline-start:${(50 + rad * Math.cos(a)).toFixed(2)}%;top:${(50 + rad * Math.sin(a)).toFixed(2)}%`; };
+  const C = {
+    accent: 'violet',
+    play(S) {
+      const close = S.hit ? 1 : S.frame === 'h1' ? 0.96 : 1 - Math.abs(TARGET - S.best) / TARGET;
+      const hideC = (i) => (S.frame === 'h1' && i === 0) || ((S.frame === 'm2' || S.frame === 'm3') && i <= 1) || (S.frame === 'm4' && i === 0);
+      const slots = S.tiles.map((t, i) => t && !(S.frame === 'h1' && i === 0)
+        ? `<button type="button" class="hxc-num ${hideC(i) ? 'is-lift' : ''} ${tileFs(t.v)} ${t.isNew ? 'is-new' : ''} ${S.sel.includes(i) ? 'is-sel' : ''} ${t.lift ? 'is-lift' : ''} ${t.pop ? 'is-pop' : ''}" style="${slotPos(i, 41)}" data-slot="${i}"><span class="metric">${t.v}</span></button>`
+        : `<span class="hxc-num is-empty" style="${slotPos(i, 41)}" data-slot="${i}"></span>`).join('');
+      const core = S.frame === 'h1'
+        ? `<span class="hx-eyebrow">${L('الهدف', 'Target')}</span><b class="metric">${TARGET}</b><span class="hxc-core__got"><span class="metric">952</span> ✓</span>`
+        : S.hit ? `<span class="hx-eyebrow">${L('بالظبط!', 'Exact!')}</span><b class="metric">${TARGET}</b><small>${L('في 0:22', 'in 0:22')}</small>`
+          : `<span class="hx-eyebrow">${L('الهدف', 'Target')}</span><b class="metric">${TARGET}</b><small>${L('معاك', 'Closest')} <span class="metric">${S.best}</span> · ${L('فاضل', 'to go')} <span class="metric">${Math.abs(TARGET - S.best)}</span></small>`;
+      return `<div class="hx hxc">
+        <div class="hxc-top">${roundPill()}<span class="hx-pill hx-pill--clock">⏱ <span class="metric">0:38</span></span></div>
+        <div class="hxc-dial ${S.hit ? 'is-hit' : ''} ${S.frame === 'm3' ? 'is-merge' : ''}">
+          ${ring(close)}
+          <div class="hxc-core" data-target>${core}</div>
+          ${slots}
+          ${S.hit ? confetti() : ''}
+        </div>
+        <div class="hxc-ops">${opsHtml(S, 'hxc-op')}</div>
+        <div class="hxc-trail">${S.steps.map((s, i) => `<span class="hxc-step"><i class="metric">${i + 1}</i>${eq(s)}</span>`).join('')}</div>
+        ${roomStrip()}
+        ${actions(S)}
+      </div>`;
+    },
+    ghosts(f) {
+      if (f === 'm2') return [{ from: '[data-slot="0"]', to: '[data-target]', t: 0.5, scale: 0.9, keepFrom: true }, { from: '[data-slot="1"]', to: '[data-target]', t: 0.5, scale: 0.9 }];
+      if (f === 'm3') return [{ from: '[data-slot="1"]', to: '[data-target]', t: 1, scale: 1.1, html: '<span class="metric">23850</span>', cls: 'hxc-num is-new is-l5 is-merge' }];
+      if (f === 'm4') return [{ from: '[data-target]', to: '[data-slot="0"]', t: 0.85, scale: 1, html: '<span class="metric">23850</span>', cls: 'hxc-num is-new is-l5', useTo: true }];
+      return [];
+    },
+    tv() {
+      // Faces on rings by how close they are: exact at the core, the further the further out; not sent on the rim.
+      const placed = PEOPLE.map((p, i) => { const s = LIVE[p.id]; const d = s.st === 'sent' ? Math.abs(TARGET - s.v) : null; const rad = d === null ? 47 : 22 + Math.min(20, d / 3); const ang = [-60, 20, 140, 200, -130, 80][i]; const a = ang * Math.PI / 180;
+        return `<div class="hxc-tvp ${d === null ? 'is-wait' : ''}" style="inset-inline-start:${(50 + rad * Math.cos(a)).toFixed(1)}%;top:${(50 + rad * Math.sin(a)).toFixed(1)}%">${face(p, 'hx-face--lg')}<b>${L(p.ar, p.en)}</b><span>${d === null ? '…' : `<span class="metric">${s.v}</span>`}</span></div>`; }).join('');
+      return `<div class="hxtv hxc-tv">
+        <div class="hxtv-top">${roundPill()}<span class="hxtv-clock metric">0:38</span></div>
+        <div class="hxc-tv__wrap">
+          <div class="hxc-tv__side"><span class="hx-eyebrow">${L('الأرقام', 'Numbers')}</span><div class="hxc-tv__nums">${NUMS.map(n => `<span class="hxc-num is-static ${tileFs(n)}"><span class="metric">${n}</span></span>`).join('')}</div></div>
+          <div class="hxc-tv__dial">
+            <div class="hxc-tv__band hxc-tv__band--1"></div><div class="hxc-tv__band hxc-tv__band--2"></div><div class="hxc-tv__band hxc-tv__band--3"></div>
+            ${ring(0.63, 'hxc-ring--clock')}
+            <div class="hxc-core hxc-core--tv"><span class="hx-eyebrow">${L('الهدف', 'Target')}</span><b class="metric">${TARGET}</b></div>
+            ${placed}
+          </div>
+          <div class="hxc-tv__side"><p class="hxtv-how">${L('كل ما تقرب من الرقم، وشك يقرب من النص', 'The closer your number, the closer your face to the middle')}</p></div>
+        </div>
+      </div>`;
+    },
+    end() {
+      const mona = PEOPLE[0];
+      return `<div class="hx hxc hx-end">
+        <div class="hxc-dial is-hit is-end">
+          ${ring(1)}
+          <div class="hxc-core">${face(mona, 'hx-face--xl')}<b class="hxc-core__name">${L('منى', 'Mona')}</b><small>${L('بالظبط في', 'exact in')} <span class="metric">0:41</span></small></div>
+          ${PEOPLE.slice(1).map((p, i) => { const d = p.sent == null ? null : Math.abs(TARGET - p.sent); const rad = d === null ? 47 : d > 100 ? 46 : 36 + d / 2; const a = (-90 + 50 + i * 62) * Math.PI / 180; return `<div class="hxc-endp" style="inset-inline-start:${(50 + rad * Math.cos(a)).toFixed(1)}%;top:${(50 + rad * Math.sin(a)).toFixed(1)}%">${face(p)}<span class="metric">${p.sent == null ? '—' : p.sent}</span></div>`; }).join('')}
+        </div>
+        <div class="hx-card"><div class="hx-card__title">${L('طريقة بالظبط', 'One exact way')} · <span class="metric">${TARGET}</span></div>
+          <div class="hxc-trail hxc-trail--end">${STEPS.map((s, i) => `<span class="hxc-step ${i === 4 ? 'is-goal' : ''}"><i class="metric">${i + 1}</i>${eq(s)}</span>`).join('')}</div></div>
+        ${boardHtml(true)}
+        <div class="btn-row hx-actions"><button type="button" class="btn btn--primary">${L('الجولة الجاية', 'Next round')}</button></div>
+      </div>`;
+    }
+  };
+
+  function boardHtml(short) {
+    const rows = PEOPLE.slice().sort((a, b) => b.won - a.won).slice(0, short ? 3 : 4);
+    return `<div class="hx-card hx-board"><div class="hx-card__title">${L('الجولات بعد 3 من 5', 'Rounds won, 3 of 5')}</div>
+      ${rows.map((p, i) => `<div class="hx-board__row ${i === 0 ? 'is-top' : ''}"><span class="metric hx-board__n">${i + 1}</span>${face(p)}<b>${nm(p)}</b><span class="hx-board__note">${p.id === 'mona' ? L('بالظبط', 'exact') : p.sent == null ? L('ما بعتش', 'no answer') : L(`بعت ${p.sent}`, `sent ${p.sent}`)}</span><span class="metric hx-board__s">${p.won}</span></div>`).join('')}</div>`;
+  }
+
+  const LOOKS = { A, B, C };
+
+  const css = `
+  .hx { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-2) var(--sp-4) var(--sp-4); max-width: 30rem; margin: 0 auto; color: var(--text); }
+  .hx .metric { font-family: var(--font-display); }
+  .hx-eyebrow { font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-2); }
+  .hx-eq { direction: ltr; unicode-bidi: isolate; white-space: nowrap; font-weight: var(--fw-bold); }
+  .hx-pill { display: inline-flex; align-items: center; gap: .3rem; min-height: 2rem; padding: 0 .75rem; border-radius: 999px; background: var(--surface-solid); border: 1px solid var(--border); font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text); white-space: nowrap; }
+  .hx-face { display: inline-flex; width: 1.75rem; height: 1.75rem; border-radius: 50%; overflow: hidden; background: var(--surface-2); flex: none; }
+  .hx-face svg { width: 100%; height: 100%; display: block; }
+  .hx-face--lg { width: 2.75rem; height: 2.75rem; }
+  .hx-face--xl { width: 4rem; height: 4rem; }
+  .hx-room { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: 14px; background: var(--surface-solid); border: 1px solid var(--border); }
+  .hx-room__faces { display: flex; flex: none; }
+  .hx-room__f { position: relative; margin-inline-start: -0.45rem; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface-solid); opacity: .55; }
+  .hx-room__f:first-child { margin-inline-start: 0; }
+  .hx-room__f.is-sent { opacity: 1; }
+  .hx-room__f.is-sent::after { content: '✓'; position: absolute; inset-block-end: -3px; inset-inline-end: -3px; width: .9rem; height: .9rem; border-radius: 50%; background: var(--success-btn); color: var(--success-on); font-size: 9px; font-weight: 900; display: grid; place-items: center; }
+  .hx-room__f .hx-face { width: 1.6rem; height: 1.6rem; }
+  .hx-room__txt { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); line-height: 1.3; }
+  .hx-actions .hx-undo { min-width: 3.25rem; font-size: 1.3rem; }
+  .hx-actions .btn--primary { flex: 1.6; }
+  .hx-actions .btn { white-space: nowrap; }
+  .hx-card { background: var(--surface-solid); border: 1px solid var(--border); border-radius: 20px; padding: var(--sp-3) var(--sp-4); box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .hx-card__title { font-size: var(--fs-sm); font-weight: var(--fw-black); color: var(--text-2); margin-bottom: var(--sp-2); }
+  .hx-board__row { display: flex; align-items: center; gap: var(--sp-2); min-height: 2.5rem; border-top: 1px solid var(--border); }
+  .hx-board__row:first-of-type { border-top: 0; }
+  .hx-board__row b { font-size: var(--fs-body); }
+  .hx-board__n { width: 1.2rem; color: var(--text-3); font-size: var(--fs-sm); }
+  .hx-board__note { font-size: var(--fs-xs); color: var(--text-2); margin-inline-start: auto; }
+  .hx-board__s { font-size: var(--fs-h2); font-weight: 900; min-width: 1.5rem; text-align: end; }
+  .hx-board__row.is-top .hx-board__s { color: var(--accent-ink); }
+  .hx-ghost { position: fixed; z-index: 400; pointer-events: none; margin: 0 !important; display: grid !important; place-items: center; }
+  .hx-bit { position: absolute; top: 50%; inset-inline-start: 50%; width: 8px; height: 12px; border-radius: 2px; background: var(--c); transform: rotate(var(--a)) translateY(calc(-1 * var(--d))) ; }
+
+  /* A */
+  .hxa-top { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--sp-3); }
+  .hxa-target { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--sp-3); border-radius: 20px; background: var(--accent); color: var(--accent-on); box-shadow: 0 12px 26px -14px var(--accent); }
+  .hxa-target .hx-eyebrow { color: var(--accent-on); opacity: .85; }
+  .hxa-target b { font-size: 3.4rem; line-height: 1; font-weight: 900; }
+  .hxa-target.is-hit { background: var(--success-btn); color: var(--success-on); transform: scale(1.04); box-shadow: 0 0 0 6px var(--success-soft), 0 14px 30px -12px var(--success); }
+  .hxa-target.is-hit .hx-eyebrow { color: var(--success-on); }
+  .hxa-meta { display: grid; gap: var(--sp-2); }
+  .hxa-clock, .hxa-best { display: flex; align-items: center; justify-content: space-between; padding: var(--sp-2) var(--sp-3); border-radius: 14px; background: var(--accent-soft); }
+  .hxa-clock b, .hxa-best b { font-size: var(--fs-h1); color: var(--accent-ink); }
+  .hxa-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-3); }
+  .hxa-tile { position: relative; aspect-ratio: 1.15; border-radius: 18px; border: 0; background: var(--surface-solid); color: var(--text); box-shadow: 0 4px 0 var(--border-strong), 0 6px 14px -8px rgba(0,0,0,.25); display: grid; place-items: center; font-weight: 900; transition: none; }
+  .hxa-tile .metric { font-size: 2.1rem; }
+  .hxa-tile.is-l4 .metric { font-size: 1.7rem; } .hxa-tile.is-l5 .metric { font-size: 1.35rem; }
+  .hxa-tile.is-new { background: var(--accent-soft); color: var(--accent-ink); box-shadow: 0 4px 0 var(--accent-border, var(--accent)), 0 6px 14px -8px var(--accent); }
+  .hxa-tile__dot { position: absolute; top: 8px; inset-inline-end: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .hxa-tile.is-sel { transform: translateY(-5px); outline: 3px solid var(--accent); outline-offset: 2px; }
+  .hxa-tile.is-empty { background: transparent; box-shadow: none; border: 2px dashed var(--border-field); opacity: .6; }
+  .hxa-tile.is-lift { visibility: hidden; }
+  .hxa-tile.is-flash { box-shadow: 0 0 0 8px var(--accent-soft), 0 0 0 12px var(--accent-glow, var(--accent)); }
+  .hxa-tile.is-pop { transform: scale(1.12); box-shadow: 0 0 0 6px var(--accent-soft), 0 12px 26px -10px var(--accent); }
+  .hxa-ops { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3); }
+  .hxa-op { height: 3.25rem; border-radius: 999px; border: 1.5px solid var(--border-field); background: var(--surface-solid); color: var(--text); font-size: 1.7rem; font-weight: 900; line-height: 1; }
+  .hxa-op.is-on { background: var(--accent); color: var(--accent-on); border-color: transparent; }
+  .hxa-trail { display: flex; flex-wrap: wrap; gap: var(--sp-2); justify-content: center; min-height: 2rem; }
+  .hxa-chip { display: inline-flex; align-items: center; min-height: 2rem; padding: 0 .7rem; border-radius: 10px; background: var(--surface-2); font-size: var(--fs-sm); color: var(--text-2); }
+  .hxa-chip.is-new { background: var(--accent-soft); color: var(--accent-ink); }
+  .hxa-win { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-4); border-radius: 20px; background: var(--success-btn); color: var(--success-on); }
+  .hxa-win .hx-eyebrow { color: var(--success-on); opacity: .9; }
+  .hxa-win > div { display: flex; flex-direction: column; }
+  .hxa-win__name { font-size: var(--fs-h1); font-weight: 900; font-family: var(--font-display); }
+  .hxa-win__sub { font-size: var(--fs-sm); }
+  .hxa-ladder { display: grid; gap: var(--sp-2); }
+  .hxa-rung { display: flex; align-items: center; gap: .4rem; justify-content: center; }
+  .hxa-mini { min-width: 3.4rem; height: 2.4rem; padding: 0 .4rem; display: grid; place-items: center; border-radius: 10px; background: var(--surface-2); font-family: var(--font-display); font-weight: 900; font-size: var(--fs-h3); box-shadow: 0 2px 0 var(--border-strong); }
+  .hxa-mini.is-made { background: var(--accent-soft); color: var(--accent-ink); }
+  .hxa-mini.is-goal { background: var(--success-btn); color: var(--success-on); }
+  .hxa-rung__op { font-weight: 900; font-size: var(--fs-h2); color: var(--text-2); width: 1rem; text-align: center; }
+  .hxa-rung__arrow { color: var(--text-3); }
+
+  /* B */
+  .hxb-timer { display: flex; align-items: center; gap: var(--sp-2); }
+  .hxb-timer__bar { flex: 1; height: 8px; border-radius: 99px; background: var(--accent-soft); overflow: hidden; }
+  .hxb-timer__bar i { display: block; height: 100%; width: 100%; background: var(--accent); transform: scaleX(var(--p)); transform-origin: var(--hx-start, right); border-radius: 99px; }
+  [dir=ltr] .hxb-timer__bar i, html[dir=ltr] .hxb-timer__bar i { transform-origin: left; }
+  .hxb-timer > .metric { font-weight: 900; font-size: var(--fs-h2); color: var(--accent-ink); }
+  .hxb-tape { position: relative; padding: var(--sp-3) var(--sp-4) var(--sp-4); background: var(--surface-solid); border-radius: 16px 16px 0 0;
+    -webkit-mask: radial-gradient(circle at 8px 100%, transparent 7px, #000 7.5px) 0 0 / 16px 100% repeat-x, linear-gradient(#000, #000) 0 0 / 100% calc(100% - 8px) no-repeat;
+            mask: radial-gradient(circle at 8px 100%, transparent 7px, #000 7.5px) bottom / 16px 16px repeat-x, linear-gradient(#000, #000) top / 100% calc(100% - 8px) no-repeat;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .hxb-head { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: var(--sp-2); border-bottom: 2px dashed var(--border-field); }
+  .hxb-head span { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+  .hxb-head b { font-size: 2.6rem; font-weight: 900; color: var(--accent-ink); line-height: 1; }
+  .hxb-lines { list-style: none; margin: 0; padding: var(--sp-1) 0 0; display: flex; flex-direction: column; }
+  .hxb-lines li { border-bottom: 1px solid var(--border); display: flex; justify-content: flex-end; align-items: center; min-height: 2.35rem; font-size: var(--fs-h2); color: var(--text-2); }
+  html[dir=rtl] .hxb-lines li { justify-content: flex-start; }
+  .hxb-round { display: block; font-size: var(--fs-xs); color: var(--text-3); font-weight: var(--fw-semi); }
+  .hxb-lines li .hx-eq { font-weight: var(--fw-bold); }
+  .hxb-lines li.is-cur { color: var(--text); font-size: var(--fs-h1); }
+  .hxb-lines li.is-cur .hx-eq { font-weight: 900; }
+  .hxb-lines li.is-counting b { color: var(--accent-ink); opacity: .7; filter: blur(.4px); }
+  .hxb-lines li.is-done { color: var(--accent-ink); }
+  .hxb-lines li.is-final { color: var(--success-ink); font-size: var(--fs-h1); }
+  .hxb-lines li.is-final .hx-eq { border-bottom: 4px double var(--success); font-weight: 900; }
+  .hxb-caret { display: inline-block; width: 2px; height: 1.3em; background: var(--accent); vertical-align: middle; }
+  .hxb-slot { display: inline-block; width: 2.6rem; height: 1.6rem; border-radius: 6px; border: 2px dashed var(--accent); vertical-align: middle; }
+  .hxb-foot { display: flex; justify-content: space-between; padding-top: var(--sp-2); border-top: 2px dashed var(--border-field); margin-top: var(--sp-1); font-size: var(--fs-sm); color: var(--text-2); font-weight: var(--fw-semi); }
+  .hxb-foot b { color: var(--text); font-size: var(--fs-h3); }
+  .hxb-tape.is-hit .hxb-head b { color: var(--success-ink); }
+  .hxb-stamp { position: absolute; left: .5rem; top: 31%; transform: rotate(-12deg); border: 3px solid var(--success); color: var(--success-ink); font-family: var(--font-display); font-weight: 900; font-size: 1.3rem; padding: .1rem .6rem; border-radius: 10px; background: color-mix(in srgb, var(--surface-solid) 80%, transparent); }
+  .hxb-stamp--top { top: 38%; }
+  .hxc-dial.is-end { width: min(100%, 17rem); }
+  .hxb-pad { display: grid; grid-template-columns: 1fr auto; gap: var(--sp-3); }
+  .hxb-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-2); align-content: start; }
+  .hxb-key { height: 3.25rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-solid); color: var(--text); font-size: var(--fs-h2); font-weight: 900; box-shadow: 0 3px 0 var(--border-strong); display: grid; place-items: center; }
+  .hxb-key.is-used { opacity: .35; text-decoration: line-through; box-shadow: none; background: var(--surface-2); }
+  .hxb-key.is-made { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent); }
+  .hxb-key.is-inline { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .hxb-key.is-new { transform: scale(1.08); box-shadow: 0 0 0 5px var(--accent-soft); }
+  .hxb-key.is-press { transform: translateY(3px); box-shadow: none; background: var(--accent); color: var(--accent-on); }
+  .hxb-key .metric { font-size: inherit; }
+  .hxb-ops { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+  .hxb-op { width: 3.25rem; height: 3.25rem; border-radius: 12px; border: 0; background: var(--surface-3); color: var(--text); font-size: 1.6rem; font-weight: 900; }
+  .hxb-op.is-on { background: var(--accent); color: var(--accent-on); }
+  .hxb-who { display: flex; align-items: center; gap: var(--sp-3); padding-bottom: var(--sp-2); }
+  .hxb-who > div { display: flex; flex-direction: column; }
+  .hxb-who b { font-size: var(--fs-h2); font-family: var(--font-display); }
+  .hxb-who span { font-size: var(--fs-sm); color: var(--text-2); }
+
+  /* C */
+  .hxc-top { display: flex; justify-content: space-between; gap: var(--sp-2); }
+  .hx-pill--clock { background: var(--accent-soft); color: var(--accent-ink); border-color: transparent; font-size: var(--fs-h3); }
+  .hxc-dial { position: relative; width: min(100%, 21rem); aspect-ratio: 1; margin: var(--sp-1) auto; }
+  .hxc-ring { position: absolute; inset: 15%; width: 70%; height: 70%; transform: rotate(-90deg); }
+  html[dir=rtl] .hxc-ring { transform: rotate(-90deg) scaleY(-1); }
+  .hxc-ring__track { fill: none; stroke: var(--surface-3); stroke-width: 5; }
+  .hxc-ring__arc { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round; }
+  .hxc-dial.is-hit .hxc-ring__arc { stroke: var(--success); }
+  .hxc-core { position: absolute; inset: 22%; border-radius: 50%; background: var(--surface-solid); box-shadow: 0 10px 30px -14px var(--accent), inset 0 0 0 1px var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: .1rem; }
+  .hxc-core b { font-size: 3.1rem; font-weight: 900; line-height: 1; color: var(--accent-ink); font-family: var(--font-display); }
+  .hxc-core small { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); }
+  .hxc-core__got { font-size: var(--fs-sm); font-weight: 900; color: var(--success-ink); }
+  .hxc-dial.is-hit .hxc-core { background: var(--success-btn); box-shadow: 0 0 0 10px var(--success-soft); }
+  .hxc-dial.is-hit .hxc-core b, .hxc-dial.is-hit .hxc-core small, .hxc-dial.is-hit .hxc-core .hx-eyebrow { color: var(--success-on); }
+  .hxc-dial.is-merge .hxc-core { box-shadow: 0 0 0 10px var(--accent-soft), 0 0 0 16px color-mix(in srgb, var(--accent) 30%, transparent); }
+  .hxc-dial.is-merge .hxc-core > * { opacity: .2; }
+  .hxc-dial.is-end .hxc-core b.hxc-core__name { font-size: var(--fs-h1); color: var(--success-on); }
+  .hxc-num { position: absolute; width: 4.1rem; height: 4.1rem; margin: -2.05rem; margin-inline-start: -2.05rem; border-radius: 50%; border: 0; background: var(--surface-solid); color: var(--text); box-shadow: 0 4px 0 var(--border-strong), 0 8px 16px -10px rgba(0,0,0,.35); display: grid; place-items: center; font-weight: 900; }
+  .hxc-num .metric { font-size: 1.45rem; }
+  .hxc-num.is-l4 .metric { font-size: 1.15rem; } .hxc-num.is-l5 .metric { font-size: .95rem; }
+  .hxc-num.is-new { background: var(--accent); color: var(--accent-on); box-shadow: 0 4px 0 color-mix(in srgb, var(--accent) 60%, #000), 0 8px 18px -8px var(--accent); }
+  .hxc-num.is-sel { outline: 3px solid var(--accent-ink); outline-offset: 3px; transform: scale(1.08); }
+  .hxc-num.is-empty { background: transparent; box-shadow: none; border: 2px dashed var(--border-field); width: 1.4rem; height: 1.4rem; margin: -.7rem; opacity: .7; }
+  .hxc-num.is-lift { visibility: hidden; }
+  .hxc-num.is-pop { transform: scale(1.15); box-shadow: 0 0 0 6px var(--accent-soft); }
+  .hxc-num.is-merge { transform: scale(1.2); box-shadow: 0 0 0 10px var(--accent-soft); }
+  .hxc-num.is-static { position: static; margin: 0; }
+  .hxc-ops { display: flex; justify-content: center; gap: var(--sp-3); }
+  .hxc-op { width: 3.25rem; height: 3.25rem; border-radius: 50%; border: 1.5px solid var(--border-field); background: var(--surface-solid); color: var(--text); font-size: 1.6rem; font-weight: 900; }
+  .hxc-op.is-on { background: var(--accent-ink); color: var(--surface-solid); border-color: transparent; }
+  .hxc-trail { display: flex; gap: var(--sp-2); overflow: hidden; justify-content: center; flex-wrap: wrap; }
+  .hxc-step { display: inline-flex; align-items: center; gap: .35rem; font-size: var(--fs-sm); color: var(--text-2); }
+  .hxc-step i { font-style: normal; width: 1.25rem; height: 1.25rem; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); font-size: var(--fs-xs); display: grid; place-items: center; font-weight: 900; }
+  .hxc-step.is-goal { color: var(--success-ink); }
+  .hxc-trail--end { flex-direction: column; align-items: center; }
+  .hxc-endp { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: var(--fs-xs); font-weight: 900; color: var(--text-2); }
+  html[dir=rtl] .hxc-endp { transform: translate(50%, -50%); }
+  .hxc-endp .hx-face { width: 2.2rem; height: 2.2rem; box-shadow: 0 0 0 2px var(--surface-solid); }
+
+  /* sideways phone */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .hx { max-width: none; display: grid; grid-template-columns: 1fr 1.15fr; column-gap: var(--sp-4); row-gap: var(--sp-2); padding-top: var(--sp-1); align-items: start; }
+    .hxa .hxa-top, .hxa .hxa-trail, .hxa .hx-room { grid-column: 1; }
+    .hxa .hxa-board, .hxa .hxa-ops, .hxa .hx-actions { grid-column: 2; }
+    .hxa .hxa-board { grid-row: 1 / span 2; gap: var(--sp-2); } .hxa .hxa-ops { grid-row: 3; } .hxa .hx-actions { grid-row: 4; }
+    .hxa .hxa-top { grid-row: 1; } .hxa .hxa-trail { grid-row: 2 / span 2; justify-content: flex-start; } .hxa .hx-room { grid-row: 4; }
+    .hxa .hxa-target b { font-size: 2.4rem; }
+    .hxa .hxa-tile { aspect-ratio: 1.9; border-radius: 14px; } .hxa .hxa-tile .metric { font-size: 1.6rem; }
+    .hxa .hxa-op { height: 2.75rem; }
+    .hx .btn { min-height: 44px; height: 44px; }
+    .hxb .hxb-timer, .hxb .hxb-tape { grid-column: 1; } .hxb .hxb-timer { grid-row: 1; } .hxb .hxb-tape { grid-row: 2 / span 3; }
+    .hxb .hxb-pad, .hxb .hx-room, .hxb .hx-actions { grid-column: 2; } .hxb .hxb-pad { grid-row: 1 / span 2; } .hxb .hx-room { grid-row: 3; } .hxb .hx-actions { grid-row: 4; }
+    .hxb .hxb-key, .hxb .hxb-op { height: 2.75rem; } .hxb .hxb-op { width: 2.75rem; }
+    .hxb .hxb-lines li { min-height: 1.75rem; font-size: var(--fs-body); } .hxb .hxb-lines li.is-cur { font-size: var(--fs-h2); }
+    .hxb .hxb-head b { font-size: 2rem; }
+    .hxb .hxb-tape { background-image: none; padding-top: var(--sp-2); }
+    .hxc .hxc-dial { grid-column: 1; grid-row: 1 / span 5; width: min(100%, 15.5rem); margin: 0 auto; }
+    .hxc .hxc-op { width: 2.75rem; height: 2.75rem; font-size: 1.3rem; } .hxc .hx-room { padding-block: .25rem; } .hxc .hx-pill { min-height: 1.8rem; }
+    .hxc .hxc-top, .hxc .hxc-ops, .hxc .hxc-trail, .hxc .hx-room, .hxc .hx-actions { grid-column: 2; }
+    .hxc .hxc-num { width: 3.3rem; height: 3.3rem; margin: -1.65rem; } .hxc .hxc-num .metric { font-size: 1.15rem; }
+    .hxc .hxc-core b { font-size: 2.3rem; }
+  }
+
+  /* the TV */
+  .hxtv { min-height: 100%; height: 100vh; box-sizing: border-box; padding: 3vmin 4vmin; display: flex; flex-direction: column; gap: 2.5vmin; color: var(--text); background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%), var(--surface-sunken, #0d0b1a); }
+  .hxtv .metric { font-family: var(--font-display); }
+  .hxtv .hx-pill { font-size: 2.4vmin; min-height: 5vmin; padding: 0 2vmin; }
+  .hxtv-top { display: flex; justify-content: space-between; align-items: center; }
+  .hxtv-clock { font-size: 7vmin; font-weight: 900; color: var(--accent-ink); line-height: 1; }
+  .hxtv-how { text-align: center; font-size: 2.4vmin; color: var(--text-2); margin: 0; }
+  .hxtv .hx-eyebrow { font-size: 2.2vmin; }
+  .hxa-tv__stage { display: flex; flex-direction: column; align-items: center; gap: 3vmin; }
+  .hxa-target--tv { padding: 2vmin 8vmin; }
+  .hxa-target--tv b { font-size: 16vmin; }
+  .hxa-tv__nums { display: flex; gap: 2vmin; }
+  .hxa-tv__nums .hxa-tile { width: 12vmin; aspect-ratio: 1.15; } .hxa-tv__nums .hxa-tile .metric { font-size: 5.5vmin; }
+  .hxa-tv__people { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2vmin; margin-top: auto; }
+  .hxa-person { display: flex; flex-direction: column; align-items: center; gap: .8vmin; padding: 2vmin 1vmin; border-radius: 20px; background: var(--surface-solid); border: 1px solid var(--border); text-align: center; opacity: .75; }
+  .hxa-person.is-sent { opacity: 1; border-color: var(--accent); box-shadow: inset 0 -4px 0 var(--accent); }
+  .hxa-person .hx-face--lg { width: 8vmin; height: 8vmin; }
+  .hxa-person b { font-size: 2.8vmin; font-family: var(--font-display); }
+  .hxa-person > span { font-size: 2.2vmin; color: var(--text-2); }
+  .hxb-timer--tv { gap: 2vmin; } .hxb-timer--tv .hxb-timer__bar { height: 1.6vmin; } .hxb-timer--tv > .metric { font-size: 6vmin; }
+  .hxb-tv__grid { flex: 1; display: grid; grid-template-columns: 0.9fr 1.3fr; gap: 4vmin; align-items: center; }
+  .hxb-tape--tv { padding: 3vmin 3vmin 5vmin; background-image: none; }
+  .hxb-tape--tv .hxb-head b { font-size: 15vmin; } .hxb-tape--tv .hxb-head span { font-size: 2.6vmin; }
+  .hxb-tv__nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5vmin; padding: 3vmin 0; }
+  .hxb-tv__nums .hxb-key { height: 10vmin; font-size: 5vmin; }
+  .hxb-tape--tv .hxb-foot { font-size: 2.2vmin; }
+  .hxb-ledger { background: var(--surface-solid); border-radius: 20px; padding: 2.5vmin 3vmin; border: 1px solid var(--border); }
+  .hxb-ledger .hx-card__title { font-size: 2.4vmin; }
+  .hxb-row { display: grid; grid-template-columns: 3vmin auto 13vmin 1fr 11vmin 10vmin; align-items: center; gap: 1.6vmin; min-height: 9.5vmin; border-top: 1px solid var(--border); }
+  .hxb-row:first-of-type { border-top: 0; }
+  .hxb-row .hx-face--lg { width: 7vmin; height: 7vmin; }
+  .hxb-row b { font-size: 3vmin; font-family: var(--font-display); }
+  .hxb-row__n { font-size: 2.6vmin; color: var(--text-3); }
+  .hxb-row__bar { height: 1.4vmin; background: var(--surface-3); border-radius: 99px; overflow: hidden; }
+  .hxb-row__bar i { display: block; height: 100%; background: var(--accent); transform: scaleX(var(--p)); transform-origin: right; border-radius: 99px; }
+  html[dir=ltr] .hxb-row__bar i { transform-origin: left; }
+  .hxb-row__v { font-size: 4vmin; font-weight: 900; text-align: end; }
+  .hxb-row__d { font-size: 2.2vmin; color: var(--text-2); }
+  .hxb-row.is-wait { opacity: .55; } .hxb-row.is-wait .hxb-row__v { font-size: 2.4vmin; font-weight: var(--fw-semi); }
+  .hxc-tv__wrap { flex: 1; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 3vmin; }
+  .hxc-tv__dial { position: relative; width: 74vmin; aspect-ratio: 1; }
+  .hxc-tv__band { position: absolute; border-radius: 50%; border: 1px dashed color-mix(in srgb, var(--accent) 35%, transparent); }
+  .hxc-tv__band--1 { inset: 28%; } .hxc-tv__band--2 { inset: 16%; } .hxc-tv__band--3 { inset: 3%; }
+  .hxc-ring--clock { inset: 0; width: 100%; height: 100%; }
+  .hxc-ring--clock .hxc-ring__track, .hxc-ring--clock .hxc-ring__arc { stroke-width: 1.4; }
+  .hxc-core--tv { inset: 34%; } .hxc-core--tv b { font-size: 10vmin; }
+  .hxc-tvp { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: .4vmin; text-align: center; }
+  html[dir=rtl] .hxc-tvp { transform: translate(50%, -50%); }
+  .hxc-tvp .hx-face--lg { width: 8vmin; height: 8vmin; box-shadow: 0 0 0 .5vmin var(--accent); }
+  .hxc-tvp b { font-size: 2.4vmin; font-family: var(--font-display); background: var(--surface-solid); padding: 0 1vmin; border-radius: 99px; }
+  .hxc-tvp > span { font-size: 2.6vmin; font-weight: 900; color: var(--accent-ink); }
+  .hxc-tvp.is-wait { opacity: .6; } .hxc-tvp.is-wait .hx-face--lg { box-shadow: 0 0 0 .4vmin var(--border-field); }
+  .hxc-tv__side { display: flex; flex-direction: column; align-items: center; gap: 2vmin; }
+  .hxc-tv__nums { display: grid; grid-template-columns: repeat(2, auto); gap: 2vmin; }
+  .hxc-tv__nums .hxc-num { width: 11vmin; height: 11vmin; } .hxc-tv__nums .hxc-num .metric { font-size: 4.2vmin; }
+  .hxtv-end { display: flex; justify-content: center; align-items: center; }
+  .hxtv-end .hx { zoom: 1.12; width: min(100%, 56rem); max-width: none; display: grid; grid-template-columns: 1.1fr 1fr; column-gap: var(--sp-5); row-gap: var(--sp-3); align-items: start; padding: 0; }
+  .hxtv-end .hx > * { grid-column: 1; }
+  .hxtv-end .hx > .hx-board { grid-column: 2; grid-row: 1; }
+  .hxtv-end .hx > .hx-actions { grid-column: 2; grid-row: 2; }
+  .hxtv-end .hxa, .hxtv-end .hxb { zoom: 1.28; }
+  .hxtv-end .hxa > .hx-board { grid-row: 1 / span 2; }
+  .hxtv-end .hxa > .hx-actions { grid-row: 3; }
+  .hxtv-end .hxc > .hx-card:not(.hx-board) { grid-column: 2; grid-row: 2; }
+  .hxtv-end .hxc > .hx-actions { grid-row: 3; }
+  .hxtv-end .hxc > .hxc-dial { grid-row: 1 / span 3; width: 22rem; }
+  `;
+  let st = document.getElementById('hx-css');
+  if (!st) { st = document.createElement('style'); st.id = 'hx-css'; document.head.appendChild(st); }
+  st.textContent = css;
+
+  function placeGhosts(list) {
+    document.querySelectorAll('.hx-ghost').forEach(g => g.remove());
+    list.forEach(g => {
+      const from = document.querySelector(g.from), to = document.querySelector(g.to);
+      if (!from || !to) return;
+      const a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+      const ref = g.useTo ? b : a;
+      const w = ref.width, h = ref.height;
+      const ax = a.left + a.width / 2, ay = a.top + a.height / 2, bx = b.left + b.width / 2, by = b.top + b.height / 2;
+      const x = ax + (bx - ax) * g.t, y = ay + (by - ay) * g.t - Math.sin(Math.PI * g.t) * 22;
+      let el;
+      if (g.html) { el = document.createElement(g.cls && g.cls.includes('hxb-key') ? 'button' : 'span'); el.className = g.cls || ''; el.innerHTML = g.html; }
+      else { el = from.cloneNode(true); el.classList.remove('is-lift', 'is-sel', 'is-used', 'is-press'); el.removeAttribute('data-slot'); el.removeAttribute('style'); }
+      if (g.from === '[data-slot="0"]' && g.keepSize && from.classList.contains('hxa-tile')) el.className = 'hxa-tile is-new is-l3';
+      el.classList.add('hx-ghost'); const av = document.querySelector('[data-accent] .hx'); if (av) el.setAttribute('data-accent', av.parentElement.getAttribute('data-accent'));
+      el.style.width = w + 'px'; el.style.height = h + 'px';
+      el.style.left = (x - w / 2) + 'px'; el.style.top = (y - h / 2) + 'px';
+      el.style.transform = `scale(${g.scale || 1})`;
+      el.style.boxShadow = '0 18px 30px -10px rgba(0,0,0,.35)';
+      if (g.fade) el.style.opacity = g.fade;
+      document.body.appendChild(el);
+      // The page's fixed boxes may sit in an offset containing block: correct by what was measured.
+      const r = el.getBoundingClientRect();
+      const dx = (r.left + r.width / 2) - x, dy = (r.top + r.height / 2) - y;
+      el.style.left = (x - w / 2 - dx) + 'px'; el.style.top = (y - h / 2 - dy) + 'px';
+    });
+  }
+
+  window.hxShow = async function (look, screen, frame) {
+    const L0 = LOOKS[look];
+    document.querySelectorAll('.hx-ghost').forEach(g => g.remove());
+    if (screen === 'tv' || screen === 'tvend') {
+      if (appState.currentView !== 'room-tv') { setView('room-tv'); await new Promise(r => setTimeout(r, 300)); }
+      const v = document.getElementById('view-room-tv');
+      v.classList.remove('hidden');
+      v.setAttribute('data-accent', L0.accent);
+      v.innerHTML = screen === 'tv' ? L0.tv() : `<div class="hxtv hxtv-end">${L0.end()}</div>`;
+    } else {
+      if (appState.currentView !== 'play-wordwheel') {
+        if (typeof startWordWheel !== 'function') { setView('setup-wordwheel'); await new Promise(r => setTimeout(r, 1200)); }
+        startWordWheel(false); await new Promise(r => setTimeout(r, 500));
+      }
+      if (typeof wheelTimer !== 'undefined' && wheelTimer) wheelTimer.stop();
+      const v = document.getElementById('view-play-wordwheel');
+      v.setAttribute('data-accent', L0.accent);
+      v.innerHTML = screen === 'end' ? L0.end() : L0.play(scene(frame));
+      const tt = document.getElementById('app-title-text'); if (tt) tt.textContent = L('حسبة', 'Numbers');
+      const ti = document.getElementById('app-title-icon'); if (ti) ti.textContent = '🧮';
+      const m = document.querySelector('.shell__main') || document.querySelector('main'); if (m) m.scrollTop = 0;
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      if (screen === 'play' && frame) placeGhosts(L0.ghosts(frame));
+    }
+    return 1;
+  };
+})();

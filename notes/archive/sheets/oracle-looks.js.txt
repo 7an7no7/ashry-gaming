@@ -1,0 +1,397 @@
+/* العرّاف (oracle) - three looks for the owner's sheet (9 Oct 2026).
+   Injected into the real app by shoot.mjs: it takes over a one-phone play view and draws a mock screen
+   with the app's own tokens, buttons and fonts. orxShow(look, state) - look A/B/C, state play|guess|win|lose|f1..f5. */
+(function () {
+  let uid = 0;
+  /* ---------- the oracle: an Egyptian fortune-teller uncle, tarboosh, grey moustache, crystal ball ---------- */
+  function oracle(o = {}) {
+    const u = 'orc' + (++uid);
+    const mood = o.mood || 'idle';           // idle | think | happy | puzzled
+    const ball = o.ball || 'q';              // q | glow | face | dim | half
+    const skin = '#d49c6e', skinD = '#b97f55', ink = '#2b1d16', grey = '#8d8f97', robe = '#2e4a9e', gold = '#e0a526';
+    const p = [];
+    p.push(`<defs><radialGradient id="${u}b" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#f0f9ff"/><stop offset=".45" stop-color="#93c5fd"/><stop offset="1" stop-color="#4f46e5"/></radialGradient>
+      <radialGradient id="${u}g" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fde68a" stop-opacity=".95"/><stop offset="1" stop-color="#fde68a" stop-opacity="0"/></radialGradient></defs>`);
+    if (ball === 'glow' || ball === 'face' || ball === 'half') p.push(`<circle cx="80" cy="122" r="44" fill="url(#${u}g)"/>`);
+    // body: galabeya with a gold trim
+    p.push(`<path d="M26 152 C28 112 50 99 80 99 C110 99 132 112 134 152Z" fill="${robe}"/>`);
+    p.push(`<path d="M66 99 L80 117 L94 99" fill="none" stroke="${gold}" stroke-width="3" stroke-linejoin="round"/>`);
+    p.push(`<path d="M70 99 L80 112 L90 99Z" fill="${skinD}"/>`);
+    // ears, head
+    p.push(`<ellipse cx="56" cy="66" rx="5" ry="7" fill="${skin}"/><ellipse cx="104" cy="66" rx="5" ry="7" fill="${skin}"/>`);
+    p.push(`<ellipse cx="80" cy="64" rx="24" ry="28" fill="${skin}"/>`);
+    // tarboosh with its tassel
+    p.push(`<path d="M58 49 L62 21 C70 16.5 90 16.5 98 21 L102 49 C90 43 70 43 58 49Z" fill="#c81e3a"/>`);
+    p.push(`<path d="M58 49 C70 43 90 43 102 49 L102.6 53 C90 47 70 47 57.4 53Z" fill="#9f1239"/>`);
+    p.push(`<ellipse cx="80" cy="20" rx="18" ry="4" fill="#9f1239"/>`);
+    p.push(`<path d="M80 19 C88 20 96 25 99 35" fill="none" stroke="${ink}" stroke-width="2" stroke-linecap="round"/><path d="M96.5 34 l5 0 l-1 9 l-3 0Z" fill="${ink}"/>`);
+    // brows
+    const by = mood === 'think' ? 57 : 56;
+    if (mood === 'puzzled') p.push(`<path d="M64 54 q6 -5 12 -1 M84 51 q6 -2 12 3" stroke="${grey}" stroke-width="4" fill="none" stroke-linecap="round"/>`);
+    else p.push(`<path d="M64 ${by} q6 -4 12 0 M84 ${by} q6 -4 12 0" stroke="${grey}" stroke-width="4" fill="none" stroke-linecap="round"/>`);
+    // eyes
+    if (mood === 'think') p.push(`<path d="M65 65 q5 4 10 0 M85 65 q5 4 10 0" stroke="${ink}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`);
+    else if (mood === 'happy') p.push(`<path d="M65 66 q5 -6 10 0 M85 66 q5 -6 10 0" stroke="${ink}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`);
+    else {
+      [70, 90].forEach(cx => p.push(`<ellipse cx="${cx}" cy="65" rx="4.6" ry="${mood === 'puzzled' ? 5 : 4.4}" fill="#fff"/><circle cx="${cx + (mood === 'idle' ? 0.6 : 0)}" cy="${mood === 'idle' ? 66 : 65}" r="2.6" fill="${ink}"/><circle cx="${cx + 1.4}" cy="64" r=".9" fill="#fff"/>`));
+    }
+    p.push(`<ellipse cx="64" cy="76" rx="4.6" ry="2.8" fill="#fb7185" opacity=".45"/><ellipse cx="96" cy="76" rx="4.6" ry="2.8" fill="#fb7185" opacity=".45"/>`);
+    p.push(`<path d="M80 66 q-3 8 1 9" stroke="rgba(0,0,0,.28)" stroke-width="2" fill="none" stroke-linecap="round"/>`);
+    // moustache, mouth
+    p.push(`<path d="M60 80 C64 72 74 73 80 77 C86 73 96 72 100 80 C96 78.5 92 81 86 81.5 C83 81.5 81 80.5 80 80 C79 80.5 77 81.5 74 81.5 C68 81 64 78.5 60 80Z" fill="${grey}"/>`);
+    if (mood === 'happy') p.push(`<path d="M71 84 Q80 96 89 84Z" fill="#7f1d1d"/><path d="M72.5 84.4 L87.5 84.4 L86.6 86.6 L73.4 86.6Z" fill="#fff"/>`);
+    else if (mood === 'puzzled') p.push(`<ellipse cx="80" cy="87" rx="3.6" ry="3" fill="#7f1d1d"/>`);
+    else if (mood === 'think') p.push(`<path d="M74 86 q6 2 12 0" stroke="#8a3b2e" stroke-width="2.4" fill="none" stroke-linecap="round"/>`);
+    else p.push(`<path d="M72 85 Q80 91.5 88 85" stroke="#8a3b2e" stroke-width="2.4" fill="none" stroke-linecap="round"/>`);
+    // the ball on its gold stand, held in two hands
+    p.push(`<path d="M62 146 L98 146 L92 153 L68 153Z" fill="${gold}"/><rect x="66" y="141" width="28" height="6" rx="3" fill="#b45309"/>`);
+    p.push(`<circle cx="80" cy="122" r="22" fill="url(#${u}b)"/>`);
+    if (ball === 'dim') p.push(`<circle cx="80" cy="122" r="22" fill="#1e1b4b" opacity=".35"/>`);
+    if (ball === 'q') p.push(`<text x="80" y="131" text-anchor="middle" font-size="24" font-weight="900" fill="#fff" font-family="system-ui" opacity=".9">?</text>`);
+    if (ball === 'face' || ball === 'half') p.push(`<g opacity="${ball === 'half' ? '.45' : '1'}"><circle cx="80" cy="115" r="7" fill="#1e1b4b"/><path d="M66 140 C66 128 72 123 80 123 C88 123 94 128 94 140Z" fill="#1e1b4b"/></g>`);
+    p.push(`<ellipse cx="72" cy="112" rx="7" ry="4" fill="#fff" opacity=".55" transform="rotate(-30 72 112)"/>`);
+    p.push(`<ellipse cx="57" cy="128" rx="7" ry="9" fill="${skin}"/><ellipse cx="103" cy="128" rx="7" ry="9" fill="${skin}"/>`);
+    if (o.sparkle || ball === 'glow' || ball === 'face') {
+      const star = (x, y, s) => `<path transform="translate(${x} ${y}) scale(${s})" d="M0 -6 L1.5 -1.5 L6 0 L1.5 1.5 L0 6 L-1.5 1.5 L-6 0 L-1.5 -1.5Z" fill="#f5c542"/>`;
+      p.push(star(40, 104, 1.1) + star(122, 98, 1.3) + star(118, 140, .8) + star(36, 140, .9) + star(30, 30, .9) + star(130, 40, 1));
+    }
+    const vb = o.head ? '48 10 64 92' : '14 6 132 148';
+    return `<svg class="orx-svg" viewBox="${vb}" aria-hidden="true">${p.join('')}</svg>`;
+  }
+  /* a drawn silhouette with the category's icon - never a photo */
+  function silhouette(icon, cls = '') {
+    return `<div class="orx-sil ${cls}"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="38" r="17" fill="currentColor"/><path d="M18 100 C18 72 32 62 50 62 C68 62 82 72 82 100Z" fill="currentColor"/></svg><span class="orx-sil__badge">${icon}</span></div>`;
+  }
+
+  const css = `
+  .orx { display: flex; flex-direction: column; gap: var(--sp-3); min-height: 100%; font-family: var(--font); color: var(--text); }
+  .orx .metric { font-weight: var(--fw-black); }
+  .orx-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .orx-count { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+  .orx-count__label { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); white-space: nowrap; }
+  .orx-count__label b { color: var(--text); font-size: var(--fs-h3); }
+  .orx-guesses { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-2); white-space: nowrap; }
+  .orx-guesses i { width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #e0f2fe, #6366f1); display: inline-block; }
+  .orx-guesses i.is-used { background: var(--surface-3); box-shadow: inset 0 0 0 1.5px var(--border-field); }
+  .orx-pips { display: flex; gap: 3px; }
+  .orx-pips i { flex: 1; height: 6px; border-radius: 3px; background: var(--surface-3); }
+  .orx-pips i.is-on { background: var(--accent); }
+  .orx-pips i.is-now { background: var(--accent); opacity: .45; }
+  .orx-sil { position: relative; width: 4.5rem; height: 4.5rem; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: end center; overflow: visible; flex: none; }
+  .orx-sil svg { width: 100%; height: 100%; border-radius: 50%; }
+  .orx-sil__badge { position: absolute; inset-block-end: -4px; inset-inline-end: -4px; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: var(--surface-solid); display: grid; place-items: center; font-size: 1.05rem; box-shadow: 0 2px 6px rgba(0,0,0,.18); }
+  .orx-sil--big { width: 6.5rem; height: 6.5rem; }
+  .orx-sil--big .orx-sil__badge { width: 2.4rem; height: 2.4rem; font-size: 1.3rem; }
+  .orx-name { font-size: var(--fs-h1); font-weight: var(--fw-black); color: var(--text); line-height: 1.25; }
+  .orx-kind { font-size: var(--fs-sm); color: var(--text-2); font-weight: var(--fw-semi); }
+  .orx-note { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); text-align: center; }
+  .orx-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+  .orx-undo { align-self: center; display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--tap); padding: 0 var(--sp-3); border: 0; border-radius: 999px; background: transparent; color: var(--text-2); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-bold); max-width: 100%; }
+  .orx-undo b { color: var(--text); font-weight: var(--fw-bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .orx-undo .orx-tag { flex: none; }
+  .orx-tag { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-size: var(--fs-xs); font-weight: var(--fw-bold); background: var(--surface-3); color: var(--text); white-space: nowrap; }
+  .orx-tag--y { background: var(--success-soft); color: var(--success-ink); } .orx-tag--n { background: var(--danger-soft); color: var(--danger-ink); }
+  .orx-tag--py { background: var(--success-soft); color: var(--success-ink); opacity: .85; } .orx-tag--pn { background: var(--danger-soft); color: var(--danger-ink); opacity: .85; }
+  .orx-field { display: flex; flex-direction: column; gap: var(--sp-1); text-align: start; }
+  .orx-field label { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+  .orx-field input { height: 48px; border-radius: 12px; border: 1.5px solid var(--border-field); background: var(--surface-solid); color: var(--text); font: inherit; font-size: var(--fs-body); padding: 0 var(--sp-3); }
+  .orx-field input:focus { outline: var(--focus-w, 3px) solid var(--accent-ink); }
+  .orx-stat { display: flex; justify-content: center; gap: var(--sp-5); }
+  .orx-stat div { display: flex; flex-direction: column; align-items: center; }
+  .orx-stat .metric { font-size: var(--fs-display); line-height: 1; color: var(--accent-ink); }
+  .orx-stat small { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); }
+  .orx-end-actions { display: flex; flex-direction: column; gap: var(--sp-2); }
+  .orx-recap { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .orx-recap span { font-size: var(--fs-xs); font-weight: var(--fw-semi); padding: 3px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); }
+  .orx-fly { position: absolute; z-index: 5; padding: 6px 12px; border-radius: 999px; font-weight: var(--fw-black); font-size: var(--fs-sm); box-shadow: 0 8px 18px -6px rgba(0,0,0,.35); }
+  .orx-faded { opacity: .35; display: flex; flex-direction: column; gap: var(--sp-2); }
+  .orx-dots { display: inline-flex; gap: 5px; align-items: center; }
+  .orx-dots i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: .35; }
+  .orx-dots i:nth-child(2) { opacity: .7; } .orx-dots i:nth-child(3) { opacity: 1; }
+
+  /* ===== A: the oracle on stage, a speech bubble, the answers stacked ===== */
+  .orxA-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); flex: 1; justify-content: center; }
+  .orx-bubble { position: relative; background: var(--surface-solid); border: 1px solid var(--border); border-radius: 20px; padding: var(--sp-3) var(--sp-5); box-shadow: 0 10px 24px -14px rgba(0,0,0,.35);
+    font-size: var(--fs-h1); font-weight: var(--fw-black); text-align: center; line-height: 1.35; max-width: 100%; }
+  .orx-bubble::after { content: ''; position: absolute; inset-block-end: -9px; inset-inline-start: calc(50% - 9px); width: 16px; height: 16px; background: inherit; border-inline-end: 1px solid var(--border); border-block-end: 1px solid var(--border); transform: rotate(45deg); }
+  .orx-bubble small { display: block; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+  .orx-bubble__n { position: absolute; inset-block-start: -11px; inset-inline-start: 14px; background: var(--accent); color: var(--accent-on); font-size: var(--fs-xs); font-weight: var(--fw-black); border-radius: 999px; padding: 1px 9px; }
+  .orxA-oracle { width: 14rem; height: 16rem; }
+  .orxA-answers { display: flex; flex-direction: column; gap: var(--sp-2); }
+  .orxA-guessrow { display: flex; align-items: center; gap: var(--sp-3); justify-content: center; }
+  .orxA-end { background: var(--surface-solid); border: 1px solid var(--border); border-radius: 20px; padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); align-items: center; text-align: center; }
+  .orxA .orxA-side { display: contents; }
+
+  /* ===== B: the card table - every answer lays a card, a five-step scale of answers ===== */
+  .orxB-head { display: flex; align-items: center; gap: var(--sp-3); }
+  .orxB-head .orxB-face { width: 4.4rem; height: 4.4rem; border-radius: 50%; background: var(--accent-soft); overflow: hidden; flex: none; }
+  .orxB-head__txt { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .orxB-head__say { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--text-2); }
+  .orxB-table { position: relative; flex: 1 1 auto; border-radius: 22px; padding: var(--sp-4) var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-3); justify-content: space-between;
+    background: radial-gradient(120% 90% at 50% 40%, color-mix(in srgb, var(--accent) 30%, var(--surface-solid)), color-mix(in srgb, var(--accent) 55%, #0b1220)); box-shadow: inset 0 0 0 6px color-mix(in srgb, var(--accent) 40%, #3b2412), inset 0 0 0 8px rgba(0,0,0,.18); }
+  .orxB-laid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; align-self: stretch; }
+  .orxB-mini { position: relative; height: 3.5rem; border-radius: 8px; background: #fffaf0; box-shadow: 0 3px 6px rgba(0,0,0,.28); display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 4px 2px 5px; color: #3b2a1a; }
+  .orxB-mini b { font-size: 1.05rem; line-height: 1; font-weight: 900; }
+  .orxB-mini span { font-size: var(--fs-xs); font-weight: var(--fw-bold); line-height: 1.1; text-align: center; overflow: hidden; max-height: 2.3em; }
+  .orxB-mini.mk-y b { color: #047857; } .orxB-mini.mk-n b { color: #be123c; } .orxB-mini.mk-py b { color: #059669; } .orxB-mini.mk-pn b { color: #e11d48; } .orxB-mini.mk-dk b { color: #6b7280; }
+  .orxB-mini.is-empty { background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.3); justify-content: center; color: rgba(255,255,255,.55); }
+  .orxB-mini.is-empty span { font-size: var(--fs-sm); }
+  .orxB-mini.is-now { box-shadow: inset 0 0 0 2px #fde68a; color: #fde68a; }
+  .orxB-big.orxB-big--sm { width: min(9.5rem, 50%); }
+  .orxB-q { align-self: center; width: min(15rem, 82%); aspect-ratio: 5 / 3.4; border-radius: 16px; background: #fffaf0; color: #2b1d16; box-shadow: 0 14px 28px -10px rgba(0,0,0,.55); transform: rotate(-1.5deg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: var(--sp-3); text-align: center; position: relative; border: 2px solid #e8d9b8; }
+  .orxB-q__n { position: absolute; inset-block-start: 8px; inset-inline-start: 10px; font-size: var(--fs-sm); font-weight: 900; color: #b45309; }
+  .orxB-q .orxB-q__n.metric { color: #b45309; }
+  .orxB-q__t { font-size: var(--fs-h1); font-weight: var(--fw-black); line-height: 1.3; }
+  .orxB-q__k { font-size: var(--fs-xs); font-weight: var(--fw-bold); color: #8a6d4b; }
+  .orxB-deck { position: absolute; inset-block-end: 12px; inset-inline-end: 12px; width: 2.6rem; aspect-ratio: 5/7; border-radius: 7px; background: repeating-linear-gradient(45deg, #7c2d12 0 5px, #9a3412 5px 10px); box-shadow: 2px 2px 0 #fef3c7, 4px 4px 0 #7c2d12, 0 6px 10px rgba(0,0,0,.4);
+    display: grid; place-items: center; color: #fff; font-weight: 900; font-size: var(--fs-sm); }
+  .orxB-keys { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .orxB-key { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 4.3rem; border-radius: 14px; border: 1.5px solid var(--border-field); background: var(--surface-solid); color: var(--text); font: inherit; font-size: var(--fs-xs); font-weight: var(--fw-bold); line-height: 1.15; padding: 4px 2px; text-align: center; }
+  .orxB-key b { font-size: 1.35rem; line-height: 1; font-weight: 900; }
+  .orxB-key.y { background: var(--success-btn); color: var(--success-on); border-color: transparent; }
+  .orxB-key.n { background: var(--danger-btn); color: var(--danger-on); border-color: transparent; }
+  .orxB-key.py { background: var(--success-soft); color: var(--success-ink); border-color: var(--success); }
+  .orxB-key.pn { background: var(--danger-soft); color: var(--danger-ink); border-color: var(--danger); }
+  .orxB-scale { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--text-3); font-weight: var(--fw-semi); padding: 0 4px; margin-top: -2px; }
+  .orxB-pile { position: absolute; inset-block-start: 14px; inset-inline-end: 14px; width: 2.6rem; aspect-ratio: 5/7; }
+  .orxB-pile i { position: absolute; inset: 0; border-radius: 7px; background: #fffaf0; box-shadow: 0 2px 4px rgba(0,0,0,.35); }
+  .orxB-big { align-self: center; width: min(13rem, 70%); aspect-ratio: 5 / 7; border-radius: 18px; position: relative; perspective: 800px; }
+  .orxB-big__face { position: absolute; inset: 0; border-radius: 18px; background: #fffaf0; border: 2px solid #e8d9b8; box-shadow: 0 18px 36px -12px rgba(0,0,0,.6); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-2); padding: var(--sp-3); color: #2b1d16; text-align: center; }
+  .orxB-big__face .orx-name { color: #2b1d16; } .orxB-big__face .orx-kind { color: #8a6d4b; }
+  .orxB-big__face .orx-sil { background: #f3e8d2; color: #7c2d12; }
+  .orxB-big__back { position: absolute; inset: 0; border-radius: 18px; border: 6px solid #fffaf0; box-shadow: 0 18px 36px -12px rgba(0,0,0,.6);
+    background: radial-gradient(circle at 50% 50%, #f5c542 0 14%, transparent 15%), repeating-linear-gradient(45deg, #7c2d12 0 8px, #9a3412 8px 16px); }
+  .orxB-big__back::after { content: '🔮'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 2.4rem; }
+  .orxB-glow { box-shadow: 0 0 0 6px rgba(253,230,138,.5), 0 0 60px 20px rgba(253,230,138,.55); border-radius: 18px; }
+  .orxB-end { display: flex; flex-direction: column; gap: var(--sp-3); align-items: center; text-align: center; }
+  .orxB-endtable { justify-content: center; align-items: center; }
+  .orxB .orxB-side { display: contents; }
+
+  /* ===== C: a chat with the oracle ===== */
+  .orxC { gap: 0; margin: calc(-1 * var(--sp-2)) 0; }
+  .orxC-bar { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) 0 var(--sp-3); border-block-end: 1px solid var(--border); }
+  .orxC-av { width: 3.1rem; height: 3.1rem; border-radius: 50%; background: var(--accent-soft); overflow: hidden; flex: none; position: relative; }
+  .orxC-av.is-glow { box-shadow: 0 0 0 3px var(--accent), 0 0 18px 4px color-mix(in srgb, var(--accent) 60%, transparent); }
+  .orxC-bar__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .orxC-bar__name { font-size: var(--fs-h3); font-weight: var(--fw-black); }
+  .orxC-bar__sub { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); display: flex; gap: var(--sp-2); align-items: center; }
+  .orxC-bar__sub.is-typing { color: var(--accent-ink); font-weight: var(--fw-bold); }
+  .orxC-prog { height: 5px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+  .orxC-prog i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+  .orxC-log { flex: 1; min-height: 0; -webkit-mask-image: linear-gradient(transparent, #000 28px); mask-image: linear-gradient(transparent, #000 28px); display: flex; flex-direction: column; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-3) 0; overflow: hidden; }
+  .orxC-day { align-self: center; font-size: var(--fs-xs); color: var(--text-3); font-weight: var(--fw-semi); }
+  .orxC-msg { max-width: 82%; padding: 10px 14px; border-radius: 18px; font-size: var(--fs-body); font-weight: var(--fw-semi); line-height: 1.4; position: relative; }
+  .orxC-msg--o { align-self: flex-start; background: var(--surface-solid); border: 1px solid var(--border); border-end-start-radius: 6px; }
+  .orxC-msg--o.is-q { font-size: var(--fs-h2); font-weight: var(--fw-black); }
+  .orxC-msg--o .orxC-n { display: block; font-size: var(--fs-xs); color: var(--accent-ink); font-weight: var(--fw-bold); margin-bottom: 2px; }
+  .orxC-msg--me { align-self: flex-end; background: var(--accent); color: var(--accent-on); border-end-end-radius: 6px; font-weight: var(--fw-bold); }
+  .orxC-msg--me.is-old { opacity: .9; }
+  .orxC-undo { align-self: flex-end; margin-top: -4px; border: 0; background: none; font: inherit; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--accent-ink); min-height: 32px; padding: 0 4px; }
+  .orxC-card { align-self: flex-start; width: min(16rem, 82%); background: var(--surface-solid); border: 1.5px solid var(--accent); border-radius: 20px; border-end-start-radius: 6px; padding: var(--sp-4); display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); text-align: center; box-shadow: 0 14px 30px -16px var(--accent); }
+  .orxC-card small { font-size: var(--fs-sm); color: var(--text-2); font-weight: var(--fw-bold); }
+  .orxC-dock { padding: var(--sp-3) 0 var(--sp-1); border-block-start: 1px solid var(--border); display: flex; flex-direction: column; gap: var(--sp-2); }
+  .orxC-chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); }
+  .orxC-chips .btn { font-size: var(--fs-sm); }
+  .orxC-compose { display: flex; gap: var(--sp-2); align-items: center; }
+  .orxC-compose input { flex: 1; min-width: 0; height: 48px; border-radius: 999px; border: 1.5px solid var(--border-field); background: var(--surface-solid); color: var(--text); font: inherit; padding: 0 var(--sp-4); }
+  .orxC-send { width: 48px; height: 48px; border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-on); font-size: 1.2rem; font-weight: 900; flex: none; }
+  .orxC-portrait { display: none; }
+  .orxC-main { display: contents; }
+
+  /* ---------- a phone on its side ---------- */
+  @media (orientation: landscape) and (max-height: 520px) {
+    .orx { min-height: 0; }
+    .orxA { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; gap: var(--sp-2) var(--sp-4); align-items: start; }
+    .orxA > .orx-count-wrap { grid-column: 1 / -1; }
+    .orxA .orxA-stage { flex-direction: row; gap: var(--sp-3); justify-content: center; align-self: stretch; }
+    .orxA .orxA-oracle { width: 7.5rem; height: 8.5rem; flex: none; }
+    .orxA .orx-bubble { font-size: var(--fs-h2); padding: var(--sp-3) var(--sp-4); }
+    .orxA .orx-bubble::after { inset-block-end: auto; inset-block-start: calc(50% - 8px); inset-inline-start: auto; inset-inline-end: -9px; border: 0; border-inline-end: 1px solid var(--border); border-block-start: 1px solid var(--border); }
+    .orxA .orxA-side { display: flex; flex-direction: column; gap: var(--sp-2); }
+    .orxA .btn--lg { min-height: 46px; }
+    .orxA .btn { min-height: 44px; }
+    .orxB { display: grid; grid-template-columns: 1.15fr 1fr; gap: var(--sp-2) var(--sp-3); align-items: stretch; }
+    .orxB .orxB-table { min-height: 0; grid-row: 1 / span 2; padding: var(--sp-3); gap: var(--sp-2); }
+    .orxB .orxB-laid { grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+    .orxB .orxB-mini { height: 2.1rem; }
+    .orxB .orxB-mini b { font-size: .9rem; }
+    .orxB .orxB-mini span { display: none; }
+    .orxB .orxB-q { width: 78%; aspect-ratio: auto; padding: var(--sp-3) var(--sp-3); }
+    .orxB .orxB-q__t { font-size: var(--fs-h2); }
+    .orxB .orxB-side { display: flex; flex-direction: column; gap: var(--sp-2); justify-content: center; }
+    .orxB .orxB-head .orxB-face { width: 3.2rem; height: 3.2rem; }
+    .orxB .orxB-key { min-height: 3.6rem; }
+    .orxB .orxB-big { width: auto; height: 100%; max-height: 15rem; }
+    .orxC { display: grid; grid-template-columns: 1.2fr 1fr; grid-template-rows: auto minmax(0, 1fr); gap: 0 var(--sp-4); }
+    .orxC .orxC-chips .btn { padding-inline: 4px; white-space: nowrap; }
+    .orxC .orxC-bar { grid-column: 1 / -1; padding: 0 0 var(--sp-2); }
+    .orxC .orxC-log { padding: var(--sp-2) 0; }
+    .orxC .orxC-dock { border: 0; justify-content: center; padding: 0; }
+    .orxC .orxC-msg--o.is-q { font-size: var(--fs-h3); }
+  }
+  /* ---------- a laptop or a TV ---------- */
+  @media (min-width: 900px) and (min-height: 560px) {
+    .orx { max-width: 60rem; margin-inline: auto; width: 100%; }
+    .orxA { display: grid; grid-template-columns: 1.1fr 1fr; grid-template-rows: auto 1fr; gap: var(--sp-4) var(--sp-7); align-items: center; }
+    .orxA > .orx-count-wrap { grid-column: 1 / -1; }
+    .orxA .orxA-oracle { width: 14rem; height: 16rem; }
+    .orxA .orxA-side { display: flex; flex-direction: column; gap: var(--sp-3); }
+    .orxB { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--sp-4) var(--sp-6); align-items: stretch; }
+    .orxB .orxB-table { grid-row: 1 / span 2; min-height: 26rem; }
+    .orxB .orxB-laid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .orxB .orxB-mini { height: 3.6rem; }
+    .orxB .orxB-table { min-height: 0; justify-content: center; gap: var(--sp-6); }
+    .orxB { align-content: center; }
+    .orxB > .orxB-head { align-self: end; }
+    .orxB > .orxB-side { align-self: start; justify-content: flex-start; }
+    .orxB .orxB-side { display: flex; flex-direction: column; gap: var(--sp-3); justify-content: center; }
+    .orxB .orxB-key { min-height: 5rem; font-size: var(--fs-sm); }
+    .orxC { display: grid; grid-template-columns: 17rem 1fr; grid-template-rows: minmax(0, 1fr); gap: 0 var(--sp-6); max-width: 58rem; }
+    .orxC .orxC-portrait { display: flex; grid-row: 1; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-3); background: var(--surface-solid); border: 1px solid var(--border); border-radius: 20px; padding: var(--sp-4); }
+    .orxC .orxC-portrait .orx-svg { width: 13rem; height: 15rem; }
+    .orxC .orxC-main { display: flex; flex-direction: column; min-height: 0; }
+    .orxC .orxC-bar .orxC-av { display: none; }
+    .orxC .orxC-log { justify-content: flex-end; }
+  }
+  `;
+
+  const T = {
+    ar: {
+      title: 'العرّاف', qOf: (n, m) => `سؤال <b class="metric">${n}</b> من <b class="metric">${m}</b>`, guesses: (n) => `${n} تخمينات`,
+      y: 'أيوه', n: 'لأ', dk: 'مش عارف', py: 'غالباً أيوه', pn: 'غالباً لأ',
+      qs: ['هو إنسان؟', 'هو مصري؟', 'بيمثّل؟', 'بيلعب رياضة؟', 'بيلعب كورة؟', 'لعب برّه مصر؟', 'لعب في نادي إنجليزي؟'],
+      short: ['إنسان', 'مصري', 'بيمثّل', 'رياضة', 'كورة', 'برّه مصر', 'إنجليزي', 'جناح', 'كابتن', 'دهب', 'بلده', 'هدّاف'],
+      ans: ['y', 'y', 'n', 'y', 'y', 'py'],
+      undo: 'رجّع', thinkingA: 'استنى… بركّز', gotIt: 'جالي!', youThink: 'بتفكر في…', name: 'محمد صلاح', kind: 'لاعب كورة', namehid: '؟ ؟ ؟',
+      yes: 'أيوه، هو ده! 🎉', no: 'لأ، مش هو', leftAfter: 'لو غلطت فاضل لي تخمينين', win: 'عرفتك! 😄', inQ: 'سؤال بس', guessN: 'من أول تخمين', guessL: 'تخمين',
+      again: 'العب تاني', exit: 'خروج', lose: 'غلبتني! 🙌', who: 'كنت بتفكر في مين؟', field: 'اسمه أو اسمها', ph: 'مثلاً: شريهان', send: 'ابعت', learn: 'هيوصل للعرّاف ويتعلّمه المرة الجاية',
+      usedAll: '20 سؤال و3 تخمينات', lateQ: ['بيلعب جناح؟', 'لعب كابتن لمنتخب بلده؟'], yourAns: 'الأسئلة', back: 'رجّع آخر كارت', deck: 'فاضل', scaleY: 'أيوه', scaleN: 'لأ', laid: 'كارت على الترابيزة',
+      typing: 'بيكتب…', online: 'فاكر 1,000 حاجة وشخصية', changed: '↶ غيّر', today: 'دور جديد', sure: 'خلاص… عرفتك 🤔', guessCard: 'بتفكر في', q: '؟',
+      thinkC: 'بيفكّر…', cardL: 'كارت', winC: 'عرفتك في', winLine: 'في <b class="metric">13</b> سؤال بس · من أول تخمين', guessWord: 'التخمين',
+      sawYou: 'إنت فكّرت في', remain: 'كروت فاضلة', lost3: 'خمّنت: عمرو دياب · محمد هنيدي · أبو تريكة'
+    },
+    en: {
+      title: 'The Oracle', qOf: (n, m) => `Question <b class="metric">${n}</b> of <b class="metric">${m}</b>`, guesses: (n) => `${n} guesses`,
+      y: 'Yes', n: 'No', dk: "Don't know", py: 'Probably', pn: 'Probably not',
+      qs: ['Is it a person?', 'Egyptian?', 'Do they act?', 'Do they play a sport?', 'Football?', 'Played outside Egypt?', 'Played for an English club?'],
+      short: ['Person', 'Egyptian', 'Acts', 'Sport', 'Football', 'Abroad', 'English club', 'Winger', 'Captain', 'Gold', 'Country', 'Scorer'],
+      ans: ['y', 'y', 'n', 'y', 'y', 'py'],
+      undo: 'Undo', thinkingA: 'Hold on… focusing', gotIt: 'Got it!', youThink: "You're thinking of…", name: 'Mohamed Salah', kind: 'Footballer', namehid: '? ? ?',
+      yes: "Yes, that's it! 🎉", no: "No, it's not", leftAfter: 'If I miss, I have two guesses left', win: 'Got you! 😄', inQ: 'questions only', guessN: 'first guess', guessL: 'guess',
+      again: 'Play again', exit: 'Exit', lose: 'You beat me! 🙌', who: 'Who were you thinking of?', field: 'Their name', ph: 'e.g. Sherihan', send: 'Send', learn: 'It goes to the Oracle, who learns it for next time',
+      usedAll: '20 questions and 3 guesses', lateQ: ['Plays on the wing?', 'Captained his national team?'], yourAns: 'Questions', back: 'Take back the last card', deck: 'left', scaleY: 'Yes', scaleN: 'No', laid: 'cards on the table',
+      typing: 'typing…', online: 'Knows 1,000 people and things', changed: '↶ Change', today: 'New round', sure: 'Right… I know who 🤔', guessCard: "You're thinking of", q: '?',
+      thinkC: 'thinking…', cardL: 'card', winC: 'Got you in', winLine: 'in <b class="metric">13</b> questions · first guess', guessWord: 'Guess',
+      sawYou: 'You thought of', remain: 'cards left', lost3: 'Guessed: Amr Diab · Mohamed Henedy · Aboutrika'
+    }
+  };
+  const MARK = { y: '✓', n: '✗', py: '✓؟', pn: '✗؟', dk: '؟' };
+
+  function pips(n, total = 20) { let s = ''; for (let i = 1; i <= total; i++) s += `<i class="${i < n ? 'is-on' : i === n ? 'is-now' : ''}"></i>`; return `<div class="orx-pips">${s}</div>`; }
+  function guessesHtml(L, left = 3) { let s = ''; for (let i = 0; i < 3; i++) s += `<i class="${i >= left ? 'is-used' : ''}"></i>`; return `<span class="orx-guesses">${s}&nbsp;${L.guesses(left)}</span>`; }
+  function count(L, n, left) { return `<div class="orx-count"><span class="orx-count__label">${L.qOf(n, 20)}</span>${guessesHtml(L, left)}</div>`; }
+
+  /* ---------------- look A ---------------- */
+  function lookA(L, st) {
+    const q = L.qs[6];
+    const head = `<div class="orx-count-wrap" style="display:flex;flex-direction:column;gap:6px">${count(L, st === 'play' ? 7 : st === 'f1' ? 12 : 13, 3)}${pips(st === 'play' ? 7 : st === 'f1' ? 12 : 13)}</div>`;
+    const answers = `<div class="orxA-answers">
+        <div class="orx-pair"><button class="btn btn--success btn--lg">${L.y}</button><button class="btn btn--danger btn--lg">${L.n}</button></div>
+        <div class="orx-pair"><button class="btn btn--secondary">${L.py}</button><button class="btn btn--secondary">${L.pn}</button></div>
+        <button class="btn btn--ghost btn--sm">${L.dk}</button></div>
+        <button class="orx-undo">↶ ${L.undo}: <b>${L.qs[5]}</b> <span class="orx-tag orx-tag--py">${L.py}</span></button>`;
+    const guessBtns = `<div class="orxA-answers"><button class="btn btn--success btn--lg">${L.yes}</button><button class="btn btn--ghost">${L.no}</button></div><div class="orx-note">${L.leftAfter}</div>`;
+    const stage = (bubble, o) => `<div class="orxA-stage">${bubble}<div class="orxA-oracle">${oracle(o)}</div></div>`;
+    if (st === 'play') return `<div class="orx orxA">${head}${stage(`<div class="orx-bubble"><span class="orx-bubble__n metric">7</span>${q}</div>`, { mood: 'idle', ball: 'q' })}<div class="orxA-side">${answers}</div></div>`;
+    if (st === 'guess' || st === 'f5') return `<div class="orx orxA">${head}${stage(`<div class="orx-bubble"><small>${L.youThink}</small><div class="orxA-guessrow">${silhouette('⚽')}<span>${L.name}؟</span></div></div>`, { mood: 'happy', ball: 'face' })}<div class="orxA-side">${guessBtns}</div></div>`;
+    if (st === 'f1') return `<div class="orx orxA" style="position:relative">${head}${stage(`<div class="orx-bubble"><span class="orx-bubble__n metric">12</span>${L.short[11]}؟</div>`, { mood: 'idle', ball: 'q' })}<div class="orxA-side">${answers.replace(/<button class="orx-undo">[\s\S]*$/, '')}</div><span class="orx-fly orx-tag--y" style="inset-inline-start:44%;top:56%;background:var(--success-btn);color:var(--success-on)">✓ ${L.y}</span></div>`;
+    if (st === 'f2') return `<div class="orx orxA">${head}${stage(`<div class="orx-bubble">${L.thinkingA} <span class="orx-dots"><i></i><i></i><i></i></span></div>`, { mood: 'think', ball: 'dim' })}<div class="orxA-side"><div class="orx-faded">${answers.replace(/<button class="orx-undo">[\s\S]*$/, '')}</div></div></div>`;
+    if (st === 'f3') return `<div class="orx orxA">${head}${stage(`<div class="orx-bubble">${L.gotIt} ✨</div>`, { mood: 'think', ball: 'glow' })}<div class="orxA-side"><div class="orx-faded">${answers.replace(/<button class="orx-undo">[\s\S]*$/, '')}</div></div></div>`;
+    if (st === 'f4') return `<div class="orx orxA">${head}${stage(`<div class="orx-bubble"><small>${L.youThink}</small><div class="orxA-guessrow">${silhouette('⚽')}<span style="filter:blur(5px)">${L.name}؟</span></div></div>`, { mood: 'idle', ball: 'half', sparkle: true })}<div class="orxA-side"><div class="orx-faded">${guessBtns}</div></div></div>`;
+    if (st === 'win') return `<div class="orx orxA">${stage(`<div class="orx-bubble">${L.win}</div>`, { mood: 'happy', ball: 'face' })}<div class="orxA-side"><div class="orxA-end">${silhouette('⚽', 'orx-sil--big')}<div><div class="orx-name">${L.name}</div><div class="orx-kind">${L.kind}</div></div>
+        <div class="orx-stat"><div><span class="metric">13</span><small>${L.inQ}</small></div><div><span class="metric">1</span><small>${L.guessN}</small></div></div></div>
+        <div class="orx-end-actions"><button class="btn btn--primary btn--lg">${L.again}</button><button class="btn btn--ghost">${L.exit}</button></div></div></div>`;
+    if (st === 'lose') return `<div class="orx orxA">${stage(`<div class="orx-bubble">${L.lose}<small>${L.who}</small></div>`, { mood: 'puzzled', ball: 'dim' })}<div class="orxA-side"><div class="orxA-end" style="align-items:stretch">
+        <div class="orx-field"><label>${L.field}</label><input value="" placeholder="${L.ph}"></div><div class="orx-note">${L.learn}</div>
+        <button class="btn btn--primary btn--lg">${L.send}</button></div><div class="orx-note">${L.usedAll} · ${L.lost3}</div>
+        <div class="orx-pair"><button class="btn btn--secondary">${L.again}</button><button class="btn btn--ghost">${L.exit}</button></div></div></div>`;
+  }
+
+  /* ---------------- look B ---------------- */
+  function lookB(L, st) {
+    const answered = st === 'play' ? 6 : 12;
+    const ansB = ['y', 'y', 'n', 'y', 'y', 'py', 'y', 'dk', 'y', 'pn', 'y', 'y'];
+    const laidHtml = (scatter) => {
+      let s = '';
+      for (let i = 0; i < 20; i++) {
+        if (i < answered) {
+          const tf = scatter ? ` style="transform:translate(${((i % 5) - 2) * 50}px, ${(2 - Math.floor(i / 5)) * 54 + 60}px) rotate(${(i * 37) % 17 - 8}deg)"` : '';
+          s += `<div class="orxB-mini mk-${ansB[i]}"${tf}><b>${MARK[ansB[i]]}</b><span>${L.short[i]}</span></div>`;
+        } else s += `<div class="orxB-mini is-empty${i === answered && st === 'play' ? ' is-now' : ''}"${scatter ? ' style="opacity:.25"' : ''}><span class="metric">${i + 1}</span></div>`;
+      }
+      return `<div class="orxB-laid">${s}</div>`;
+    };
+    const head = (say, mood, ball, glow, right) => `<div class="orxB-head"><div class="orxB-face" ${glow ? 'style="box-shadow:0 0 0 3px var(--accent)"' : ''}>${oracle({ mood, ball, head: true })}</div><div class="orxB-head__txt"><span class="orxB-head__say">${say}</span>${right === undefined ? count(L, answered + 1, 3) : right}</div></div>`;
+    const keys = `<div class="orxB-keys"><button class="orxB-key y"><b>✓</b>${L.y}</button><button class="orxB-key py"><b>✓؟</b>${L.py}</button><button class="orxB-key"><b>؟</b>${L.dk}</button><button class="orxB-key pn"><b>✗؟</b>${L.pn}</button><button class="orxB-key n"><b>✗</b>${L.n}</button></div>
+      <button class="orx-undo">↶ ${L.back}</button>`;
+    const qcard = (n, t) => `<div class="orxB-q"><span class="orxB-q__n metric">${n}</span><div class="orxB-q__t">${t}</div><div class="orxB-q__k">${L.cardL} ${n} · ${20 - n} ${L.remain}</div></div>`;
+    const table = (inner, extra = '') => `<div class="orxB-table ${extra}">${inner}</div>`;
+    const face = `<div class="orxB-big__face">${silhouette('⚽', 'orx-sil--big')}<div class="orx-name">${L.name}</div><div class="orx-kind">${L.kind}</div></div>`;
+    const guessBtns = `<button class="btn btn--success btn--lg">${L.yes}</button><button class="btn btn--ghost">${L.no}</button><div class="orx-note">${L.leftAfter}</div>`;
+    const pile = `<div class="orxB-pile"><i style="transform:rotate(-8deg)"></i><i style="transform:rotate(5deg)"></i><i style="transform:rotate(-2deg)"></i></div>`;
+    const faded = (h) => `<div class="orxB-side"><div class="orx-faded">${h}</div></div>`;
+    const stat = `<div class="orx-stat"><div><span class="metric">13</span><small>${L.inQ}</small></div><div><span class="metric">1</span><small>${L.guessN}</small></div></div>`;
+    if (st === 'play') return `<div class="orx orxB">${head(`${answered} ${L.laid}`, 'idle', 'q')}${table(`${laidHtml(false)}${qcard(7, L.qs[6])}`)}<div class="orxB-side">${keys}</div></div>`;
+    if (st === 'f1') return `<div class="orx orxB">${head(L.thinkingA, 'think', 'dim')}${table(`${laidHtml(true)}`)}${faded(keys)}</div>`;
+    if (st === 'f2') return `<div class="orx orxB">${head(L.thinkingA, 'think', 'glow', true)}${table(`${pile}<div class="orxB-big" style="transform:translateY(-60px) rotate(-14deg) scale(.8);opacity:.7"><div class="orxB-big__back"></div></div>`, 'orxB-endtable')}${faded(keys)}</div>`;
+    if (st === 'f3') return `<div class="orx orxB">${head(L.gotIt + ' ✨', 'think', 'glow', true)}${table(`${pile}<div class="orxB-big orxB-glow"><div class="orxB-big__back"></div></div>`, 'orxB-endtable')}${faded(guessBtns)}</div>`;
+    if (st === 'f4') return `<div class="orx orxB">${head(L.youThink, 'idle', 'face', true)}${table(`${pile}<div class="orxB-big"><div class="orxB-big__back" style="transform:scaleX(.14)"></div></div>`, 'orxB-endtable')}${faded(guessBtns)}</div>`;
+    if (st === 'guess' || st === 'f5') return `<div class="orx orxB">${head(L.youThink, 'happy', 'face', true)}${table(`${pile}<div class="orxB-big">${face}</div>`, 'orxB-endtable')}<div class="orxB-side">${guessBtns}</div></div>`;
+    if (st === 'win') return `<div class="orx orxB">${head(L.win, 'happy', 'face', true, `<span class="orx-count__label">${L.winLine}</span>`)}${table(`<div class="orxB-big orxB-glow orxB-big--sm">${face}</div>${laidHtml(false)}`, 'orxB-endtable')}<div class="orxB-side">
+        <div class="orx-pair"><button class="btn btn--primary btn--lg">${L.again}</button><button class="btn btn--ghost btn--lg">${L.exit}</button></div></div></div>`;
+    if (st === 'lose') return `<div class="orx orxB">${head(L.lose, 'puzzled', 'dim', false, `<span class="orx-name" style="font-size:var(--fs-h2)">${L.who}</span>`)}${table(`<div class="orxB-big orxB-big--sm"><div class="orxB-big__face"><div class="orx-sil orx-sil--big" style="font-size:3rem;font-weight:900;place-items:center;background:#f3e8d2;color:#7c2d12">؟</div><div class="orx-field" style="width:100%"><input placeholder="${L.ph}" style="height:44px;background:#fff;color:#2b1d16;border-color:#d6c3a0"></div></div></div><div class="orx-note" style="color:#fff;opacity:.85">${L.lost3}</div>`, 'orxB-endtable')}<div class="orxB-side"><div class="orx-note">${L.learn}</div><button class="btn btn--primary btn--lg">${L.send}</button>
+        <div class="orx-pair"><button class="btn btn--secondary">${L.again}</button><button class="btn btn--ghost">${L.exit}</button></div></div></div>`;
+  }
+
+  /* ---------------- look C ---------------- */
+  function lookC(L, st) {
+    const n = st === 'play' ? 7 : st === 'lose' ? 20 : 13;
+    const bar = (sub, glow, typing) => `<div class="orxC-bar"><div class="orxC-av ${glow ? 'is-glow' : ''}">${oracle({ mood: glow ? 'think' : 'idle', ball: 'q', head: true })}</div><div class="orxC-bar__txt"><span class="orxC-bar__name">${L.title}</span><span class="orxC-bar__sub ${typing ? 'is-typing' : ''}">${sub}</span><div class="orxC-prog"><i style="width:${n / 20 * 100}%"></i></div></div>${guessesHtml(L, st === 'lose' ? 0 : 3)}</div>`;
+    const sub = `<span>${L.qOf(n, 20).replace(/<[^>]+>/g, '')}</span>`;
+    const o = (t, nn, q) => `<div class="orxC-msg orxC-msg--o ${q ? 'is-q' : ''}">${nn ? `<span class="orxC-n">${L.qOf(nn, 20).replace(/<[^>]+>/g, '')}</span>` : ''}${t}</div>`;
+    const me = (t) => `<div class="orxC-msg orxC-msg--me">${t}</div>`;
+    const hist = (upto) => { let s = ''; for (let i = 0; i < upto; i++) s += o(L.qs[i]) + me(L[L.ans[i]]); return s; };
+    const dockPlay = `<div class="orxC-dock"><div class="orx-pair"><button class="btn btn--success btn--lg">${L.y}</button><button class="btn btn--danger btn--lg">${L.n}</button></div><div class="orxC-chips"><button class="btn btn--secondary btn--sm">${L.py}</button><button class="btn btn--neutral btn--sm">${L.dk}</button><button class="btn btn--secondary btn--sm">${L.pn}</button></div></div>`;
+    const dockGuess = `<div class="orxC-dock"><div class="orx-pair"><button class="btn btn--success btn--lg">${L.yes.replace(' 🎉', '')}</button><button class="btn btn--ghost btn--lg">${L.no}</button></div><div class="orx-note">${L.leftAfter}</div></div>`;
+    const card = (style = '') => `<div class="orxC-card" style="${style}"><small>${L.guessCard}</small>${silhouette('⚽', 'orx-sil--big')}<div class="orx-name">${L.name}؟</div><div class="orx-kind">${L.kind}</div></div>`;
+    const portrait = (mood, ball, line) => `<div class="orxC-portrait">${oracle({ mood, ball })}<div class="orx-name" style="font-size:var(--fs-h2)">${L.title}</div><div class="orx-note">${line || L.online}</div></div>`;
+    const wrap = (p, b, log, dock) => `<div class="orx orxC">${p}<div class="orxC-main">${b}<div class="orxC-log">${log}</div>${dock}</div></div>`;
+    const late = o(L.qs[4]) + me(L.y) + o(L.qs[5]) + me(L.py) + o(L.qs[6]) + me(L.y) + o(L.lateQ[0]) + me(L.dk) + o(L.lateQ[1]) + me(L.y);
+    if (st === 'play') return wrap(portrait('idle', 'q'), bar(sub), `<span class="orxC-day">${L.today}</span>${hist(6)}<button class="orxC-undo">${L.changed}</button>${o(L.qs[6], 7, true)}`, dockPlay);
+    if (st === 'f1') return wrap(portrait('idle', 'q'), bar(sub), `${late.replace(/<div class="orxC-msg orxC-msg--me">[^<]*<\/div>$/, '')}<div class="orxC-msg orxC-msg--me" style="transform:translateY(46px) scale(.9);opacity:.6">${L.y}</div>`, dockPlay);
+    if (st === 'f2') return wrap(portrait('think', 'dim', L.thinkC), bar(L.typing, true, true), `${late}<div class="orxC-msg orxC-msg--o"><span class="orx-dots" style="color:var(--accent-ink)"><i></i><i></i><i></i></span></div>`, dockPlay.replace('class="orxC-dock"', 'class="orxC-dock" style="opacity:.35"'));
+    if (st === 'f3') return wrap(portrait('think', 'glow', L.thinkC), bar(L.typing, true, true), `${late}${o(L.sure)}<div class="orxC-msg orxC-msg--o"><span class="orx-dots" style="color:var(--accent-ink)"><i></i><i></i><i></i></span></div>`, dockPlay.replace('class="orxC-dock"', 'class="orxC-dock" style="opacity:.35"'));
+    if (st === 'f4') return wrap(portrait('happy', 'face'), bar(sub, true), `${late}${o(L.sure)}${card('transform:scale(.7);transform-origin:var(--o, 100%) 100%;opacity:.55')}`, dockGuess.replace('class="orxC-dock"', 'class="orxC-dock" style="opacity:.35"'));
+    if (st === 'guess' || st === 'f5') return wrap(portrait('happy', 'face'), bar(sub), `${late}${o(L.sure)}${card()}`, dockGuess);
+    if (st === 'win') return wrap(portrait('happy', 'face'), bar(`${L.winC} 13 ${L.inQ}`), `${late}${o(L.sure)}${card('opacity:.85')}${me(L.yes)}<div class="orxC-msg orxC-msg--o" style="font-size:var(--fs-h2);font-weight:900">${L.win}<div class="orx-stat" style="margin-top:8px"><div><span class="metric">13</span><small>${L.inQ}</small></div><div><span class="metric">1</span><small>${L.guessN}</small></div></div></div>`,
+      `<div class="orxC-dock"><div class="orx-pair"><button class="btn btn--primary btn--lg">${L.again}</button><button class="btn btn--ghost btn--lg">${L.exit}</button></div></div>`);
+    if (st === 'lose') return wrap(portrait('puzzled', 'dim'), bar(L.usedAll), `${late}${o(L.guessCard + ' ' + 'أبو تريكة؟'.replace('أبو تريكة', L === T.en ? 'Aboutrika' : 'أبو تريكة'))}${me(L.no)}<div class="orxC-msg orxC-msg--o" style="font-size:var(--fs-h2);font-weight:900">${L.lose}<br>${L.who}</div><span class="orxC-day">${L.learn}</span>`,
+      `<div class="orxC-dock"><div class="orxC-compose"><input placeholder="${L.ph}"><button class="orxC-send">${appState.lang === 'ar' ? '➤' : '➤'}</button></div><div class="orx-pair"><button class="btn btn--secondary btn--sm">${L.again}</button><button class="btn btn--ghost btn--sm">${L.exit}</button></div></div>`);
+  }
+
+  window.orxShow = function (look, st) {
+    let s = document.getElementById('orx-css');
+    if (!s) { s = document.createElement('style'); s.id = 'orx-css'; document.head.appendChild(s); }
+    s.textContent = css;
+    const L = T[appState.lang] || T.ar;
+    const view = document.getElementById('view-play-guessnum');
+    view.dataset.accent = { A: 'violet', B: 'teal', C: 'indigo' }[look];
+    view.innerHTML = (look === 'A' ? lookA : look === 'B' ? lookB : lookC)(L, st);
+    const root = view.querySelector('.orx'), main = document.getElementById('shell-main') || document.querySelector('main');
+    if (look === 'C' && root && main) { const mb = main.getBoundingClientRect(), rb = root.getBoundingClientRect(); root.style.height = Math.floor(mb.bottom - rb.top - 12) + 'px'; }
+    const tt = document.getElementById('app-title-text'); if (tt) tt.textContent = L.title;
+    const ti = document.getElementById('app-title-icon'); if (ti) ti.textContent = '🔮';
+    return view.innerHTML.length;
+  };
+})();

@@ -364,7 +364,7 @@ const ORACLE_PEOPLE = { kind: 'p', list: [
   { id: 'khaledsawy',  icon: '😈', ar: 'خالد الصاوي', en: 'Khaled El Sawy', yes: 'egypt arab actor villainroles born1970', maybe: 'theater comedy series poet' },
   { id: 'ahmedmalek',  icon: '🎬', ar: 'أحمد مالك', en: 'Ahmed Malek', yes: 'egypt arab actor born2000' },
   { id: 'ahmedfahmy',  icon: '😄', ar: 'أحمد فهمي', en: 'Ahmed Fahmy', yes: 'egypt arab actor comedy born1990', maybe: 'born1980 series' },
-  { id: 'ramezgalal',  icon: '😜', ar: 'رامز جلال', en: 'Ramez Galal', yes: 'egypt arab actor comedy tvhost born1975' },
+  { id: 'ramezgalal',  icon: '😜', ar: 'رامز جلال', en: 'Ramez Galal', yes: 'egypt arab actor comedy tvhost born1975 challenge_v' },
   { id: 'ashrafabdelbaky', icon: '🎭', ar: 'أشرف عبد الباقي', en: 'Ashraf Abdel Baky', yes: 'egypt arab actor comedy theater director born1970', maybe: 'series tvhost' },
   { id: 'alirabie',    icon: '😂', ar: 'علي ربيع', en: 'Ali Rabie', yes: 'egypt arab actor comedy theater born2000', maybe: 'born1990 series' },
   { id: 'menashalaby', icon: '🎬', ar: 'منة شلبي', en: 'Menna Shalabi', yes: 'female egypt arab actor famousparent born1990', maybe: 'series' },

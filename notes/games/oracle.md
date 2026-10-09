@@ -222,3 +222,45 @@ Then read its list of lost entries and what was guessed for them: that pair need
 - **No settled questions**: a question every still-likely entry answers the same way is never asked (`oracleSaid` in `oracleBestQuestions`); in the simulation 30 of 3,765 questions were settled before, 0 after.
 - **The data reviewed question by question** (six reviewers, one kind each, merged by script): about 1,200 true traits added, wrong ones corrected; that made 83 entries identical to another, so 38 questions were added (each marked on every entry of its kinds) and 7 near-duplicates removed. 1,058 entries, 293 questions.
 - **check:oracle plays a real player too**: an unmarked trait answered «أيوه» 12% of the time, 1 in 20 other answers wrong, firm questions never wrong. Truthful 100%, real player 98.5%; one answer in 10 wrong at random (firm ones included) 87% - a wrong firm answer loses by design.
+
+## The new areas of 10 Oct 2026
+
+Four writers at once, each in its own file, merged by hand (1,058 entries and 293 questions before;
+1,482 and 396 after: 455 people, 296 characters, 178 animals, 309 things, 91 jobs, 153 places).
+- **Content creators** (`OracleCreators.js`, kind `p`, 38): YouTubers, TikTokers, gamers, chefs and
+  children's channels, Egyptian, Arab and world. 16 questions: `creator` (firm: everyone mainly known
+  for making videos online; a TV chef with a big channel is a maybe), `gaming_v`, `live_v`, `cook_v`,
+  `explain_v`, `kids_v`, `tiktok`, `challenge_v`, `family_v`, `group_v`, `sports_v`, `beauty_v`,
+  `travel_v`, `tech_v`, `vlog_v`, `podcast`; the older people marked where true (Mostafa Mahmoud
+  `explain_v`, Shobeir `sports_v`, Disney and Miyazaki `kids_v`, Ramez Galal `challenge_v`).
+- **Games and apps** (`OracleApps.js`, kind `t`, 73: 34 video games, 3 games devices, 36 apps).
+  26 questions: `appgame` (firm: «لعبة فيديو أو أبلكيشن؟»), `vgame` → `appgame`, `onphone`,
+  `onconsole`, `online`, `footgame`, `battle`, `building`, `racing`, `cargame`, `puzzle`, `cardgame`,
+  `tablegame`, `oldgame`, `japan_g`, `chatapp`, `posts`, `watchapp`, `payapp`, `orderapp`, `shopapp`,
+  `google`, `meta`, `askapp`, `mapapp`, `workapp`; the PlayStation, chess, backgammon, dice and cards
+  marked. A game's hero stays a character (ماريو, باك مان): the kind questions tell them apart.
+- **Places** (`OraclePlaces.js`, a new kind `l`, 153: 109 countries from the app's list, 16 Egyptian
+  cities, 28 world cities). The kind question `countrycity` («بلد أو مدينة؟», firm, `l:y` and a no for
+  every other kind); `human`, `real`, `fiction`, `animal`, `job` say `l:n`. **auto `m`**: an `auto`
+  may now give a kind a maybe - `object` is `l:m` (a country is «not a person or an animal» but hardly
+  «a thing»), `place` is `l:y`. 55 questions: `city` and the continents `africa_l`, `asia_l`,
+  `europe_l`, `america_l` firm; regions (`gulf_l`, `levant_l`, `maghreb_l` → `arab`; `eastasia`,
+  `seasia`, `southasia`, `north_eu`, `easteu`, `southam`, `oceania`), Egypt's own (`delta`, `south_l`,
+  `sinai` → `egypt`, `nubia`, `nile_l`, `neighbor_eg`), seas (`sea_l`, `med`, `redsea`), the land, the
+  languages, the cups, history, cities (`capital`, `river_city`, `beach_city`, `canals_city` → `city`)
+  and the flag's colours. `egypt` and `arab` are asked of places too. An entry's id starts `l_`.
+- **The newer stars** (in `OraclePeople.js` and `OracleCharacters.js`): 90 people (Egyptian and Arab
+  actors and singers of the last fifteen years, world actors and singers children know, today's
+  footballers and coaches, athletes) and 69 characters (Bluey, Paw Patrol, Inside Out, Encanto,
+  Spacetoon anime, phone games, الكبير أوي). 5 questions, each marked on every person, the creators
+  included: `born1990`, `born2000` (the birth chain goes on: born1980 → born1990 → born2000, so a
+  person is marked with the earliest that is true), `germany` → `football`, `racer` → `othersport`,
+  `famousparent`.
+
+The numbers after the merge and the cross-check: truthful 100% (11.2 questions); a real player 98.0%
+(p 98.7, c 99.7, a 98.3, t 93.9, j 98.9, l 100); one in ten wrong 85.5%. **Things fell from about
+96% to about 94%** (the same over several seeds of the real player) and true marks don't bring
+them back: a thing's game now spends three more questions on kinds - «حاجة؟», then `appgame`, then
+`countrycity` (the places' `object` maybe keeps them alive), sometimes `fiction` (the 26 characters
+that are objects) - before its own questions, so a few unlucky answers leave too few questions. If it
+matters, the place to look is the engine or `object: l:m`, not the data.

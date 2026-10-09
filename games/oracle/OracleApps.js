@@ -24,7 +24,7 @@ const ORACLE_APPS = { kind: 't', list: [
   { id: 'supermario',    icon: '🍄', ar: 'سوبر ماريو', en: 'Super Mario Bros.', yes: 'vgame onconsole oldgame japan_g red', maybe: 'colorful racing toy screen' },
   { id: 'candycrush',    icon: '🍬', ar: 'كاندي كراش', en: 'Candy Crush', yes: 'vgame onphone puzzle colorful', maybe: 'internet screen touch', no: 'edible sweet' },
   { id: 'angrybirds_g',  icon: '🐦', ar: 'أنجري بيردز', en: 'Angry Birds', yes: 'vgame onphone red', maybe: 'puzzle toy screen touch' },
-  { id: 'flappybird',    icon: '🐤', ar: 'فلابي بيرد', en: 'Flappy Bird', yes: 'vgame onphone yellow', maybe: 'green flies screen touch' },
+  { id: 'flappybird',    icon: '🐤', ar: 'فلابي بيرد', en: 'Flappy Bird', yes: 'vgame onphone yellow', maybe: 'green flies screen touch colorful' },
   { id: 'fruitninja',    icon: '🍉', ar: 'فروت نينجا', en: 'Fruit Ninja', yes: 'vgame onphone colorful', maybe: 'sharp screen touch', no: 'edible' },
   { id: 'pou',           icon: '🥔', ar: 'لعبة بو', en: 'Pou', yes: 'vgame onphone toy brown', maybe: 'screen touch' },
   { id: 'pokemongo',     icon: '🗺️', ar: 'بوكيمون جو', en: 'Pokémon Go', yes: 'vgame onphone internet', maybe: 'japan_g mapapp street online colorful screen touch' },

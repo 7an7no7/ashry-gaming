@@ -1434,17 +1434,23 @@ const PROBES = {
     ];
   },
 
-  // حسبة (tools/new-game.mjs): a phone's number on its own phone only, and on the table only at the result.
+  // حسبة: the exact way stays on the server until the round closes, and a phone's steps are its own.
   hesba(room) {
     const s = room.shared || {};
     const live = s.phase === 'play';
+    const way = room._hesba && room._hesba.way;
+    const stepsOf = Object.keys(room.secrets || {}).filter((id) => room.secrets[id] && (room.secrets[id].steps || []).length);
     return [
-      probe("a phone's number is its own, exactly", live, (view, pid) => {
-        if (pid === SCREEN) return null;
-        const want = (room.secrets[pid] || {}).target;
-        return want === undefined || (view.you && view.you.target === want) ? null : 'you.target';
+      probe('the exact way is not on any screen before the round closes', live && way && way.length, (view) => {
+        if (hasKey(view.shared, 'result')) return 'shared.result';
+        const text = JSON.stringify(view);
+        return way.some((st) => text.indexOf(JSON.stringify(st)) !== -1) ? 'a step of the way' : null;
       }),
-      probe('no number on the table before the result', live, (view) => (hasKey(view.shared, 'targets') || hasKey(view.shared, 'board') ? 'shared.targets' : null))
+      probe("a phone's steps reach its own phone only", live && stepsOf.length, (view, pid) => {
+        const text = JSON.stringify(view);
+        const other = stepsOf.find((id) => id !== pid && text.indexOf(JSON.stringify(room.secrets[id].steps)) !== -1);
+        return other ? 'steps of ' + other : null;
+      })
     ];
   },
   // شبكة الحروف (tools/new-game.mjs): a phone's number on its own phone only, and on the table only at the result.
@@ -3259,13 +3265,41 @@ const DRIVERS = {
   },
 
   hesba() {
-    // Four at the table: everyone taps a little and says done, then a second round the clock ends.
+    // Four at the table, three rounds of the hard level: an exact answer from the server's own way
+    // ends round 1 at once (after two near ones); round 2 ends on the clock (the closest takes it);
+    // round 3 the host ends; then play again, to the end on the clock.
     const T = table('hesba', 4);
-    must(T, T.host, 'start', {});
-    T.ids.forEach((pid, i) => { for (let k = 0; k < i + 2; k++) must(T, pid, 'tap', { round: 1 }); must(T, pid, 'done', { round: 1 }); });
+    // The way (by value) as places in the pool, the way a phone sends it.
+    const stepsOf = (nums, way) => {
+      const pool = nums.slice(), used = {};
+      return way.map(([a, op, b, r]) => {
+        const i = pool.findIndex((v, k) => v === a && !used[k]); used[i] = true;
+        const j = pool.findIndex((v, k) => v === b && !used[k]); used[j] = true;
+        pool.push(r);
+        return [i, op, j];
+      });
+    };
+    must(T, T.host, 'start', { rounds: 3, secs: 30, level: 'hard' });
+    if (S(T).nums.length !== 6) return false;
+    must(T, T.ids[1], 'send', { round: 1, steps: [[0, '+', 1]], pick: 6 });
+    must(T, T.ids[2], 'send', { round: 1, steps: [[2, '*', 3]], pick: 6 });
+    if (act(T, T.ids[3], 'send', { round: 1, steps: [[0, '+', 0]], pick: 6 })) return false;   // a number used twice
+    const way = T.room._hesba.way;
+    must(T, T.host, 'send', { round: 1, steps: stepsOf(S(T).nums, way), pick: 6 + way.length - 1 });
+    if (S(T).phase !== 'reveal' || S(T).result.winners[0] !== T.host) return false;
+    must(T, T.host, 'nextRound', { round: 1 });
+    must(T, T.ids[1], 'send', { round: 2, steps: [[0, '+', 1], [6, '+', 2]], pick: 7 });
+    runClock(T, (r) => r.shared.phase !== 'play');
+    if (S(T).phase !== 'reveal' || S(T).result.winners[0] !== T.ids[1]) return false;
+    must(T, T.host, 'nextRound', { round: 2 });
+    must(T, T.host, 'finish', { round: 3 });
     if (S(T).phase !== 'gameover') return false;
     must(T, T.host, 'playAgain', {});
-    must(T, T.ids[1], 'tap', { round: 1 });
+    must(T, T.ids[3], 'send', { round: 1, steps: [], pick: 0 });
+    runClock(T, (r) => r.shared.phase === 'reveal');
+    must(T, T.host, 'nextRound', { round: 1 });
+    runClock(T, (r) => r.shared.phase === 'reveal');
+    must(T, T.host, 'nextRound', { round: 2 });
     runClock(T, (r) => r.shared.phase === 'gameover');
     return S(T).phase === 'gameover';
   },

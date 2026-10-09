@@ -34,7 +34,8 @@ const DAILY_GAMES = [
   { id: 'nonogram',  start: () => startNonogram(true),  line: (r) => `✅ ${soloTime(r.seconds)}${dailyHints(r)}` },
   { id: 'mines',     start: () => startMines(true),     line: (r) => r.lost ? '💥' : `✅ ${soloTime(r.seconds)}` },
   { id: 'minigolf',  since: '2026-09-24', start: () => startMiniGolf(true),  line: (r) => `${r.strokes <= r.par ? '🟢 ' : ''}⛳ ${r.strokes} · 🎯 ${r.par}` },
-  { id: 'chesspuzzle', since: '2026-09-24', start: () => chPzStartDaily(),  line: (r) => !r || !r.solved ? '♟️ ❌' : r.hint ? '♟️ 💡' : r.tries > 1 ? '♟️ ✅ ' + r.tries : '♟️ ✅' }
+  { id: 'chesspuzzle', since: '2026-09-24', start: () => chPzStartDaily(),  line: (r) => !r || !r.solved ? '♟️ ❌' : r.hint ? '♟️ 💡' : r.tries > 1 ? '♟️ ✅ ' + r.tries : '♟️ ✅' },
+  { id: 'hesba',     since: '2026-10-09', start: () => startHesba(true),   line: (r) => (r.off === 0 ? `✅ ${soloTime(r.seconds)}` : `🎯 ±${r.off}`) }
 ];
 
 let soloHubReturn = false;
@@ -608,6 +609,14 @@ const STATS_SOLO_GAMES = [
       { key: 'dist:hard', label: 'stats_dist_hard' }
     ],
     format: (b) => (b && typeof b.guesses === 'number') ? `${b.guesses}` : '—'
+  },
+  {
+    // حسبة: a run's score (JS_Hesba.html).
+    id: 'hesba',
+    title: 'setup_hesba',
+    icon: '➗',
+    levels: [{ key: 'easy', label: 'solo_lvl_easy' }, { key: 'hard', label: 'solo_lvl_hard' }],
+    format: (b) => (b && typeof b.score === 'number') ? String(b.score) : '—'
   },
   {
     // Chess: your rating against the computer (kept with the game's own state, not as a best).

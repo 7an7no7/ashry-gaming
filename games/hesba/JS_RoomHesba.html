@@ -1,98 +1,437 @@
 <script>
 /* ============================================================================
-   حسبة — Numbers in rooms: the phones and the TV (made by
-   tools/new-game.mjs, 2026-10-09). The rules are ROOM_RULES.hesba in RoomHesba.js.
-   A phone sees its own secret number (state.you.target), taps «+1» and says
-   «خلصت»; the TV shows who has finished, then the result on a podium.
+   حسبة — Numbers in rooms: the phones and the TV. The rules are
+   ROOM_RULES.hesba in RoomHesba.js; the board and the look JS_HesbaLook.html.
+   ----------------------------------------------------------------------------
+   Every phone gets the same numbers and target and works its own board
+   (kept in appState.hesbaRoom for this deal and round, so a reload comes
+   back to it). «ابعت N» sends the steps of the closest number made; the
+   server replays them and keeps each player's closest. A tile that hits the
+   target is sent at once - the first exact answer takes the round. At the
+   phone's 0:00 its closest is sent by itself if it beats what it sent.
+   The result: who took the round, the way (a ladder of small tiles), the
+   rounds won; the host's «الجولة الجاية». The TV: the target, the numbers,
+   the clock and everyone's number as it comes in.
    ========================================================================= */
 
-/** The words, in the language of the app. */
-const hesbaT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+let hesbaRoomClock = null;
+let hesbaRoomAutoSent = '';
 
-function hesbaTap() { haptic('light'); roomAct('tap', { round: (Room.state.shared || {}).round }); }
-function hesbaDone() { haptic('medium'); roomAct('done', { round: (Room.state.shared || {}).round }); }
-function hesbaFinish() { roomAct('finish', { round: (Room.state.shared || {}).round }); }
+function hesbaRoomStopClock() {
+  if (hesbaRoomClock) hesbaRoomClock.stop();
+  hesbaRoomClock = null;
+}
+onRoomClocksReset(hesbaRoomStopClock);
 
-/** The result's rows: each name, where they stopped and their number. */
-function hesbaResultRows(s, t) {
-  return (s.board || []).map(r => `
-    <div class="row"><span>${escapeHTML(r.name)}</span><span class="metric">${ltrFrac(r.count, r.target)}</span></div>`).join('');
+/** This deal and round's board on this phone (a new one for a new round). */
+function hesbaRoomBoard(state) {
+  const s = state.shared || {};
+  const key = [state.code, s.dealId || '', s.round].join('|');
+  const keep = appState.hesbaRoom;
+  if (!keep || keep.key !== key || !keep.b || keep.b.nums.join() !== (s.nums || []).join()) {
+    appState.hesbaRoom = { key, b: hxBoardNew(s.nums || []) };
+    saveToLocal();
+  }
+  return appState.hesbaRoom.b;
+}
+
+const hesbaRoomName = (state, pid) => ((state.players || []).find(p => p.id === pid) || {}).name || '';
+const hesbaRoomMine = (state) => ((state.shared || {}).sent || {})[Room.me] || null;
+const hesbaClockLeft = (s) => Math.max(0, Math.ceil(((s.endsAt || 0) - roomServerNow()) / 1000));
+
+/* --- the phone's taps ---------------------------------------------------------------- */
+
+function hesbaRTap(k) {
+  const state = Room.state;
+  const s = (state && state.shared) || {};
+  if (s.phase !== 'play' || (s.roster || []).indexOf(Room.me) === -1 || hesbaClockLeft(s) <= 0) return;
+  const b = hesbaRoomBoard(state);
+  const el = document.getElementById('view-room-hesba');
+  const before = hxRects(el);
+  const pool = hxPool(b);
+  const fromVal = b.slots[k] === null ? 0 : pool[b.slots[k]];
+  const r = hxTap(b, k);
+  if (r === 'bad') {
+    haptic('error');
+    showToast(hxT().hesba_bad_step || '', 'error');
+    hxShake(el && el.querySelector(`.hxa-tile[data-slot="${k}"]`));
+    return;
+  }
+  if (!r) return;
+  saveToLocal();
+  if (r === 'sel') { hesbaRoomPaint(state, true); return; }
+  haptic('light');
+  const v = hxPool(b)[r.merged];
+  hesbaRoomPaint(state, true, { fresh: true, hit: v === s.target });
+  hxMergeFx(el, before, r, { from: fromVal });
+  if (v === s.target) {
+    const tile = el.querySelector(`.hxa-tile[data-slot="${r.si}"]`);
+    hxHitFx(el, tile ? tile.getBoundingClientRect() : null);
+    playSound('success');
+    haptic('double');
+    hesbaRSend();
+  }
+}
+
+function hesbaROp(op) {
+  const state = Room.state;
+  if (!state || ((state.shared || {}).phase !== 'play')) return;
+  const b = hesbaRoomBoard(state);
+  if (!hxOp(b, op)) { showToast(hxT().hesba_trail_empty || '', 'info'); return; }
+  hesbaRoomPaint(state, true);
+}
+
+function hesbaRUndo() {
+  const state = Room.state;
+  if (!state || ((state.shared || {}).phase !== 'play')) return;
+  if (hxUndo(hesbaRoomBoard(state))) { saveToLocal(); hesbaRoomPaint(state, true); }
+}
+
+function hesbaRReset() {
+  const state = Room.state;
+  if (!state || ((state.shared || {}).phase !== 'play')) return;
+  const b = hesbaRoomBoard(state);
+  if (!b.steps.length) return;
+  hxReset(b);
+  saveToLocal();
+  hesbaRoomPaint(state, true);
+}
+
+/** Sends the steps of the closest number on this board, when it beats what was sent. */
+function hesbaRSend() {
+  const state = Room.state;
+  const s = (state && state.shared) || {};
+  if (s.phase !== 'play') return;
+  const b = hesbaRoomBoard(state);
+  const best = hxBest(b, s.target);
+  const mine = hesbaRoomMine(state);
+  if (mine && mine.d <= best.d) return;
+  // Only the steps that made it: the rest of the board stays this phone's own.
+  const steps = hesbaRStepsTo(b, best.at);
+  roomAct('send', { round: s.round, steps: steps.steps, pick: steps.pick });
+}
+
+/** The steps a number needs, renumbered to a pool of their own: what the server replays. */
+function hesbaRStepsTo(b, at) {
+  const n = b.nums.length;
+  const need = [];
+  const walk = (p) => { if (p < n || need.indexOf(p - n) !== -1) return; walk(b.steps[p - n][0]); walk(b.steps[p - n][2]); need.push(p - n); };
+  walk(at);
+  need.sort((x, y) => x - y);
+  const place = {};
+  for (let i = 0; i < n; i++) place[i] = i;
+  need.forEach((k, q) => { place[n + k] = n + q; });
+  return { steps: need.map(k => [place[b.steps[k][0]], b.steps[k][1], place[b.steps[k][2]]]), pick: place[at] };
+}
+
+function hesbaRFinish() { roomAct('finish', { round: (Room.state.shared || {}).round }); }
+function hesbaRNext() { roomAct('nextRound', { round: (Room.state.shared || {}).round }); }
+
+/* --- the clock: the server's time, and the closest sent at 0:00 ------------------------- */
+
+function hesbaRoomArmClock(state) {
+  const s = state.shared || {};
+  const key = [state.code, s.dealId, s.round].join('|');
+  if (hesbaRoomClock && hesbaRoomClock.key === key) return;
+  hesbaRoomStopClock();
+  if (s.phase !== 'play' || !s.endsAt) return;
+  const paint = () => {
+    const st = Room.state;
+    const sh = (st && st.shared) || {};
+    if (!st || st.game !== 'hesba' || sh.phase !== 'play' || [st.code, sh.dealId, sh.round].join('|') !== key) { hesbaRoomStopClock(); return; }
+    const left = hesbaClockLeft(sh);
+    const el = document.getElementById('hx-rclock');
+    if (el) { el.textContent = soloTime(left); el.classList.toggle('is-low', left <= 10); }
+    if (left <= 0) {
+      if (hesbaRoomAutoSent !== key && (sh.roster || []).indexOf(Room.me) !== -1) { hesbaRoomAutoSent = key; hesbaRSend(); }
+      hesbaRoomStopClock();
+      if (appState.currentView === 'room-hesba') hesbaRoomPaint(st, true);   // the board locks at 0:00
+    }
+  };
+  hesbaRoomClock = createClock({ countUp: true, onTick: paint });
+  hesbaRoomClock.key = key;
+  paint();
+}
+
+/* --- drawing ---------------------------------------------------------------------------- */
+
+/** "بعتوا 3 من 6 · أقرب حد على بعد 2", with everyone else's face. */
+function hesbaRoomStripHtml(state) {
+  const s = state.shared || {};
+  const t = hxT();
+  const sent = s.sent || {};
+  const ids = (s.roster || []);
+  const n = ids.filter(id => sent[id]).length;
+  const ds = ids.filter(id => sent[id]).map(id => sent[id].d);
+  const near = ds.length ? Math.min.apply(null, ds) : null;
+  const txt = hxFill(t.hesba_sent_count, { n, m: ids.length }) + (near !== null ? ' · ' + hxFill(t.hesba_closest_now, { d: near }) : '');
+  return `<div class="hx-strip"><span class="hx-strip__faces">${ids.filter(id => id !== Room.me).slice(0, 8).map(id => `<span class="hx-strip__f${sent[id] ? ' is-sent' : ''}">${hxFace(state, id)}</span>`).join('')}</span><span class="hx-strip__txt">${escapeHTML(txt)}</span></div>`;
+}
+
+/** Everyone in the round and what they sent: a phone that watches, and the TV. */
+function hesbaPeopleHtml(state, lg) {
+  const s = state.shared || {};
+  const t = hxT();
+  const sent = s.sent || {};
+  return `<div class="hxa-people">${(s.roster || []).map(id => {
+    const x = sent[id];
+    const line = !x ? escapeHTML(t.hesba_working || '') : x.d === 0
+      ? escapeHTML(hxFill(t.hesba_sent_exact, { v: x.v }))
+      : `<span class="metric">${x.v}</span> · ${escapeHTML(hxFill(t.hesba_puzzle_miss, { d: x.d }))}`;
+    return `<div class="hxa-person${x ? ' is-sent' : ''}${x && x.d === 0 ? ' is-exact' : ''}">${hxFace(state, id, lg ? 'hx-face--lg' : '')}<b><bdi>${escapeHTML(hesbaRoomName(state, id))}</bdi></b><span>${line}</span></div>`;
+  }).join('')}</div>`;
+}
+
+/** The round's play on a phone in it (its own board), or one that watches. */
+function hesbaRoomPaint(state, force, fx) {
+  const el = document.getElementById('view-room-hesba');
+  if (!el) return;
+  hxStyle();
+  const s = state.shared || {};
+  const t = hxT();
+  const inRound = (s.roster || []).indexOf(Room.me) !== -1;
+  const sig = ['hx-play', s.dealId, s.round, JSON.stringify(s.sent || {}), (s.roster || []).join(), state.youAreHost, !!state.hostAway, appState.lang,
+    (state.players || []).map(p => p.id + (p.face ? '1' : '0')).join()].join('|');
+  if (!force && el.dataset.hxSig === sig) return;
+  el.dataset.hxSig = sig;
+  el.dataset.sig = '';
+  const host = roomMoveOnHtml(state, `<div class="btn-row" style="justify-content:center"><button type="button" class="btn btn--ghost btn--sm btn--auto" onclick="hesbaRFinish()">${escapeHTML(t.hesba_finish || '')}</button></div>`);
+  const clock = hxMetaHtml(t.hesba_time || '', soloTime(hesbaClockLeft(s)), 'hx-rclock');
+  const round = `<span class="hx-eyebrow">${escapeHTML(hxFill(t.hesba_round_of, { n: s.round, m: s.rounds }))}</span>`;
+  if (!inRound) {
+    el.innerHTML = `
+      <div class="hx hxa hx-end">
+        <div class="hxa-top">${hxTargetHtml(s.target, false)}<div class="hxa-meta">${clock}<div class="hxa-stat">${round}</div></div></div>
+        <div class="hx-nums">${(s.nums || []).map(v => `<span class="hxa-tile ${hxLenCls(v)}"><span class="metric">${v}</span></span>`).join('')}</div>
+        <p class="hx-watch">${escapeHTML(t.vote_spectating || '')}</p>
+        ${hesbaPeopleHtml(state)}
+        ${host}
+        ${renderRoomPlayerStrip(state)}
+      </div>`;
+    return;
+  }
+  const b = hesbaRoomBoard(state);
+  const best = hxBest(b, s.target);
+  const mine = hesbaRoomMine(state);
+  const hit = (fx && fx.hit) || (mine && mine.d === 0) || best.d === 0;
+  const over = hesbaClockLeft(s) <= 0;
+  const better = !mine || best.d < mine.d;
+  const primary = hit
+    ? `<button type="button" class="btn btn--success" disabled>✓ ${escapeHTML(t.hesba_exact_btn || '')}</button>`
+    : better && !over
+      ? `<button type="button" class="btn btn--primary" onclick="hesbaRSend()">${escapeHTML(t.hesba_send || '')} <b class="metric">${best.v}</b></button>`
+      : `<button type="button" class="btn btn--primary" disabled>${escapeHTML(hxFill(t.hesba_you_sent, { v: mine ? mine.v : best.v }))}</button>`;
+  const lock = hit || over;
+  el.innerHTML = `
+    <div class="hx hxa">
+      <div class="hxa-top">
+        ${hxTargetHtml(s.target, hit)}
+        <div class="hxa-meta">${clock}${hxMetaHtml(t.hesba_closest || '', best.v)}</div>
+      </div>
+      ${hxTilesHtml(b, { tap: 'hesbaRTap', off: lock })}
+      ${hxOpsHtml(b, { op: 'hesbaROp', off: lock })}
+      ${hxTrailHtml(b, fx && fx.fresh)}
+      ${hesbaRoomStripHtml(state)}
+      <div class="hx-actions">
+        <button type="button" class="btn btn--neutral hx-undo" onclick="hesbaRUndo()" aria-label="${escapeHTML(t.hesba_undo || '')}" title="${escapeHTML(t.hesba_undo || '')}" ${b.steps.length && !lock ? '' : 'disabled'}>↶</button>
+        <button type="button" class="btn btn--ghost" onclick="hesbaRReset()" ${b.steps.length && !lock ? '' : 'disabled'}>${escapeHTML(t.hesba_reset || '')}</button>
+        ${primary}
+      </div>
+      ${host}
+    </div>`;
+}
+
+/** The winner's banner of a round: exact, the closest (or several), or nobody. */
+function hesbaWinHtml(state, big) {
+  const s = state.shared || {};
+  const r = s.result || {};
+  const t = hxT();
+  const w = r.winners || [];
+  if (!w.length) {
+    return `<div class="hxa-win is-none"><span class="hxa-win__big" aria-hidden="true">🤷</span><div><span class="hx-eyebrow">${escapeHTML(hxFill(t.hesba_round_of, { n: s.round, m: s.rounds }))}</span><b class="hxa-win__name">${escapeHTML(t.hesba_nobody || '')}</b><span class="hxa-win__sub">${escapeHTML(t.hesba_nobody_sub || '')}</span></div></div>`;
+  }
+  const names = w.map(id => hesbaRoomName(state, id)).filter(Boolean);
+  const x = (s.sent || {})[w[0]] || {};
+  const sub = r.exact
+    ? hxFill(t.hesba_exact_in, { t: soloTime((r.at || 0) / 1000) }) + ` · ${t.hesba_target || ''} ${s.target}`
+    : hxFill(t.hesba_near_line, { v: x.v, d: r.off });
+  return `<div class="hxa-win${r.exact ? '' : ' is-near'}">
+      <span class="hxa-win__faces">${w.slice(0, 3).map(id => hxFace(state, id, big ? 'hx-face--xl' : 'hx-face--lg')).join('')}</span>
+      <div><span class="hx-eyebrow">${escapeHTML(w.length > 1 ? t.hesba_round_shared : t.hesba_round_to)}</span><b class="hxa-win__name">${names.map(n => `<bdi>${escapeHTML(n)}</bdi>`).join(' · ')}</b><span class="hxa-win__sub">${escapeHTML(sub)}</span></div>
+    </div>`;
+}
+
+function hesbaWayCardHtml(state) {
+  const s = state.shared || {};
+  const r = s.result || {};
+  const t = hxT();
+  const title = r.wayOf ? hxFill(escapeHTML(t.hesba_way_of || ''), { name: '<bdi>' + escapeHTML(hesbaRoomName(state, r.wayOf)) + '</bdi>' }) : escapeHTML(t.hesba_one_way || '');
+  return `<div class="hx-card hx-way"><div class="hx-card__title">${title} · <span class="metric">${s.target}</span></div>${hxLadderHtml(r.way || [], [state.code, s.dealId, s.round].join('|'))}</div>`;
+}
+
+/** Rounds won so far, best first, with what each sent this round. */
+function hesbaBoardHtml(state) {
+  const s = state.shared || {};
+  const t = hxT();
+  const rows = (s.board || []).slice(0, 8);
+  return `<div class="hx-card hx-board"><div class="hx-card__title">${escapeHTML(hxFill(t.hesba_rounds_won, { n: s.round, m: s.rounds }))}</div>
+    ${rows.map((p, i) => {
+      const x = (s.sent || {})[p.id];
+      const note = !x ? t.hesba_no_answer : x.d === 0 ? hxFill(t.hesba_sent_exact, { v: x.v }) : hxFill(t.hesba_sent_line, { v: x.v, d: x.d });
+      return `<div class="hx-board__row${i === 0 && p.score > 0 ? ' is-top' : ''}" data-pid="${escapeHTML(p.id)}"><span class="metric hx-board__n">${i + 1}</span>${hxFace(state, p.id)}<b><bdi>${escapeHTML(p.name || '')}</bdi></b><span class="hx-board__note">${escapeHTML(note || '')}</span><span class="metric hx-board__s">${p.score}</span></div>`;
+    }).join('')}</div>`;
 }
 
 ROOM_GAMES.hesba = {
-  lobbyOptions() {
-    return `<p class="field__hint" style="text-align:center">${escapeHTML(hesbaT().hesba_lobby_hint)}</p>`;
+  lobbyOptions(state) {
+    const t = hxT();
+    const hint = `<p class="field__hint" style="text-align:center">${escapeHTML(t.hesba_lobby_hint || '')}</p>`;
+    if (!state.youAreHost) return hint;
+    const o = hesbaRoomOpts();
+    const chip = (on, label, click) => `<button type="button" class="chip ${on ? 'is-active' : ''}" aria-pressed="${on}" onclick="${click}">${escapeHTML(String(label))}</button>`;
+    return `
+      <div class="card card--tight">
+        <div class="field"><span class="field__label">${escapeHTML(t.hesba_level || '')}</span><div class="chip-set">
+          ${chip(o.level === 'easy', t.hesba_lvl_easy, "hesbaSetOpt({ level: 'easy' })")}${chip(o.level === 'hard', t.hesba_lvl_hard, "hesbaSetOpt({ level: 'hard' })")}</div>
+          <p class="field__hint">${escapeHTML(o.level === 'hard' ? t.hesba_lvl_hard_n : t.hesba_lvl_easy_n)}</p></div>
+        <div class="field"><span class="field__label">${escapeHTML(t.hesba_secs || '')}</span><div class="chip-set">
+          ${[30, 60, 90].map(n => chip(o.secs === n, soloTime(n), `hesbaSetOpt({ secs: ${n} })`)).join('')}</div></div>
+        <div class="field"><span class="field__label">${escapeHTML(t.hesba_rounds || '')}</span><div class="chip-set">
+          ${[3, 5, 7].map(n => chip(o.rounds === n, n, `hesbaSetOpt({ rounds: ${n} })`)).join('')}</div></div>
+        ${hint}
+      </div>`;
   },
-  startPayload() { return {}; },
+  startPayload() { const o = hesbaRoomOpts(); return { level: o.level, secs: o.secs, rounds: o.rounds }; },
 
   render(state) {
     if (appState.currentView !== 'room-hesba') setView('room-hesba');
     const el = document.getElementById('view-room-hesba');
     if (!el) return;
-    const t = hesbaT();
+    hxStyle();
+    const t = hxT();
     const s = state.shared || {};
-
-    if (s.phase === 'gameover') {
-      const fresh = renderRoomFrame(el, ['hesba-over', state.youAreHost, appState.lang].join('|'), () => `
-        <div class="card" style="text-align:center">
-          <div class="card__title">${escapeHTML(t.hesba_result)}</div>
-          ${renderPodium(state, s.board) || `<div class="metric metric--md">🏆 ${escapeHTML(((s.board || [])[0] || {}).name || '')}</div>`}
-          ${hesbaResultRows(s, t)}
-        </div>
-        ${state.youAreHost
-          ? `<div class="btn-stack">
-               <button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(t.play_again || '')}</button>
-               <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button>
-             </div>`
-          : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`}
-        ${renderRoomPlayerStrip(state)}`);
-      if (fresh) afterReveal(el, () => { if (typeof confetti === 'function') confetti({ particleCount: 80, spread: 70 }); });
-      refreshRoomPlayerStrip(el, state);
+    if (s.phase === 'play') {
+      hesbaRoomPaint(state);
+      hesbaRoomArmClock(state);
       return;
     }
-
-    const inRound = (s.roster || []).indexOf(Room.me) !== -1;
-    const done = (s.done || []).indexOf(Room.me) !== -1;
-    const count = (s.counts || {})[Room.me] || 0;
-    renderRoomFrame(el, ['hesba-play', s.round, inRound, done, count, state.youAreHost, appState.lang].join('|'), () => `
-      <div class="card" style="text-align:center">
-        ${inRound ? `
-          <p class="sheet__subtitle">${escapeHTML(t.hesba_your_number)}</p>
-          <div class="metric metric--lg">${(state.you || {}).target || '?'}</div>
-          <div class="metric metric--md">${count}</div>
-          ${done ? `<p class="sheet__subtitle">${escapeHTML(t.hesba_wait)}</p>` : `
-            <div class="btn-stack">
-              <button class="btn btn--primary btn--lg" onclick="hesbaTap()">${escapeHTML(t.hesba_tap)}</button>
-              <button class="btn btn--secondary" onclick="hesbaDone()">${escapeHTML(t.hesba_done)}</button>
-            </div>`}` : `<p class="sheet__subtitle">${escapeHTML(t.vote_spectating || '')}</p>`}
-      </div>
-      ${roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--ghost btn--sm" onclick="hesbaFinish()">${escapeHTML(t.hesba_finish)}</button></div>`)}
-      ${renderRoomPlayerStrip(state)}`);
+    hesbaRoomStopClock();
+    el.dataset.hxSig = '';
+    const over = s.phase === 'gameover';
+    const host = over
+      ? (state.youAreHost
+        ? `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="roomAct('playAgain')">${escapeHTML(t.play_again || '')}</button>
+             <button class="btn btn--ghost" onclick="roomAct('backToHub')">${escapeHTML(t.room_another_game || '')}</button></div>`
+        : `<div class="waiting-note">${escapeHTML(t.room_wait_host || '')}</div>`)
+      : roomMoveOnHtml(state, `<div class="btn-stack"><button class="btn btn--primary btn--lg" onclick="hesbaRNext()">${escapeHTML(t.hesba_next || '')}</button></div>`,
+        `<div class="waiting-note">${escapeHTML(t.hesba_wait_next || '')}</div>`);
+    const fresh = renderRoomFrame(el, ['hx-end', s.phase, s.round, state.youAreHost, !!state.hostAway, appState.lang, (state.players || []).map(p => p.face ? 1 : 0).join('')].join('|'), () => `
+      <div class="hx hxa hx-end">
+        ${over ? (renderPodium(state, s.board) || '') : ''}
+        ${hesbaWinHtml(state)}
+        ${hesbaWayCardHtml(state)}
+        ${hesbaBoardHtml(state)}
+        ${host}
+        ${renderRoomPlayerStrip(state)}
+      </div>`);
+    if (fresh) {
+      const r = s.result || {};
+      const mineWon = (r.winners || []).indexOf(Room.me) !== -1;
+      if (mineWon) { playSound('success'); afterReveal(el, () => { if (typeof confetti === 'function') confetti({ particleCount: 90, spread: 70, origin: { y: 0.4 } }); }); }
+      else if (over) afterReveal(el, () => { if (typeof confetti === 'function') confetti({ particleCount: 70, spread: 70 }); });
+      if (typeof animateScoreboards === 'function') animateScoreboards(el);
+    }
     refreshRoomPlayerStrip(el, state);
   }
 };
 
+/* The host's choices, remembered on their phone (a latecomer joining doesn't reset them). */
+const HESBA_OPTS_KEY = 'hesbaRoom';
+function hesbaRoomOpts() {
+  const o = recallOptions(HESBA_OPTS_KEY, { level: 'easy', secs: 60, rounds: 5 });
+  return { level: o.level === 'hard' ? 'hard' : 'easy', secs: [30, 60, 90].indexOf(Number(o.secs)) !== -1 ? Number(o.secs) : 60, rounds: [3, 5, 7].indexOf(Number(o.rounds)) !== -1 ? Number(o.rounds) : 5 };
+}
+function hesbaSetOpt(patch) {
+  rememberOptions(HESBA_OPTS_KEY, patch);
+  const setup = document.getElementById('room-host-setup');
+  if (setup) delete setup.dataset.sig;
+  if (Room.state) routeRoomState(Room.state);
+}
+
+/* The TV's clock: the server's endsAt, read by the server's time; the last five seconds tick. */
+let hesbaTvClock = null;
+function hesbaTvClockStop() { if (hesbaTvClock) hesbaTvClock.stop(); hesbaTvClock = null; }
+onRoomClocksReset(hesbaTvClockStop);
+function hesbaTvClockArm(s) {
+  if (s.phase !== 'play' || !s.endsAt) { hesbaTvClockStop(); return; }
+  const key = s.dealId + '|' + s.round;
+  const paint = () => {
+    const el = document.getElementById('hxtv-clock');
+    const left = hesbaClockLeft(s);
+    if (el) { el.textContent = soloTime(left); el.classList.toggle('is-low', left <= 10); }
+    return left;
+  };
+  paint();
+  if (hesbaTvClock && hesbaTvClock.key === key) return;
+  hesbaTvClockStop();
+  hesbaTvClock = createClock({ countUp: true, onTick: () => { const left = paint(); if (left > 0 && left <= 5) playSound('tick'); if (left <= 0) hesbaTvClockStop(); } });
+  hesbaTvClock.key = key;
+}
+
 TV_GAMES.hesba = {
-  sig: (state) => [state.shared.phase, (state.shared.done || []).length, (state.shared.roster || []).length].join('|'),
-  frame(state, t) {
-    const s = state.shared;
-    t = hesbaT();
-    const host = (html) => (state.youAreHost ? `<div class="tv-actions">${html}</div>` : '');
-    if (s.phase === 'gameover') {
+  sig: (state) => {
+    const s = state.shared || {};
+    return [s.phase, s.round, JSON.stringify(s.sent || {}), (s.roster || []).join(), (state.players || []).map(p => p.face ? 1 : 0).join('')].join('|');
+  },
+  frame(state) {
+    hxStyle();
+    const s = state.shared || {};
+    const t = hxT();
+    const host = (html) => (state.youAreHost ? `<div class="hxtv-actions">${html}</div>` : '');
+    if (s.phase === 'play') {
       return `
-        <div class="tv-vote">
-          <div class="tv-title tv-center-text">${escapeHTML(t.hesba_result)}</div>
-          ${renderPodium(state, s.board)}
-          ${host(tvBtn(t.play_again, "roomAct('playAgain')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+        <div class="hxtv" data-accent="amber">
+          <div class="hxtv-top"><span class="hxtv-pill">➗ ${escapeHTML(hxFill(t.hesba_round_of, { n: s.round, m: s.rounds }))}</span><span class="hxtv-clock metric" id="hxtv-clock">${soloTime(hesbaClockLeft(s))}</span></div>
+          <div class="hxtv-stage">
+            ${hxTargetHtml(s.target, false)}
+            <div class="hxtv-nums">${(s.nums || []).map(v => `<span class="hxa-tile ${hxLenCls(v)}"><span class="metric">${v}</span></span>`).join('')}</div>
+          </div>
+          ${hesbaPeopleHtml(state, true)}
+          <p class="hxtv-how">${escapeHTML(t.hesba_tv_how || '')}</p>
+          ${roomMoveOnHtml(state, `<div class="hxtv-actions">${tvBtn(t.hesba_finish, 'hesbaRFinish()', 'ghost')}</div>`)}
+        </div>`;
+    }
+    const over = s.phase === 'gameover';
+    if (over) {
+      // The end: the podium on one side; the last round, its way and the board on the other.
+      return `
+        <div class="hxtv hxtv-over" data-accent="amber">
+          <div class="hxtv-over__podium">${renderPodium(state, s.board) || hesbaBoardHtml(state)}</div>
+          <div class="hx hxa hx-end">
+            ${hesbaWinHtml(state)}
+            ${hesbaWayCardHtml(state)}
+            ${hesbaBoardHtml(state)}
+            ${host(tvBtn(t.play_again, "roomAct('playAgain')") + tvBtn(t.room_another_game, "roomAct('backToHub')", 'ghost'))}
+          </div>
         </div>`;
     }
     return `
-      <div class="tv-center">
-        <div class="tv-big-icon" aria-hidden="true">🧮</div>
-        <div class="tv-title">${escapeHTML(t.hesba_tv_wait)}</div>
-        ${tvWaitChips(state, s.roster || [], s.done || [])}
-        ${roomMoveOnHtml(state, `<div class="tv-actions">${tvBtn(t.hesba_finish, 'hesbaFinish()', 'ghost')}</div>`)}
+      <div class="hxtv hxtv-end" data-accent="amber">
+        <div class="hx hxa hx-end">
+          ${hesbaWinHtml(state, true)}
+          ${hesbaWayCardHtml(state)}
+          ${hesbaBoardHtml(state)}
+          ${roomMoveOnHtml(state, `<div class="hxtv-actions">${tvBtn(t.hesba_next, 'hesbaRNext()')}</div>`)}
+        </div>
       </div>`;
+  },
+  after(state, rebuilt) {
+    const s = state.shared || {};
+    hesbaTvClockArm(s);
+    if (rebuilt && s.phase !== 'play') {
+      const el = document.getElementById('view-room-tv');
+      if ((s.result || {}).winners && s.result.winners.length) afterReveal(el, () => { playSound('success'); if (typeof confetti === 'function') confetti({ particleCount: 90, spread: 80 }); });
+    }
   }
 };
 </script>

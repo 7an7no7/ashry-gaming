@@ -1,0 +1,399 @@
+<script>
+/* ============================================================================
+   حسبة — the look «اللوح» (look أ of the owner's sheet, 9 Oct 2026) and the
+   board every way of playing shares (alone, the daily, a room)
+   ----------------------------------------------------------------------------
+   The board: the dealt numbers as tiles in slots. Tap a tile, an operation,
+   a second tile: the second flies into the first and the two merge into a
+   new tile (a dot marks a made one); ↶ takes the last step back. A board is
+   { nums, steps: [[i, op, j]], from: [{ si, sj, a, b }], slots, sel, op } -
+   `steps` are places in the pool (Hesba.js), what a room's phone sends and
+   the server replays; `slots` say which place each tile shows.
+
+   The styles are here (hxStyle, one <style> added the first time the game
+   draws), so they come with the game's chunk and cost the shell nothing;
+   every class is the game's own (hx-, hxa-). The exact way after a round is a
+   ladder of small tiles (hxLadderHtml): each rung's two tiles slide together
+   and the result pops, a rung after another.
+   ========================================================================= */
+
+const hxT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+const HX_OP_SIGN = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+const hxSign = (op) => HX_OP_SIGN[op] || op;
+const hxFill = (s, map) => String(s || '').replace(/\{(\w+)\}/g, (m, k) => (map && map[k] !== undefined ? map[k] : m));
+const hxLenCls = (v) => { const l = String(v).length; return l <= 2 ? 'is-l2' : l === 3 ? 'is-l3' : l === 4 ? 'is-l4' : 'is-l5'; };
+const hxMotion = () => !(typeof motionOff === 'function' && motionOff());
+
+/* --- the board ------------------------------------------------------------------ */
+
+function hxBoardNew(nums) {
+  return { nums: nums.slice(), steps: [], from: [], slots: nums.map((_, i) => i), sel: null, op: null };
+}
+
+/** The pool's values (the numbers, then each step's result). */
+function hxPool(b) {
+  return (typeof hesbaReplay === 'function' && hesbaReplay(b.nums, b.steps)) || b.nums.slice();
+}
+
+/** The closest value made or dealt so far: { at (its place), v, d }. */
+function hxBest(b, target) {
+  const pool = hxPool(b);
+  let best = { at: 0, v: pool[0], d: Math.abs(target - pool[0]) };
+  pool.forEach((v, at) => { const d = Math.abs(target - v); if (d < best.d || (d === best.d && at > best.at)) best = { at, v, d }; });
+  return best;
+}
+
+/**
+ * A tap on slot k. Returns what happened: '' (nothing), 'sel', 'bad' (a step that isn't
+ * whole), or { merged: newPlace, si, sj } when two tiles merged.
+ */
+function hxTap(b, k) {
+  if (b.slots[k] === null || b.slots[k] === undefined) return '';
+  if (b.sel === null) { b.sel = k; b.op = null; return 'sel'; }
+  if (b.sel === k) { b.sel = null; b.op = null; return 'sel'; }
+  if (!b.op) { b.sel = k; return 'sel'; }
+  const pool = hxPool(b);
+  const i = b.slots[b.sel], j = b.slots[k];
+  const ord = hesbaOrder(pool[i], b.op, pool[j]);
+  if (!ord) return 'bad';
+  const step = ord[2] ? [j, b.op, i] : [i, b.op, j];
+  const si = b.sel;
+  b.steps.push(step);
+  b.from.push({ si, sj: k, a: i, b: j });
+  const at = b.nums.length + b.steps.length - 1;
+  b.slots[si] = at;
+  b.slots[k] = null;
+  b.sel = null;
+  b.op = null;
+  return { merged: at, si, sj: k };
+}
+
+function hxOp(b, op) {
+  if (b.sel === null) return false;
+  b.op = b.op === op ? null : op;
+  return true;
+}
+
+function hxUndo(b) {
+  if (!b.steps.length) return false;
+  b.steps.pop();
+  const f = b.from.pop();
+  b.slots[f.si] = f.a;
+  b.slots[f.sj] = f.b;
+  b.sel = null;
+  b.op = null;
+  return true;
+}
+
+function hxReset(b) {
+  b.steps = []; b.from = []; b.slots = b.nums.map((_, i) => i); b.sel = null; b.op = null;
+}
+
+/* --- pieces of the look ------------------------------------------------------------ */
+
+/** The tiles. `o.hit`: the slot holding the target (it lifts away to the target card). */
+function hxTilesHtml(b, o) {
+  const pool = hxPool(b);
+  const n = b.nums.length;
+  return `<div class="hxa-board ${n <= 4 ? 'is-four' : ''}" role="group">${b.slots.map((at, k) => {
+    if (at === null) return `<span class="hxa-tile is-empty" data-slot="${k}" aria-hidden="true"></span>`;
+    const v = pool[at];
+    const made = at >= n;
+    return `<button type="button" class="hxa-tile ${hxLenCls(v)}${made ? ' is-new' : ''}${b.sel === k ? ' is-sel' : ''}" data-slot="${k}" onclick="${o.tap}(${k})" ${o.off ? 'disabled' : ''} aria-pressed="${b.sel === k}"><span class="metric">${v}</span>${made ? '<i class="hxa-tile__dot" aria-hidden="true"></i>' : ''}</button>`;
+  }).join('')}</div>`;
+}
+
+function hxOpsHtml(b, o) {
+  return `<div class="hxa-ops" role="group">${['+', '-', '*', '/'].map(op =>
+    `<button type="button" class="hxa-op${b.op === op ? ' is-on' : ''}" onclick="${o.op}('${op}')" aria-label="${hxSign(op)}" aria-pressed="${b.op === op}" ${o.off || b.sel === null ? 'disabled' : ''}>${hxSign(op)}</button>`).join('')}</div>`;
+}
+
+/** One step as text, left to right in every language: 100 + 6 = 106. */
+const hxEq = (s) => `<bdi class="metric hx-eq" dir="ltr">${s[0]} ${hxSign(s[1])} ${s[2]} = ${s[3]}</bdi>`;
+
+/** The steps made so far, as chips under the operations. */
+function hxTrailHtml(b, fresh) {
+  const t = hxT();
+  const pool = hxPool(b);
+  if (!b.steps.length) return `<div class="hxa-trail"><span class="hxa-trail__hint">${escapeHTML(t.hesba_trail_empty || '')}</span></div>`;
+  return `<div class="hxa-trail">${b.steps.map((st, k) => `<span class="hxa-chip${fresh && k === b.steps.length - 1 ? ' is-new' : ''}">${hxEq([pool[st[0]], st[1], pool[st[2]], pool[b.nums.length + k]])}</span>`).join('')}</div>`;
+}
+
+/** The target card (and, when it is hit, «بالظبط!» in the success colour). */
+function hxTargetHtml(target, hit) {
+  const t = hxT();
+  return `<div class="hxa-target${hit ? ' is-hit' : ''}" data-hx-target><span class="hx-eyebrow">${escapeHTML(hit ? t.hesba_exact_bang : t.hesba_target)}</span><b class="metric">${target}</b></div>`;
+}
+
+/** A small stat box beside the target: a label and a number (id: painted by a clock). */
+function hxMetaHtml(label, value, id, cls) {
+  return `<div class="hxa-stat ${cls || ''}"><span class="hx-eyebrow">${escapeHTML(label)}</span><b class="metric"${id ? ` id="${id}"` : ''}>${value}</b></div>`;
+}
+
+/**
+ * The exact way as a ladder of small tiles: [a] op [b] → [result], a rung a step.
+ * Played once per `key` (motionFirst): each rung's two tiles slide together and the result pops.
+ */
+function hxLadderHtml(way, key) {
+  const anim = hxMotion() && key && motionFirst('hx-ladder|' + key);
+  return `<div class="hxa-ladder${anim ? ' hx-anim' : ''}">${(way || []).map((s, i) => `
+    <div class="hxa-rung" dir="ltr" style="--i:${i}"><span class="hxa-mini hxa-mini--a">${s[0]}</span><span class="hxa-rung__op">${hxSign(s[1])}</span><span class="hxa-mini hxa-mini--b">${s[2]}</span><span class="hxa-rung__arrow" aria-hidden="true">→</span><span class="hxa-mini hxa-mini--r ${i === way.length - 1 ? 'is-goal' : 'is-made'}">${s[3]}</span></div>`).join('')}</div>`;
+}
+
+/* --- motion ------------------------------------------------------------------------ */
+
+/** Rects of the tiles by slot, read before a redraw (for the merge's flight). */
+function hxRects(root) {
+  const out = {};
+  (root || document).querySelectorAll('.hxa-tile[data-slot]').forEach(el => { out[el.dataset.slot] = el.getBoundingClientRect(); });
+  return out;
+}
+
+/** After a merge is drawn: a copy of the second tile flies into the first, then the new tile pops. */
+function hxMergeFx(root, before, m, value) {
+  const to = root && root.querySelector(`.hxa-tile[data-slot="${m.si}"]`);
+  if (!to || !hxMotion() || !document.body.animate) return;
+  const a = before[m.sj], b = before[m.si];
+  if (a && b) {
+    const ghost = document.createElement('div');
+    ghost.className = 'hxa-tile hx-ghost ' + hxLenCls(value.from);
+    ghost.innerHTML = `<span class="metric">${value.from}</span>`;
+    ghost.style.cssText = `left:${a.left}px;top:${a.top}px;width:${a.width}px;height:${a.height}px`;
+    const accent = root.closest('[data-accent]');
+    if (accent) ghost.setAttribute('data-accent', accent.getAttribute('data-accent'));
+    document.body.appendChild(ghost);
+    const dx = b.left - a.left, dy = b.top - a.top;
+    const anim = ghost.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 18}px) scale(1.06)`, opacity: 1, offset: 0.5 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.7)`, opacity: 0.4 }
+    ], { duration: 260, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'both' });
+    const done = () => { if (ghost.isConnected) ghost.remove(); };
+    anim.onfinish = done;
+    setTimeout(done, 700);
+  }
+  to.animate([{ transform: 'scale(.7)', opacity: 0.4 }, { transform: 'scale(1.12)', opacity: 1, offset: 0.6 }, { transform: 'scale(1)', opacity: 1 }],
+    { duration: 320, delay: a && b ? 200 : 0, easing: 'ease-out', fill: 'backwards' });
+}
+
+/** The target hit: the winning tile lifts into the target card, which bursts in the success colour. */
+function hxHitFx(root, fromRect) {
+  const target = root && root.querySelector('[data-hx-target]');
+  if (!target) return;
+  if (!hxMotion() || !document.body.animate) return;
+  if (fromRect) {
+    const b = target.getBoundingClientRect();
+    const ghost = document.createElement('div');
+    ghost.className = 'hxa-tile is-new hx-ghost is-l3';
+    ghost.innerHTML = `<span class="metric">${target.querySelector('b').textContent}</span>`;
+    ghost.style.cssText = `left:${fromRect.left}px;top:${fromRect.top}px;width:${fromRect.width}px;height:${fromRect.height}px`;
+    const accent = root.closest('[data-accent]');
+    if (accent) ghost.setAttribute('data-accent', accent.getAttribute('data-accent'));
+    document.body.appendChild(ghost);
+    const dx = (b.left + b.width / 2) - (fromRect.left + fromRect.width / 2);
+    const dy = (b.top + b.height / 2) - (fromRect.top + fromRect.height / 2);
+    const anim = ghost.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx * 0.55}px, ${dy * 0.55 - 30}px) scale(1.2)`, opacity: 1, offset: 0.55 },
+      { transform: `translate(${dx}px, ${dy}px) scale(.9)`, opacity: 0 }
+    ], { duration: 520, easing: 'cubic-bezier(.3,.7,.3,1)', fill: 'both' });
+    const done = () => { if (ghost.isConnected) ghost.remove(); };
+    anim.onfinish = done;
+    setTimeout(done, 1000);
+  }
+  target.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.1)', offset: 0.5 }, { transform: 'scale(1.04)' }],
+    { duration: 420, delay: fromRect ? 420 : 0, easing: 'ease-out', fill: 'backwards' });
+}
+
+/** A step that isn't whole: the tile shakes. */
+function hxShake(el) {
+  if (el && typeof soloShake === 'function') soloShake(el, 7);
+}
+
+/** A face for a player in a room: their drawn face, else the initial in a round bubble. */
+function hxFace(state, pid, cls) {
+  const p = ((state && state.players) || []).find(x => x.id === pid) || {};
+  const face = typeof roomFaceHtml === 'function' ? roomFaceHtml(p.face || '', false) : '';
+  const initial = escapeHTML(Array.from(String(p.name || '?').trim())[0] || '?');
+  return `<span class="hx-face ${cls || ''}" aria-hidden="true">${face || `<b>${initial}</b>`}</span>`;
+}
+
+/* --- the styles -------------------------------------------------------------------- */
+
+let hxStyled = false;
+function hxStyle() {
+  if (hxStyled || typeof document === 'undefined') return;
+  hxStyled = true;
+  const st = document.createElement('style');
+  st.id = 'hx-style';
+  st.textContent = `
+.hx { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-2) var(--sp-4) var(--sp-4); max-width: 30rem; margin: 0 auto; color: var(--text); }
+.hx .metric { font-family: var(--font-display); }
+.hx-eyebrow { font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--text-2); }
+.hx-eq { white-space: nowrap; font-weight: var(--fw-bold); }
+.hx-face { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; overflow: hidden; background: var(--accent-soft); color: var(--accent-ink); flex: none; font-size: var(--fs-sm); font-weight: var(--fw-black); }
+.hx-face svg { width: 100%; height: 100%; display: block; }
+.hx-face--lg { width: 2.75rem; height: 2.75rem; font-size: var(--fs-h2); }
+.hx-face--xl { width: 4rem; height: 4rem; font-size: var(--fs-display); }
+.hx-strip { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-solid); border: 1px solid var(--border); min-height: 2.75rem; }
+.hx-strip__faces { display: flex; flex: none; }
+.hx-strip__f { position: relative; margin-inline-start: -0.45rem; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface-solid); opacity: .55; }
+.hx-strip__f:first-child { margin-inline-start: 0; }
+.hx-strip__f.is-sent { opacity: 1; }
+.hx-strip__f.is-sent::after { content: '✓'; position: absolute; inset-block-end: -3px; inset-inline-end: -3px; width: .9rem; height: .9rem; border-radius: 50%; background: var(--success-btn); color: var(--success-on); font-size: 9px; font-weight: 900; display: grid; place-items: center; }
+.hx-strip__f .hx-face { width: 1.6rem; height: 1.6rem; }
+.hx-strip__txt { font-size: var(--fs-xs); color: var(--text-2); font-weight: var(--fw-semi); line-height: 1.3; }
+.hx-strip__hearts { letter-spacing: 1px; font-size: var(--fs-body); }
+.hx-strip__score { margin-inline-start: auto; font-size: var(--fs-sm); color: var(--text-2); font-weight: var(--fw-bold); white-space: nowrap; }
+.hx-strip__score b { font-size: var(--fs-h2); color: var(--accent-ink); }
+.hx-actions { display: flex; gap: var(--sp-2); }
+.hx-actions .btn { white-space: nowrap; width: auto; min-width: 0; padding-inline: var(--sp-3); }
+.hx-actions .hx-undo { flex: none; min-width: 3.25rem; font-size: 1.3rem; }
+.hx-actions .btn--primary { flex: 1.6 1 0; }
+.hx-actions .btn--ghost { flex: 1 1 0; }
+.hx-card { background: var(--surface-solid); border: 1px solid var(--border); border-radius: var(--r-xl); padding: var(--sp-3) var(--sp-4); box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.hx-card__title { font-size: var(--fs-sm); font-weight: var(--fw-black); color: var(--text-2); margin-bottom: var(--sp-2); }
+.hx-board__row { display: flex; align-items: center; gap: var(--sp-2); min-height: 2.5rem; border-top: 1px solid var(--border); }
+.hx-board__row:first-of-type { border-top: 0; }
+.hx-board__row b { font-size: var(--fs-body); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hx-board__n { width: 1.2rem; flex: none; color: var(--text-3); font-size: var(--fs-sm); }
+.hx-board__note { font-size: var(--fs-xs); color: var(--text-2); margin-inline-start: auto; white-space: nowrap; }
+.hx-board__s { font-size: var(--fs-h2); font-weight: 900; min-width: 1.5rem; text-align: end; }
+.hx-board__row.is-top .hx-board__s { color: var(--accent-ink); }
+.hx-ghost { position: fixed; z-index: var(--z-fx-ghost); pointer-events: none; margin: 0 !important; box-shadow: 0 18px 30px -10px rgba(0,0,0,.35) !important; }
+.hx-watch { text-align: center; color: var(--text-2); font-size: var(--fs-sm); font-weight: var(--fw-semi); }
+.hx-nums { display: flex; flex-wrap: wrap; gap: var(--sp-2); justify-content: center; }
+.hx-nums .hxa-tile { width: 3.6rem; aspect-ratio: 1.15; }
+.hx-nums .hxa-tile .metric { font-size: 1.35rem; }
+
+.hxa-top { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--sp-3); }
+.hxa-target { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--sp-3); border-radius: var(--r-xl); background: var(--accent); color: var(--accent-on); box-shadow: 0 12px 26px -14px var(--accent); min-height: 6.5rem; }
+.hxa-target .hx-eyebrow { color: var(--accent-on); opacity: .85; }
+.hxa-target b { font-size: 3.4rem; line-height: 1; font-weight: 900; }
+.hxa-target.is-hit { background: var(--success-btn); color: var(--success-on); box-shadow: 0 0 0 6px var(--success-soft), 0 14px 30px -12px var(--success); }
+.hxa-target.is-hit .hx-eyebrow { color: var(--success-on); }
+.hxa-meta { display: grid; gap: var(--sp-2); }
+.hxa-stat { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--accent-soft); }
+.hxa-stat b { font-size: var(--fs-h1); color: var(--accent-ink); }
+.hxa-stat b.is-low { color: var(--danger-ink); }
+.hxa-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-3); }
+.hxa-board.is-four { grid-template-columns: repeat(2, 1fr); }
+.hxa-board.is-four .hxa-tile { aspect-ratio: 1.9; }
+.hxa-tile { position: relative; aspect-ratio: 1.15; border-radius: 18px; border: 0; background: var(--surface-solid); color: var(--text); box-shadow: 0 4px 0 var(--border-strong), 0 6px 14px -8px rgba(0,0,0,.25); display: grid; place-items: center; font-weight: 900; padding: 0; cursor: pointer; transition: transform .14s ease, box-shadow .14s ease; }
+.hxa-tile .metric { font-size: 2.1rem; }
+.hxa-tile.is-l4 .metric { font-size: 1.7rem; }
+.hxa-tile.is-l5 .metric { font-size: 1.35rem; }
+.hxa-tile.is-new { background: var(--accent-soft); color: var(--accent-ink); box-shadow: 0 4px 0 var(--accent-border), 0 6px 14px -8px var(--accent); }
+.hxa-tile__dot { position: absolute; top: 8px; inset-inline-end: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.hxa-tile.is-sel { transform: translateY(-5px); outline: 3px solid var(--accent-ink); outline-offset: 2px; }
+.hxa-tile.is-empty { background: transparent; box-shadow: none; border: 2px dashed var(--border-field); opacity: .6; cursor: default; }
+.hxa-tile:disabled { cursor: default; }
+.hxa-ops { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3); }
+.hxa-op { height: 3.25rem; border-radius: 999px; border: 1.5px solid var(--border-field); background: var(--surface-solid); color: var(--text); font-size: 1.7rem; font-weight: 900; line-height: 1; padding: 0; }
+.hxa-op.is-on { background: var(--accent); color: var(--accent-on); border-color: transparent; }
+.hxa-op:disabled { opacity: .5; }
+.hxa-trail { display: flex; flex-wrap: wrap; gap: var(--sp-2); justify-content: center; min-height: 2rem; align-items: center; }
+.hxa-trail__hint { font-size: var(--fs-sm); color: var(--text-2); text-align: center; }
+.hxa-chip { display: inline-flex; align-items: center; min-height: 2rem; padding: 0 .7rem; border-radius: var(--r-sm); background: var(--surface-2); font-size: var(--fs-sm); color: var(--text-2); }
+.hxa-chip.is-new { background: var(--accent-soft); color: var(--accent-ink); }
+.hxa-win { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-4); border-radius: var(--r-xl); background: var(--success-btn); color: var(--success-on); }
+.hxa-win.is-near { background: var(--accent); color: var(--accent-on); }
+.hxa-win.is-none { background: var(--surface-3); color: var(--text); }
+.hxa-win .hx-eyebrow { color: inherit; opacity: .9; }
+.hxa-win > div { display: flex; flex-direction: column; min-width: 0; }
+.hxa-win__name { font-size: var(--fs-h1); font-weight: 900; font-family: var(--font-display); overflow-wrap: anywhere; }
+.hxa-win__sub { font-size: var(--fs-sm); }
+.hxa-win__faces { display: flex; flex: none; }
+.hxa-win__faces .hx-face + .hx-face { margin-inline-start: -0.8rem; box-shadow: 0 0 0 2px var(--success-btn); }
+.hxa-win__big { font-size: 2.6rem; line-height: 1; flex: none; }
+.hxa-ladder { display: grid; gap: var(--sp-2); }
+.hxa-rung { display: flex; align-items: center; gap: .4rem; justify-content: center; }
+.hxa-mini { min-width: 3.4rem; height: 2.4rem; padding: 0 .4rem; display: grid; place-items: center; border-radius: var(--r-sm); background: var(--surface-2); font-family: var(--font-display); font-weight: 900; font-size: var(--fs-h3); box-shadow: 0 2px 0 var(--border-strong); }
+.hxa-mini.is-made { background: var(--accent-soft); color: var(--accent-ink); }
+.hxa-mini.is-goal { background: var(--success-btn); color: var(--success-on); }
+.hxa-rung__op { font-weight: 900; font-size: var(--fs-h2); color: var(--text-2); width: 1rem; text-align: center; }
+.hxa-rung__arrow { color: var(--text-3); }
+@keyframes hx-rung-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes hx-mini-a { 0% { transform: none; } 45% { transform: translateX(10px) scale(.92); } 100% { transform: none; } }
+@keyframes hx-mini-b { 0% { transform: none; } 45% { transform: translateX(-10px) scale(.92); } 100% { transform: none; } }
+@keyframes hx-mini-r { 0% { opacity: 0; transform: scale(.5); } 60% { opacity: 1; transform: scale(1.15); } 100% { opacity: 1; transform: none; } }
+.hxa-ladder.hx-anim .hxa-rung { animation: hx-rung-in .3s ease-out both; animation-delay: calc(var(--i) * 420ms); }
+.hxa-ladder.hx-anim .hxa-mini--a { animation: hx-mini-a .4s ease-in-out both; animation-delay: calc(var(--i) * 420ms + 150ms); }
+.hxa-ladder.hx-anim .hxa-mini--b { animation: hx-mini-b .4s ease-in-out both; animation-delay: calc(var(--i) * 420ms + 150ms); }
+.hxa-ladder.hx-anim .hxa-mini--r { animation: hx-mini-r .36s ease-out both; animation-delay: calc(var(--i) * 420ms + 330ms); }
+.hx-end .btn-row, .hx-end .btn-stack { margin-top: var(--sp-1); }
+
+/* the room's people on a phone that watches, and on the TV */
+.hxa-people { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); gap: var(--sp-2); }
+.hxa-person { display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: var(--sp-2); border-radius: var(--r-lg); background: var(--surface-solid); border: 1px solid var(--border); text-align: center; opacity: .75; min-width: 0; }
+.hxa-person.is-sent { opacity: 1; border-color: var(--accent); box-shadow: inset 0 -4px 0 var(--accent); }
+.hxa-person.is-exact { border-color: var(--success); box-shadow: inset 0 -4px 0 var(--success); }
+.hxa-person b { font-size: var(--fs-sm); font-family: var(--font-display); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hxa-person > span:last-child { font-size: var(--fs-xs); color: var(--text-2); }
+
+/* sideways phone: the target and the steps on one side, the tiles and the buttons on the other */
+@media (orientation: landscape) and (max-height: 500px) {
+  .hx.hxa:not(.hx-end) { max-width: 46rem; display: grid; grid-template-columns: 1fr 1.15fr; column-gap: var(--sp-4); row-gap: var(--sp-2); padding-top: var(--sp-1); align-items: start; }
+  .hxa:not(.hx-end) > * { grid-column: 1; }
+  .hxa:not(.hx-end) > .hxa-board, .hxa:not(.hx-end) > .hxa-ops, .hxa:not(.hx-end) > .hx-actions { grid-column: 2; }
+  .hxa:not(.hx-end) > .hxa-board { grid-row: 1 / span 3; gap: var(--sp-2); }
+  .hxa:not(.hx-end) > .hxa-ops { grid-row: 4; }
+  .hxa:not(.hx-end) > .hx-actions { grid-row: 5; }
+  .hxa .hxa-target { min-height: 0; padding: var(--sp-2); }
+  .hxa .hxa-target b { font-size: 2.4rem; }
+  .hxa .hxa-tile { aspect-ratio: 1.9; border-radius: 14px; }
+  .hxa .hxa-tile .metric { font-size: 1.6rem; }
+  .hxa .hxa-board.is-four .hxa-tile { aspect-ratio: 2.4; }
+  .hxa .hxa-op { height: 2.75rem; }
+  .hxa .hxa-trail { justify-content: flex-start; }
+  .hx-end { max-width: 46rem; display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); align-items: start; }
+  .hx-end > * { grid-column: 1; }
+  .hx-end > .hx-card:not(.hx-way) { grid-column: 2; grid-row: 1 / span 3; }
+}
+/* a laptop or a TV-sized window: the same two columns, roomier */
+@media (min-width: 900px) and (min-height: 560px) {
+  .hx.hxa:not(.hx-end) { max-width: 52rem; display: grid; grid-template-columns: 1fr 1.2fr; column-gap: var(--sp-6); row-gap: var(--sp-3); align-items: start; }
+  .hxa:not(.hx-end) > * { grid-column: 1; }
+  .hxa:not(.hx-end) > .hxa-board, .hxa:not(.hx-end) > .hxa-ops, .hxa:not(.hx-end) > .hx-actions { grid-column: 2; }
+  .hxa:not(.hx-end) > .hxa-board { grid-row: 1 / span 3; }
+  .hxa:not(.hx-end) > .hxa-ops { grid-row: 4; }
+  .hxa:not(.hx-end) > .hx-actions { grid-row: 5; }
+  .hxa .hxa-board .hxa-tile { aspect-ratio: 1.5; }
+  .hx-end { max-width: 52rem; display: grid; grid-template-columns: 1.1fr 1fr; gap: var(--sp-4); align-items: start; }
+  .hx-end > * { grid-column: 1; }
+  .hx-end > .hx-card:not(.hx-way) { grid-column: 2; grid-row: 1 / span 3; }
+}
+
+/* the TV */
+.hxtv { box-sizing: border-box; padding: 3vmin 4vmin; display: flex; flex-direction: column; gap: 2.5vmin; color: var(--text); min-height: 100%; }
+.hxtv .metric { font-family: var(--font-display); }
+.hxtv .hx-eyebrow { font-size: 2.2vmin; }
+.hxtv-top { display: flex; justify-content: space-between; align-items: center; gap: 2vmin; }
+.hxtv-pill { display: inline-flex; align-items: center; gap: .6vmin; min-height: 5vmin; padding: 0 2vmin; border-radius: 999px; background: var(--surface-solid); border: 1px solid var(--border); font-size: 2.4vmin; font-weight: var(--fw-bold); white-space: nowrap; }
+.hxtv-clock { font-size: 7vmin; font-weight: 900; color: var(--accent-ink); line-height: 1; }
+.hxtv-clock.is-low { color: var(--danger-ink); }
+.hxtv-how { text-align: center; font-size: 2.4vmin; color: var(--text-2); margin: 0; }
+.hxtv-stage { display: flex; flex-direction: column; align-items: center; gap: 3vmin; }
+.hxtv .hxa-target { padding: 2vmin 8vmin; border-radius: 3vmin; }
+.hxtv .hxa-target b { font-size: 16vmin; }
+.hxtv-nums { display: flex; gap: 2vmin; flex-wrap: wrap; justify-content: center; }
+.hxtv-nums .hxa-tile { width: 12vmin; aspect-ratio: 1.15; border-radius: 2.4vmin; cursor: default; }
+.hxtv-nums .hxa-tile .metric { font-size: 5.5vmin; }
+.hxtv .hxa-people { grid-template-columns: repeat(auto-fit, minmax(16vmin, 24vmin)); justify-content: center; gap: 2vmin; margin-top: auto; }
+.hxtv .hxa-person { padding: 2vmin 1vmin; border-radius: 2.4vmin; gap: .8vmin; }
+.hxtv .hxa-person .hx-face { width: 8vmin; height: 8vmin; font-size: 4vmin; }
+.hxtv .hxa-person b { font-size: 2.8vmin; }
+.hxtv .hxa-person > span:last-child { font-size: 2.2vmin; }
+.hxtv-end .hx { width: min(100%, 64rem); max-width: none; zoom: 1.2; }
+.hxtv-end { display: flex; justify-content: center; align-items: flex-start; }
+.hxtv-actions { display: flex; gap: 2vmin; justify-content: center; }
+.hxtv-over { display: grid; grid-template-columns: 1fr 1fr; gap: 4vmin; align-items: center; }
+.hxtv-over > .hx { max-width: none; width: 100%; }
+.hxtv-over__podium { min-width: 0; }
+.hxtv-over .hx-end { display: flex; }
+`;
+  // At the end of <body>, where a chunk's moved styles go (lzStyle): after the app's own sheets,
+  // so a tie is ours (a <style> in <head> loses every tie to them, notes/traps.md).
+  (document.body || document.head).appendChild(st);
+}
+</script>

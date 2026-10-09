@@ -848,6 +848,42 @@ const STOP_CATS = load(srcPath('JS_Stop.html'), 'STOP_CATEGORIES');
   console.log(`songs: ${SONGS.length} (${ERAS.map(e => e + ' ' + (byEra[e] || 0)).join(', ')}; from ${Object.keys(bySrc).map(k => k + ' ' + bySrc[k]).join(', ')}, ${SONGS.filter(x => x.also).length} with a second source)`);
 }
 
+// حسبة (Hesba.js): every deal reachable exactly. 400 deals of each level and the dailies of the
+// next year are dealt as the page and the server deal them, and each one's way is replayed by the
+// server's own judge (hesbaReplay) to its target; the numbers and the target keep to the level.
+{
+  const HX = new Function(fs.readFileSync(srcPath('Hesba.js'), 'utf8') + '; return { HESBA_LEVELS, HESBA_BIG, hesbaDeal, hesbaRng, hesbaReplay, hesbaSolve };')();
+  const checkDeal = (d, tag) => {
+    const L = HX.HESBA_LEVELS[d.level];
+    if (!L || d.nums.length !== L.count) return note(`${tag}: ${d.nums.length} numbers`);
+    if (d.target < L.min || d.target > L.max) return note(`${tag}: target ${d.target} outside ${L.min}-${L.max}`);
+    if (d.nums.some(n => !Number.isInteger(n) || n < 1 || (n > 10 && HX.HESBA_BIG.indexOf(n) === -1))) return note(`${tag}: a number that isn't 1-10 or a big one: ${d.nums}`);
+    if (!Array.isArray(d.way) || d.way.length < 2) return note(`${tag}: no way of two steps or more to ${d.target}`);
+    // The way as places in the pool, as a phone sends it, and replayed by the server's judge.
+    const pool = d.nums.slice(), used = {}, steps = [];
+    for (const [a, op, b] of d.way) {
+      const i = pool.findIndex((v, k) => v === a && !used[k]);
+      if (i === -1) return note(`${tag}: its way uses ${a}, which isn't free`);
+      used[i] = true;
+      const j = pool.findIndex((v, k) => v === b && !used[k]);
+      if (j === -1) return note(`${tag}: its way uses ${b}, which isn't free`);
+      used[j] = true;
+      steps.push([i, op, j]);
+      pool.push(HX.hesbaReplay(d.nums, steps) ? HX.hesbaReplay(d.nums, steps).slice(-1)[0] : NaN);
+    }
+    const end = HX.hesbaReplay(d.nums, steps);
+    if (!end || end[end.length - 1] !== d.target) note(`${tag}: its way doesn't replay to ${d.target}`);
+  };
+  let n = 0;
+  ['easy', 'hard'].forEach(lv => { for (let s = 1; s <= 400; s++, n++) checkDeal(HX.hesbaDeal(lv, HX.hesbaRng(s * 2654435761)), `Hesba ${lv} #${s}`); });
+  // The judge refuses what isn't allowed: a number used twice, a fraction, nothing left.
+  if (HX.hesbaReplay([6, 4], [[0, '/', 1]])) note('Hesba: 6 ÷ 4 was allowed');
+  if (HX.hesbaReplay([6, 4], [[0, '-', 0]])) note('Hesba: a number used twice was allowed');
+  if (HX.hesbaReplay([4, 6], [[0, '-', 1]])) note('Hesba: 4 − 6 was allowed');
+  if (HX.hesbaReplay([1, 2, 3], [[0, '+', 1], [0, '+', 2]])) note('Hesba: a used number came back');
+  console.log(`hesba: ${n} deals, every one reachable exactly`);
+}
+
 // The server reorders each question's choices, but only a valid answer index can be followed.
 console.log('\n' + (problems.length ? 'PROBLEMS:' : 'no problems found'));
 problems.forEach(p => console.log('  - ' + p));

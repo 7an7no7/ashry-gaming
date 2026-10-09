@@ -4399,8 +4399,33 @@
       <!-- Numbers (حسبة): games/hesba/ -->
       <div id="view-setup-hesba" class="hidden" data-accent="amber">
         <div class="card">
-          <p class="field__hint" data-i18n="cat_hesba">رقم سري لكل واحد: دوس لحد ما توصله، والأقرب يكسب</p>
-          <button onclick="startHesba()" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+          <div class="segmented mode-switch" style="margin-bottom: var(--sp-4)">
+            <button class="segmented__item is-active" data-mode="device" onclick="setPlayMode('hesba', 'device')" data-i18n="hesba_mode_solo">لوحدك</button>
+            <button class="segmented__item" data-mode="online" onclick="setPlayMode('hesba', 'online')" data-i18n="mode_online">كل واحد بموبايله</button>
+          </div>
+          <div class="mode-online-panel hidden">
+            <p class="card__subtitle" data-i18n="hesba_online_desc">نفس الأرقام ونفس الهدف على كل موبايل: أول واحد يوصل بالظبط ياخد الجولة، ولو محدش وصل الأقرب. التلفزيون بيوري الهدف والوقت.</p>
+            <div class="btn-stack">
+              <button onclick="roomCreateFor('hesba')" class="btn btn--primary btn--lg" data-i18n="room_create">افتح غرفة</button>
+              <button onclick="roomOpenJoin('')" class="btn btn--ghost" data-i18n="join_room_menu">ادخل غرفة</button>
+            </div>
+          </div>
+          <div class="mode-device-panel">
+          <div class="field">
+            <label class="field__label" data-i18n="hesba_level">المستوى</label>
+            <div class="segmented" id="hesba-level" role="group">
+              <button type="button" class="segmented__item is-active" data-value="easy" onclick="setHesbaLevel('easy')"><span data-i18n="hesba_lvl_easy">سهل</span><small class="segmented__sub" data-i18n="hesba_lvl_easy_n">4 أرقام · هدف تحت 100</small></button>
+              <button type="button" class="segmented__item" data-value="hard" onclick="setHesbaLevel('hard')"><span data-i18n="hesba_lvl_hard">صعب</span><small class="segmented__sub" data-i18n="hesba_lvl_hard_n">6 أرقام · هدف لحد 999</small></button>
+            </div>
+            <p class="field__hint" data-i18n="hesba_solo_hint">لغز ورا لغز، كل واحد بدقيقة (والصعب بدقيقة ونص). اللي مش بالظبط بيضيّع قلب من التلاتة.</p>
+            <p class="field__hint" id="hesba-best"></p>
+          </div>
+          <div class="btn-stack">
+            <div id="hesba-daily"></div>
+            <button type="button" id="hesba-continue" class="btn btn--secondary hidden" onclick="continueHesba()" data-i18n="solo_continue">كمّل اللعبة</button>
+          </div>
+          <button onclick="startHesba(false)" class="btn btn--primary btn--lg" data-i18n="start">ابدأ</button>
+        </div>
         </div>
       </div>
       <div id="view-play-hesba" class="hidden" data-accent="amber"><div id="hesba-stage"></div></div>
@@ -4902,6 +4927,7 @@
     <?!= include('JS_Bank'); ?>
     <?!= include('JS_RoomBank'); ?>
     <?!= include('JS_RoomLaser'); ?>
+    <?!= include('JS_HesbaLook'); ?>
     <?!= include('JS_Hesba'); ?>
     <?!= include('JS_RoomHesba'); ?>
     <?!= include('JS_Boggle'); ?>

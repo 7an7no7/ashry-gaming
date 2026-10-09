@@ -1,79 +1,391 @@
 <script>
 /* ============================================================================
-   حسبة — Numbers on one phone (made by tools/new-game.mjs, 2026-10-09)
+   حسبة — Numbers on your own phone: the run of puzzles and the daily
    ----------------------------------------------------------------------------
-   The phone goes round: each player sees their secret number, taps «+1»
-   until they think they have reached it, and passes it on; then the nearest
-   wins. The whole game is in appState.hesba, so a reload comes back to it
-   (VIEW_RESTORE, JS_Core.html). Replace it with the real game.
+   The owner's rules (9 Oct 2026): not a pass-the-phone game; alone it is
+   unlimited with a best score, and a puzzle of the day in تحدي اليوم.
+
+   «لوحدك» (a run): puzzle after puzzle of the level picked (سهل / صعب), each
+   with a minute (90 s on صعب). Exact scores 10 and a point for every 10 s
+   left; 5 off or less 7, 10 off or less 5, more 0 (hesbaPoints, Hesba.js).
+   A puzzle that isn't exact - settled on «خلاص على N» or run out of time -
+   costs one of three hearts; the run ends with the hearts, and its score is
+   the best kept per level (soloRecord).
+   The daily: one hard puzzle from the date (the same on every phone), no
+   clock against you - the time it took is its result, or how far off it was
+   settled. The archive plays a past day's the same way, recording nothing.
+
+   Everything is in appState.hesba, so a reload comes back to the board, the
+   clock's time taken off for the break (soloRegister, timed). The board,
+   its look and its motion are JS_HesbaLook.html; the deal Hesba.js.
    ========================================================================= */
 
-const hesbaOneT = () => TRANSLATIONS[appState.lang] || TRANSLATIONS.ar;
+const HESBA_HEARTS = 3;
+const HESBA_SOLO_SECS = { easy: 60, hard: 90 };
+let hesbaClock = null;
 
 function hesbaState() {
-  if (!appState.hesba) appState.hesba = null;
+  if (!appState.hesba) {
+    appState.hesba = { level: 'easy', phase: 'setup', daily: '', single: false, playLevel: 'easy', nums: [], target: 0, way: [], b: null,
+      startedAt: 0, pausedAt: 0, limit: 0, score: 0, hearts: HESBA_HEARTS, n: 0, exact: 0, last: null, seconds: 0, locked: false };
+  }
   return appState.hesba;
 }
 
-/** Its card on the home, and its setup screen. */
-function setupHesba() { setView('setup-hesba'); }
+/* --- setup ---------------------------------------------------------------------- */
 
-function startHesba() {
-  // Who plays: the players picked on this phone, or «مين بيلعب؟» asks for them first.
-  const names = (appState.activePlayers || []).slice(0, 12);
-  if (names.length < 1) { askPlayers(1, () => startHesba(), { max: 12 }); return; }
-  const players = names.map(name => ({ name, target: 3 + Math.floor(Math.random() * 7), count: 0 }));
-  appState.hesba = { players, at: 0, shown: false, phase: 'play' };
-  saveToLocal();
-  setView('play-hesba');
-  renderHesba();
+function setupHesba() {
+  hesbaStopClock();
+  setView('setup-hesba');
 }
 
-function hesbaShow() { appState.hesba.shown = true; saveToLocal(); renderHesba(); }
-function hesbaOneTap() { haptic('light'); appState.hesba.players[appState.hesba.at].count++; saveToLocal(); renderHesba(); }
-function hesbaNext() {
-  const g = appState.hesba;
-  g.at++;
-  g.shown = false;
-  if (g.at >= g.players.length) g.phase = 'over';
+function paintHesbaSetup() {
+  hxStyle();
+  const s = hesbaState();
+  const t = hxT();
+  document.querySelectorAll('#hesba-level .segmented__item').forEach(el => el.classList.toggle('is-active', el.dataset.value === s.level));
+  const best = soloBest('hesba', s.level);
+  const el = document.getElementById('hesba-best');
+  if (el) el.textContent = best ? `${t.hesba_best || ''}: ${best.score}` : '';
+  const cont = document.getElementById('hesba-continue');
+  if (cont) cont.classList.toggle('hidden', !(s.phase === 'play' || s.phase === 'between'));
+  const daily = document.getElementById('hesba-daily');
+  if (daily) daily.innerHTML = soloDailyButtonHtml('hesba', 'startHesba(true)');
+}
+
+function setHesbaLevel(level) {
+  hesbaState().level = level === 'hard' ? 'hard' : 'easy';
   saveToLocal();
-  renderHesba();
+  paintHesbaSetup();
+}
+
+/* --- a puzzle --------------------------------------------------------------------- */
+
+// A run with a puzzle under way, or a daily begun: a new one asks first (soloConfirmNew).
+const hesbaHasWork = (s) => s.n > 1 || (s.b && s.b.steps.length > 0);
+
+/** Starts a run (or today's daily). */
+function startHesba(daily, sure) {
+  if (!sure && soloConfirmNew('hesba', hesbaHasWork, () => startHesba(daily, true))) return;
+  if (daily && soloDailyResume('hesba')) return;
+  const s = hesbaState();
+  // A run between two puzzles has a score to lose too (soloConfirmNew asks only mid-puzzle).
+  if (!sure && !daily && s.phase === 'between' && s.score > 0) {
+    showConfirmModal(hxT().solo_new_confirm || '', () => startHesba(false, true), { yes: 'cf_restart', tone: 'danger', icon: '🔄' });
+    return;
+  }
+  soloDailySetAside('hesba');
+  soloNewGame('hesba');
+  const level = daily ? 'hard' : s.level;
+  Object.assign(s, {
+    daily: daily ? soloToday() : '', single: !!daily, playLevel: level,
+    score: 0, hearts: HESBA_HEARTS, n: 0, exact: 0, last: null, seconds: 0
+  });
+  delete s.archive;
+  hesbaDealPuzzle(daily ? hesbaRng(soloDaySeed('hesba')) : null);
+  setView('play-hesba');
+  paintHesba();
+  hesbaArmClock();
+}
+
+/** The next puzzle of the run: a new deal, a fresh board, the clock from now. */
+function hesbaDealPuzzle(rnd) {
+  const s = hesbaState();
+  const d = hesbaDeal(s.playLevel, rnd || Math.random);
+  Object.assign(s, {
+    nums: d.nums, target: d.target, way: d.way, b: hxBoardNew(d.nums),
+    startedAt: Date.now(), pausedAt: 0, limit: s.single ? 0 : (HESBA_SOLO_SECS[s.playLevel] || 60),
+    n: s.n + 1, phase: 'play', locked: false, last: null
+  });
+  saveToLocal();
+}
+
+function hesbaNext() {
+  const s = hesbaState();
+  if (s.phase !== 'between') return;
+  hesbaDealPuzzle(null);
+  paintHesba();
+  hesbaArmClock();
   scrollToAction();
 }
 
-function renderHesba() {
-  const el = document.getElementById('hesba-stage');
-  const g = hesbaState();
-  if (!el || !g) return;
-  const t = hesbaOneT();
-  if (g.phase === 'over') {
-    const board = g.players.map(p => ({ name: p.name, score: Math.max(0, 10 - Math.abs(p.target - p.count)), count: p.count, target: p.target }))
-      .sort((a, b) => b.score - a.score);
-    el.innerHTML = `
-      <div class="card" style="text-align:center">
-        <div class="card__title">${escapeHTML(t.hesba_result)}</div>
-        ${board.map(r => `<div class="row"><span>${escapeHTML(r.name)}</span><span class="metric">${ltrFrac(r.count, r.target)}</span></div>`).join('')}
-        <button class="btn btn--primary btn--lg" onclick="startHesba()">${escapeHTML(t.play_again || '')}</button>
-      </div>
-      <div class="play-exit-row"><button type="button" class="btn btn--ghost btn--sm btn--auto play-exit" onclick="playExit(() => setView('setup-hesba'))">${escapeHTML(t.exit || '')}</button></div>`;
-    return;
-  }
-  const p = g.players[g.at];
-  el.innerHTML = `
-    <div class="card" style="text-align:center">
-      <p class="sheet__subtitle">${escapeHTML(t.hesba_turn_of)} <bdi>${escapeHTML(p.name)}</bdi></p>
-      ${g.shown ? `
-        <div class="metric metric--lg">${p.target}</div>
-        <div class="metric metric--md">${p.count}</div>
-        <div class="btn-stack">
-          <button class="btn btn--primary btn--lg" onclick="hesbaOneTap()">${escapeHTML(t.hesba_tap)}</button>
-          <button class="btn btn--secondary" onclick="hesbaNext()">${escapeHTML(t.hesba_done)}</button>
-        </div>` : `<button class="btn btn--primary btn--lg" onclick="hesbaShow()">${escapeHTML(t.hesba_show)}</button>`}
-    </div>
-    <div class="play-exit-row"><button type="button" class="btn btn--ghost btn--sm btn--auto play-exit" onclick="playExit(() => setView('setup-hesba'))">${escapeHTML(t.exit || '')}</button></div>`;
+function continueHesba() {
+  const s = hesbaState();
+  if (!(s.phase === 'play' || s.phase === 'between' || s.phase === 'done') || !s.b) return;
+  setView('play-hesba');
+  restoreHesba();
 }
 
-// A reload: the setup as it was, or the game where it was.
-VIEW_RESTORE['setup-hesba'] = () => {};
-VIEW_RESTORE['play-hesba'] = () => { if (hesbaState()) renderHesba(); else setTimeout(() => setView('setup-hesba'), 50); };
+function restoreHesba() {
+  const s = hesbaState();
+  if (!s.b || !(s.phase === 'play' || s.phase === 'between' || s.phase === 'done')) return false;
+  s.b.sel = null;
+  s.b.op = null;
+  // The target was hit just before the reload: the puzzle closes now.
+  if (s.phase === 'play' && s.locked) { hesbaSettle('exact'); return true; }
+  paintHesba();
+  hesbaArmClock();
+  return true;
+}
+
+/* --- the clock: down from the puzzle's time, or up for the daily ---------------------- */
+
+/** Seconds since the puzzle started, the breaks taken off (soloPause / soloResume move startedAt). */
+function hesbaElapsed(s) {
+  return Math.max(0, ((s.pausedAt || Date.now()) - s.startedAt) / 1000);
+}
+
+function hesbaClockText(s) {
+  return soloTime(s.limit ? Math.max(0, Math.ceil(s.limit - hesbaElapsed(s))) : hesbaElapsed(s));
+}
+
+function hesbaStopClock() {
+  if (hesbaClock) hesbaClock.stop();
+  hesbaClock = null;
+}
+
+function hesbaArmClock() {
+  hesbaStopClock();
+  const s = hesbaState();
+  if (s.phase !== 'play') return;
+  const paint = () => {
+    const st = hesbaState();
+    const el = document.getElementById('hx-clock');
+    if (el) {
+      el.textContent = hesbaClockText(st);
+      el.classList.toggle('is-low', !!st.limit && st.limit - hesbaElapsed(st) <= 10);
+    }
+    if (st.phase === 'play' && st.limit && !st.pausedAt && !st.locked && hesbaElapsed(st) >= st.limit && appState.currentView === 'play-hesba') hesbaSettle('time');
+  };
+  hesbaClock = createClock({ countUp: true, onTick: paint });
+  paint();
+}
+
+if (typeof onLeaveScreen === 'function') {
+  onLeaveScreen((from) => { if (from === 'play-hesba') hesbaStopClock(); });
+}
+
+/* --- taps -------------------------------------------------------------------------- */
+
+const hesbaStage = () => document.getElementById('hesba-stage');
+
+function hesbaTapTile(k) {
+  const s = hesbaState();
+  if (s.phase !== 'play' || s.locked) return;
+  const stage = hesbaStage();
+  const before = hxRects(stage);
+  const pool = hxPool(s.b);
+  const fromVal = s.b.slots[k] === null ? 0 : pool[s.b.slots[k]];
+  const r = hxTap(s.b, k);
+  if (r === 'bad') {
+    haptic('error');
+    showToast(hxT().hesba_bad_step || '', 'error');
+    hxShake(stage && stage.querySelector(`.hxa-tile[data-slot="${k}"]`));
+    return;
+  }
+  if (!r) return;
+  if (r === 'sel') { paintHesba(); return; }
+  const v = hxPool(s.b)[r.merged];
+  haptic('light');
+  if (v === s.target) {
+    s.locked = true;
+    s.seconds = Math.round(hesbaElapsed(s));
+  }
+  saveToLocal();
+  paintHesba({ fresh: true });
+  hxMergeFx(stage, before, r, { from: fromVal });
+  if (v === s.target) {
+    const tile = stage.querySelector(`.hxa-tile[data-slot="${r.si}"]`);
+    hxHitFx(stage, tile ? tile.getBoundingClientRect() : null);
+    playSound('success');
+    haptic('double');
+    soloLater('hesba', motionOff() ? 300 : 1100, () => hesbaSettle('exact'));
+  }
+}
+
+function hesbaTapOp(op) {
+  const s = hesbaState();
+  if (s.phase !== 'play' || s.locked) return;
+  if (!hxOp(s.b, op)) { showToast(hxT().hesba_trail_empty || '', 'info'); return; }
+  paintHesba();
+}
+
+function hesbaUndo() {
+  const s = hesbaState();
+  if (s.phase !== 'play' || s.locked || !hxUndo(s.b)) return;
+  saveToLocal();
+  paintHesba();
+}
+
+function hesbaReset() {
+  const s = hesbaState();
+  if (s.phase !== 'play' || s.locked || !s.b.steps.length) return;
+  hxReset(s.b);
+  saveToLocal();
+  paintHesba();
+}
+
+/* --- a puzzle ends -------------------------------------------------------------------- */
+
+/**
+ * The puzzle closes on the closest number made: `kind` 'exact' (hit), 'give' («خلاص على N»)
+ * or 'time' (the run's clock ran out). A run scores it and may lose a heart; the daily ends.
+ */
+function hesbaSettle(kind) {
+  const s = hesbaState();
+  if (s.phase !== 'play') return;
+  const t = hxT();
+  const best = hxBest(s.b, s.target);
+  const off = best.d;
+  const seconds = s.locked ? s.seconds : Math.round(hesbaElapsed(s));
+  const own = off === 0 ? hxWayTo(s.b, best.at) : null;
+  const left = s.limit ? Math.max(0, Math.floor(s.limit - seconds)) : 0;
+  const pts = s.single ? 0 : (off === 0 ? 10 + Math.floor(left / 10) : hesbaPoints(off));
+  s.locked = false;
+  s.seconds = seconds;
+  s.last = { kind: off === 0 ? 'exact' : kind, off, v: best.v, pts, own, heart: off > 0 && !s.single };
+  hesbaStopClock();
+  if (s.single) {
+    s.phase = 'done';
+    saveToLocal();
+    paintHesba({ end: true });
+    hesbaDailyResult();
+    return;
+  }
+  s.score += pts;
+  if (off === 0) s.exact += 1; else s.hearts = Math.max(0, s.hearts - 1);
+  s.phase = s.hearts > 0 ? 'between' : 'done';
+  saveToLocal();
+  if (off > 0) { playSound('miss'); haptic('error'); }
+  paintHesba({ end: true });
+  scrollToAction();
+  if (s.phase === 'done') hesbaRunResult();
+}
+
+/** The run is over: the score, a new best per level, the sheet. */
+function hesbaRunResult(quiet) {
+  const s = hesbaState();
+  const t = hxT();
+  const level = s.playLevel;
+  const rec = quiet || s.archive ? { record: false, prev: soloBest('hesba', level) }
+    : soloRecord('hesba', level, { score: s.score, n: s.n }, (a, b) => a.score > b.score);
+  const lines = [escapeHTML(hxFill(t.hesba_solved_n, { n: s.exact, m: s.n }))];
+  if (rec.prev && !rec.record) lines.push(`${escapeHTML(t.hesba_best || '')}: ${rec.prev.score}`);
+  if (!rec.record && !rec.prev) lines.push('');
+  soloLater('hesba', motionOff() ? 0 : 1400, () => soloResult({
+    icon: iconHtml('art:hesba'), shareIcon: '➗', title: rec.record ? (t.solo_new_best || '') : (t.hesba_run_over || ''),
+    value: s.score, valueLabel: t.hesba_score || '', lines: lines.filter(Boolean), win: s.score > 0, record: rec.record,
+    again: () => startHesba(false, true), exit: setupHesba
+  }));
+}
+
+/** The daily is over: its result (once), the share text, the sheet. */
+function hesbaDailyResult() {
+  const s = hesbaState();
+  const t = hxT();
+  const L = s.last || {};
+  const exact = L.off === 0;
+  let share = '';
+  if (s.daily) {
+    soloMarkDaily('hesba', { off: L.off, v: L.v, seconds: s.seconds }, s.daily);
+    share = `${soloShareHeader(t, s.daily)}\n➗ ${t.setup_hesba || ''} ${exact ? '✅ ' + soloTime(s.seconds) : '🎯 ' + hxFill(t.hesba_daily_off, { d: L.off })}`;
+  }
+  soloLater('hesba', motionOff() ? 0 : 1600, () => soloResult({
+    icon: iconHtml('art:hesba'), shareIcon: '➗', title: exact ? (t.hesba_exact_bang || '') : hxFill(t.hesba_daily_off, { d: L.off }),
+    valueText: soloTime(s.seconds), valueLabel: t.hesba_time || '',
+    lines: [`${escapeHTML(t.hesba_target || '')}: <b class="metric">${s.target}</b>${exact ? '' : ` · ${escapeHTML(t.hesba_closest || '')}: <b class="metric">${L.v}</b>`}`],
+    win: exact, share: share, again: null, exit: setupHesba
+  }));
+}
+
+/** The steps that made the pool's place `at` (and nothing else the board did), by value. */
+function hxWayTo(b, at) {
+  const pool = hxPool(b);
+  const n = b.nums.length;
+  const need = new Set();
+  const walk = (p) => { if (p < n || need.has(p - n)) return; need.add(p - n); walk(b.steps[p - n][0]); walk(b.steps[p - n][2]); };
+  walk(at);
+  return [...need].sort((x, y) => x - y).map(k => [pool[b.steps[k][0]], b.steps[k][1], pool[b.steps[k][2]], pool[n + k]]);
+}
+
+/* --- drawing ------------------------------------------------------------------------ */
+
+const hesbaHearts = (s) => '❤️'.repeat(s.hearts) + '🤍'.repeat(Math.max(0, HESBA_HEARTS - s.hearts));
+
+function paintHesba(fx) {
+  hxStyle();
+  const s = hesbaState();
+  const el = hesbaStage();
+  if (!el || !s.b) return;
+  const t = hxT();
+  const o = fx || {};
+  if (s.phase !== 'play') { el.innerHTML = hesbaEndHtml(s, t); return; }
+  const best = hxBest(s.b, s.target);
+  const hit = s.locked;
+  const strip = s.single
+    ? `<div class="hx-strip"><span class="hx-strip__txt">📅 ${s.archive ? escapeHTML(t.daily_archive_badge || '') + ' <bdi dir="ltr">' + escapeHTML(s.archive) + '</bdi>' : escapeHTML(t.hesba_daily || '')}</span><span class="hx-strip__score">${escapeHTML(t[s.playLevel === 'hard' ? 'hesba_lvl_hard' : 'hesba_lvl_easy'] || '')}</span></div>`
+    : `<div class="hx-strip"><span class="hx-strip__hearts" aria-label="${escapeHTML(t.hesba_hearts || '')}">${hesbaHearts(s)}</span><span class="hx-strip__txt">${escapeHTML(t.hesba_puzzle || '')} <b class="metric">${s.n}</b></span><span class="hx-strip__score">${escapeHTML(t.hesba_score || '')} <b class="metric">${s.score}</b></span></div>`;
+  const primary = hit
+    ? `<button type="button" class="btn btn--success" disabled>✓ ${escapeHTML(t.hesba_exact_btn || '')}</button>`
+    : `<button type="button" class="btn btn--primary" onclick="hesbaSettle('give')">${escapeHTML(t.hesba_settle || '')} <b class="metric">${best.v}</b></button>`;
+  el.innerHTML = `
+    <div class="hx hxa">
+      <div class="hxa-top">
+        ${hxTargetHtml(s.target, hit)}
+        <div class="hxa-meta">${hxMetaHtml(t.hesba_time || '', hesbaClockText(s), 'hx-clock')}${hxMetaHtml(t.hesba_closest || '', best.v, 'hx-best')}</div>
+      </div>
+      ${hxTilesHtml(s.b, { tap: 'hesbaTapTile', off: hit })}
+      ${hxOpsHtml(s.b, { op: 'hesbaTapOp', off: hit })}
+      ${hxTrailHtml(s.b, o.fresh)}
+      ${strip}
+      <div class="hx-actions">
+        <button type="button" class="btn btn--neutral hx-undo" onclick="hesbaUndo()" aria-label="${escapeHTML(t.hesba_undo || '')}" title="${escapeHTML(t.hesba_undo || '')}" ${s.b.steps.length && !hit ? '' : 'disabled'}>↶</button>
+        <button type="button" class="btn btn--ghost" onclick="hesbaReset()" ${s.b.steps.length && !hit ? '' : 'disabled'}>${escapeHTML(t.hesba_reset || '')}</button>
+        ${primary}
+      </div>
+    </div>
+    <div class="play-exit-row"><button type="button" class="btn btn--ghost btn--sm btn--auto play-exit" onclick="playExit(setupHesba)">${escapeHTML(t.exit || '')}</button></div>`;
+}
+
+/** A puzzle's end in a run (between two puzzles, or the last), or the daily's. */
+function hesbaEndHtml(s, t) {
+  const L = s.last || {};
+  const exact = L.off === 0;
+  const banner = exact ? hxFill(t.hesba_puzzle_exact, { p: L.pts })
+    : L.kind === 'time' ? t.hesba_time_up : hxFill(t.hesba_gave_up, { v: L.v });
+  const sub = s.single
+    ? (exact ? hxFill(t.hesba_exact_in, { t: soloTime(s.seconds) }) : hxFill(t.hesba_near_line, { v: L.v, d: L.off }))
+    : (exact ? `${escapeHTML(t.hesba_target || '')} ${s.target}` : `${hxFill(t.hesba_near_line, { v: L.v, d: L.off })} · +${L.pts}${L.heart ? ' · ' + t.hesba_heart_lost : ''}`);
+  const cls = exact ? '' : (L.pts > 0 || s.single ? ' is-near' : ' is-none');
+  const way = exact && L.own && L.own.length ? L.own : s.way;
+  const wayTitle = exact && L.own && L.own.length ? t.hesba_your_way : t.hesba_one_way;
+  const key = ['solo', s.daily || s.archive || '', s.n, s.target].join('|');
+  const stats = s.single ? '' : `
+    <div class="hx-card">
+      <div class="hx-card__title">${escapeHTML(s.phase === 'done' ? t.hesba_run_over : (t.hesba_puzzle || '') + ' ' + s.n)}</div>
+      <div class="hx-board__row is-top"><b>${escapeHTML(t.hesba_score || '')}</b><span class="hx-board__s metric" data-hx-count="${s.score}">${s.score}</span></div>
+      <div class="hx-board__row"><b>${escapeHTML(t.hesba_hearts || '')}</b><span class="hx-board__note">${hesbaHearts(s)}</span></div>
+      <div class="hx-board__row"><b>${escapeHTML(hxFill(t.hesba_solved_n, { n: s.exact, m: s.n }))}</b></div>
+    </div>`;
+  const next = s.phase === 'between'
+    ? `<button type="button" class="btn btn--primary btn--lg" onclick="hesbaNext()">${escapeHTML(t.hesba_next_puzzle || '')}</button>`
+    : `<button type="button" class="btn btn--primary btn--lg" onclick="soloLookResult()">🏁 ${escapeHTML(t.hesba_see_result || '')}</button>`;
+  return `
+    <div class="hx hxa hx-end">
+      <div class="hxa-win${cls}">
+        <span class="hxa-win__big" aria-hidden="true">${exact ? '🎯' : L.kind === 'time' ? '⏱️' : '🙂'}</span>
+        <div><span class="hx-eyebrow">${escapeHTML(s.single ? (t.hesba_daily || '') : (t.hesba_puzzle || '') + ' ' + s.n)}</span><b class="hxa-win__name">${escapeHTML(banner || '')}</b><span class="hxa-win__sub">${escapeHTML(sub || '')}</span></div>
+      </div>
+      <div class="hx-card hx-way"><div class="hx-card__title">${escapeHTML(wayTitle || '')} · <span class="metric">${s.target}</span></div>${hxLadderHtml(way, key)}</div>
+      ${stats}
+      <div class="btn-stack">${next}
+        <button type="button" class="btn btn--ghost" onclick="${s.phase === 'between' ? 'playExit(setupHesba)' : 'setupHesba()'}">${escapeHTML(t.exit || '')}</button>
+      </div>
+    </div>`;
+}
+
+soloRegister('hesba', {
+  setup: 'setup-hesba', play: 'play-hesba', paintSetup: paintHesbaSetup, restore: restoreHesba,
+  state: hesbaState, resume: continueHesba, repaint: () => paintHesba(), timed: true, prefs: ['level']
+});
 </script>

@@ -221,6 +221,8 @@ const ORACLE_QUESTIONS = [
   { id: 'wet',     kinds: 'tj', ar: 'له علاقة بالمية أو البحر؟', en: 'To do with water or the sea?' },
   { id: 'container', kinds: 't', ar: 'بنحط فيه حاجات؟', en: 'Do we put things in it?' },
   { id: 'street',  kinds: 't', ar: 'بتلاقيه في الشارع؟', en: 'Found in the street?' },
+  { id: 'peel',    kinds: 't', ar: 'بنقشّره قبل ما ناكله؟', en: 'Do we peel it before eating it?' },
+  { id: 'meat_t',  kinds: 't', ar: 'فيه لحمة أو فراخ؟', en: 'Has meat or chicken in it?' },
 
   /* ---------- jobs ---------- */
   { id: 'uniform', kinds: 'j', ar: 'بيلبس يونيفورم أو زي معيّن؟', en: 'Wears a uniform?' },
@@ -246,4 +248,17 @@ const ORACLE_QUESTIONS = [
   { id: 'money_j', kinds: 'j', ar: 'شغله في الفلوس والحسابات؟', en: 'Works with money and accounts?' },
   { id: 'kids_j',  kinds: 'j', ar: 'بيتعامل مع أطفال كتير؟', en: 'Works with a lot of children?' },
   { id: 'night_j', kinds: 'j', ar: 'ممكن يشتغل طول الليل؟', en: 'Can work all night?' },
+  { id: 'shop_j',  kinds: 'j', ar: 'بيشتغل في محل أو ورشة؟', en: 'Works in a shop or a workshop?' },
+  { id: 'house_j', kinds: 'j', ar: 'بيجيلك البيت عشان يشتغل؟', en: 'Comes to your home to work?' },
+  { id: 'stage_j', kinds: 'j', ar: 'بيظهر في التلفزيون أو على المسرح؟', en: 'Appears on TV or on stage?' },
+  { id: 'sport_j', kinds: 'j', ar: 'شغله في الرياضة؟', en: 'Works in sport?' },
+  { id: 'army_j',  kinds: 'j', ar: 'من الجيش أو الشرطة أو الأمن؟', en: 'In the army, the police or security?' },
+  { id: 'words_j', kinds: 'j', ar: 'شغله في الكتابة أو الأخبار أو اللغات؟', en: 'Works with writing, news or languages?' },
+  { id: 'clothes_j', kinds: 'j', ar: 'شغله في اللبس أو القماش أو الجزم؟', en: 'Works with clothes, cloth or shoes?' },
+  { id: 'travel_j', kinds: 'j', ar: 'شغله بيسفّره أو بينقل الناس من مكان لمكان؟', en: 'Travels, or takes people from place to place?' },
+  { id: 'plants_j', kinds: 'j', ar: 'شغله في الزرع أو الورد؟', en: 'Works with plants or flowers?' },
+  { id: 'clean_j', kinds: 'j', ar: 'شغله في النضافة؟', en: 'Works at cleaning?' },
+  { id: 'cart_j',  kinds: 'j', ar: 'بيبيع على عربية في الشارع؟', en: 'Sells from a cart in the street?' },
+  { id: 'lab_j',   kinds: 'j', ar: 'بيشتغل في معمل؟', en: 'Works in a laboratory?' },
+  { id: 'music_j', kinds: 'j', ar: 'شغله في المزيكا أو الغُنا؟', en: 'Works with music or singing?' },
 ];
